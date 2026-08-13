@@ -513,6 +513,13 @@ function renderCalendarBody() {
   var today = todayStr();
   var tsd = state.settings.trackingStartDate;
 
+  var entryDatesAll = Object.keys(state.entries).sort();
+  var cumAnchor = tsd || (entryDatesAll.length ? entryDatesAll[0] : today);
+  var csAll = periodStats(cumAnchor, today);
+  var accAll = 0;
+  var balMap = {};
+  csAll.rows.forEach(function(r){ accAll = round2(accAll + (r.allowance-r.spent)); balMap[r.date] = accAll; });
+
   var h = "";
   h += '<div class="card" style="padding:14px; margin-bottom:12px;">';
   h += '<div class="row between" style="margin-bottom:12px;">';
@@ -550,9 +557,14 @@ function renderCalendarBody() {
     else { bg = "var(--rust-wash)"; fg = "var(--rust)"; }
 
     var border = isToday ? "2px solid var(--accent)" : (isSelected ? "2px solid var(--text)" : "1px solid transparent");
-    h += '<button data-action="cal-select" data-date="'+ds+'" style="aspect-ratio:1; border-radius:8px; border:'+border+'; background:'+bg+'; color:'+fg+'; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2px; min-width:0;">';
-    h += '<span style="font-size:11px;">'+cur.getDate()+'</span>';
-    if (logged) h += '<span class="mono" style="font-size:8px;">'+fmt(spent,0)+'</span>';
+    h += '<button data-action="cal-select" data-date="'+ds+'" style="min-height:46px; border-radius:8px; border:'+border+'; background:'+bg+'; color:'+fg+'; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:3px 1px; min-width:0; gap:1px;">';
+    h += '<span style="font-size:10px;">'+cur.getDate()+'</span>';
+    if (logged) h += '<span class="mono" style="font-size:7px; line-height:1;">'+fmt(spent,0)+'</span>';
+    var cumForDay = balMap[ds];
+    if (cumForDay !== undefined) {
+      var cumClr = cumForDay >= 0 ? "var(--accent)" : "var(--rust)";
+      h += '<span class="mono" style="font-size:7px; line-height:1; color:'+cumClr+';">'+(cumForDay>=0?"+":"−")+fmt(Math.abs(cumForDay),0)+'</span>';
+    }
     h += '</button>';
     cur = addDays(cur,1);
   }
