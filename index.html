@@ -274,7 +274,6 @@ function render() {
   html += '<div class="row between" style="align-items:flex-start; margin-bottom:16px;">';
   html += '<div><div class="display" style="font-size:22px;">The Ledger</div><div class="muted" style="font-size:12px; margin-top:2px;">'+fmt(da,2)+' AED a day · weeks run Mon–Sun</div></div>';
   html += '<div class="row gap2">';
-  html += '<button class="icon-btn" data-action="open-backup" aria-label="Backup and restore">'+ICONS.save+'</button>';
   html += '<button class="icon-btn" data-action="toggle-theme" aria-label="Toggle theme">'+(state.settings.theme==="dark"?ICONS.sun:ICONS.moon)+'</button>';
   html += '<button class="icon-btn" data-action="open-settings" aria-label="Settings">'+ICONS.settings+'</button>';
   html += '</div></div>';
@@ -395,7 +394,7 @@ function render() {
   // modals
   if (state.showSettings) {
     html += '<div class="modal-backdrop" data-action="close-settings">';
-    html += '<div class="modal-card" onclick="event.stopPropagation()">';
+    html += '<div class="modal-card" data-action="noop">';
     html += '<div class="row between" style="margin-bottom:16px;"><div class="display" style="font-size:18px;">Settings</div><button data-action="close-settings" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div>';
     html += '<label class="eyebrow">Weekly budget target</label>';
     html += '<div style="position:relative; margin:6px 0 4px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
@@ -408,7 +407,7 @@ function render() {
   if (state.showBackup) {
     var backupText = JSON.stringify({settings:state.settings, entries:state.entries}, null, 2);
     html += '<div class="modal-backdrop" data-action="close-backup">';
-    html += '<div class="modal-card" onclick="event.stopPropagation()">';
+    html += '<div class="modal-card" data-action="noop">';
     html += '<div class="row between" style="margin-bottom:12px;"><div class="display" style="font-size:18px;">Backup & restore</div><button data-action="close-backup" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div>';
     html += '<div class="muted" style="font-size:12px; margin-bottom:8px;">Use this to move data to another device, or as a safety net.</div>';
     html += '<textarea readonly class="field mono" style="height:120px; font-size:11px; margin-bottom:8px; resize:none;" onfocus="this.select()">'+esc(backupText)+'</textarea>';
@@ -422,7 +421,7 @@ function render() {
 
   if (state.showResetConfirm) {
     html += '<div class="modal-backdrop" data-action="close-reset" style="padding:0 24px;">';
-    html += '<div class="modal-card" style="border-radius:20px;" onclick="event.stopPropagation()">';
+    html += '<div class="modal-card" style="border-radius:20px;" data-action="noop">';
     html += '<div class="display" style="font-size:18px; margin-bottom:8px;">Clear all entries?</div>';
     html += '<div class="muted" style="font-size:14px; margin-bottom:16px;">Every logged transaction is removed. Your weekly target and theme stay. This can\'t be undone.</div>';
     html += '<div class="row gap2">';
