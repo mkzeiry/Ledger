@@ -20,7 +20,7 @@
   * { box-sizing: border-box; }
   html, body { margin:0; padding:0; overscroll-behavior-y: none; background: var(--bg); }
   body { font-family: var(--f-ui); color: var(--text); -webkit-tap-highlight-color: transparent; }
-  .wrap { max-width: 420px; margin: 0 auto; padding: 24px 16px 64px; }
+  .wrap { max-width: 420px; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 20px) 16px calc(env(safe-area-inset-bottom, 0px) + 64px); }
   .row { display: flex; align-items: center; }
   .between { justify-content: space-between; }
   .col { display: flex; flex-direction: column; }
@@ -94,12 +94,22 @@ function getPeriodBounds(viewType, off, weeklyTarget, dailyAllowanceVal) {
     return { startStr: toStr(start), endStr: toStr(end), days: 7, target: weeklyTarget, title: title,
       sub: off===0 ? "This week" : off===-1 ? "Last week" : (Math.abs(off)+" weeks ago") };
   }
-  var mstart = addMonths(startOfMonth(now), off);
-  var mend = endOfMonth(mstart);
-  var dim = daysInMonth(mstart);
-  return { startStr: toStr(mstart), endStr: toStr(mend), days: dim, target: dailyAllowanceVal*dim,
-    title: mstart.toLocaleDateString("en-GB",{month:"long",year:"numeric"}),
-    sub: off===0 ? "This month" : off===-1 ? "Last month" : (Math.abs(off)+" months ago") };
+  if (viewType === "month") {
+    var mstart = addMonths(startOfMonth(now), off);
+    var mend = endOfMonth(mstart);
+    var dim = daysInMonth(mstart);
+    return { startStr: toStr(mstart), endStr: toStr(mend), days: dim, target: dailyAllowanceVal*dim,
+      title: mstart.toLocaleDateString("en-GB",{month:"long",year:"numeric"}),
+      sub: off===0 ? "This month" : off===-1 ? "Last month" : (Math.abs(off)+" months ago") };
+  }
+  // year
+  var y = now.getFullYear() + off;
+  var ystart = new Date(y,0,1);
+  var yend = new Date(y,11,31);
+  var ydays = Math.round((yend-ystart)/86400000)+1;
+  return { startStr: toStr(ystart), endStr: toStr(yend), days: ydays, target: dailyAllowanceVal*ydays,
+    title: String(y),
+    sub: off===0 ? "This year" : off===-1 ? "Last year" : (Math.abs(off)+" years ago") };
 }
 
 function migrateEntries(raw, fallbackAllowance) {
@@ -162,13 +172,7 @@ function persistAll(nextSettings, nextEntries, label) {
 /* ---------------- period math ---------------- */
 function periodStats(startStr, endStrRaw) {
   var endStr = minStr(endStrRaw, todayStr());
-  var sortedDates = Object.keys(state.entries).sort();
-  var opening = 0;
-  for (var i=0;i<sortedDates.length;i++) {
-    var d = sortedDates[i];
-    if (d < startStr) opening += state.entries[d].allowance - sumSpent(state.entries[d]);
-  }
-  opening = round2(opening);
+  var opening = 0; // each period is self-contained: always starts fresh at 0
   var rows = [];
   if (startStr <= endStr) {
     var cur = parseD(startStr);
@@ -290,7 +294,7 @@ function render() {
 
   // view toggle
   html += '<div class="row card" style="padding:4px; margin-bottom:12px;">';
-  ["week","month"].forEach(function(v){
+  ["week","month","year"].forEach(function(v){
     var active = state.view===v;
     html += '<button data-action="switch-view" data-view="'+v+'" style="flex:1; border:none; border-radius:10px; padding:6px 0; font-size:14px; text-transform:capitalize; background:'+(active?"var(--accent)":"transparent")+'; color:'+(active?"var(--accent-ink)":"var(--text-muted)")+'; font-weight:'+(active?600:400)+';">'+v+'</button>';
   });
@@ -316,11 +320,22 @@ function render() {
   html += '<div class="muted" style="font-size:11px; margin-top:2px; font-style:italic;">Unlogged days assume 0 spent — the total drops once you log real spending.</div>';
   html += '</div>';
 
+  var avgSpentPerDay = displayed.elapsedDays>0 ? (displayed.spent/displayed.elapsedDays) : 0;
+  var remainingBudget = period.target - displayed.spent;
+  var allowedText, allowedTone;
+  if (daysLeft > 0) {
+    var perDayLeft = remainingBudget/daysLeft;
+    allowedText = fmt(perDayLeft,2)+" AED";
+    allowedTone = perDayLeft < 0 ? "var(--rust)" : "var(--text)";
+  } else {
+    allowedText = isClosed ? "—" : "Last day";
+    allowedTone = "var(--text-muted)";
+  }
   html += '<div class="stat-grid hairline-top" style="padding:12px 20px 16px;">';
   html += statBlock("Spent so far", fmt(displayed.spent,2)+" AED", displayed.spent>elapsedTarget?"var(--rust)":"var(--text)");
-  html += statBlock((state.view==="week"?"Weekly":"Monthly")+" target", fmt(period.target,0)+" AED", "var(--text)");
-  html += statBlock("Opening balance", (displayed.opening>=0?"+":"−")+fmt(Math.abs(displayed.opening),2), "var(--text)");
-  html += statBlock(isClosed?"Closing balance":"Balance now", (displayed.closing>=0?"+":"−")+fmt(Math.abs(displayed.closing),2), displayed.closing>=0?"var(--accent)":"var(--rust)");
+  html += statBlock((state.view==="week"?"Weekly":state.view==="month"?"Monthly":"Yearly")+" target", fmt(period.target,0)+" AED", "var(--text)");
+  html += statBlock("Avg daily spend", fmt(avgSpentPerDay,2)+" AED", avgSpentPerDay>dailyAllowance()?"var(--rust)":"var(--text)");
+  html += statBlock("Daily budget left ("+daysLeft+"d)", allowedText, allowedTone);
   html += '</div>';
 
   if (chartData.length >= 2) {
