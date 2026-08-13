@@ -463,7 +463,8 @@ function renderTransactionsBody() {
 
   var dates = entryDates.slice().reverse();
   var h = '<div class="card" style="overflow:hidden; margin-bottom:16px;">';
-  h += '<div class="eyebrow" style="padding:16px 16px 8px;">All transactions</div>';
+  h += '<div class="eyebrow" style="padding:16px 16px 4px;">All transactions</div>';
+  h += '<div class="muted" style="font-size:11px; padding:0 16px 12px;">Balance is a running total — days between entries you didn\'t log still count, assumed fully saved.</div>';
   if (dates.length === 0) {
     h += '<div class="muted" style="padding:0 16px 20px; font-size:14px;">Nothing logged yet.</div>';
   } else {
@@ -485,6 +486,13 @@ function renderTransactionsBody() {
         h += '<button data-action="delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button></div>';
       });
       h += '</div></div>';
+      if (i < dates.length - 1) {
+        var gapDays = daysBetween(dates[i+1], date) - 1;
+        if (gapDays > 0) {
+          var gapAmount = round2(gapDays * dailyAllowance());
+          h += '<div style="padding:6px 16px; text-align:center; font-size:10px; color:var(--text-muted); background:var(--raised); border-top:1px solid var(--hairline); border-bottom:1px solid var(--hairline);">'+gapDays+' unlogged day'+(gapDays===1?"":"s")+' in between · assumed +'+fmt(gapAmount,0)+' AED saved</div>';
+        }
+      }
     });
   }
   h += '</div>';
