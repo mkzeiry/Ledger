@@ -89,20 +89,27 @@ function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ re
 
 function getPeriodBounds(viewType, off, weeklyTarget, dailyAllowanceVal) {
   var now = new Date();
+  var tsd = state.settings.trackingStartDate;
+  function clippedTarget(startStr, endStr, fullTarget) {
+    if (!tsd || tsd <= startStr) return fullTarget; // tracking already covers the whole period
+    if (tsd > endStr) return 0; // tracking hasn't started within this period at all
+    var trackedDays = daysBetween(tsd, endStr) + 1;
+    return dailyAllowanceVal * trackedDays;
+  }
   if (viewType === "week") {
     var start = addDays(startOfWeek(now), off*7);
     var end = addDays(start, 6);
     var title = (start.getMonth()===end.getMonth())
       ? (start.getDate()+"–"+end.getDate()+" "+end.toLocaleDateString("en-GB",{month:"long",year:"numeric"}))
       : (shortLabel(toStr(start))+" – "+shortLabel(toStr(end)));
-    return { startStr: toStr(start), endStr: toStr(end), days: 7, target: weeklyTarget, title: title,
+    return { startStr: toStr(start), endStr: toStr(end), days: 7, target: clippedTarget(toStr(start), toStr(end), weeklyTarget), title: title,
       sub: off===0 ? "This week" : off===-1 ? "Last week" : (Math.abs(off)+" weeks ago") };
   }
   if (viewType === "month") {
     var mstart = addMonths(startOfMonth(now), off);
     var mend = endOfMonth(mstart);
     var dim = daysInMonth(mstart);
-    return { startStr: toStr(mstart), endStr: toStr(mend), days: dim, target: dailyAllowanceVal*dim,
+    return { startStr: toStr(mstart), endStr: toStr(mend), days: dim, target: clippedTarget(toStr(mstart), toStr(mend), dailyAllowanceVal*dim),
       title: mstart.toLocaleDateString("en-GB",{month:"long",year:"numeric"}),
       sub: off===0 ? "This month" : off===-1 ? "Last month" : (Math.abs(off)+" months ago") };
   }
@@ -111,7 +118,7 @@ function getPeriodBounds(viewType, off, weeklyTarget, dailyAllowanceVal) {
   var ystart = new Date(y,0,1);
   var yend = new Date(y,11,31);
   var ydays = Math.round((yend-ystart)/86400000)+1;
-  return { startStr: toStr(ystart), endStr: toStr(yend), days: ydays, target: dailyAllowanceVal*ydays,
+  return { startStr: toStr(ystart), endStr: toStr(yend), days: ydays, target: clippedTarget(toStr(ystart), toStr(yend), dailyAllowanceVal*ydays),
     title: String(y),
     sub: off===0 ? "This year" : off===-1 ? "Last year" : (Math.abs(off)+" years ago") };
 }
