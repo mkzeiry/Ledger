@@ -23,7 +23,7 @@
   * { box-sizing: border-box; }
   html, body { margin:0; padding:0; overscroll-behavior-y: none; background: var(--bg); }
   body { font-family: var(--f-ui); color: var(--text); -webkit-tap-highlight-color: transparent; }
-  .wrap { max-width: 420px; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 20px) 16px calc(env(safe-area-inset-bottom, 0px) + 64px); }
+  .wrap { max-width: 420px; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 20px) 16px calc(env(safe-area-inset-bottom, 0px) + 84px); }
   .row { display: flex; align-items: center; }
   .between { justify-content: space-between; }
   .col { display: flex; flex-direction: column; }
@@ -146,6 +146,9 @@ var state = {
   showBackup: false,
   showResetConfirm: false,
   restoreError: null,
+  page: "home",
+  calendarOffset: 0,
+  calendarSelectedDate: null,
 };
 
 function dailyAllowance(){ return state.settings.weeklyTarget/7; }
@@ -244,6 +247,9 @@ var ICONS = {
   save: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
   alert: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
   rotate: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>',
+  home: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+  list: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+  calendar: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
 };
 
 /* ---------------- rendering ---------------- */
@@ -266,23 +272,6 @@ function render() {
   }
 
   var da = dailyAllowance();
-  var period = getPeriodBounds(state.view, state.offset, state.settings.weeklyTarget, da);
-  var currentPeriod = getPeriodBounds(state.view, 0, state.settings.weeklyTarget, da);
-  var displayed = periodStats(period.startStr, period.endStr);
-  var live = periodStats(currentPeriod.startStr, currentPeriod.endStr);
-
-  var isClosed = period.endStr < todayStr();
-  var isCurrent = state.offset === 0;
-  var daysLeft = Math.max(0, period.days - displayed.calendarElapsedDays);
-  var elapsedTarget = displayed.elapsedDays * da;
-
-  var acc = displayed.opening;
-  var rowsWithBalance = displayed.rows.map(function(r){ acc = round2(acc + (r.allowance-r.spent)); return Object.assign({},r,{balance:acc}); }).slice().reverse();
-  var chartData = rowsWithBalance.length ? rowsWithBalance.slice().reverse().map(function(r){ return {label:shortLabel(r.date), balance:r.balance}; }) : [];
-
-  var netColor = displayed.net >= 0 ? "var(--accent)" : "var(--rust)";
-  var liveColor = live.closing >= 0 ? "var(--accent)" : "var(--rust)";
-
   var html = "";
   html += '<div class="wrap">';
 
@@ -302,120 +291,16 @@ function render() {
     html += '<button data-action="open-backup" style="background:none;border:none;padding:0;text-decoration:underline;color:var(--rust);font-size:12px;margin-top:4px;">Open backup as a safety net</button></div></div>';
   }
 
-  // current balance
-  var entryDates = Object.keys(state.entries).sort();
-  var cumAnchor = state.settings.trackingStartDate || (entryDates.length ? entryDates[0] : todayStr());
-  var cumulative = periodStats(cumAnchor, todayStr());
-  var cumColor = cumulative.net >= 0 ? "var(--accent)" : "var(--rust)";
-  var cumLabel = "Saved since " + parseD(cumAnchor).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
-  html += '<div class="card" style="padding:12px 16px; margin-bottom:12px;">';
-  html += '<div class="row between"><span class="eyebrow">Current balance</span><span class="mono" style="font-size:16px; color:'+liveColor+';">'+(live.closing>=0?"+":"−")+fmt(Math.abs(live.closing),0)+' AED</span></div>';
-  html += '<div class="row between" style="margin-top:6px;"><span class="eyebrow">'+esc(cumLabel)+'</span><span class="mono" style="font-size:13px; color:'+cumColor+';">'+(cumulative.net>=0?"+":"−")+fmt(Math.abs(cumulative.net),0)+' AED</span></div>';
-  html += '</div>';
-
-  // view toggle
-  html += '<div class="row card" style="padding:4px; margin-bottom:12px;">';
-  ["week","month","year"].forEach(function(v){
-    var active = state.view===v;
-    html += '<button data-action="switch-view" data-view="'+v+'" style="flex:1; border:none; border-radius:10px; padding:6px 0; font-size:14px; text-transform:capitalize; background:'+(active?"var(--accent)":"transparent")+'; color:'+(active?"var(--accent-ink)":"var(--text-muted)")+'; font-weight:'+(active?600:400)+';">'+v+'</button>';
-  });
-  html += '</div>';
-
-  // period card
-  html += '<div class="card" style="margin-bottom:16px; overflow:hidden;">';
-  html += '<div class="row between" style="padding:12px; border-bottom:1px solid var(--hairline);">';
-  html += '<button data-action="nav-offset" data-delta="-1" class="icon-btn" style="border-radius:10px;" aria-label="Previous">'+ICONS.chevronLeft+'</button>';
-  html += '<div style="text-align:center;"><div style="font-size:14px; font-weight:500;">'+esc(period.title)+'</div>';
-  html += '<div class="eyebrow" style="margin-top:2px;">'+esc(period.sub)+(isClosed?" · closed":"")+'</div>';
-  if (isCurrent) {
-    html += '<div class="muted" style="font-size:11px; margin-top:4px;">'+(state.view==="week"?esc(weekdayLong(todayStr()))+" · ":"")+'Day '+displayed.calendarElapsedDays+' of '+period.days+' · '+daysLeft+' day'+(daysLeft===1?"":"s")+' left</div>';
-  }
-  html += '</div>';
-  html += '<button data-action="nav-offset" data-delta="1" class="icon-btn" style="border-radius:10px;'+(isCurrent?"opacity:0.3;pointer-events:none;":"")+'" aria-label="Next">'+ICONS.chevronRight+'</button>';
-  html += '</div>';
-
-  html += '<div style="padding:16px 20px 12px;">';
-  html += '<div class="eyebrow">'+(isClosed?"Saved this period":"Saved so far")+'</div>';
-  html += '<div class="mono" style="font-size:34px; margin-top:4px; color:'+netColor+';">'+(displayed.net>=0?"+":"−")+fmt(Math.abs(displayed.net),0)+' <span class="muted" style="font-size:17px;">AED</span></div>';
-  html += '<div class="muted" style="font-size:12px; margin-top:4px;">'+(displayed.elapsedDays===0 ? ("This "+state.view+" hasn't started yet") : (displayed.loggedCount+" of "+displayed.elapsedDays+" elapsed day"+(displayed.elapsedDays===1?"":"s")+" logged"))+'</div>';
-  html += '</div>';
-
-  var todayIncluded = displayed.rows.length > 0 && displayed.rows[displayed.rows.length-1].date === todayStr();
-  var todaySpent = todayIncluded ? displayed.rows[displayed.rows.length-1].spent : 0;
-  var pastDays = todayIncluded ? displayed.elapsedDays - 1 : displayed.elapsedDays;
-  var pastSpent = displayed.spent - todaySpent;
-  var avgSpentPerDay = pastDays > 0 ? (pastSpent/pastDays) : null;
-  var remainingBudget = period.target - displayed.spent;
-  var allowedText, allowedTone;
-  if (daysLeft > 0) {
-    var planDays = daysLeft + (todayIncluded ? 1 : 0); // include today as a spendable day too
-    var perDayLeft = remainingBudget/planDays;
-    allowedText = fmt(perDayLeft,0)+" AED";
-    allowedTone = perDayLeft < 0 ? "var(--rust)" : "var(--text)";
-  } else {
-    allowedText = isClosed ? "—" : "Last day";
-    allowedTone = "var(--text-muted)";
-  }
-  html += '<div class="stat-grid hairline-top" style="padding:12px 20px 16px;">';
-  html += statBlock("Spent so far", fmt(displayed.spent,0)+" AED", displayed.spent>elapsedTarget?"var(--rust)":"var(--text)");
-  html += statBlock((state.view==="week"?"Weekly":state.view==="month"?"Monthly":"Yearly")+" target", fmt(period.target,0)+" AED", "var(--text)");
-  html += statBlock("Avg daily spend", avgSpentPerDay===null ? "—" : (fmt(avgSpentPerDay,0)+" AED"), (avgSpentPerDay!==null && avgSpentPerDay>dailyAllowance())?"var(--rust)":"var(--text)");
-  html += statBlock("Daily budget left"+(daysLeft>0?" ("+(daysLeft+(todayIncluded?1:0))+"d)":""), allowedText, allowedTone);
-  html += '</div>';
-
-  if (chartData.length >= 2) {
-    html += '<div class="hairline-top" style="padding:12px 8px 12px;">'+renderChart(chartData, T)+'</div>';
-  }
-  html += '</div>'; // end period card
-
-  // entry form
-  var todayEntry = state.entries[state.entryDate || todayStr()];
-  var formDate = state.entryDate || todayStr();
-  html += '<div class="card" style="padding:16px; margin-bottom:16px;">';
-  html += '<div class="eyebrow" style="margin-bottom:12px;">Add a transaction</div>';
-  html += '<input id="entryDateInput" type="date" class="field mono" style="margin-bottom:8px;" value="'+formDate+'" max="'+todayStr()+'" />';
-  html += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="What was it for? (optional)" />';
-  html += '<div class="row gap2">';
-  html += '<div style="position:relative; flex:1;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none;">AED</span>';
-  html += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="Amount" /></div>';
-  html += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent row gap2" style="align-items:center;">'+ICONS.plus+' Add</button>';
-  html += '</div>';
-  html += '<div id="entryHint" class="muted" style="font-size:11px; margin-top:8px;">'+(todayEntry ? (esc(dayLabel(formDate))+" so far: "+todayEntry.items.length+" transaction"+(todayEntry.items.length===1?"":"s")+", "+fmt(sumSpent(todayEntry),2)+" AED total.") : "")+'</div>';
-  html += '</div>';
-
-  // days list
-  html += '<div class="card" style="overflow:hidden;">';
-  html += '<div class="eyebrow" style="padding:16px 16px 8px;">Days in this '+state.view+'</div>';
-  if (rowsWithBalance.length === 0) {
-    html += '<div class="muted" style="padding:0 16px 20px; font-size:14px;">This '+state.view+" hasn't started yet.</div>";
-  } else {
-    rowsWithBalance.forEach(function(row, i){
-      var delta = row.allowance - row.spent;
-      html += '<div style="'+(i===0?"":"border-top:1px solid var(--hairline);")+'">';
-      html += '<button class="day-row" data-action="quick-date" data-date="'+row.date+'" style="opacity:'+(row.logged?1:0.6)+';">';
-      html += '<div><div style="font-size:14px;">'+esc(dayLabel(row.date))+'</div>';
-      html += '<div class="mono muted" style="font-size:11px; margin-top:2px;">'+(row.logged ? (row.items.length+" txn"+(row.items.length===1?"":"s")+" · spent "+fmt(row.spent,2)+" of "+fmt(row.allowance,2)) : ("not logged · "+fmt(row.allowance,2)+" assumed saved"))+'</div></div>';
-      html += '<div style="text-align:right;"><div class="mono" style="font-size:12px; color:'+(delta>=0?"var(--accent)":"var(--rust)")+';">'+(delta>=0?"+":"−")+fmt(Math.abs(delta),2)+'</div>';
-      html += '<div class="mono muted" style="font-size:10px;">bal '+fmt(row.balance,0)+'</div></div>';
-      html += '</button>';
-      if (row.logged && row.items.length>0) {
-        html += '<div style="padding:0 16px 12px; margin-top:-4px;">';
-        row.items.forEach(function(it){
-          html += '<div class="txn-line"><span class="muted" style="font-size:11px; padding-left:8px;">'+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span>';
-          html += '<button data-action="delete-txn" data-date="'+row.date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button></div>';
-        });
-        html += '</div>';
-      }
-      html += '</div>';
-    });
-  }
-  html += '</div>';
+  if (state.page === "transactions") html += renderTransactionsBody();
+  else if (state.page === "calendar") html += renderCalendarBody();
+  else html += renderHomeBody(T, da);
 
   if (state.saveError) {
     html += '<div style="text-align:center; margin-top:12px; font-size:12px; color:var(--rust);">Couldn\'t save '+esc(state.saveError.label)+' — <button data-action="retry-save" style="background:none;border:none;padding:0;text-decoration:underline;color:var(--rust);font-size:12px;">tap to retry</button>.</div>';
   }
-  html += '<div style="text-align:center; margin-top:24px;"><button data-action="open-reset" style="background:none;border:none;padding:0;color:var(--text-muted);font-size:11px;">Clear all entries</button></div>';
+
   html += '</div>'; // end wrap
+  html += renderBottomNav();
 
   // modals
   if (state.showSettings) {
@@ -460,6 +345,246 @@ function render() {
   }
 
   root.innerHTML = html;
+}
+
+function renderHomeBody(T, da) {
+  var period = getPeriodBounds(state.view, state.offset, state.settings.weeklyTarget, da);
+  var currentPeriod = getPeriodBounds(state.view, 0, state.settings.weeklyTarget, da);
+  var displayed = periodStats(period.startStr, period.endStr);
+  var live = periodStats(currentPeriod.startStr, currentPeriod.endStr);
+
+  var isClosed = period.endStr < todayStr();
+  var isCurrent = state.offset === 0;
+  var daysLeft = Math.max(0, period.days - displayed.calendarElapsedDays);
+  var elapsedTarget = displayed.elapsedDays * da;
+
+  var chartData = displayed.rows.length ? (function(){
+    var acc = displayed.opening;
+    return displayed.rows.map(function(r){ acc = round2(acc + (r.allowance-r.spent)); return { label: shortLabel(r.date), balance: acc }; });
+  })() : [];
+
+  var netColor = displayed.net >= 0 ? "var(--accent)" : "var(--rust)";
+  var liveColor = live.closing >= 0 ? "var(--accent)" : "var(--rust)";
+
+  var entryDates = Object.keys(state.entries).sort();
+  var cumAnchor = state.settings.trackingStartDate || (entryDates.length ? entryDates[0] : todayStr());
+  var cumulative = periodStats(cumAnchor, todayStr());
+  var cumColor = cumulative.net >= 0 ? "var(--accent)" : "var(--rust)";
+  var cumLabel = "Saved since " + parseD(cumAnchor).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+
+  var h = "";
+  h += '<div class="card" style="padding:12px 16px; margin-bottom:12px;">';
+  h += '<div class="row between"><span class="eyebrow">Current balance</span><span class="mono" style="font-size:16px; color:'+liveColor+';">'+(live.closing>=0?"+":"−")+fmt(Math.abs(live.closing),0)+' AED</span></div>';
+  h += '<div class="row between" style="margin-top:6px;"><span class="eyebrow">'+esc(cumLabel)+'</span><span class="mono" style="font-size:13px; color:'+cumColor+';">'+(cumulative.net>=0?"+":"−")+fmt(Math.abs(cumulative.net),0)+' AED</span></div>';
+  h += '</div>';
+
+  h += '<div class="row card" style="padding:4px; margin-bottom:12px;">';
+  ["week","month","year"].forEach(function(v){
+    var active = state.view===v;
+    h += '<button data-action="switch-view" data-view="'+v+'" style="flex:1; border:none; border-radius:10px; padding:6px 0; font-size:14px; text-transform:capitalize; background:'+(active?"var(--accent)":"transparent")+'; color:'+(active?"var(--accent-ink)":"var(--text-muted)")+'; font-weight:'+(active?600:400)+';">'+v+'</button>';
+  });
+  h += '</div>';
+
+  h += '<div class="card" style="margin-bottom:16px; overflow:hidden;">';
+  h += '<div class="row between" style="padding:12px; border-bottom:1px solid var(--hairline);">';
+  h += '<button data-action="nav-offset" data-delta="-1" class="icon-btn" style="border-radius:10px;" aria-label="Previous">'+ICONS.chevronLeft+'</button>';
+  h += '<div style="text-align:center;"><div style="font-size:14px; font-weight:500;">'+esc(period.title)+'</div>';
+  h += '<div class="eyebrow" style="margin-top:2px;">'+esc(period.sub)+(isClosed?" · closed":"")+'</div>';
+  if (isCurrent) {
+    h += '<div class="muted" style="font-size:11px; margin-top:4px;">'+(state.view==="week"?esc(weekdayLong(todayStr()))+" · ":"")+'Day '+displayed.calendarElapsedDays+' of '+period.days+' · '+daysLeft+' day'+(daysLeft===1?"":"s")+' left</div>';
+  }
+  h += '</div>';
+  h += '<button data-action="nav-offset" data-delta="1" class="icon-btn" style="border-radius:10px;'+(isCurrent?"opacity:0.3;pointer-events:none;":"")+'" aria-label="Next">'+ICONS.chevronRight+'</button>';
+  h += '</div>';
+
+  h += '<div style="padding:16px 20px 12px;">';
+  h += '<div class="eyebrow">'+(isClosed?"Saved this period":"Saved so far")+'</div>';
+  h += '<div class="mono" style="font-size:34px; margin-top:4px; color:'+netColor+';">'+(displayed.net>=0?"+":"−")+fmt(Math.abs(displayed.net),0)+' <span class="muted" style="font-size:17px;">AED</span></div>';
+  h += '<div class="muted" style="font-size:12px; margin-top:4px;">'+(displayed.elapsedDays===0 ? ("This "+state.view+" hasn't started yet") : (displayed.loggedCount+" of "+displayed.elapsedDays+" elapsed day"+(displayed.elapsedDays===1?"":"s")+" logged"))+'</div>';
+  h += '</div>';
+
+  var todayIncluded = displayed.rows.length > 0 && displayed.rows[displayed.rows.length-1].date === todayStr();
+  var todaySpent = todayIncluded ? displayed.rows[displayed.rows.length-1].spent : 0;
+  var pastDays = todayIncluded ? displayed.elapsedDays - 1 : displayed.elapsedDays;
+  var pastSpent = displayed.spent - todaySpent;
+  var avgSpentPerDay = pastDays > 0 ? (pastSpent/pastDays) : null;
+  var remainingBudget = period.target - displayed.spent;
+  var allowedText, allowedTone;
+  if (daysLeft > 0) {
+    var planDays = daysLeft + (todayIncluded ? 1 : 0);
+    var perDayLeft = remainingBudget/planDays;
+    allowedText = fmt(perDayLeft,0)+" AED";
+    allowedTone = perDayLeft < 0 ? "var(--rust)" : "var(--text)";
+  } else {
+    allowedText = isClosed ? "—" : "Last day";
+    allowedTone = "var(--text-muted)";
+  }
+  h += '<div class="stat-grid hairline-top" style="padding:12px 20px 16px;">';
+  h += statBlock("Spent so far", fmt(displayed.spent,0)+" AED", displayed.spent>elapsedTarget?"var(--rust)":"var(--text)");
+  h += statBlock((state.view==="week"?"Weekly":state.view==="month"?"Monthly":"Yearly")+" target", fmt(period.target,0)+" AED", "var(--text)");
+  h += statBlock("Avg daily spend", avgSpentPerDay===null ? "—" : (fmt(avgSpentPerDay,0)+" AED"), (avgSpentPerDay!==null && avgSpentPerDay>da)?"var(--rust)":"var(--text)");
+  h += statBlock("Daily budget left"+(daysLeft>0?" ("+(daysLeft+(todayIncluded?1:0))+"d)":""), allowedText, allowedTone);
+  h += '</div>';
+
+  if (chartData.length >= 2) {
+    h += '<div class="hairline-top" style="padding:12px 8px 12px;">'+renderChart(chartData, T)+'</div>';
+  }
+  h += '</div>'; // end period card
+
+  var todayEntry = state.entries[state.entryDate || todayStr()];
+  var formDate = state.entryDate || todayStr();
+  h += '<div class="card" style="padding:16px;">';
+  h += '<div class="eyebrow" style="margin-bottom:12px;">Add a transaction</div>';
+  h += '<input id="entryDateInput" type="date" class="field mono" style="margin-bottom:8px;" value="'+formDate+'" max="'+todayStr()+'" />';
+  h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="What was it for? (optional)" />';
+  h += '<div class="row gap2">';
+  h += '<div style="position:relative; flex:1;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none;">AED</span>';
+  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="Amount" /></div>';
+  h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent row gap2" style="align-items:center;">'+ICONS.plus+' Add</button>';
+  h += '</div>';
+  h += '<div id="entryHint" class="muted" style="font-size:11px; margin-top:8px;">'+(todayEntry ? (esc(dayLabel(formDate))+" so far: "+todayEntry.items.length+" transaction"+(todayEntry.items.length===1?"":"s")+", "+fmt(sumSpent(todayEntry),2)+" AED total.") : "")+'</div>';
+  h += '</div>';
+
+  return h;
+}
+
+function renderTransactionsBody() {
+  var entryDates = Object.keys(state.entries).sort();
+  var cumAnchor = state.settings.trackingStartDate || (entryDates.length ? entryDates[0] : todayStr());
+  var cs = periodStats(cumAnchor, todayStr());
+  var acc = 0;
+  var balanceMap = {};
+  cs.rows.forEach(function(r){ acc = round2(acc + (r.allowance-r.spent)); balanceMap[r.date] = acc; });
+
+  var dates = entryDates.slice().reverse();
+  var h = '<div class="card" style="overflow:hidden; margin-bottom:16px;">';
+  h += '<div class="eyebrow" style="padding:16px 16px 8px;">All transactions</div>';
+  if (dates.length === 0) {
+    h += '<div class="muted" style="padding:0 16px 20px; font-size:14px;">Nothing logged yet.</div>';
+  } else {
+    dates.forEach(function(date, i){
+      var day = state.entries[date];
+      var spent = sumSpent(day);
+      var delta = day.allowance - spent;
+      var bal = balanceMap[date];
+      h += '<div style="padding:12px 16px;'+(i===0?"":"border-top:1px solid var(--hairline);")+'">';
+      h += '<div class="row between">';
+      h += '<div><div style="font-size:14px;">'+esc(dayLabel(date))+'</div>';
+      h += '<div class="mono muted" style="font-size:11px; margin-top:2px;">'+day.items.length+' txn'+(day.items.length===1?"":"s")+' · spent '+fmt(spent,2)+' of '+fmt(day.allowance,2)+'</div></div>';
+      h += '<div style="text-align:right;"><div class="mono" style="font-size:12px; color:'+(delta>=0?"var(--accent)":"var(--rust)")+';">'+(delta>=0?"+":"−")+fmt(Math.abs(delta),2)+'</div>';
+      h += '<div class="mono muted" style="font-size:10px;">bal '+fmt(bal,0)+'</div></div>';
+      h += '</div>';
+      h += '<div style="margin-top:4px;">';
+      day.items.forEach(function(it){
+        h += '<div class="txn-line"><span class="muted" style="font-size:11px; padding-left:8px;">'+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span>';
+        h += '<button data-action="delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button></div>';
+      });
+      h += '</div></div>';
+    });
+  }
+  h += '</div>';
+  h += '<div style="text-align:center; margin-bottom:16px;"><button data-action="open-reset" style="background:none;border:none;padding:0;color:var(--text-muted);font-size:11px;">Clear all entries</button></div>';
+  return h;
+}
+
+function legendSwatch(bg, label, fg) {
+  return '<div class="row" style="align-items:center; gap:5px;"><span style="width:10px; height:10px; border-radius:3px; background:'+bg+'; display:inline-block;"></span><span style="font-size:10px; color:'+(fg||"var(--text-muted)")+';">'+esc(label)+'</span></div>';
+}
+
+function renderCalendarBody() {
+  var base = addMonths(startOfMonth(new Date()), state.calendarOffset);
+  var monthStartStr = toStr(base);
+  var monthEndStr = toStr(endOfMonth(base));
+  var title = base.toLocaleDateString("en-GB",{month:"long",year:"numeric"});
+  var da = dailyAllowance();
+  var today = todayStr();
+  var tsd = state.settings.trackingStartDate;
+
+  var h = "";
+  h += '<div class="card" style="padding:14px; margin-bottom:12px;">';
+  h += '<div class="row between" style="margin-bottom:12px;">';
+  h += '<button data-action="cal-nav" data-delta="-1" class="icon-btn" style="border-radius:10px;" aria-label="Previous month">'+ICONS.chevronLeft+'</button>';
+  h += '<div style="font-size:15px; font-weight:500;">'+esc(title)+'</div>';
+  h += '<button data-action="cal-nav" data-delta="1" class="icon-btn" style="border-radius:10px;'+(state.calendarOffset>=0?"opacity:0.3;pointer-events:none;":"")+'" aria-label="Next month">'+ICONS.chevronRight+'</button>';
+  h += '</div>';
+
+  h += '<div style="display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:6px;">';
+  ["Mo","Tu","We","Th","Fr","Sa","Su"].forEach(function(lbl){ h += '<div class="muted" style="text-align:center; font-size:10px;">'+lbl+'</div>'; });
+  h += '</div>';
+
+  var firstDow = base.getDay();
+  var leadingBlanks = firstDow===0 ? 6 : firstDow-1;
+  h += '<div style="display:grid; grid-template-columns:repeat(7,1fr); gap:4px;">';
+  for (var i=0;i<leadingBlanks;i++) h += '<div></div>';
+
+  var cur = parseD(monthStartStr);
+  while (toStr(cur) <= monthEndStr) {
+    var ds = toStr(cur);
+    var e = state.entries[ds];
+    var logged = !!e;
+    var spent = logged ? sumSpent(e) : 0;
+    var allowance = logged ? e.allowance : da;
+    var isFuture = ds > today;
+    var isPreTracking = tsd && ds < tsd;
+    var isToday = ds === today;
+    var isSelected = state.calendarSelectedDate === ds;
+
+    var bg, fg;
+    if (isFuture) { bg = "transparent"; fg = "var(--text-muted)"; }
+    else if (isPreTracking) { bg = "var(--raised)"; fg = "var(--text-muted)"; }
+    else if (!logged) { bg = "rgba(224,179,104,0.14)"; fg = "var(--text)"; }
+    else if (spent <= allowance) { bg = "rgba(224,179,104,0.32)"; fg = "var(--text)"; }
+    else { bg = "var(--rust-wash)"; fg = "var(--rust)"; }
+
+    var border = isToday ? "2px solid var(--accent)" : (isSelected ? "2px solid var(--text)" : "1px solid transparent");
+    h += '<button data-action="cal-select" data-date="'+ds+'" style="aspect-ratio:1; border-radius:8px; border:'+border+'; background:'+bg+'; color:'+fg+'; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2px; min-width:0;">';
+    h += '<span style="font-size:11px;">'+cur.getDate()+'</span>';
+    if (logged) h += '<span class="mono" style="font-size:8px;">'+fmt(spent,0)+'</span>';
+    h += '</button>';
+    cur = addDays(cur,1);
+  }
+  h += '</div>';
+  h += '</div>'; // end grid card
+
+  h += '<div class="row" style="gap:14px; margin-bottom:16px; flex-wrap:wrap;">';
+  h += legendSwatch("rgba(224,179,104,0.32)", "Under budget");
+  h += legendSwatch("var(--rust-wash)", "Over budget", "var(--rust)");
+  h += legendSwatch("rgba(224,179,104,0.14)", "Not logged");
+  h += legendSwatch("var(--raised)", "Before tracking");
+  h += '</div>';
+
+  if (state.calendarSelectedDate) {
+    var sd = state.calendarSelectedDate;
+    var sday = state.entries[sd];
+    h += '<div class="card" style="padding:16px;">';
+    h += '<div class="eyebrow" style="margin-bottom:8px;">'+esc(dayLabel(sd))+'</div>';
+    if (sday && sday.items.length) {
+      sday.items.forEach(function(it){
+        h += '<div class="txn-line"><span class="muted" style="font-size:12px; padding-left:8px;">'+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span>';
+        h += '<button data-action="delete-txn" data-date="'+sd+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button></div>';
+      });
+    } else {
+      h += '<div class="muted" style="font-size:13px;">Nothing logged this day.</div>';
+    }
+    h += '</div>';
+  }
+
+  return h;
+}
+
+function renderBottomNav() {
+  var tabs = [
+    {id:"home", label:"Home", icon:ICONS.home},
+    {id:"transactions", label:"Transactions", icon:ICONS.list},
+    {id:"calendar", label:"Calendar", icon:ICONS.calendar},
+  ];
+  var h = '<div style="position:fixed; left:0; right:0; bottom:0; display:flex; background:var(--card); border-top:1px solid var(--hairline); padding:6px 8px calc(env(safe-area-inset-bottom, 0px) + 6px); z-index:40;">';
+  tabs.forEach(function(t){
+    var active = state.page===t.id;
+    h += '<button data-action="go-page" data-page="'+t.id+'" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; background:none; border:none; padding:4px 0; color:'+(active?"var(--accent)":"var(--text-muted)")+';">'+t.icon+'<span style="font-size:10px;">'+t.label+'</span></button>';
+  });
+  h += '</div>';
+  return h;
 }
 
 function statBlock(label, value, color) {
@@ -560,6 +685,16 @@ document.addEventListener("click", function(e) {
     case "add-transaction": handleAddTransaction(); break;
     case "delete-txn": handleDeleteTxn(el.dataset.date, el.dataset.id); break;
     case "quick-date": handleQuickDate(el.dataset.date); break;
+    case "go-page": state.page = el.dataset.page; render(); break;
+    case "cal-nav":
+      state.calendarOffset += parseInt(el.dataset.delta,10);
+      state.calendarSelectedDate = null;
+      render();
+      break;
+    case "cal-select":
+      state.calendarSelectedDate = (state.calendarSelectedDate === el.dataset.date) ? null : el.dataset.date;
+      render();
+      break;
     case "retry-save":
       if (state.saveError) { var se = state.saveError; state.saveError = null; persistAll(se.nextSettings, se.nextEntries, se.label); }
       render();
