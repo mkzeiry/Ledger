@@ -62,7 +62,7 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark" };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null };
 var PALETTES = {
   dark:  { bg:"#0C1322", card:"#131C31", raised:"#0C1322", hairline:"#26314D", text:"#E8EDF7", textMuted:"#8595B5", accent:"#E0B368", accentInk:"#0C1322", rust:"#D4614A", rustWash:"rgba(212,97,74,0.10)" },
   light: { bg:"#F4F6FB", card:"#FFFFFF", raised:"#F4F6FB", hairline:"#E1E6F1", text:"#16203A", textMuted:"#66748F", accent:"#B07F2A", accentInk:"#FFFFFF", rust:"#C0442B", rustWash:"rgba(192,68,43,0.08)" },
@@ -79,6 +79,7 @@ function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
 function addMonths(d,n){ return new Date(d.getFullYear(), d.getMonth()+n, 1); }
 function endOfMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
 function daysInMonth(d){ return endOfMonth(d).getDate(); }
+function daysBetween(aStr,bStr){ return Math.round((parseD(bStr)-parseD(aStr))/86400000); }
 function fmt(n, dp){ dp = dp || 0; return (Number(n)||0).toLocaleString("en-US",{minimumFractionDigits:dp, maximumFractionDigits:dp}); }
 function dayLabel(s){ return parseD(s).toLocaleDateString("en-GB",{weekday:"short", day:"numeric", month:"short"}); }
 function shortLabel(s){ return parseD(s).toLocaleDateString("en-GB",{day:"numeric", month:"short"}); }
@@ -176,9 +177,13 @@ function persistAll(nextSettings, nextEntries, label) {
 function periodStats(startStr, endStrRaw) {
   var endStr = minStr(endStrRaw, todayStr());
   var opening = 0; // each period is self-contained: always starts fresh at 0
+
+  var tsd = state.settings.trackingStartDate;
+  var effectiveStart = (tsd && tsd > startStr) ? tsd : startStr;
+
   var rows = [];
-  if (startStr <= endStr) {
-    var cur = parseD(startStr);
+  if (effectiveStart <= endStr) {
+    var cur = parseD(effectiveStart);
     while (toStr(cur) <= endStr) {
       var ds = toStr(cur);
       var e = state.entries[ds];
@@ -188,7 +193,8 @@ function periodStats(startStr, endStrRaw) {
   }
   var net = round2(rows.reduce(function(s,r){ return s+(r.allowance-r.spent); },0));
   var closing = round2(opening+net);
-  return { opening:opening, net:net, closing:closing, rows:rows, elapsedDays: rows.length,
+  var calendarElapsedDays = (startStr <= endStr) ? (daysBetween(startStr, endStr) + 1) : 0;
+  return { opening:opening, net:net, closing:closing, rows:rows, elapsedDays: rows.length, calendarElapsedDays: calendarElapsedDays,
     loggedCount: rows.filter(function(r){return r.logged;}).length, spent: rows.reduce(function(s,r){return s+r.spent;},0) };
 }
 
@@ -260,7 +266,7 @@ function render() {
 
   var isClosed = period.endStr < todayStr();
   var isCurrent = state.offset === 0;
-  var daysLeft = Math.max(0, period.days - displayed.elapsedDays);
+  var daysLeft = Math.max(0, period.days - displayed.calendarElapsedDays);
   var elapsedTarget = displayed.elapsedDays * da;
 
   var acc = displayed.opening;
@@ -292,6 +298,7 @@ function render() {
   // current balance
   html += '<div class="card" style="padding:12px 16px; margin-bottom:12px;">';
   html += '<div class="row between"><span class="eyebrow">Current balance</span><span class="mono" style="font-size:16px; color:'+liveColor+';">'+(live.closing>=0?"+":"−")+fmt(Math.abs(live.closing),2)+' AED</span></div>';
+  html += '<div class="row between" style="margin-top:6px;"><span class="eyebrow">Spent so far this '+state.view+'</span><span class="mono" style="font-size:13px;">'+fmt(live.spent,2)+' AED</span></div>';
   html += '</div>';
 
   // view toggle
@@ -309,7 +316,7 @@ function render() {
   html += '<div style="text-align:center;"><div style="font-size:14px; font-weight:500;">'+esc(period.title)+'</div>';
   html += '<div class="eyebrow" style="margin-top:2px;">'+esc(period.sub)+(isClosed?" · closed":"")+'</div>';
   if (isCurrent) {
-    html += '<div class="muted" style="font-size:11px; margin-top:4px;">'+(state.view==="week"?esc(weekdayLong(todayStr()))+" · ":"")+'Day '+displayed.elapsedDays+' of '+period.days+' · '+daysLeft+' day'+(daysLeft===1?"":"s")+' left</div>';
+    html += '<div class="muted" style="font-size:11px; margin-top:4px;">'+(state.view==="week"?esc(weekdayLong(todayStr()))+" · ":"")+'Day '+displayed.calendarElapsedDays+' of '+period.days+' · '+daysLeft+' day'+(daysLeft===1?"":"s")+' left</div>';
   }
   html += '</div>';
   html += '<button data-action="nav-offset" data-delta="1" class="icon-btn" style="border-radius:10px;'+(isCurrent?"opacity:0.3;pointer-events:none;":"")+'" aria-label="Next">'+ICONS.chevronRight+'</button>';
@@ -407,6 +414,9 @@ function render() {
     html += '<div style="position:relative; margin:6px 0 4px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
     html += '<input id="weeklyDraftInput" type="number" inputmode="decimal" class="field mono" style="padding-left:44px;" value="'+state.settings.weeklyTarget+'" /></div>';
     html += '<div class="muted" style="font-size:12px; margin-bottom:16px;">New days use this rate; days already logged keep the rate they were saved at.</div>';
+    html += '<label class="eyebrow">Tracking start date (optional)</label>';
+    html += '<input id="trackingStartInput" type="date" class="field mono" style="margin:6px 0 4px;" value="'+(state.settings.trackingStartDate||"")+'" max="'+todayStr()+'" />';
+    html += '<div class="muted" style="font-size:12px; margin-bottom:16px;">Caps how far back Week/Month/Year totals count. Set this to when you actually started using the app so untracked earlier days aren\'t assumed as saved. Leave blank to count from each period\'s natural start.</div>';
     html += '<button data-action="save-settings" class="btn-accent" style="width:100%;">Save</button>';
     html += '</div></div>';
   }
@@ -544,8 +554,12 @@ document.addEventListener("click", function(e) {
       break;
     case "save-settings":
       var wEl = document.getElementById("weeklyDraftInput");
+      var tsEl = document.getElementById("trackingStartInput");
       var v = wEl ? parseFloat(wEl.value) : NaN;
-      if (!isNaN(v) && v > 0) persistAll(Object.assign({}, state.settings, { weeklyTarget: v }), state.entries, "your settings");
+      var nextSettings = Object.assign({}, state.settings);
+      if (!isNaN(v) && v > 0) nextSettings.weeklyTarget = v;
+      nextSettings.trackingStartDate = (tsEl && tsEl.value) ? tsEl.value : null;
+      persistAll(nextSettings, state.entries, "your settings");
       state.showSettings = false;
       render();
       break;
