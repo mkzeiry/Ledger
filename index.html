@@ -275,7 +275,7 @@ function render() {
 
   // header
   html += '<div class="row between" style="align-items:flex-start; margin-bottom:16px;">';
-  html += '<div><div class="display" style="font-size:22px;">The Ledger</div><div class="muted" style="font-size:12px; margin-top:2px;">'+fmt(da,2)+' AED a day · weeks run Mon–Sun · TEST-A</div></div>';
+  html += '<div><div class="display" style="font-size:22px;">The Ledger</div><div class="muted" style="font-size:12px; margin-top:2px;">'+fmt(da,2)+' AED a day · weeks run Mon–Sun</div></div>';
   html += '<div class="row gap2">';
   html += '<button class="icon-btn" data-action="toggle-theme" aria-label="Toggle theme">'+(state.settings.theme==="dark"?ICONS.sun:ICONS.moon)+'</button>';
   html += '<button class="icon-btn" data-action="open-settings" aria-label="Settings">'+ICONS.settings+'</button>';
@@ -292,7 +292,7 @@ function render() {
   // current balance
   html += '<div class="card" style="padding:12px 16px; margin-bottom:12px;">';
   html += '<div class="row between"><span class="eyebrow">Current balance</span><span class="mono" style="font-size:16px; color:'+liveColor+';">'+(live.closing>=0?"+":"−")+fmt(Math.abs(live.closing),2)+' AED</span></div>';
-  html += '<div class="muted" style="font-size:10px; margin-top:4px;">As of today · stays put while you browse past '+state.view+'s below</div></div>';
+  html += '</div>';
 
   // view toggle
   html += '<div class="row card" style="padding:4px; margin-bottom:12px;">';
@@ -319,7 +319,6 @@ function render() {
   html += '<div class="eyebrow">'+(isClosed?"Saved this period":"Saved so far")+'</div>';
   html += '<div class="mono" style="font-size:34px; margin-top:4px; color:'+netColor+';">'+(displayed.net>=0?"+":"−")+fmt(Math.abs(displayed.net),2)+' <span class="muted" style="font-size:17px;">AED</span></div>';
   html += '<div class="muted" style="font-size:12px; margin-top:4px;">'+(displayed.elapsedDays===0 ? ("This "+state.view+" hasn't started yet") : (displayed.loggedCount+" of "+displayed.elapsedDays+" elapsed day"+(displayed.elapsedDays===1?"":"s")+" logged"))+'</div>';
-  html += '<div class="muted" style="font-size:11px; margin-top:2px; font-style:italic;">Unlogged days assume 0 spent — the total drops once you log real spending.</div>';
   html += '</div>';
 
   var todayIncluded = displayed.rows.length > 0 && displayed.rows[displayed.rows.length-1].date === todayStr();
