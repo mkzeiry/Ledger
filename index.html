@@ -64,8 +64,8 @@ var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null };
 var PALETTES = {
-  dark:  { bg:"#0C1322", card:"#131C31", raised:"#0C1322", hairline:"#26314D", text:"#E8EDF7", textMuted:"#8595B5", accent:"#E0B368", accentInk:"#0C1322", rust:"#D4614A", rustWash:"rgba(212,97,74,0.10)" },
-  light: { bg:"#F4F6FB", card:"#FFFFFF", raised:"#F4F6FB", hairline:"#E1E6F1", text:"#16203A", textMuted:"#66748F", accent:"#B07F2A", accentInk:"#FFFFFF", rust:"#C0442B", rustWash:"rgba(192,68,43,0.08)" },
+  dark:  { bg:"#0C1322", card:"#131C31", raised:"#0C1322", hairline:"#26314D", text:"#E8EDF7", textMuted:"#8595B5", accent:"#E0B368", accentInk:"#0C1322", rust:"#D4614A", rustWash:"rgba(212,97,74,0.10)", positive:"#5EBD8C" },
+  light: { bg:"#F4F6FB", card:"#FFFFFF", raised:"#F4F6FB", hairline:"#E1E6F1", text:"#16203A", textMuted:"#66748F", accent:"#B07F2A", accentInk:"#FFFFFF", rust:"#C0442B", rustWash:"rgba(192,68,43,0.08)", positive:"#1E8E5A" },
 };
 
 function toStr(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
@@ -259,6 +259,7 @@ function applyTheme(T) {
   r.setProperty("--hairline", T.hairline); r.setProperty("--text", T.text); r.setProperty("--text-muted", T.textMuted);
   r.setProperty("--accent", T.accent); r.setProperty("--accent-ink", T.accentInk);
   r.setProperty("--rust", T.rust); r.setProperty("--rust-wash", T.rustWash);
+  r.setProperty("--positive", T.positive);
 }
 
 function render() {
@@ -368,13 +369,13 @@ function renderHomeBody(T, da) {
     return displayed.rows.map(function(r){ acc = round2(acc + (r.allowance-r.spent)); return { label: shortLabel(r.date), balance: acc }; });
   })() : [];
 
-  var netColor = displayed.net >= 0 ? "var(--accent)" : "var(--rust)";
-  var liveColor = live.closing >= 0 ? "var(--accent)" : "var(--rust)";
+  var netColor = displayed.net >= 0 ? "var(--positive)" : "var(--rust)";
+  var liveColor = live.closing >= 0 ? "var(--positive)" : "var(--rust)";
 
   var entryDates = Object.keys(state.entries).sort();
   var cumAnchor = state.settings.trackingStartDate || (entryDates.length ? entryDates[0] : todayStr());
   var cumulative = periodStats(cumAnchor, todayStr());
-  var cumColor = cumulative.net >= 0 ? "var(--accent)" : "var(--rust)";
+  var cumColor = cumulative.net >= 0 ? "var(--positive)" : "var(--rust)";
   var cumLabel = "Saved since " + parseD(cumAnchor).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
 
   var h = "";
@@ -477,7 +478,7 @@ function renderTransactionsBody() {
       h += '<div class="row between">';
       h += '<div><div style="font-size:14px;">'+esc(dayLabel(date))+'</div>';
       h += '<div class="mono muted" style="font-size:11px; margin-top:2px;">'+day.items.length+' txn'+(day.items.length===1?"":"s")+' · spent '+fmt(spent,2)+' of '+fmt(day.allowance,2)+'</div></div>';
-      h += '<div style="text-align:right;"><div class="mono" style="font-size:12px; color:'+(delta>=0?"var(--accent)":"var(--rust)")+';">'+(delta>=0?"+":"−")+fmt(Math.abs(delta),2)+'</div>';
+      h += '<div style="text-align:right;"><div class="mono" style="font-size:12px; color:'+(delta>=0?"var(--positive)":"var(--rust)")+';">'+(delta>=0?"+":"−")+fmt(Math.abs(delta),2)+'</div>';
       h += '<div class="mono muted" style="font-size:10px;">bal '+fmt(bal,0)+'</div></div>';
       h += '</div>';
       h += '<div style="margin-top:4px;">';
@@ -562,7 +563,7 @@ function renderCalendarBody() {
     if (logged) h += '<span class="mono" style="font-size:7px; line-height:1;">'+fmt(spent,0)+'</span>';
     var cumForDay = balMap[ds];
     if (cumForDay !== undefined) {
-      var cumClr = cumForDay >= 0 ? "var(--accent)" : "var(--rust)";
+      var cumClr = cumForDay >= 0 ? "var(--positive)" : "var(--rust)";
       h += '<span class="mono" style="font-size:7px; line-height:1; color:'+cumClr+';">'+(cumForDay>=0?"+":"−")+fmt(Math.abs(cumForDay),0)+'</span>';
     }
     h += '</button>';
