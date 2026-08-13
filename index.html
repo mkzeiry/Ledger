@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#0C1322" />
+<title>The Ledger</title>
+<style>
+  :root {
+    --bg:#0C1322; --card:#131C31; --raised:#0C1322; --hairline:#26314D;
+    --text:#E8EDF7; --text-muted:#8595B5; --accent:#E0B368; --accent-ink:#0C1322;
+    --rust:#D4614A; --rust-wash: rgba(212,97,74,0.10);
+    --f-display: 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+    --f-mono: 'SF Mono', Menlo, Consolas, monospace;
+    --f-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; overscroll-behavior-y: none; background: var(--bg); }
+  body { font-family: var(--f-ui); color: var(--text); -webkit-tap-highlight-color: transparent; }
+  .wrap { max-width: 420px; margin: 0 auto; padding: 24px 16px 64px; }
+  .row { display: flex; align-items: center; }
+  .between { justify-content: space-between; }
+  .col { display: flex; flex-direction: column; }
+  .gap2 { gap: 8px; }
+  .display { font-family: var(--f-display); }
+  .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+  .eyebrow { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); }
+  .muted { color: var(--text-muted); }
+  .card { background: var(--card); border: 1px solid var(--hairline); border-radius: 16px; }
+  .icon-btn { padding: 8px; border-radius: 999px; background: var(--card); border: 1px solid var(--hairline); display:flex; align-items:center; justify-content:center; }
+  button { font-family: inherit; cursor: pointer; color: inherit; }
+  input, textarea { font-family: inherit; color: var(--text); }
+  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.65); }
+  .field { -webkit-appearance:none; appearance:none; width:100%; box-sizing:border-box; display:block; border-radius:10px; padding:10px 12px; background: var(--raised); border:1px solid var(--hairline); font-size:14px; }
+  .field:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-accent { background: var(--accent); color: var(--accent-ink); font-weight:600; border:none; border-radius:10px; padding:10px 16px; }
+  .btn-accent:disabled { opacity:0.4; }
+  .btn-outline { background: transparent; border:1px solid var(--hairline); color: var(--text); border-radius:10px; padding:9px 16px; }
+  .btn-rust { background: var(--rust); color:#fff; font-weight:600; border:none; border-radius:10px; padding:9px 16px; }
+  .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .hairline-top { border-top: 1px solid var(--hairline); }
+  .hairline-bottom { border-bottom: 1px solid var(--hairline); }
+  .modal-backdrop { position:fixed; inset:0; background:rgba(6,10,20,0.55); display:flex; align-items:flex-end; justify-content:center; z-index:50; }
+  @media (min-width: 480px) { .modal-backdrop { align-items:center; } }
+  .modal-card { width:100%; max-width:420px; max-height:85vh; overflow-y:auto; background:var(--card); border:1px solid var(--hairline); border-radius:20px 20px 0 0; padding:20px; }
+  @media (min-width: 480px) { .modal-card { border-radius:20px; } }
+  .day-row { width:100%; display:flex; align-items:center; justify-content:space-between; padding:12px 16px; text-align:left; background:none; border:none; }
+  .txn-line { display:flex; align-items:center; justify-content:space-between; padding:4px 0 4px 8px; border-left:2px solid var(--hairline); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+"use strict";
+
+/* ---------------- constants & helpers ---------------- */
+var STORAGE_KEY = "ledger-data";
+var TEST_KEY = "ledger-selftest";
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark" };
+var PALETTES = {
+  dark:  { bg:"#0C1322", card:"#131C31", raised:"#0C1322", hairline:"#26314D", text:"#E8EDF7", textMuted:"#8595B5", accent:"#E0B368", accentInk:"#0C1322", rust:"#D4614A", rustWash:"rgba(212,97,74,0.10)" },
+  light: { bg:"#F4F6FB", card:"#FFFFFF", raised:"#F4F6FB", hairline:"#E1E6F1", text:"#16203A", textMuted:"#66748F", accent:"#B07F2A", accentInk:"#FFFFFF", rust:"#C0442B", rustWash:"rgba(192,68,43,0.08)" },
+};
+
+function toStr(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function parseD(s){ return new Date(s+"T00:00:00"); }
+function todayStr(){ return toStr(new Date()); }
+function minStr(a,b){ return a<b?a:b; }
+function round2(n){ return Math.round(n*100)/100; }
+function startOfWeek(d){ var x=new Date(d.getFullYear(),d.getMonth(),d.getDate()); var day=x.getDay(); var back=day===0?6:day-1; x.setDate(x.getDate()-back); return x; }
+function addDays(d,n){ var x=new Date(d.getFullYear(),d.getMonth(),d.getDate()); x.setDate(x.getDate()+n); return x; }
+function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+function addMonths(d,n){ return new Date(d.getFullYear(), d.getMonth()+n, 1); }
+function endOfMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
+function daysInMonth(d){ return endOfMonth(d).getDate(); }
+function fmt(n, dp){ dp = dp || 0; return (Number(n)||0).toLocaleString("en-US",{minimumFractionDigits:dp, maximumFractionDigits:dp}); }
+function dayLabel(s){ return parseD(s).toLocaleDateString("en-GB",{weekday:"short", day:"numeric", month:"short"}); }
+function shortLabel(s){ return parseD(s).toLocaleDateString("en-GB",{day:"numeric", month:"short"}); }
+function weekdayLong(s){ return parseD(s).toLocaleDateString("en-GB",{weekday:"long"}); }
+function sumSpent(e){ return (e && Array.isArray(e.items)) ? e.items.reduce(function(s,i){ return s+i.amount; },0) : 0; }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+
+function getPeriodBounds(viewType, off, weeklyTarget, dailyAllowanceVal) {
+  var now = new Date();
+  if (viewType === "week") {
+    var start = addDays(startOfWeek(now), off*7);
+    var end = addDays(start, 6);
+    var title = (start.getMonth()===end.getMonth())
+      ? (start.getDate()+"–"+end.getDate()+" "+end.toLocaleDateString("en-GB",{month:"long",year:"numeric"}))
+      : (shortLabel(toStr(start))+" – "+shortLabel(toStr(end)));
+    return { startStr: toStr(start), endStr: toStr(end), days: 7, target: weeklyTarget, title: title,
+      sub: off===0 ? "This week" : off===-1 ? "Last week" : (Math.abs(off)+" weeks ago") };
+  }
+  var mstart = addMonths(startOfMonth(now), off);
+  var mend = endOfMonth(mstart);
+  var dim = daysInMonth(mstart);
+  return { startStr: toStr(mstart), endStr: toStr(mend), days: dim, target: dailyAllowanceVal*dim,
+    title: mstart.toLocaleDateString("en-GB",{month:"long",year:"numeric"}),
+    sub: off===0 ? "This month" : off===-1 ? "Last month" : (Math.abs(off)+" months ago") };
+}
+
+function migrateEntries(raw, fallbackAllowance) {
+  var out = {};
+  for (var date in (raw||{})) {
+    var e = raw[date];
+    if (e && Array.isArray(e.items)) out[date] = e;
+    else if (e && typeof e.spent === "number") out[date] = { allowance: (e.allowance==null?fallbackAllowance:e.allowance), items: [{ id:"legacy-"+date, amount:e.spent, note:"" }] };
+  }
+  return out;
+}
+
+/* ---------------- app state (single source of truth) ---------------- */
+var state = {
+  settings: DEFAULT_SETTINGS,
+  entries: {},
+  loading: true,
+  saveError: null,
+  storageOK: null,
+  view: "week",
+  offset: 0,
+  showSettings: false,
+  showBackup: false,
+  showResetConfirm: false,
+  restoreError: null,
+};
+
+function dailyAllowance(){ return state.settings.weeklyTarget/7; }
+
+/* ---------------- persistence ---------------- */
+function loadInitial() {
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      var parsed = JSON.parse(raw);
+      state.settings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings||{});
+      state.entries = migrateEntries(parsed.entries||{}, dailyAllowance());
+    }
+  } catch(e) { /* first run */ }
+  state.loading = false;
+  try {
+    localStorage.setItem(TEST_KEY, "1");
+    var ok = localStorage.getItem(TEST_KEY) === "1";
+    localStorage.removeItem(TEST_KEY);
+    state.storageOK = ok;
+  } catch(e) { state.storageOK = false; }
+}
+
+function persistAll(nextSettings, nextEntries, label) {
+  state.settings = nextSettings;
+  state.entries = nextEntries;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ settings: nextSettings, entries: nextEntries }));
+    state.saveError = null;
+  } catch(e) {
+    state.saveError = { nextSettings: nextSettings, nextEntries: nextEntries, label: label };
+  }
+}
+
+/* ---------------- period math ---------------- */
+function periodStats(startStr, endStrRaw) {
+  var endStr = minStr(endStrRaw, todayStr());
+  var sortedDates = Object.keys(state.entries).sort();
+  var opening = 0;
+  for (var i=0;i<sortedDates.length;i++) {
+    var d = sortedDates[i];
+    if (d < startStr) opening += state.entries[d].allowance - sumSpent(state.entries[d]);
+  }
+  opening = round2(opening);
+  var rows = [];
+  if (startStr <= endStr) {
+    var cur = parseD(startStr);
+    while (toStr(cur) <= endStr) {
+      var ds = toStr(cur);
+      var e = state.entries[ds];
+      rows.push({ date: ds, logged: !!e, items: e ? e.items : [], spent: e ? sumSpent(e) : 0, allowance: e ? e.allowance : dailyAllowance() });
+      cur = addDays(cur, 1);
+    }
+  }
+  var net = round2(rows.reduce(function(s,r){ return s+(r.allowance-r.spent); },0));
+  var closing = round2(opening+net);
+  return { opening:opening, net:net, closing:closing, rows:rows, elapsedDays: rows.length,
+    loggedCount: rows.filter(function(r){return r.logged;}).length, spent: rows.reduce(function(s,r){return s+r.spent;},0) };
+}
+
+/* ---------------- chart (plain SVG string) ---------------- */
+function renderChart(data, T) {
+  var w=340,h=130,padL=36,padR=8,padT=10,padB=18;
+  var values = data.map(function(d){return d.balance;});
+  var min = Math.min.apply(null,[0].concat(values)), max = Math.max.apply(null,[0].concat(values));
+  var range = (max-min)||1;
+  var plotW=w-padL-padR, plotH=h-padT-padB;
+  function x(i){ return padL + (data.length>1 ? (i/(data.length-1))*plotW : plotW/2); }
+  function y(v){ return padT + plotH - ((v-min)/range)*plotH; }
+  var linePts = data.map(function(d,i){ return x(i)+","+y(d.balance); }).join(" ");
+  var areaPts = x(0)+","+y(0)+" "+linePts+" "+x(data.length-1)+","+y(0);
+  var ticksSet = {}; [max,min,0].forEach(function(t){ ticksSet[Math.round(t)] = true; });
+  var ticks = Object.keys(ticksSet).map(Number);
+  var tickSvg = ticks.map(function(t){
+    return '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+y(t)+'" y2="'+y(t)+'" stroke="'+T.hairline+'" stroke-dasharray="3,3"/>'
+      + '<text x="2" y="'+(y(t)+3)+'" font-size="9" fill="'+T.textMuted+'" font-family="var(--f-mono)">'+fmt(t)+'</text>';
+  }).join("");
+  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="none">'
+    + tickSvg
+    + '<polygon points="'+areaPts+'" fill="'+T.accent+'" fill-opacity="0.18"/>'
+    + '<polyline points="'+linePts+'" fill="none" stroke="'+T.accent+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+    + '<text x="'+x(0)+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'">'+esc(data[0].label)+'</text>'
+    + '<text x="'+x(data.length-1)+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="end">'+esc(data[data.length-1].label)+'</text>'
+    + '</svg>';
+}
+
+/* ---------------- tiny inline icons ---------------- */
+var ICONS = {
+  plus: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  trash: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
+  settings: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  x: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  chevronLeft: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
+  chevronRight: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
+  sun: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.2" y1="4.2" x2="5.6" y2="5.6"/><line x1="18.4" y1="18.4" x2="19.8" y2="19.8"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.2" y1="19.8" x2="5.6" y2="18.4"/><line x1="18.4" y1="5.6" x2="19.8" y2="4.2"/></svg>',
+  moon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+  save: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
+  alert: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  rotate: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>',
+};
+
+/* ---------------- rendering ---------------- */
+function applyTheme(T) {
+  var r = document.documentElement.style;
+  r.setProperty("--bg", T.bg); r.setProperty("--card", T.card); r.setProperty("--raised", T.raised);
+  r.setProperty("--hairline", T.hairline); r.setProperty("--text", T.text); r.setProperty("--text-muted", T.textMuted);
+  r.setProperty("--accent", T.accent); r.setProperty("--accent-ink", T.accentInk);
+  r.setProperty("--rust", T.rust); r.setProperty("--rust-wash", T.rustWash);
+}
+
+function render() {
+  var root = document.getElementById("root");
+  var T = PALETTES[state.settings.theme] || PALETTES.dark;
+  applyTheme(T);
+
+  if (state.loading) {
+    root.innerHTML = '<div class="row" style="min-height:100vh; align-items:center; justify-content:center;"><div class="muted" style="font-size:14px;">Loading your ledger…</div></div>';
+    return;
+  }
+
+  var da = dailyAllowance();
+  var period = getPeriodBounds(state.view, state.offset, state.settings.weeklyTarget, da);
+  var currentPeriod = getPeriodBounds(state.view, 0, state.settings.weeklyTarget, da);
+  var displayed = periodStats(period.startStr, period.endStr);
+  var live = periodStats(currentPeriod.startStr, currentPeriod.endStr);
+
+  var isClosed = period.endStr < todayStr();
+  var isCurrent = state.offset === 0;
+  var daysLeft = Math.max(0, period.days - displayed.elapsedDays);
+  var elapsedTarget = displayed.elapsedDays * da;
+
+  var acc = displayed.opening;
+  var rowsWithBalance = displayed.rows.map(function(r){ acc = round2(acc + (r.allowance-r.spent)); return Object.assign({},r,{balance:acc}); }).slice().reverse();
+  var chartData = rowsWithBalance.length ? rowsWithBalance.slice().reverse().map(function(r){ return {label:shortLabel(r.date), balance:r.balance}; }) : [];
+
+  var netColor = displayed.net >= 0 ? "var(--accent)" : "var(--rust)";
+  var liveColor = live.closing >= 0 ? "var(--accent)" : "var(--rust)";
+
+  var html = "";
+  html += '<div class="wrap">';
+
+  // header
+  html += '<div class="row between" style="align-items:flex-start; margin-bottom:16px;">';
+  html += '<div><div class="display" style="font-size:22px;">The Ledger</div><div class="muted" style="font-size:12px; margin-top:2px;">'+fmt(da,2)+' AED a day · weeks run Mon–Sun</div></div>';
+  html += '<div class="row gap2">';
+  html += '<button class="icon-btn" data-action="open-backup" aria-label="Backup and restore">'+ICONS.save+'</button>';
+  html += '<button class="icon-btn" data-action="toggle-theme" aria-label="Toggle theme">'+(state.settings.theme==="dark"?ICONS.sun:ICONS.moon)+'</button>';
+  html += '<button class="icon-btn" data-action="open-settings" aria-label="Settings">'+ICONS.settings+'</button>';
+  html += '</div></div>';
+
+  // storage warning
+  if (state.storageOK === false) {
+    html += '<div class="card" style="padding:12px 16px; margin-bottom:12px; display:flex; gap:10px; background:var(--rust-wash); border-color:var(--rust);">';
+    html += '<div style="flex-shrink:0; margin-top:1px; color:var(--rust);">'+ICONS.alert+'</div>';
+    html += '<div><div style="font-size:12px;">Your browser is blocking local storage (common in Private Browsing).</div>';
+    html += '<button data-action="open-backup" style="background:none;border:none;padding:0;text-decoration:underline;color:var(--rust);font-size:12px;margin-top:4px;">Open backup as a safety net</button></div></div>';
+  }
+
+  // current balance
+  html += '<div class="card" style="padding:12px 16px; margin-bottom:12px;">';
+  html += '<div class="row between"><span class="eyebrow">Current balance</span><span class="mono" style="font-size:16px; color:'+liveColor+';">'+(live.closing>=0?"+":"−")+fmt(Math.abs(live.closing),2)+' AED</span></div>';
+  html += '<div class="muted" style="font-size:10px; margin-top:4px;">As of today · stays put while you browse past '+state.view+'s below</div></div>';
+
+  // view toggle
+  html += '<div class="row card" style="padding:4px; margin-bottom:12px;">';
+  ["week","month"].forEach(function(v){
+    var active = state.view===v;
+    html += '<button data-action="switch-view" data-view="'+v+'" style="flex:1; border:none; border-radius:10px; padding:6px 0; font-size:14px; text-transform:capitalize; background:'+(active?"var(--accent)":"transparent")+'; color:'+(active?"var(--accent-ink)":"var(--text-muted)")+'; font-weight:'+(active?600:400)+';">'+v+'</button>';
+  });
+  html += '</div>';
+
+  // period card
+  html += '<div class="card" style="margin-bottom:16px; overflow:hidden;">';
+  html += '<div class="row between" style="padding:12px; border-bottom:1px solid var(--hairline);">';
+  html += '<button data-action="nav-offset" data-delta="-1" class="icon-btn" style="border-radius:10px;" aria-label="Previous">'+ICONS.chevronLeft+'</button>';
+  html += '<div style="text-align:center;"><div style="font-size:14px; font-weight:500;">'+esc(period.title)+'</div>';
+  html += '<div class="eyebrow" style="margin-top:2px;">'+esc(period.sub)+(isClosed?" · closed":"")+'</div>';
+  if (isCurrent) {
+    html += '<div class="muted" style="font-size:11px; margin-top:4px;">'+(state.view==="week"?esc(weekdayLong(todayStr()))+" · ":"")+'Day '+displayed.elapsedDays+' of '+period.days+' · '+daysLeft+' day'+(daysLeft===1?"":"s")+' left</div>';
+  }
+  html += '</div>';
+  html += '<button data-action="nav-offset" data-delta="1" class="icon-btn" style="border-radius:10px;'+(isCurrent?"opacity:0.3;pointer-events:none;":"")+'" aria-label="Next">'+ICONS.chevronRight+'</button>';
+  html += '</div>';
+
+  html += '<div style="padding:16px 20px 12px;">';
+  html += '<div class="eyebrow">'+(isClosed?"Saved this period":"Saved so far")+'</div>';
+  html += '<div class="mono" style="font-size:34px; margin-top:4px; color:'+netColor+';">'+(displayed.net>=0?"+":"−")+fmt(Math.abs(displayed.net),2)+' <span class="muted" style="font-size:17px;">AED</span></div>';
+  html += '<div class="muted" style="font-size:12px; margin-top:4px;">'+(displayed.elapsedDays===0 ? ("This "+state.view+" hasn't started yet") : (displayed.loggedCount+" of "+displayed.elapsedDays+" elapsed day"+(displayed.elapsedDays===1?"":"s")+" logged"))+'</div>';
+  html += '<div class="muted" style="font-size:11px; margin-top:2px; font-style:italic;">Unlogged days assume 0 spent — the total drops once you log real spending.</div>';
+  html += '</div>';
+
+  html += '<div class="stat-grid hairline-top" style="padding:12px 20px 16px;">';
+  html += statBlock("Spent so far", fmt(displayed.spent,2)+" AED", displayed.spent>elapsedTarget?"var(--rust)":"var(--text)");
+  html += statBlock((state.view==="week"?"Weekly":"Monthly")+" target", fmt(period.target,0)+" AED", "var(--text)");
+  html += statBlock("Opening balance", (displayed.opening>=0?"+":"−")+fmt(Math.abs(displayed.opening),2), "var(--text)");
+  html += statBlock(isClosed?"Closing balance":"Balance now", (displayed.closing>=0?"+":"−")+fmt(Math.abs(displayed.closing),2), displayed.closing>=0?"var(--accent)":"var(--rust)");
+  html += '</div>';
+
+  if (chartData.length >= 2) {
+    html += '<div class="hairline-top" style="padding:12px 8px 12px;">'+renderChart(chartData, T)+'</div>';
+  }
+  html += '</div>'; // end period card
+
+  // entry form
+  var todayEntry = state.entries[state.entryDate || todayStr()];
+  var formDate = state.entryDate || todayStr();
+  html += '<div class="card" style="padding:16px; margin-bottom:16px;">';
+  html += '<div class="eyebrow" style="margin-bottom:12px;">Add a transaction</div>';
+  html += '<input id="entryDateInput" type="date" class="field mono" style="margin-bottom:8px;" value="'+formDate+'" max="'+todayStr()+'" />';
+  html += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="What was it for? (optional)" />';
+  html += '<div class="row gap2">';
+  html += '<div style="position:relative; flex:1;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none;">AED</span>';
+  html += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="Amount" /></div>';
+  html += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent row gap2" style="align-items:center;">'+ICONS.plus+' Add</button>';
+  html += '</div>';
+  html += '<div id="entryHint" class="muted" style="font-size:11px; margin-top:8px;">'+(todayEntry ? (esc(dayLabel(formDate))+" so far: "+todayEntry.items.length+" transaction"+(todayEntry.items.length===1?"":"s")+", "+fmt(sumSpent(todayEntry),2)+" AED total.") : "")+'</div>';
+  html += '</div>';
+
+  // days list
+  html += '<div class="card" style="overflow:hidden;">';
+  html += '<div class="eyebrow" style="padding:16px 16px 8px;">Days in this '+state.view+'</div>';
+  if (rowsWithBalance.length === 0) {
+    html += '<div class="muted" style="padding:0 16px 20px; font-size:14px;">This '+state.view+" hasn't started yet.</div>";
+  } else {
+    rowsWithBalance.forEach(function(row, i){
+      var delta = row.allowance - row.spent;
+      html += '<div style="'+(i===0?"":"border-top:1px solid var(--hairline);")+'">';
+      html += '<button class="day-row" data-action="quick-date" data-date="'+row.date+'" style="opacity:'+(row.logged?1:0.6)+';">';
+      html += '<div><div style="font-size:14px;">'+esc(dayLabel(row.date))+'</div>';
+      html += '<div class="mono muted" style="font-size:11px; margin-top:2px;">'+(row.logged ? (row.items.length+" txn"+(row.items.length===1?"":"s")+" · spent "+fmt(row.spent,2)+" of "+fmt(row.allowance,2)) : ("not logged · "+fmt(row.allowance,2)+" assumed saved"))+'</div></div>';
+      html += '<div style="text-align:right;"><div class="mono" style="font-size:12px; color:'+(delta>=0?"var(--accent)":"var(--rust)")+';">'+(delta>=0?"+":"−")+fmt(Math.abs(delta),2)+'</div>';
+      html += '<div class="mono muted" style="font-size:10px;">bal '+fmt(row.balance,0)+'</div></div>';
+      html += '</button>';
+      if (row.logged && row.items.length>0) {
+        html += '<div style="padding:0 16px 12px; margin-top:-4px;">';
+        row.items.forEach(function(it){
+          html += '<div class="txn-line"><span class="muted" style="font-size:11px; padding-left:8px;">'+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span>';
+          html += '<button data-action="delete-txn" data-date="'+row.date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button></div>';
+        });
+        html += '</div>';
+      }
+      html += '</div>';
+    });
+  }
+  html += '</div>';
+
+  if (state.saveError) {
+    html += '<div style="text-align:center; margin-top:12px; font-size:12px; color:var(--rust);">Couldn\'t save '+esc(state.saveError.label)+' — <button data-action="retry-save" style="background:none;border:none;padding:0;text-decoration:underline;color:var(--rust);font-size:12px;">tap to retry</button>.</div>';
+  }
+  html += '<div style="text-align:center; margin-top:24px;"><button data-action="open-reset" style="background:none;border:none;padding:0;color:var(--text-muted);font-size:11px;">Clear all entries</button></div>';
+  html += '</div>'; // end wrap
+
+  // modals
+  if (state.showSettings) {
+    html += '<div class="modal-backdrop" data-action="close-settings">';
+    html += '<div class="modal-card" onclick="event.stopPropagation()">';
+    html += '<div class="row between" style="margin-bottom:16px;"><div class="display" style="font-size:18px;">Settings</div><button data-action="close-settings" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div>';
+    html += '<label class="eyebrow">Weekly budget target</label>';
+    html += '<div style="position:relative; margin:6px 0 4px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
+    html += '<input id="weeklyDraftInput" type="number" inputmode="decimal" class="field mono" style="padding-left:44px;" value="'+state.settings.weeklyTarget+'" /></div>';
+    html += '<div class="muted" style="font-size:12px; margin-bottom:16px;">New days use this rate; days already logged keep the rate they were saved at.</div>';
+    html += '<button data-action="save-settings" class="btn-accent" style="width:100%;">Save</button>';
+    html += '</div></div>';
+  }
+
+  if (state.showBackup) {
+    var backupText = JSON.stringify({settings:state.settings, entries:state.entries}, null, 2);
+    html += '<div class="modal-backdrop" data-action="close-backup">';
+    html += '<div class="modal-card" onclick="event.stopPropagation()">';
+    html += '<div class="row between" style="margin-bottom:12px;"><div class="display" style="font-size:18px;">Backup & restore</div><button data-action="close-backup" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div>';
+    html += '<div class="muted" style="font-size:12px; margin-bottom:8px;">Use this to move data to another device, or as a safety net.</div>';
+    html += '<textarea readonly class="field mono" style="height:120px; font-size:11px; margin-bottom:8px; resize:none;" onfocus="this.select()">'+esc(backupText)+'</textarea>';
+    html += '<button id="copyBackupBtn" data-action="copy-backup" class="btn-accent" style="width:100%; margin-bottom:20px;">Copy backup</button>';
+    html += '<div class="muted" style="font-size:12px; margin-bottom:8px;">Restore from a backup:</div>';
+    html += '<textarea id="restoreInput" class="field mono" style="height:90px; font-size:11px; margin-bottom:8px; resize:none;" placeholder="Paste backup text here"></textarea>';
+    if (state.restoreError) html += '<div style="color:var(--rust); font-size:12px; margin-bottom:8px;">'+esc(state.restoreError)+'</div>';
+    html += '<button data-action="restore-backup" class="btn-outline" style="width:100%;">Restore this backup</button>';
+    html += '</div></div>';
+  }
+
+  if (state.showResetConfirm) {
+    html += '<div class="modal-backdrop" data-action="close-reset" style="padding:0 24px;">';
+    html += '<div class="modal-card" style="border-radius:20px;" onclick="event.stopPropagation()">';
+    html += '<div class="display" style="font-size:18px; margin-bottom:8px;">Clear all entries?</div>';
+    html += '<div class="muted" style="font-size:14px; margin-bottom:16px;">Every logged transaction is removed. Your weekly target and theme stay. This can\'t be undone.</div>';
+    html += '<div class="row gap2">';
+    html += '<button data-action="close-reset" class="btn-outline" style="flex:1;">Cancel</button>';
+    html += '<button data-action="confirm-reset" class="btn-rust row gap2" style="flex:1; justify-content:center; align-items:center;">'+ICONS.rotate+' Clear</button>';
+    html += '</div></div></div>';
+  }
+
+  root.innerHTML = html;
+}
+
+function statBlock(label, value, color) {
+  return '<div><div class="eyebrow">'+esc(label)+'</div><div class="mono" style="font-size:14px; margin-top:2px; color:'+color+';">'+value+'</div></div>';
+}
+
+/* ---------------- actions ---------------- */
+function handleAddTransaction() {
+  var dateEl = document.getElementById("entryDateInput");
+  var amtEl = document.getElementById("entryAmountInput");
+  var noteEl = document.getElementById("entryNoteInput");
+  var date = dateEl ? dateEl.value : todayStr();
+  var amt = parseFloat(amtEl ? amtEl.value : "");
+  if (isNaN(amt) || amt < 0 || !date) return;
+  var note = noteEl ? noteEl.value.trim() : "";
+  var existing = state.entries[date];
+  var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note };
+  var nextDay = existing ? Object.assign({}, existing, { items: existing.items.concat([newItem]) }) : { allowance: dailyAllowance(), items: [newItem] };
+  var nextEntries = Object.assign({}, state.entries);
+  nextEntries[date] = nextDay;
+  state.entryDate = date;
+  persistAll(state.settings, nextEntries, "your entry");
+  render();
+}
+
+function handleDeleteTxn(date, id) {
+  var day = state.entries[date];
+  if (!day) return;
+  var remaining = day.items.filter(function(i){ return i.id !== id; });
+  var nextEntries = Object.assign({}, state.entries);
+  if (remaining.length === 0) delete nextEntries[date]; else nextEntries[date] = Object.assign({}, day, { items: remaining });
+  persistAll(state.settings, nextEntries, "your entry");
+  render();
+}
+
+function handleQuickDate(date) {
+  state.entryDate = date;
+  var dateEl = document.getElementById("entryDateInput");
+  if (dateEl) dateEl.value = date;
+  var hintEl = document.getElementById("entryHint");
+  if (hintEl) {
+    var day = state.entries[date];
+    hintEl.innerHTML = day ? (esc(dayLabel(date))+" so far: "+day.items.length+" transaction"+(day.items.length===1?"":"s")+", "+fmt(sumSpent(day),2)+" AED total.") : "";
+  }
+}
+
+function handleCopyBackup() {
+  var btn = document.getElementById("copyBackupBtn");
+  var text = JSON.stringify({settings:state.settings, entries:state.entries}, null, 2);
+  function done(msg) { if (btn) { btn.textContent = msg; setTimeout(function(){ if(btn) btn.textContent = "Copy backup"; }, 2500); } }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function(){ done("Copied ✓"); }).catch(function(){ done("Select the text above to copy"); });
+  } else {
+    done("Select the text above to copy");
+  }
+}
+
+function handleRestore() {
+  var el = document.getElementById("restoreInput");
+  var raw = el ? el.value : "";
+  try {
+    var parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || typeof parsed.entries !== "object") throw new Error("bad shape");
+    var nextSettings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings||{});
+    var nextEntries = migrateEntries(parsed.entries||{}, nextSettings.weeklyTarget/7);
+    persistAll(nextSettings, nextEntries, "restored data");
+    state.restoreError = null;
+    state.showBackup = false;
+  } catch(e) {
+    state.restoreError = "That doesn't look like a valid backup — paste the exact text you copied earlier.";
+  }
+  render();
+}
+
+/* ---------------- event delegation ---------------- */
+document.addEventListener("click", function(e) {
+  var el = e.target.closest("[data-action]");
+  if (!el) return;
+  var action = el.dataset.action;
+  switch(action) {
+    case "open-backup": state.showBackup = true; render(); break;
+    case "close-backup": state.showBackup = false; state.restoreError = null; render(); break;
+    case "open-settings": state.showSettings = true; render(); break;
+    case "close-settings": state.showSettings = false; render(); break;
+    case "open-reset": state.showResetConfirm = true; render(); break;
+    case "close-reset": state.showResetConfirm = false; render(); break;
+    case "toggle-theme":
+      persistAll(Object.assign({}, state.settings, { theme: state.settings.theme==="dark"?"light":"dark" }), state.entries, "your settings");
+      render();
+      break;
+    case "switch-view": state.view = el.dataset.view; state.offset = 0; render(); break;
+    case "nav-offset":
+      var delta = parseInt(el.dataset.delta,10);
+      var next = state.offset + delta;
+      state.offset = Math.min(0, next);
+      render();
+      break;
+    case "add-transaction": handleAddTransaction(); break;
+    case "delete-txn": handleDeleteTxn(el.dataset.date, el.dataset.id); break;
+    case "quick-date": handleQuickDate(el.dataset.date); break;
+    case "retry-save":
+      if (state.saveError) { var se = state.saveError; state.saveError = null; persistAll(se.nextSettings, se.nextEntries, se.label); }
+      render();
+      break;
+    case "save-settings":
+      var wEl = document.getElementById("weeklyDraftInput");
+      var v = wEl ? parseFloat(wEl.value) : NaN;
+      if (!isNaN(v) && v > 0) persistAll(Object.assign({}, state.settings, { weeklyTarget: v }), state.entries, "your settings");
+      state.showSettings = false;
+      render();
+      break;
+    case "copy-backup": handleCopyBackup(); break;
+    case "restore-backup": handleRestore(); break;
+    case "confirm-reset":
+      persistAll(state.settings, {}, "reset");
+      state.showResetConfirm = false;
+      render();
+      break;
+  }
+});
+
+document.addEventListener("change", function(e) {
+  if (e.target && e.target.id === "entryDateInput") handleQuickDate(e.target.value);
+});
+
+/* ---------------- init ---------------- */
+loadInitial();
+render();
+</script>
+</body>
+</html>
