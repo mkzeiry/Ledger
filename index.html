@@ -314,7 +314,12 @@ function render() {
     html += '<label class="eyebrow">Tracking start date (optional)</label>';
     html += '<input id="trackingStartInput" type="date" class="field mono" style="margin:6px 0 4px;" value="'+(state.settings.trackingStartDate||"")+'" max="'+todayStr()+'" />';
     html += '<div class="muted" style="font-size:12px; margin-bottom:16px;">Caps how far back Week/Month/Year totals count. Set this to when you actually started using the app so untracked earlier days aren\'t assumed as saved. Leave blank to count from each period\'s natural start.</div>';
-    html += '<button data-action="save-settings" class="btn-accent" style="width:100%;">Save</button>';
+    html += '<button data-action="save-settings" class="btn-accent" style="width:100%; margin-bottom:20px;">Save</button>';
+    html += '<div class="hairline-top" style="padding-top:16px;">';
+    html += '<label class="eyebrow">One-time fix</label>';
+    html += '<div class="muted" style="font-size:12px; margin:6px 0 10px;">Rewrites every already-logged day to use today\'s rate ('+fmt(dailyAllowance(),0)+' AED/day), instead of the rate that was live when each was saved. Use this if you were still dialing in your target and want history to match. New days keep locking to whatever rate is live when logged, same as before.</div>';
+    html += '<button data-action="recalc-allowance" class="btn-outline" style="width:100%;">Apply current rate to all logged days</button>';
+    html += '</div>';
     html += '</div></div>';
   }
 
@@ -707,6 +712,20 @@ document.addEventListener("click", function(e) {
       if (!isNaN(v) && v > 0) nextSettings.weeklyTarget = v;
       nextSettings.trackingStartDate = (tsEl && tsEl.value) ? tsEl.value : null;
       persistAll(nextSettings, state.entries, "your settings");
+      state.showSettings = false;
+      render();
+      break;
+    case "recalc-allowance":
+      var rwEl = document.getElementById("weeklyDraftInput");
+      var rv = rwEl ? parseFloat(rwEl.value) : NaN;
+      var recalcSettings = Object.assign({}, state.settings);
+      if (!isNaN(rv) && rv > 0) recalcSettings.weeklyTarget = rv;
+      var newDaily = recalcSettings.weeklyTarget / 7;
+      var recalcEntries = {};
+      Object.keys(state.entries).forEach(function(d){
+        recalcEntries[d] = Object.assign({}, state.entries[d], { allowance: newDaily });
+      });
+      persistAll(recalcSettings, recalcEntries, "your entries");
       state.showSettings = false;
       render();
       break;
