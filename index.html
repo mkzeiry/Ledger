@@ -63,7 +63,7 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"] };
 var PALETTES = {
   dark:  { bg:"#0C1322", card:"#131C31", raised:"#0C1322", hairline:"#26314D", text:"#E8EDF7", textMuted:"#8595B5", accent:"#E0B368", accentInk:"#0C1322", rust:"#D4614A", rustWash:"rgba(212,97,74,0.10)", positive:"#5EBD8C" },
   light: { bg:"#F4F6FB", card:"#FFFFFF", raised:"#F4F6FB", hairline:"#E1E6F1", text:"#16203A", textMuted:"#66748F", accent:"#B07F2A", accentInk:"#FFFFFF", rust:"#C0442B", rustWash:"rgba(192,68,43,0.08)", positive:"#1E8E5A" },
@@ -152,6 +152,7 @@ var state = {
   calendarSelectedDate: null,
   editingItemId: null,
   editingOriginalDate: null,
+  showAddTxn: false,
 };
 
 function dailyAllowance(){ return state.settings.weeklyTarget/7; }
@@ -308,9 +309,11 @@ function render() {
   }
 
   html += '</div>'; // end wrap
+  if (state.page === "home" || state.page === "transactions" || state.page === "calendar") html += renderFab();
   html += renderBottomNav();
 
   // modals
+  if (state.showAddTxn) html += renderAddTxnModal();
   if (state.showSettings) {
     html += '<div class="modal-backdrop" data-action="close-settings">';
     html += '<div class="modal-card" data-action="noop">';
@@ -323,6 +326,16 @@ function render() {
     html += '<input id="trackingStartInput" type="date" class="field mono" style="margin:6px 0 4px;" value="'+(state.settings.trackingStartDate||"")+'" max="'+todayStr()+'" />';
     html += '<div class="muted" style="font-size:12px; margin-bottom:16px;">Caps how far back Week/Month/Year totals count. Set this to when you actually started using the app so untracked earlier days aren\'t assumed as saved. Leave blank to count from each period\'s natural start.</div>';
     html += '<button data-action="save-settings" class="btn-accent" style="width:100%; margin-bottom:20px;">Save</button>';
+    html += '<div class="hairline-top" style="padding-top:16px; margin-bottom:16px;">';
+    html += '<label class="eyebrow">Categories</label>';
+    html += '<div style="display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 10px;">';
+    (state.settings.categories||[]).forEach(function(c){
+      html += '<span style="display:inline-flex; align-items:center; gap:5px; background:var(--raised); border:1px solid var(--hairline); border-radius:999px; padding:5px 8px 5px 11px; font-size:12px;">'+esc(c)+'<button data-action="remove-category" data-cat="'+esc(c)+'" style="background:none;border:none;padding:2px;color:var(--text-muted);display:flex;" aria-label="Remove">'+ICONS.trash+'</button></span>';
+    });
+    if (!(state.settings.categories||[]).length) html += '<span class="muted" style="font-size:12px;">No categories yet.</span>';
+    html += '</div>';
+    html += '<div class="row gap2"><input id="newCategoryInput" type="text" class="field" placeholder="New category" style="flex:1;" /><button data-action="add-category" class="btn-outline">Add</button></div>';
+    html += '</div>';
     html += '<div class="hairline-top" style="padding-top:16px;">';
     html += '<label class="eyebrow">One-time fix</label>';
     html += '<div class="muted" style="font-size:12px; margin:6px 0 10px;">Rewrites every already-logged day to use today\'s rate ('+fmt(dailyAllowance(),0)+' AED/day), instead of the rate that was live when each was saved. Use this if you were still dialing in your target and want history to match. New days keep locking to whatever rate is live when logged, same as before.</div>';
@@ -444,18 +457,29 @@ function renderHomeBody(T, da) {
   }
   h += '</div>'; // end period card
 
-  var todayEntry = state.entries[state.entryDate || todayStr()];
-  var formDate = state.entryDate || todayStr();
+  return h;
+}
+
+function renderAddTxnModal() {
   var editingItem = null;
   if (state.editingItemId && state.editingOriginalDate) {
     var origDay = state.entries[state.editingOriginalDate];
     if (origDay) editingItem = origDay.items.find(function(i){ return i.id === state.editingItemId; }) || null;
   }
-  h += '<div class="card" style="padding:16px;">';
-  h += '<div class="row between" style="margin-bottom:12px;"><div class="eyebrow" style="margin-bottom:0;">'+(editingItem?"Edit transaction":"Add a transaction")+'</div>';
-  if (editingItem) h += '<button data-action="cancel-edit" style="background:none;border:none;padding:0;color:var(--text-muted);font-size:11px;text-decoration:underline;">Cancel</button>';
-  h += '</div>';
+  var formDate = state.entryDate || todayStr();
+  var todayEntry = state.entries[formDate];
+  var cats = state.settings.categories || [];
+
+  var h = '<div class="modal-backdrop" data-action="close-add-txn">';
+  h += '<div class="modal-card" data-action="noop">';
+  h += '<div class="row between" style="margin-bottom:16px;"><div class="display" style="font-size:18px;">'+(editingItem?"Edit transaction":"Add transaction")+'</div><button data-action="close-add-txn" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div>';
   h += '<input id="entryDateInput" type="date" class="field mono" style="margin-bottom:8px;" value="'+formDate+'" max="'+todayStr()+'" />';
+  h += '<select id="entryCategoryInput" class="field" style="margin-bottom:8px;">';
+  h += '<option value="">No category</option>';
+  cats.forEach(function(c){
+    h += '<option value="'+esc(c)+'"'+(editingItem && editingItem.category===c?" selected":"")+'>'+esc(c)+'</option>';
+  });
+  h += '</select>';
   h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="What was it for? (optional)" value="'+(editingItem?esc(editingItem.note||""):"")+'" />';
   h += '<div class="row gap2">';
   h += '<div style="position:relative; flex:1;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none;">AED</span>';
@@ -463,9 +487,12 @@ function renderHomeBody(T, da) {
   h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent row gap2" style="align-items:center;">'+(editingItem?ICONS.check+" Save":ICONS.plus+" Add")+'</button>';
   h += '</div>';
   h += '<div id="entryHint" class="muted" style="font-size:11px; margin-top:8px;">'+(todayEntry && !editingItem ? (esc(dayLabel(formDate))+" so far: "+todayEntry.items.length+" transaction"+(todayEntry.items.length===1?"":"s")+", "+fmt(sumSpent(todayEntry),2)+" AED total.") : "")+'</div>';
-  h += '</div>';
-
+  h += '</div></div>';
   return h;
+}
+
+function renderFab() {
+  return '<button data-action="open-add-txn" aria-label="Add transaction" style="position:fixed; right:calc(env(safe-area-inset-right,0px) + 18px); bottom:calc(env(safe-area-inset-bottom,0px) + 78px); width:52px; height:52px; border-radius:999px; background:var(--accent); color:var(--accent-ink); border:none; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,0.35); z-index:45;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
 }
 
 function renderTransactionsBody() {
@@ -497,7 +524,7 @@ function renderTransactionsBody() {
       h += '</div>';
       h += '<div style="margin-top:4px;">';
       day.items.forEach(function(it){
-        h += '<div class="txn-line"><button data-action="edit-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;text-align:left;flex:1;display:flex;align-items:center;gap:5px;"><span style="color:var(--text-muted);">'+ICONS.pencil+'</span><span class="muted" style="font-size:11px;">'+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span></button>';
+        h += '<div class="txn-line"><button data-action="edit-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;text-align:left;flex:1;display:flex;align-items:center;gap:5px;"><span style="color:var(--text-muted);">'+ICONS.pencil+'</span><span class="muted" style="font-size:11px;">'+(it.category?('<span style="color:var(--accent);">'+esc(it.category)+'</span> · '):"")+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span></button>';
         h += '<button data-action="delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button></div>';
       });
       h += '</div></div>';
@@ -600,7 +627,7 @@ function renderCalendarBody() {
     h += '<div class="eyebrow" style="margin-bottom:8px;">'+esc(dayLabel(sd))+'</div>';
     if (sday && sday.items.length) {
       sday.items.forEach(function(it){
-        h += '<div class="txn-line"><button data-action="edit-txn" data-date="'+sd+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;text-align:left;flex:1;display:flex;align-items:center;gap:5px;"><span style="color:var(--text-muted);">'+ICONS.pencil+'</span><span class="muted" style="font-size:12px;">'+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span></button>';
+        h += '<div class="txn-line"><button data-action="edit-txn" data-date="'+sd+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;text-align:left;flex:1;display:flex;align-items:center;gap:5px;"><span style="color:var(--text-muted);">'+ICONS.pencil+'</span><span class="muted" style="font-size:12px;">'+(it.category?('<span style="color:var(--accent);">'+esc(it.category)+'</span> · '):"")+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span></button>';
         h += '<button data-action="delete-txn" data-date="'+sd+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button></div>';
       });
     } else {
@@ -744,13 +771,16 @@ function handleAddTransaction() {
   var dateEl = document.getElementById("entryDateInput");
   var amtEl = document.getElementById("entryAmountInput");
   var noteEl = document.getElementById("entryNoteInput");
+  var catEl = document.getElementById("entryCategoryInput");
   var date = dateEl ? dateEl.value : todayStr();
   var amt = parseFloat(amtEl ? amtEl.value : "");
   if (isNaN(amt) || amt < 0 || !date) return;
   var note = noteEl ? noteEl.value.trim() : "";
+  var category = catEl ? catEl.value : "";
   var nextEntries = Object.assign({}, state.entries);
+  var wasEditing = !!(state.editingItemId && state.editingOriginalDate);
 
-  if (state.editingItemId && state.editingOriginalDate) {
+  if (wasEditing) {
     var origDate = state.editingOriginalDate;
     var origDay = nextEntries[origDate];
     var carriedAllowance = origDay ? origDay.allowance : dailyAllowance();
@@ -759,15 +789,16 @@ function handleAddTransaction() {
       if (remaining.length === 0) delete nextEntries[origDate];
       else nextEntries[origDate] = Object.assign({}, origDay, { items: remaining });
     }
-    var updatedItem = { id: state.editingItemId, amount: amt, note: note };
+    var updatedItem = { id: state.editingItemId, amount: amt, note: note, category: category };
     var destDay = nextEntries[date];
     var nextDest = destDay ? Object.assign({}, destDay, { items: destDay.items.concat([updatedItem]) }) : { allowance: carriedAllowance, items: [updatedItem] };
     nextEntries[date] = nextDest;
     state.editingItemId = null;
     state.editingOriginalDate = null;
+    state.showAddTxn = false;
   } else {
     var existing = nextEntries[date];
-    var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note };
+    var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category };
     nextEntries[date] = existing ? Object.assign({}, existing, { items: existing.items.concat([newItem]) }) : { allowance: dailyAllowance(), items: [newItem] };
   }
 
@@ -777,10 +808,10 @@ function handleAddTransaction() {
 }
 
 function handleEditTxn(date, id) {
-  state.page = "home";
   state.entryDate = date;
   state.editingItemId = id;
   state.editingOriginalDate = date;
+  state.showAddTxn = true;
   render();
 }
 
@@ -867,9 +898,23 @@ document.addEventListener("click", function(e) {
     case "delete-txn": handleDeleteTxn(el.dataset.date, el.dataset.id); break;
     case "edit-txn": handleEditTxn(el.dataset.date, el.dataset.id); break;
     case "cancel-edit": handleCancelEdit(); break;
+    case "open-add-txn":
+      state.editingItemId = null;
+      state.editingOriginalDate = null;
+      state.entryDate = todayStr();
+      state.showAddTxn = true;
+      render();
+      break;
+    case "close-add-txn":
+      state.showAddTxn = false;
+      state.editingItemId = null;
+      state.editingOriginalDate = null;
+      render();
+      break;
     case "go-page":
       state.editingItemId = null;
       state.editingOriginalDate = null;
+      state.showAddTxn = false;
       state.page = el.dataset.page;
       render();
       break;
@@ -910,6 +955,21 @@ document.addEventListener("click", function(e) {
       });
       persistAll(recalcSettings, recalcEntries, "your entries");
       state.showSettings = false;
+      render();
+      break;
+    case "add-category":
+      var newCatEl = document.getElementById("newCategoryInput");
+      var newCat = newCatEl ? newCatEl.value.trim() : "";
+      if (newCat && (state.settings.categories||[]).indexOf(newCat) === -1) {
+        var withCat = Object.assign({}, state.settings, { categories: (state.settings.categories||[]).concat([newCat]) });
+        persistAll(withCat, state.entries, "your settings");
+        render();
+      }
+      break;
+    case "remove-category":
+      var catToRemove = el.dataset.cat;
+      var withoutCat = Object.assign({}, state.settings, { categories: (state.settings.categories||[]).filter(function(c){ return c !== catToRemove; }) });
+      persistAll(withoutCat, state.entries, "your settings");
       render();
       break;
     case "copy-backup": handleCopyBackup(); break;
