@@ -23,7 +23,7 @@
   * { box-sizing: border-box; }
   html, body { margin:0; padding:0; overscroll-behavior-y: none; background: var(--bg); }
   body { font-family: var(--f-ui); color: var(--text); -webkit-tap-highlight-color: transparent; }
-  #root { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+  #root { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; min-height: var(--vh100, 100dvh); }
   .wrap { flex: 1 0 auto; max-width: 420px; width: 100%; margin: 0 auto; box-sizing: border-box; padding: calc(env(safe-area-inset-top, 0px) + 20px) 16px 20px; }
   .row { display: flex; align-items: center; }
   .between { justify-content: space-between; }
@@ -246,6 +246,8 @@ var ICONS = {
   x: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
   chevronLeft: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
   chevronRight: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
+  chevronUp: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>',
+  chevronDown: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
   sun: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.2" y1="4.2" x2="5.6" y2="5.6"/><line x1="18.4" y1="18.4" x2="19.8" y2="19.8"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.2" y1="19.8" x2="5.6" y2="18.4"/><line x1="18.4" y1="5.6" x2="19.8" y2="4.2"/></svg>',
   moon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
   save: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
@@ -328,11 +330,18 @@ function render() {
     html += '<button data-action="save-settings" class="btn-accent" style="width:100%; margin-bottom:20px;">Save</button>';
     html += '<div class="hairline-top" style="padding-top:16px; margin-bottom:16px;">';
     html += '<label class="eyebrow">Categories</label>';
-    html += '<div style="display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 10px;">';
-    (state.settings.categories||[]).forEach(function(c){
-      html += '<span style="display:inline-flex; align-items:center; gap:5px; background:var(--raised); border:1px solid var(--hairline); border-radius:999px; padding:5px 8px 5px 11px; font-size:12px;">'+esc(c)+'<button data-action="remove-category" data-cat="'+esc(c)+'" style="background:none;border:none;padding:2px;color:var(--text-muted);display:flex;" aria-label="Remove">'+ICONS.trash+'</button></span>';
+    html += '<div style="display:flex; flex-direction:column; gap:6px; margin:8px 0 10px;">';
+    var catList = state.settings.categories||[];
+    catList.forEach(function(c,ci){
+      html += '<div class="row between" style="background:var(--raised); border:1px solid var(--hairline); border-radius:8px; padding:7px 8px 7px 12px;">';
+      html += '<span style="font-size:13px;">'+esc(c)+'</span>';
+      html += '<div class="row gap2">';
+      html += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(ci===0?"var(--hairline)":"var(--text-muted)")+';" '+(ci===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
+      html += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(ci===catList.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(ci===catList.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
+      html += '<button data-action="remove-category" data-cat="'+esc(c)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Remove">'+ICONS.trash+'</button>';
+      html += '</div></div>';
     });
-    if (!(state.settings.categories||[]).length) html += '<span class="muted" style="font-size:12px;">No categories yet.</span>';
+    if (!catList.length) html += '<span class="muted" style="font-size:12px;">No categories yet.</span>';
     html += '</div>';
     html += '<div class="row gap2"><input id="newCategoryInput" type="text" class="field" placeholder="New category" style="flex:1;" /><button data-action="add-category" class="btn-outline">Add</button></div>';
     html += '</div>';
@@ -972,6 +981,18 @@ document.addEventListener("click", function(e) {
       persistAll(withoutCat, state.entries, "your settings");
       render();
       break;
+    case "move-category":
+      var dir = parseInt(el.dataset.dir,10);
+      var cats2 = (state.settings.categories||[]).slice();
+      var idx = cats2.indexOf(el.dataset.cat);
+      var swapIdx = idx + dir;
+      if (idx >= 0 && swapIdx >= 0 && swapIdx < cats2.length) {
+        var tmp = cats2[idx]; cats2[idx] = cats2[swapIdx]; cats2[swapIdx] = tmp;
+        var movedSettings = Object.assign({}, state.settings, { categories: cats2 });
+        persistAll(movedSettings, state.entries, "your settings");
+        render();
+      }
+      break;
     case "copy-backup": handleCopyBackup(); break;
     case "restore-backup": handleRestore(); break;
     case "confirm-reset":
@@ -987,6 +1008,13 @@ document.addEventListener("change", function(e) {
 });
 
 /* ---------------- init ---------------- */
+function setViewportHeightVar() {
+  document.documentElement.style.setProperty("--vh100", window.innerHeight + "px");
+}
+setViewportHeightVar();
+window.addEventListener("resize", setViewportHeightVar);
+window.addEventListener("orientationchange", setViewportHeightVar);
+
 loadInitial();
 render();
 </script>
