@@ -86,6 +86,8 @@ function dayLabel(s){ return parseD(s).toLocaleDateString("en-GB",{weekday:"shor
 function shortLabel(s){ return parseD(s).toLocaleDateString("en-GB",{day:"numeric", month:"short"}); }
 function weekdayLong(s){ return parseD(s).toLocaleDateString("en-GB",{weekday:"long"}); }
 function sumSpent(e){ return (e && Array.isArray(e.items)) ? e.items.reduce(function(s,i){ return s+i.amount; },0) : 0; }
+function itemTimeKey(it){ var n = parseInt(String(it.id).split("-")[0], 10); return isNaN(n) ? 0 : n; }
+function newestFirst(items){ return items.slice().sort(function(a,b){ return itemTimeKey(b) - itemTimeKey(a); }); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
 
 function getPeriodBounds(viewType, off, weeklyTarget, dailyAllowanceVal) {
@@ -159,6 +161,7 @@ var state = {
   showAddTxn: false,
   toastMessage: null,
   settingsTab: "budget",
+  pendingDeleteKey: null,
 };
 
 /* Rate history: records what the weekly target was over time, so past periods are
@@ -656,9 +659,16 @@ function renderTransactionsBody() {
       h += '<div class="mono muted" style="font-size:10px;">bal '+fmt(bal,0)+'</div></div>';
       h += '</div>';
       h += '<div style="margin-top:4px;">';
-      day.items.forEach(function(it){
-        h += '<div class="txn-line"><button data-action="edit-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;text-align:left;flex:1;display:flex;align-items:center;gap:5px;"><span style="color:var(--text-muted);">'+ICONS.pencil+'</span><span class="muted" style="font-size:11px;">'+(it.category?('<span style="color:var(--accent);">'+esc(it.category)+'</span> · '):"")+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span></button>';
-        h += '<button data-action="delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button></div>';
+      newestFirst(day.items).forEach(function(it){
+        var key = date+"|"+it.id;
+        if (state.pendingDeleteKey === key) {
+          h += '<div class="txn-line" style="background:var(--rust-wash); border-radius:6px; padding:4px 8px;"><span style="font-size:11px;">Delete this?</span>';
+          h += '<div class="row gap2"><button data-action="delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:var(--rust);border:none;border-radius:5px;padding:4px;color:#fff;" aria-label="Confirm delete">'+ICONS.check+'</button>';
+          h += '<button data-action="cancel-delete-txn" style="background:none;border:1px solid var(--hairline);border-radius:5px;padding:4px;color:var(--text-muted);" aria-label="Cancel">'+ICONS.x+'</button></div></div>';
+        } else {
+          h += '<div class="txn-line"><button data-action="edit-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;text-align:left;flex:1;display:flex;align-items:center;gap:5px;"><span style="color:var(--text-muted);">'+ICONS.pencil+'</span><span class="muted" style="font-size:11px;">'+(it.category?('<span style="color:var(--accent);">'+esc(it.category)+'</span> · '):"")+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span></button>';
+          h += '<button data-action="ask-delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button></div>';
+        }
       });
       h += '</div></div>';
       if (i < dates.length - 1) {
@@ -763,9 +773,16 @@ function renderCalendarBody() {
     h += '<div class="card" style="padding:16px;">';
     h += '<div class="eyebrow" style="margin-bottom:8px;">'+esc(dayLabel(sd))+'</div>';
     if (sday && sday.items.length) {
-      sday.items.forEach(function(it){
-        h += '<div class="txn-line"><button data-action="edit-txn" data-date="'+sd+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;text-align:left;flex:1;display:flex;align-items:center;gap:5px;"><span style="color:var(--text-muted);">'+ICONS.pencil+'</span><span class="muted" style="font-size:12px;">'+(it.category?('<span style="color:var(--accent);">'+esc(it.category)+'</span> · '):"")+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span></button>';
-        h += '<button data-action="delete-txn" data-date="'+sd+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button></div>';
+      newestFirst(sday.items).forEach(function(it){
+        var key2 = sd+"|"+it.id;
+        if (state.pendingDeleteKey === key2) {
+          h += '<div class="txn-line" style="background:var(--rust-wash); border-radius:6px; padding:4px 8px;"><span style="font-size:12px;">Delete this?</span>';
+          h += '<div class="row gap2"><button data-action="delete-txn" data-date="'+sd+'" data-id="'+esc(it.id)+'" style="background:var(--rust);border:none;border-radius:5px;padding:4px;color:#fff;" aria-label="Confirm delete">'+ICONS.check+'</button>';
+          h += '<button data-action="cancel-delete-txn" style="background:none;border:1px solid var(--hairline);border-radius:5px;padding:4px;color:var(--text-muted);" aria-label="Cancel">'+ICONS.x+'</button></div></div>';
+        } else {
+          h += '<div class="txn-line"><button data-action="edit-txn" data-date="'+sd+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;text-align:left;flex:1;display:flex;align-items:center;gap:5px;"><span style="color:var(--text-muted);">'+ICONS.pencil+'</span><span class="muted" style="font-size:12px;">'+(it.category?('<span style="color:var(--accent);">'+esc(it.category)+'</span> · '):"")+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span></button>';
+          h += '<button data-action="ask-delete-txn" data-date="'+sd+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button></div>';
+        }
       });
     } else {
       h += '<div class="muted" style="font-size:13px;">Nothing logged this day.</div>';
@@ -1056,6 +1073,7 @@ function handleEditTxn(date, id) {
   state.editingItemId = id;
   state.editingOriginalDate = date;
   state.showAddTxn = true;
+  state.pendingDeleteKey = null;
   render();
 }
 
@@ -1139,7 +1157,18 @@ document.addEventListener("click", function(e) {
       render();
       break;
     case "add-transaction": handleAddTransaction(); break;
-    case "delete-txn": handleDeleteTxn(el.dataset.date, el.dataset.id); break;
+    case "delete-txn":
+      handleDeleteTxn(el.dataset.date, el.dataset.id);
+      state.pendingDeleteKey = null;
+      break;
+    case "ask-delete-txn":
+      state.pendingDeleteKey = el.dataset.date+"|"+el.dataset.id;
+      render();
+      break;
+    case "cancel-delete-txn":
+      state.pendingDeleteKey = null;
+      render();
+      break;
     case "edit-txn": handleEditTxn(el.dataset.date, el.dataset.id); break;
     case "cancel-edit": handleCancelEdit(); break;
     case "open-add-txn":
@@ -1147,6 +1176,7 @@ document.addEventListener("click", function(e) {
       state.editingOriginalDate = null;
       state.entryDate = todayStr();
       state.showAddTxn = true;
+      state.pendingDeleteKey = null;
       render();
       break;
     case "close-add-txn":
@@ -1159,6 +1189,7 @@ document.addEventListener("click", function(e) {
       state.editingItemId = null;
       state.editingOriginalDate = null;
       state.showAddTxn = false;
+      state.pendingDeleteKey = null;
       state.page = el.dataset.page;
       render();
       break;
