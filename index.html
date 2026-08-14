@@ -162,6 +162,7 @@ var state = {
   toastMessage: null,
   settingsTab: "budget",
   pendingDeleteKey: null,
+  txnCategoryFilter: "",
 };
 
 /* Rate history: records what the weekly target was over time, so past periods are
@@ -330,10 +331,40 @@ function applyTheme(T) {
   r.setProperty("--positive", T.positive);
 }
 
+/* Body scroll lock: while any modal is open, pin the underlying page in place
+   so touch-scrolling inside the modal can't bleed through and scroll the page
+   behind it (a known iOS quirk with position:fixed overlays). The modal's own
+   .modal-card keeps its internal overflow-y:auto scroll regardless. */
+var bodyScrollLocked = false;
+var lockedScrollY = 0;
+function lockBodyScroll() {
+  if (bodyScrollLocked) return;
+  lockedScrollY = window.scrollY || window.pageYOffset || 0;
+  document.body.style.position = "fixed";
+  document.body.style.top = (-lockedScrollY) + "px";
+  document.body.style.left = "0";
+  document.body.style.right = "0";
+  document.body.style.width = "100%";
+  bodyScrollLocked = true;
+}
+function unlockBodyScroll() {
+  if (!bodyScrollLocked) return;
+  document.body.style.position = "";
+  document.body.style.top = "";
+  document.body.style.left = "";
+  document.body.style.right = "";
+  document.body.style.width = "";
+  bodyScrollLocked = false;
+  window.scrollTo(0, lockedScrollY);
+}
+
 function render() {
   var root = document.getElementById("root");
   var T = PALETTES[state.settings.theme] || PALETTES.dark;
   applyTheme(T);
+
+  var anyModalOpen = state.showAddTxn || state.showSettings || state.showBackup || state.showResetConfirm;
+  if (anyModalOpen) lockBodyScroll(); else unlockBodyScroll();
 
   if (state.loading) {
     root.innerHTML = '<div class="row" style="min-height:100vh; align-items:center; justify-content:center;"><div class="muted" style="font-size:14px;">Loading your ledger…</div></div>';
@@ -450,9 +481,16 @@ function renderHomeBody(T, da) {
   var leftToday = effectiveDailyCap - spentToday;
   var leftTodayColor = leftToday < 0 ? "var(--rust)" : "var(--positive)";
 
+  /* Left to spend today (budget): the plain, uncapped daily rate minus what's
+     been spent today — unlike "Left to spend today" above, this ignores the
+     week/month pace horizons entirely, so it always reads today's own target. */
+  var leftTodayBudget = todayAllowanceForCard - spentToday;
+  var leftTodayBudgetColor = leftTodayBudget < 0 ? "var(--rust)" : "var(--positive)";
+
   var h = "";
   h += '<div class="card" style="padding:14px 16px; margin-bottom:12px;">';
   h += '<div class="row between"><span class="eyebrow" style="font-size:10px;">Left to spend today</span><span class="mono" style="font-size:16px; color:'+leftTodayColor+';">'+fmt(leftToday,2)+' AED</span></div>';
+  h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow" style="font-size:10px;">Left to spend today (budget)</span><span class="mono" style="font-size:16px; color:'+leftTodayBudgetColor+';">'+fmt(leftTodayBudget,2)+' AED</span></div>';
   h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow" style="font-size:10px;">Spent today</span><span class="mono" style="font-size:16px; color:'+spentTodayColor+';">'+fmt(spentToday,2)+' AED</span></div>';
   h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow" style="font-size:10px;">'+esc(cumLabel)+'</span><span class="mono" style="font-size:16px; color:'+cumColor+';">'+(cumulative.net>=0?"+":"−")+fmt(Math.abs(cumulative.net),0)+' AED</span></div>';
   h += '</div>';
@@ -639,31 +677,59 @@ function renderTransactionsBody() {
   var balanceMap = {};
   cs.rows.forEach(function(r){ acc = round2(acc + (r.allowance-r.spent)); balanceMap[r.date] = acc; });
 
-  var dates = entryDates.slice().reverse();
+  var filter = state.txnCategoryFilter || "";
+  function itemCat(it){ return it.category || "Uncategorised"; }
+
+  var filterOptions = (state.settings.categories||[]).slice();
+  filterOptions.push("Uncategorised");
+
+  var filterCount = 0, filterSum = 0;
+  entryDates.forEach(function(d){
+    state.entries[d].items.forEach(function(it){
+      if (!filter || itemCat(it) === filter) { filterCount++; filterSum += it.amount; }
+    });
+  });
+
   var h = '<div class="card" style="overflow:hidden; margin-bottom:16px;">';
   h += '<div class="eyebrow" style="padding:16px 16px 4px;">All transactions</div>';
   h += '<div class="muted" style="font-size:11px; padding:0 16px 12px;">Balance is a running total — days between entries you didn\'t log still count, assumed fully saved.</div>';
+  h += '<div style="padding:0 16px 12px;"><select id="txnCategoryFilterSelect" class="field" style="font-size:13px;">';
+  h += '<option value=""'+(filter===""?" selected":"")+'>All categories</option>';
+  filterOptions.forEach(function(c){
+    h += '<option value="'+esc(c)+'"'+(filter===c?" selected":"")+'>'+esc(c)+'</option>';
+  });
+  h += '</select></div>';
+  if (filter) {
+    h += '<div class="muted" style="font-size:11px; padding:0 16px 12px;">'+filterCount+' transaction'+(filterCount===1?"":"s")+' · '+fmt(filterSum,2)+' AED total in '+esc(filter)+'</div>';
+  }
+
+  var datesDesc = entryDates.slice().reverse();
+  var dates = filter ? datesDesc.filter(function(d){
+    return state.entries[d].items.some(function(it){ return itemCat(it) === filter; });
+  }) : datesDesc;
+
   if (dates.length === 0) {
-    h += '<div class="muted" style="padding:0 16px 20px; font-size:14px;">Nothing logged yet.</div>';
+    h += '<div class="muted" style="padding:0 16px 20px; font-size:14px;">'+(filter ? "No transactions in "+esc(filter)+"." : "Nothing logged yet.")+'</div>';
   } else {
     dates.forEach(function(date, i){
       var day = state.entries[date];
       var spent = sumSpent(day);
       var delta = day.allowance - spent;
       var bal = balanceMap[date];
+      var displayItems = filter ? day.items.filter(function(it){ return itemCat(it) === filter; }) : day.items;
       h += '<div style="padding:12px 16px;'+(i===0?"":"border-top:1px solid var(--hairline);")+'">';
       h += '<div class="row between">';
       h += '<div><div style="font-size:14px;">'+esc(dayLabel(date))+'</div>';
-      h += '<div class="mono muted" style="font-size:11px; margin-top:2px;">'+day.items.length+' txn'+(day.items.length===1?"":"s")+' · spent '+fmt(spent,2)+' of '+fmt(day.allowance,2)+'</div></div>';
+      h += '<div class="mono muted" style="font-size:11px; margin-top:2px;">'+day.items.length+' txn'+(day.items.length===1?"":"s")+' · spent '+fmt(spent,2)+' of '+fmt(day.allowance,2)+(filter?' · '+displayItems.length+' match'+(displayItems.length===1?"":"es"):"")+'</div></div>';
       h += '<div style="text-align:right;"><div class="mono" style="font-size:12px; color:'+(delta>=0?"var(--positive)":"var(--rust)")+';">'+(delta>=0?"+":"−")+fmt(Math.abs(delta),2)+'</div>';
       h += '<div class="mono muted" style="font-size:10px;">bal '+fmt(bal,0)+'</div></div>';
       h += '</div>';
       h += '<div style="margin-top:4px;">';
-      newestFirst(day.items).forEach(function(it){
+      newestFirst(displayItems).forEach(function(it){
         h += renderTxnRow(date, it);
       });
       h += '</div></div>';
-      if (i < dates.length - 1) {
+      if (!filter && i < dates.length - 1) {
         var gapDays = daysBetween(dates[i+1], date) - 1;
         if (gapDays > 0) {
           var gapAmount = round2(gapDays * dailyAllowance());
@@ -1301,6 +1367,7 @@ document.addEventListener("click", function(e) {
 
 document.addEventListener("change", function(e) {
   if (e.target && e.target.id === "entryDateInput") handleQuickDate(e.target.value);
+  if (e.target && e.target.id === "txnCategoryFilterSelect") { state.txnCategoryFilter = e.target.value; render(); }
 });
 
 /* ---------------- init ---------------- */
