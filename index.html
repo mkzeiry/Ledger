@@ -163,6 +163,10 @@ var state = {
   settingsTab: "budget",
   pendingDeleteKey: null,
   txnCategoryFilter: "",
+  txnPeriodMode: "all",
+  txnPeriodDate: "",
+  txnPeriodFrom: "",
+  txnPeriodTo: "",
 };
 
 /* Rate history: records what the weekly target was over time, so past periods are
@@ -506,7 +510,7 @@ function renderHomeBody(T, da) {
   h += '<div class="row between" style="padding:12px; border-bottom:1px solid var(--hairline);">';
   h += '<button data-action="nav-offset" data-delta="-1" class="icon-btn" style="border-radius:10px;" aria-label="Previous">'+ICONS.chevronLeft+'</button>';
   h += '<div style="text-align:center;"><div style="font-size:14px; font-weight:500;">'+esc(period.title)+'</div>';
-  h += '<div class="eyebrow" style="margin-top:2px;">'+esc(period.sub)+(isClosed?" · closed":"")+'</div>';
+  h += '<div class="eyebrow" style="margin-top:2px;">'+esc(period.sub)+(isClosed?" · closed":"")+' · Budget '+fmt(period.target,0)+' AED</div>';
   if (isCurrent) {
     h += '<div class="muted" style="font-size:11px; margin-top:4px;">'+(state.view==="week"?esc(weekdayLong(todayStr()))+" · ":"")+'Day '+displayed.calendarElapsedDays+' of '+period.days+' · '+daysLeft+' day'+(daysLeft===1?"":"s")+' left</div>';
   }
@@ -540,11 +544,9 @@ function renderHomeBody(T, da) {
   }
   h += '<div class="stat-grid hairline-top" style="padding:12px 20px 16px;">';
   h += statBlock("Spent so far", fmt(displayed.spent,0)+" AED", displayed.spent>elapsedTarget?"var(--rust)":"var(--text)");
-  h += statBlock((state.view==="week"?"Weekly":state.view==="month"?"Monthly":"Yearly")+" target", fmt(period.target,0)+" AED", "var(--text)");
+  h += statBlock("Budget remaining", (remainingBudget>=0?"":"−")+fmt(Math.abs(remainingBudget),0)+" AED", remainingBudget<0?"var(--rust)":"var(--text)");
   h += statBlock("Avg daily spend", avgSpentPerDay===null ? "—" : (fmt(avgSpentPerDay,0)+" AED"), (avgSpentPerDay!==null && avgSpentPerDay>da)?"var(--rust)":"var(--text)");
   h += statBlock("Daily budget left"+(daysLeft>0?" ("+planDaysShown+"d)":""), allowedText, allowedTone);
-  h += statBlock("Left to spend today", fmt(leftToday,0)+" AED", leftToday<0?"var(--rust)":"var(--text)");
-  h += statBlock("Budget remaining", (remainingBudget>=0?"":"−")+fmt(Math.abs(remainingBudget),0)+" AED", remainingBudget<0?"var(--rust)":"var(--text)");
   h += '</div>';
 
   if (chartData.length >= 2) {
@@ -677,59 +679,124 @@ function renderTransactionsBody() {
   var balanceMap = {};
   cs.rows.forEach(function(r){ acc = round2(acc + (r.allowance-r.spent)); balanceMap[r.date] = acc; });
 
-  var filter = state.txnCategoryFilter || "";
+  var categoryFilter = state.txnCategoryFilter || "";
+  var periodMode = state.txnPeriodMode || "all";
+  var periodAnchor = state.txnPeriodDate || "";
+  var periodFrom = state.txnPeriodFrom || "";
+  var periodTo = state.txnPeriodTo || "";
   function itemCat(it){ return it.category || "Uncategorised"; }
+
+  function periodWeekBounds(){ var s = startOfWeek(parseD(periodAnchor)); return { start: toStr(s), end: toStr(addDays(s,6)) }; }
+  function periodMonthBounds(){ var s = startOfMonth(parseD(periodAnchor)); return { start: toStr(s), end: toStr(endOfMonth(s)) }; }
+  function inPeriod(d) {
+    if (periodMode === "week") {
+      if (!periodAnchor) return true;
+      var wb = periodWeekBounds(); return d >= wb.start && d <= wb.end;
+    }
+    if (periodMode === "month") {
+      if (!periodAnchor) return true;
+      var mb = periodMonthBounds(); return d >= mb.start && d <= mb.end;
+    }
+    if (periodMode === "range") {
+      if (periodFrom && d < periodFrom) return false;
+      if (periodTo && d > periodTo) return false;
+      return true;
+    }
+    return true;
+  }
+  var periodActive = periodMode !== "all";
+  var anyFilterActive = !!categoryFilter || periodActive;
 
   var filterOptions = (state.settings.categories||[]).slice();
   filterOptions.push("Uncategorised");
 
   var filterCount = 0, filterSum = 0;
   entryDates.forEach(function(d){
+    if (!inPeriod(d)) return;
     state.entries[d].items.forEach(function(it){
-      if (!filter || itemCat(it) === filter) { filterCount++; filterSum += it.amount; }
+      if (!categoryFilter || itemCat(it) === categoryFilter) { filterCount++; filterSum += it.amount; }
     });
   });
 
   var h = '<div class="card" style="overflow:hidden; margin-bottom:16px;">';
   h += '<div class="eyebrow" style="padding:16px 16px 4px;">All transactions</div>';
   h += '<div class="muted" style="font-size:11px; padding:0 16px 12px;">Balance is a running total — days between entries you didn\'t log still count, assumed fully saved.</div>';
-  h += '<div style="padding:0 16px 12px;"><select id="txnCategoryFilterSelect" class="field" style="font-size:13px;">';
-  h += '<option value=""'+(filter===""?" selected":"")+'>All categories</option>';
+
+  h += '<div style="padding:0 16px 8px;"><select id="txnCategoryFilterSelect" class="field" style="font-size:13px;">';
+  h += '<option value=""'+(categoryFilter===""?" selected":"")+'>All categories</option>';
   filterOptions.forEach(function(c){
-    h += '<option value="'+esc(c)+'"'+(filter===c?" selected":"")+'>'+esc(c)+'</option>';
+    h += '<option value="'+esc(c)+'"'+(categoryFilter===c?" selected":"")+'>'+esc(c)+'</option>';
   });
   h += '</select></div>';
-  if (filter) {
-    h += '<div class="muted" style="font-size:11px; padding:0 16px 12px;">'+filterCount+' transaction'+(filterCount===1?"":"s")+' · '+fmt(filterSum,2)+' AED total in '+esc(filter)+'</div>';
+
+  h += '<div style="padding:0 16px 8px;"><select id="txnPeriodModeSelect" class="field" style="font-size:13px;">';
+  [["all","All time"],["week","Specific week"],["month","Specific month"],["range","Custom range"]].forEach(function(opt){
+    h += '<option value="'+opt[0]+'"'+(periodMode===opt[0]?" selected":"")+'>'+opt[1]+'</option>';
+  });
+  h += '</select></div>';
+
+  if (periodMode === "week" || periodMode === "month") {
+    h += '<div style="padding:0 16px 8px;"><input id="txnPeriodAnchorInput" type="date" class="field mono" style="font-size:13px;" value="'+esc(periodAnchor)+'" max="'+todayStr()+'" /></div>';
+    if (periodAnchor) {
+      var boundsLabel = periodMode === "week" ? periodWeekBounds() : periodMonthBounds();
+      h += '<div class="muted" style="font-size:11px; padding:0 16px 8px;">'+esc(shortLabel(boundsLabel.start))+' – '+esc(shortLabel(boundsLabel.end))+'</div>';
+    }
+  }
+  if (periodMode === "range") {
+    h += '<div class="row gap2" style="padding:0 16px 8px;">';
+    h += '<input id="txnPeriodFromInput" type="date" class="field mono" style="flex:1; font-size:13px;" value="'+esc(periodFrom)+'" max="'+todayStr()+'" />';
+    h += '<input id="txnPeriodToInput" type="date" class="field mono" style="flex:1; font-size:13px;" value="'+esc(periodTo)+'" max="'+todayStr()+'" />';
+    h += '</div>';
+  }
+
+  if (anyFilterActive) {
+    var descParts = [];
+    if (categoryFilter) descParts.push("in "+categoryFilter);
+    if (periodMode === "week" && periodAnchor) descParts.push("week of "+shortLabel(periodWeekBounds().start));
+    if (periodMode === "month" && periodAnchor) descParts.push(parseD(periodMonthBounds().start).toLocaleDateString("en-GB",{month:"long",year:"numeric"}));
+    if (periodMode === "range") {
+      if (periodFrom && periodTo) descParts.push(shortLabel(periodFrom)+" – "+shortLabel(periodTo));
+      else if (periodFrom) descParts.push("from "+shortLabel(periodFrom));
+      else if (periodTo) descParts.push("up to "+shortLabel(periodTo));
+    }
+    h += '<div class="muted" style="font-size:11px; padding:0 16px 12px;">'+filterCount+' transaction'+(filterCount===1?"":"s")+' · '+fmt(filterSum,2)+' AED total'+(descParts.length?" "+esc(descParts.join(", ")):"")+'</div>';
   }
 
   var datesDesc = entryDates.slice().reverse();
-  var dates = filter ? datesDesc.filter(function(d){
-    return state.entries[d].items.some(function(it){ return itemCat(it) === filter; });
-  }) : datesDesc;
+  var dates = datesDesc.filter(function(d){
+    if (!inPeriod(d)) return false;
+    if (categoryFilter) return state.entries[d].items.some(function(it){ return itemCat(it) === categoryFilter; });
+    return true;
+  });
 
   if (dates.length === 0) {
-    h += '<div class="muted" style="padding:0 16px 20px; font-size:14px;">'+(filter ? "No transactions in "+esc(filter)+"." : "Nothing logged yet.")+'</div>';
+    h += '<div class="muted" style="padding:0 16px 20px; font-size:14px;">'+(anyFilterActive ? "No matching transactions." : "Nothing logged yet.")+'</div>';
   } else {
     dates.forEach(function(date, i){
       var day = state.entries[date];
       var spent = sumSpent(day);
       var delta = day.allowance - spent;
       var bal = balanceMap[date];
-      var displayItems = filter ? day.items.filter(function(it){ return itemCat(it) === filter; }) : day.items;
+      var displayItems = categoryFilter ? day.items.filter(function(it){ return itemCat(it) === categoryFilter; }) : day.items;
+      var dayFilteredSpent = displayItems.reduce(function(s,it){ return s+it.amount; }, 0);
       h += '<div style="padding:12px 16px;'+(i===0?"":"border-top:1px solid var(--hairline);")+'">';
       h += '<div class="row between">';
       h += '<div><div style="font-size:14px;">'+esc(dayLabel(date))+'</div>';
-      h += '<div class="mono muted" style="font-size:11px; margin-top:2px;">'+day.items.length+' txn'+(day.items.length===1?"":"s")+' · spent '+fmt(spent,2)+' of '+fmt(day.allowance,2)+(filter?' · '+displayItems.length+' match'+(displayItems.length===1?"":"es"):"")+'</div></div>';
-      h += '<div style="text-align:right;"><div class="mono" style="font-size:12px; color:'+(delta>=0?"var(--positive)":"var(--rust)")+';">'+(delta>=0?"+":"−")+fmt(Math.abs(delta),2)+'</div>';
-      h += '<div class="mono muted" style="font-size:10px;">bal '+fmt(bal,0)+'</div></div>';
+      h += '<div class="mono muted" style="font-size:11px; margin-top:2px;">'+day.items.length+' txn'+(day.items.length===1?"":"s")+' · spent '+fmt(spent,2)+' of '+fmt(day.allowance,2)+(categoryFilter?' · '+displayItems.length+' match'+(displayItems.length===1?"":"es"):"")+'</div></div>';
+      if (categoryFilter) {
+        h += '<div style="text-align:right;"><div class="mono" style="font-size:12px; color:var(--rust);">−'+fmt(dayFilteredSpent,2)+'</div>';
+        h += '<div class="mono muted" style="font-size:10px;">in '+esc(categoryFilter)+'</div></div>';
+      } else {
+        h += '<div style="text-align:right;"><div class="mono" style="font-size:12px; color:'+(delta>=0?"var(--positive)":"var(--rust)")+';">'+(delta>=0?"+":"−")+fmt(Math.abs(delta),2)+'</div>';
+        h += '<div class="mono muted" style="font-size:10px;">bal '+fmt(bal,0)+'</div></div>';
+      }
       h += '</div>';
       h += '<div style="margin-top:4px;">';
       newestFirst(displayItems).forEach(function(it){
         h += renderTxnRow(date, it);
       });
       h += '</div></div>';
-      if (!filter && i < dates.length - 1) {
+      if (!anyFilterActive && i < dates.length - 1) {
         var gapDays = daysBetween(dates[i+1], date) - 1;
         if (gapDays > 0) {
           var gapAmount = round2(gapDays * dailyAllowance());
@@ -1368,6 +1435,14 @@ document.addEventListener("click", function(e) {
 document.addEventListener("change", function(e) {
   if (e.target && e.target.id === "entryDateInput") handleQuickDate(e.target.value);
   if (e.target && e.target.id === "txnCategoryFilterSelect") { state.txnCategoryFilter = e.target.value; render(); }
+  if (e.target && e.target.id === "txnPeriodModeSelect") {
+    state.txnPeriodMode = e.target.value;
+    if ((state.txnPeriodMode === "week" || state.txnPeriodMode === "month") && !state.txnPeriodDate) state.txnPeriodDate = todayStr();
+    render();
+  }
+  if (e.target && e.target.id === "txnPeriodAnchorInput") { state.txnPeriodDate = e.target.value; render(); }
+  if (e.target && e.target.id === "txnPeriodFromInput") { state.txnPeriodFrom = e.target.value; render(); }
+  if (e.target && e.target.id === "txnPeriodToInput") { state.txnPeriodTo = e.target.value; render(); }
 });
 
 /* ---------------- init ---------------- */
