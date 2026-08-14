@@ -253,6 +253,21 @@ function periodStats(startStr, endStrRaw) {
     loggedCount: rows.filter(function(r){return r.logged;}).length, spent: rows.reduce(function(s,r){return s+r.spent;},0) };
 }
 
+/* Daily budget left for the CURRENT (live) instance of a given view type,
+   treating today as a fresh, still-available day rather than one already
+   partly spent. Returns null when there are no days left to plan for. */
+function computeDailyBudgetLeft(viewType, spentTodayVal) {
+  var da_ = dailyAllowance();
+  var per = getPeriodBounds(viewType, 0, currentWeeklyTarget(), da_);
+  var stats = periodStats(per.startStr, per.endStr);
+  var daysLeftLocal = Math.max(0, per.days - stats.calendarElapsedDays);
+  if (daysLeftLocal <= 0) return null;
+  var planDaysLocal = daysLeftLocal + 1;
+  var spentBeforeTodayLocal = stats.spent - spentTodayVal;
+  var remainingExclToday = per.target - spentBeforeTodayLocal;
+  return { value: remainingExclToday/planDaysLocal, planDays: planDaysLocal, daysLeft: daysLeftLocal };
+}
+
 /* ---------------- chart (plain SVG string) ---------------- */
 function renderChart(data, T) {
   var w=340,h=230,padL=40,padR=8,padT=12,padB=22;
@@ -396,9 +411,7 @@ function render() {
 
 function renderHomeBody(T, da) {
   var period = getPeriodBounds(state.view, state.offset, state.settings.weeklyTarget, da);
-  var currentPeriod = getPeriodBounds(state.view, 0, state.settings.weeklyTarget, da);
   var displayed = periodStats(period.startStr, period.endStr);
-  var live = periodStats(currentPeriod.startStr, currentPeriod.endStr);
 
   var isClosed = period.endStr < todayStr();
   var isCurrent = state.offset === 0;
@@ -411,7 +424,6 @@ function renderHomeBody(T, da) {
   })() : [];
 
   var netColor = displayed.net >= 0 ? "var(--positive)" : "var(--rust)";
-  var liveColor = live.closing >= 0 ? "var(--positive)" : "var(--rust)";
 
   var entryDates = Object.keys(state.entries).sort();
   var cumAnchor = state.settings.trackingStartDate || (entryDates.length ? entryDates[0] : todayStr());
@@ -422,15 +434,24 @@ function renderHomeBody(T, da) {
   var spentToday = todayEntryForCard ? sumSpent(todayEntryForCard) : 0;
   var spentTodayColor = spentToday > da ? "var(--rust)" : "var(--text)";
   var todayAllowanceForCard = allowanceForDate(todayStr());
-  var leftToday = todayAllowanceForCard - spentToday;
+
+  /* Left to spend today: take the tightest of today's own rate, this week's
+     pace-adjusted daily left, and this month's — whichever is lowest wins,
+     so today's spending stays honest against both horizons at once. */
+  var weekDBL = computeDailyBudgetLeft("week", spentToday);
+  var monthDBL = computeDailyBudgetLeft("month", spentToday);
+  var capCandidates = [todayAllowanceForCard];
+  if (weekDBL) capCandidates.push(weekDBL.value);
+  if (monthDBL) capCandidates.push(monthDBL.value);
+  var effectiveDailyCap = Math.min.apply(null, capCandidates);
+  var leftToday = effectiveDailyCap - spentToday;
   var leftTodayColor = leftToday < 0 ? "var(--rust)" : "var(--positive)";
 
   var h = "";
-  h += '<div class="card" style="padding:12px 16px; margin-bottom:12px;">';
-  h += '<div class="row between"><span class="eyebrow">Current balance</span><span class="mono" style="font-size:16px; color:'+liveColor+';">'+(live.closing>=0?"+":"−")+fmt(Math.abs(live.closing),0)+' AED</span></div>';
-  h += '<div class="row between" style="margin-top:6px;"><span class="eyebrow">'+esc(cumLabel)+'</span><span class="mono" style="font-size:13px; color:'+cumColor+';">'+(cumulative.net>=0?"+":"−")+fmt(Math.abs(cumulative.net),0)+' AED</span></div>';
-  h += '<div class="row between" style="margin-top:6px;"><span class="eyebrow">Spent today</span><span class="mono" style="font-size:13px; color:'+spentTodayColor+';">'+fmt(spentToday,2)+' AED</span></div>';
-  h += '<div class="row between" style="margin-top:6px;"><span class="eyebrow">Left to spend today</span><span class="mono" style="font-size:13px; color:'+leftTodayColor+';">'+fmt(leftToday,2)+' AED</span></div>';
+  h += '<div class="card" style="padding:14px 16px; margin-bottom:12px;">';
+  h += '<div class="row between"><span class="eyebrow">Left to spend today</span><span class="mono" style="font-size:22px; color:'+leftTodayColor+';">'+fmt(leftToday,2)+' AED</span></div>';
+  h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow">Spent today</span><span class="mono" style="font-size:22px; color:'+spentTodayColor+';">'+fmt(spentToday,2)+' AED</span></div>';
+  h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow">'+esc(cumLabel)+'</span><span class="mono" style="font-size:22px; color:'+cumColor+';">'+(cumulative.net>=0?"+":"−")+fmt(Math.abs(cumulative.net),0)+' AED</span></div>';
   h += '</div>';
 
   h += '<div class="row card" style="padding:4px; margin-bottom:12px;">';
