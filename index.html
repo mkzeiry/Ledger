@@ -23,7 +23,8 @@
   * { box-sizing: border-box; }
   html, body { margin:0; padding:0; overscroll-behavior-y: none; background: var(--bg); }
   body { font-family: var(--f-ui); color: var(--text); -webkit-tap-highlight-color: transparent; }
-  .wrap { max-width: 420px; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 20px) 16px calc(env(safe-area-inset-bottom, 0px) + 84px); }
+  #root { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+  .wrap { flex: 1 0 auto; max-width: 420px; width: 100%; margin: 0 auto; box-sizing: border-box; padding: calc(env(safe-area-inset-top, 0px) + 20px) 16px 20px; }
   .row { display: flex; align-items: center; }
   .between { justify-content: space-between; }
   .col { display: flex; flex-direction: column; }
@@ -149,6 +150,8 @@ var state = {
   page: "home",
   calendarOffset: 0,
   calendarSelectedDate: null,
+  editingItemId: null,
+  editingOriginalDate: null,
 };
 
 function dailyAllowance(){ return state.settings.weeklyTarget/7; }
@@ -250,6 +253,9 @@ var ICONS = {
   home: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
   list: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
   calendar: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  chart: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+  pencil: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>',
+  check: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
 };
 
 /* ---------------- rendering ---------------- */
@@ -294,6 +300,7 @@ function render() {
 
   if (state.page === "transactions") html += renderTransactionsBody();
   else if (state.page === "calendar") html += renderCalendarBody();
+  else if (state.page === "analysis") html += renderAnalysisBody(T);
   else html += renderHomeBody(T, da);
 
   if (state.saveError) {
@@ -439,16 +446,23 @@ function renderHomeBody(T, da) {
 
   var todayEntry = state.entries[state.entryDate || todayStr()];
   var formDate = state.entryDate || todayStr();
+  var editingItem = null;
+  if (state.editingItemId && state.editingOriginalDate) {
+    var origDay = state.entries[state.editingOriginalDate];
+    if (origDay) editingItem = origDay.items.find(function(i){ return i.id === state.editingItemId; }) || null;
+  }
   h += '<div class="card" style="padding:16px;">';
-  h += '<div class="eyebrow" style="margin-bottom:12px;">Add a transaction</div>';
+  h += '<div class="row between" style="margin-bottom:12px;"><div class="eyebrow" style="margin-bottom:0;">'+(editingItem?"Edit transaction":"Add a transaction")+'</div>';
+  if (editingItem) h += '<button data-action="cancel-edit" style="background:none;border:none;padding:0;color:var(--text-muted);font-size:11px;text-decoration:underline;">Cancel</button>';
+  h += '</div>';
   h += '<input id="entryDateInput" type="date" class="field mono" style="margin-bottom:8px;" value="'+formDate+'" max="'+todayStr()+'" />';
-  h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="What was it for? (optional)" />';
+  h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="What was it for? (optional)" value="'+(editingItem?esc(editingItem.note||""):"")+'" />';
   h += '<div class="row gap2">';
   h += '<div style="position:relative; flex:1;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none;">AED</span>';
-  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="Amount" /></div>';
-  h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent row gap2" style="align-items:center;">'+ICONS.plus+' Add</button>';
+  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="Amount" value="'+(editingItem?editingItem.amount:"")+'" /></div>';
+  h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent row gap2" style="align-items:center;">'+(editingItem?ICONS.check+" Save":ICONS.plus+" Add")+'</button>';
   h += '</div>';
-  h += '<div id="entryHint" class="muted" style="font-size:11px; margin-top:8px;">'+(todayEntry ? (esc(dayLabel(formDate))+" so far: "+todayEntry.items.length+" transaction"+(todayEntry.items.length===1?"":"s")+", "+fmt(sumSpent(todayEntry),2)+" AED total.") : "")+'</div>';
+  h += '<div id="entryHint" class="muted" style="font-size:11px; margin-top:8px;">'+(todayEntry && !editingItem ? (esc(dayLabel(formDate))+" so far: "+todayEntry.items.length+" transaction"+(todayEntry.items.length===1?"":"s")+", "+fmt(sumSpent(todayEntry),2)+" AED total.") : "")+'</div>';
   h += '</div>';
 
   return h;
@@ -483,7 +497,7 @@ function renderTransactionsBody() {
       h += '</div>';
       h += '<div style="margin-top:4px;">';
       day.items.forEach(function(it){
-        h += '<div class="txn-line"><span class="muted" style="font-size:11px; padding-left:8px;">'+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span>';
+        h += '<div class="txn-line"><button data-action="edit-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;text-align:left;flex:1;display:flex;align-items:center;gap:5px;"><span style="color:var(--text-muted);">'+ICONS.pencil+'</span><span class="muted" style="font-size:11px;">'+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span></button>';
         h += '<button data-action="delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button></div>';
       });
       h += '</div></div>';
@@ -558,13 +572,13 @@ function renderCalendarBody() {
     else { bg = "var(--rust-wash)"; fg = "var(--rust)"; }
 
     var border = isToday ? "2px solid var(--accent)" : (isSelected ? "2px solid var(--text)" : "1px solid transparent");
-    h += '<button data-action="cal-select" data-date="'+ds+'" style="min-height:46px; border-radius:8px; border:'+border+'; background:'+bg+'; color:'+fg+'; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:3px 1px; min-width:0; gap:1px;">';
-    h += '<span style="font-size:10px;">'+cur.getDate()+'</span>';
-    if (logged) h += '<span class="mono" style="font-size:7px; line-height:1;">'+fmt(spent,0)+'</span>';
+    h += '<button data-action="cal-select" data-date="'+ds+'" style="min-height:64px; border-radius:9px; border:'+border+'; background:'+bg+'; color:'+fg+'; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:4px 1px; min-width:0; gap:3px;">';
+    h += '<span style="font-size:14px; font-weight:500;">'+cur.getDate()+'</span>';
+    if (logged) h += '<span class="mono" style="font-size:10px; line-height:1;">'+fmt(spent,0)+'</span>';
     var cumForDay = balMap[ds];
     if (cumForDay !== undefined) {
       var cumClr = cumForDay >= 0 ? "var(--positive)" : "var(--rust)";
-      h += '<span class="mono" style="font-size:7px; line-height:1; color:'+cumClr+';">'+(cumForDay>=0?"+":"−")+fmt(Math.abs(cumForDay),0)+'</span>';
+      h += '<span class="mono" style="font-size:10px; line-height:1; color:'+cumClr+';">'+(cumForDay>=0?"+":"−")+fmt(Math.abs(cumForDay),0)+'</span>';
     }
     h += '</button>';
     cur = addDays(cur,1);
@@ -586,7 +600,7 @@ function renderCalendarBody() {
     h += '<div class="eyebrow" style="margin-bottom:8px;">'+esc(dayLabel(sd))+'</div>';
     if (sday && sday.items.length) {
       sday.items.forEach(function(it){
-        h += '<div class="txn-line"><span class="muted" style="font-size:12px; padding-left:8px;">'+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span>';
+        h += '<div class="txn-line"><button data-action="edit-txn" data-date="'+sd+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;text-align:left;flex:1;display:flex;align-items:center;gap:5px;"><span style="color:var(--text-muted);">'+ICONS.pencil+'</span><span class="muted" style="font-size:12px;">'+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span></button>';
         h += '<button data-action="delete-txn" data-date="'+sd+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button></div>';
       });
     } else {
@@ -598,16 +612,124 @@ function renderCalendarBody() {
   return h;
 }
 
+function renderBarChart(items, T) {
+  var w = 340, h = 140, padL = 30, padR = 8, padT = 10, padB = 20;
+  var maxVal = Math.max.apply(null, items.map(function(i){ return Math.max(i.spent, i.target); }).concat([1]));
+  var plotW = w-padL-padR, plotH = h-padT-padB;
+  var n = items.length;
+  var slot = plotW/n;
+  var barW = Math.min(24, slot*0.55);
+  function y(v){ return padT + plotH - (Math.min(v,maxVal)/maxVal)*plotH; }
+  var bars = items.map(function(it,i){
+    var cx = padL + slot*i + slot/2;
+    var barTopY = y(it.spent);
+    var barH = Math.max(0, plotH - (barTopY-padT));
+    var color = it.spent <= it.target ? T.positive : T.rust;
+    var targetY = y(it.target);
+    return '<rect x="'+(cx-barW/2)+'" y="'+barTopY+'" width="'+barW+'" height="'+barH+'" fill="'+color+'" rx="2"/>'
+      + '<line x1="'+(cx-barW/2-2)+'" x2="'+(cx+barW/2+2)+'" y1="'+targetY+'" y2="'+targetY+'" stroke="'+T.textMuted+'" stroke-dasharray="2,2"/>'
+      + '<text x="'+cx+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="middle">'+esc(it.label)+'</text>';
+  }).join("");
+  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'">'
+    + '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+y(0)+'" y2="'+y(0)+'" stroke="'+T.hairline+'"/>'
+    + bars + '</svg>';
+}
+
+function renderAnalysisBody(T) {
+  var da = dailyAllowance();
+  var today = todayStr();
+  var tsd = state.settings.trackingStartDate;
+  var entryDatesAll = Object.keys(state.entries).sort();
+  var cumAnchor = tsd || (entryDatesAll.length ? entryDatesAll[0] : today);
+  var cs = periodStats(cumAnchor, today);
+
+  var h = "";
+  h += '<div class="eyebrow" style="margin-bottom:4px;">Analysis</div>';
+  h += '<div class="muted" style="font-size:11px; margin-bottom:12px;">Since '+esc(parseD(cumAnchor).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}))+'</div>';
+
+  h += '<div class="card" style="padding:16px; margin-bottom:16px;">';
+  h += '<div class="stat-grid">';
+  h += statBlock("Total spent", fmt(cs.spent,0)+" AED", "var(--text)");
+  h += statBlock("Total saved", (cs.net>=0?"+":"−")+fmt(Math.abs(cs.net),0)+" AED", cs.net>=0?"var(--positive)":"var(--rust)");
+  h += statBlock("Avg daily spend", fmt(cs.elapsedDays>0?cs.spent/cs.elapsedDays:0,0)+" AED", (cs.elapsedDays>0 && cs.spent/cs.elapsedDays>da)?"var(--rust)":"var(--text)");
+  h += statBlock("Days tracked", String(cs.elapsedDays), "var(--text)");
+  h += '</div></div>';
+
+  var months = [];
+  var mOff = 0;
+  while (months.length < 12) {
+    var mb = getPeriodBounds("month", mOff, state.settings.weeklyTarget, da);
+    if (mb.endStr < cumAnchor) break;
+    var ms = periodStats(mb.startStr, mb.endStr);
+    months.unshift({ label: parseD(mb.startStr).toLocaleDateString("en-GB",{month:"short"}), spent: ms.spent, target: mb.target });
+    mOff--;
+    if (mOff < -23) break;
+  }
+  if (months.length >= 2) {
+    h += '<div class="card" style="padding:14px; margin-bottom:16px;">';
+    h += '<div class="eyebrow" style="margin-bottom:8px;">Monthly spend vs target</div>';
+    h += renderBarChart(months, T);
+    h += '<div class="muted" style="font-size:10px; margin-top:4px;">Dashed line marks that month\'s target · red bars ran over</div>';
+    h += '</div>';
+  }
+
+  var dowSums = [0,0,0,0,0,0,0], dowCounts = [0,0,0,0,0,0,0];
+  cs.rows.forEach(function(r){
+    var dow = parseD(r.date).getDay();
+    var idx = dow===0?6:dow-1;
+    dowSums[idx] += r.spent;
+    dowCounts[idx] += 1;
+  });
+  var dowLabels = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  var dowAvg = dowSums.map(function(s,i){ return dowCounts[i]>0 ? s/dowCounts[i] : 0; });
+  var maxDow = Math.max.apply(null, dowAvg.concat([1]));
+  h += '<div class="card" style="padding:16px; margin-bottom:16px;">';
+  h += '<div class="eyebrow" style="margin-bottom:10px;">Average spend by day of week</div>';
+  dowLabels.forEach(function(lbl,i){
+    var pct = maxDow>0 ? Math.round((dowAvg[i]/maxDow)*100) : 0;
+    var over = dowAvg[i] > da;
+    h += '<div class="row" style="align-items:center; gap:8px; margin-bottom:6px;">';
+    h += '<span class="muted" style="font-size:11px; width:26px;">'+lbl+'</span>';
+    h += '<div style="flex:1; background:var(--raised); border-radius:4px; height:8px; overflow:hidden;"><div style="width:'+pct+'%; height:100%; background:'+(over?"var(--rust)":"var(--positive)")+';"></div></div>';
+    h += '<span class="mono muted" style="font-size:10px; width:40px; text-align:right;">'+fmt(dowAvg[i],0)+'</span>';
+    h += '</div>';
+  });
+  h += '</div>';
+
+  var allItems = [];
+  entryDatesAll.forEach(function(d){
+    state.entries[d].items.forEach(function(it){ allItems.push({date:d, note:it.note, amount:it.amount}); });
+  });
+  allItems.sort(function(a,b){ return b.amount - a.amount; });
+  var top5 = allItems.slice(0,5);
+  h += '<div class="card" style="padding:16px; margin-bottom:16px;">';
+  h += '<div class="eyebrow" style="margin-bottom:10px;">Biggest transactions</div>';
+  if (top5.length === 0) {
+    h += '<div class="muted" style="font-size:13px;">Nothing logged yet.</div>';
+  } else {
+    top5.forEach(function(it,i){
+      h += '<div class="row between" style="padding:6px 0;'+(i>0?"border-top:1px solid var(--hairline);":"")+'">';
+      h += '<div><div style="font-size:13px;">'+(it.note?esc(it.note):"Spent")+'</div><div class="muted" style="font-size:10px;">'+esc(dayLabel(it.date))+'</div></div>';
+      h += '<div class="mono" style="font-size:13px;">'+fmt(it.amount,2)+' AED</div>';
+      h += '</div>';
+    });
+  }
+  h += '</div>';
+
+  return h;
+}
+
 function renderBottomNav() {
   var tabs = [
     {id:"home", label:"Home", icon:ICONS.home},
     {id:"transactions", label:"Transactions", icon:ICONS.list},
     {id:"calendar", label:"Calendar", icon:ICONS.calendar},
+    {id:"analysis", label:"Analysis", icon:ICONS.chart},
   ];
-  var h = '<div style="position:fixed; left:0; right:0; bottom:0; display:flex; background:var(--card); border-top:1px solid var(--hairline); padding:6px 8px calc(env(safe-area-inset-bottom, 0px) + 6px); z-index:40;">';
+  var h = '<div style="flex:0 0 auto; display:flex; background:var(--card); border-top:1px solid var(--hairline); padding:6px 4px calc(env(safe-area-inset-bottom, 0px) + 6px); position:sticky; bottom:0; z-index:40;">';
   tabs.forEach(function(t){
     var active = state.page===t.id;
-    h += '<button data-action="go-page" data-page="'+t.id+'" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; background:none; border:none; padding:4px 0; color:'+(active?"var(--accent)":"var(--text-muted)")+';">'+t.icon+'<span style="font-size:10px;">'+t.label+'</span></button>';
+    h += '<button data-action="go-page" data-page="'+t.id+'" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; background:none; border:none; padding:4px 0; color:'+(active?"var(--accent)":"var(--text-muted)")+';">'+t.icon+'<span style="font-size:9px;">'+t.label+'</span></button>';
   });
   h += '</div>';
   return h;
@@ -626,13 +748,45 @@ function handleAddTransaction() {
   var amt = parseFloat(amtEl ? amtEl.value : "");
   if (isNaN(amt) || amt < 0 || !date) return;
   var note = noteEl ? noteEl.value.trim() : "";
-  var existing = state.entries[date];
-  var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note };
-  var nextDay = existing ? Object.assign({}, existing, { items: existing.items.concat([newItem]) }) : { allowance: dailyAllowance(), items: [newItem] };
   var nextEntries = Object.assign({}, state.entries);
-  nextEntries[date] = nextDay;
+
+  if (state.editingItemId && state.editingOriginalDate) {
+    var origDate = state.editingOriginalDate;
+    var origDay = nextEntries[origDate];
+    var carriedAllowance = origDay ? origDay.allowance : dailyAllowance();
+    if (origDay) {
+      var remaining = origDay.items.filter(function(i){ return i.id !== state.editingItemId; });
+      if (remaining.length === 0) delete nextEntries[origDate];
+      else nextEntries[origDate] = Object.assign({}, origDay, { items: remaining });
+    }
+    var updatedItem = { id: state.editingItemId, amount: amt, note: note };
+    var destDay = nextEntries[date];
+    var nextDest = destDay ? Object.assign({}, destDay, { items: destDay.items.concat([updatedItem]) }) : { allowance: carriedAllowance, items: [updatedItem] };
+    nextEntries[date] = nextDest;
+    state.editingItemId = null;
+    state.editingOriginalDate = null;
+  } else {
+    var existing = nextEntries[date];
+    var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note };
+    nextEntries[date] = existing ? Object.assign({}, existing, { items: existing.items.concat([newItem]) }) : { allowance: dailyAllowance(), items: [newItem] };
+  }
+
   state.entryDate = date;
   persistAll(state.settings, nextEntries, "your entry");
+  render();
+}
+
+function handleEditTxn(date, id) {
+  state.page = "home";
+  state.entryDate = date;
+  state.editingItemId = id;
+  state.editingOriginalDate = date;
+  render();
+}
+
+function handleCancelEdit() {
+  state.editingItemId = null;
+  state.editingOriginalDate = null;
   render();
 }
 
@@ -642,6 +796,7 @@ function handleDeleteTxn(date, id) {
   var remaining = day.items.filter(function(i){ return i.id !== id; });
   var nextEntries = Object.assign({}, state.entries);
   if (remaining.length === 0) delete nextEntries[date]; else nextEntries[date] = Object.assign({}, day, { items: remaining });
+  if (state.editingItemId === id) { state.editingItemId = null; state.editingOriginalDate = null; }
   persistAll(state.settings, nextEntries, "your entry");
   render();
 }
@@ -710,8 +865,15 @@ document.addEventListener("click", function(e) {
       break;
     case "add-transaction": handleAddTransaction(); break;
     case "delete-txn": handleDeleteTxn(el.dataset.date, el.dataset.id); break;
+    case "edit-txn": handleEditTxn(el.dataset.date, el.dataset.id); break;
+    case "cancel-edit": handleCancelEdit(); break;
+    case "go-page":
+      state.editingItemId = null;
+      state.editingOriginalDate = null;
+      state.page = el.dataset.page;
+      render();
+      break;
     case "quick-date": handleQuickDate(el.dataset.date); break;
-    case "go-page": state.page = el.dataset.page; render(); break;
     case "cal-nav":
       state.calendarOffset += parseInt(el.dataset.delta,10);
       state.calendarSelectedDate = null;
