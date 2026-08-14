@@ -153,6 +153,7 @@ var state = {
   editingItemId: null,
   editingOriginalDate: null,
   showAddTxn: false,
+  toastMessage: null,
 };
 
 function dailyAllowance(){ return state.settings.weeklyTarget/7; }
@@ -214,7 +215,7 @@ function periodStats(startStr, endStrRaw) {
 
 /* ---------------- chart (plain SVG string) ---------------- */
 function renderChart(data, T) {
-  var w=340,h=130,padL=36,padR=8,padT=10,padB=18;
+  var w=340,h=230,padL=40,padR=8,padT=12,padB=22;
   var values = data.map(function(d){return d.balance;});
   var min = Math.min.apply(null,[0].concat(values)), max = Math.max.apply(null,[0].concat(values));
   var range = (max-min)||1;
@@ -379,6 +380,10 @@ function render() {
     html += '</div></div></div>';
   }
 
+  if (state.toastMessage) {
+    html += '<div style="position:fixed; top:calc(env(safe-area-inset-top,0px) + 16px); left:50%; transform:translateX(-50%); background:var(--positive); color:#0C1322; font-size:13px; font-weight:600; padding:9px 18px; border-radius:999px; box-shadow:0 4px 14px rgba(0,0,0,0.35); z-index:60;">'+esc(state.toastMessage)+'</div>';
+  }
+
   root.innerHTML = html;
 }
 
@@ -483,18 +488,16 @@ function renderAddTxnModal() {
   h += '<div class="modal-card" data-action="noop">';
   h += '<div class="row between" style="margin-bottom:16px;"><div class="display" style="font-size:18px;">'+(editingItem?"Edit transaction":"Add transaction")+'</div><button data-action="close-add-txn" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div>';
   h += '<input id="entryDateInput" type="date" class="field mono" style="margin-bottom:8px;" value="'+formDate+'" max="'+todayStr()+'" />';
+  h += '<div style="position:relative; margin-bottom:8px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none;">AED</span>';
+  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="Amount" value="'+(editingItem?editingItem.amount:"")+'" /></div>';
   h += '<select id="entryCategoryInput" class="field" style="margin-bottom:8px;">';
   h += '<option value="">No category</option>';
   cats.forEach(function(c){
     h += '<option value="'+esc(c)+'"'+(editingItem && editingItem.category===c?" selected":"")+'>'+esc(c)+'</option>';
   });
   h += '</select>';
-  h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="What was it for? (optional)" value="'+(editingItem?esc(editingItem.note||""):"")+'" />';
-  h += '<div class="row gap2">';
-  h += '<div style="position:relative; flex:1;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none;">AED</span>';
-  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="Amount" value="'+(editingItem?editingItem.amount:"")+'" /></div>';
-  h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent row gap2" style="align-items:center;">'+(editingItem?ICONS.check+" Save":ICONS.plus+" Add")+'</button>';
-  h += '</div>';
+  h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:12px;" placeholder="What was it for? (optional)" value="'+(editingItem?esc(editingItem.note||""):"")+'" />';
+  h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent row gap2" style="width:100%; justify-content:center; align-items:center;">'+(editingItem?ICONS.check+" Save":ICONS.plus+" Add")+'</button>';
   h += '<div id="entryHint" class="muted" style="font-size:11px; margin-top:8px;">'+(todayEntry && !editingItem ? (esc(dayLabel(formDate))+" so far: "+todayEntry.items.length+" transaction"+(todayEntry.items.length===1?"":"s")+", "+fmt(sumSpent(todayEntry),2)+" AED total.") : "")+'</div>';
   h += '</div></div>';
   return h;
@@ -607,15 +610,19 @@ function renderCalendarBody() {
     else if (spent <= allowance) { bg = "rgba(224,179,104,0.32)"; fg = "var(--text)"; }
     else { bg = "var(--rust-wash)"; fg = "var(--rust)"; }
 
+    var isTracked = !isFuture && !isPreTracking;
     var border = isToday ? "2px solid var(--accent)" : (isSelected ? "2px solid var(--text)" : "1px solid transparent");
     h += '<button data-action="cal-select" data-date="'+ds+'" style="min-height:64px; border-radius:9px; border:'+border+'; background:'+bg+'; color:'+fg+'; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:4px 1px; min-width:0; gap:3px;">';
     h += '<span style="font-size:14px; font-weight:500;">'+cur.getDate()+'</span>';
-    if (logged) h += '<span class="mono" style="font-size:10px; line-height:1;">'+fmt(spent,0)+'</span>';
+    var spentText = logged ? fmt(spent,0) : (isTracked ? "0" : "\u00A0");
+    h += '<span class="mono" style="font-size:10px; line-height:1;">'+spentText+'</span>';
     var cumForDay = balMap[ds];
+    var cumText = "\u00A0", cumClr = fg;
     if (cumForDay !== undefined) {
-      var cumClr = cumForDay >= 0 ? "var(--positive)" : "var(--rust)";
-      h += '<span class="mono" style="font-size:10px; line-height:1; color:'+cumClr+';">'+(cumForDay>=0?"+":"−")+fmt(Math.abs(cumForDay),0)+'</span>';
+      cumClr = cumForDay >= 0 ? "var(--positive)" : "var(--rust)";
+      cumText = (cumForDay>=0?"+":"−")+fmt(Math.abs(cumForDay),0);
     }
+    h += '<span class="mono" style="font-size:10px; line-height:1; color:'+cumClr+';">'+cumText+'</span>';
     h += '</button>';
     cur = addDays(cur,1);
   }
@@ -809,11 +816,18 @@ function handleAddTransaction() {
     var existing = nextEntries[date];
     var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category };
     nextEntries[date] = existing ? Object.assign({}, existing, { items: existing.items.concat([newItem]) }) : { allowance: dailyAllowance(), items: [newItem] };
+    state.showAddTxn = false;
   }
 
   state.entryDate = date;
   persistAll(state.settings, nextEntries, "your entry");
+  showToast(wasEditing ? "Record updated" : "Record added");
   render();
+}
+
+function showToast(msg) {
+  state.toastMessage = msg;
+  setTimeout(function(){ state.toastMessage = null; render(); }, 2200);
 }
 
 function handleEditTxn(date, id) {
