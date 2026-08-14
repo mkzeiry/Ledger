@@ -458,8 +458,7 @@ function renderHomeBody(T, da) {
   var remainingBudget = period.target - displayed.spent;
   var allowedText, allowedTone;
   if (daysLeft > 0) {
-    var planDays = daysLeft + (todayIncluded ? 1 : 0);
-    var perDayLeft = remainingBudget/planDays;
+    var perDayLeft = remainingBudget/daysLeft;
     allowedText = fmt(perDayLeft,0)+" AED";
     allowedTone = perDayLeft < 0 ? "var(--rust)" : "var(--text)";
   } else {
@@ -470,7 +469,7 @@ function renderHomeBody(T, da) {
   h += statBlock("Spent so far", fmt(displayed.spent,0)+" AED", displayed.spent>elapsedTarget?"var(--rust)":"var(--text)");
   h += statBlock((state.view==="week"?"Weekly":state.view==="month"?"Monthly":"Yearly")+" target", fmt(period.target,0)+" AED", "var(--text)");
   h += statBlock("Avg daily spend", avgSpentPerDay===null ? "—" : (fmt(avgSpentPerDay,0)+" AED"), (avgSpentPerDay!==null && avgSpentPerDay>da)?"var(--rust)":"var(--text)");
-  h += statBlock("Daily budget left"+(daysLeft>0?" ("+(daysLeft+(todayIncluded?1:0))+"d)":""), allowedText, allowedTone);
+  h += statBlock("Daily budget left"+(daysLeft>0?" ("+daysLeft+"d)":""), allowedText, allowedTone);
   h += '</div>';
 
   if (chartData.length >= 2) {
@@ -479,15 +478,16 @@ function renderHomeBody(T, da) {
   h += '</div>'; // end period card
 
   /* Forecast: project where this period lands if spending continues at the
-     current pace. Only meaningful for the live period with days still to come. */
-  if (isCurrent && displayed.elapsedDays > 0 && daysLeft > 0) {
-    var pacePerDay = displayed.spent / displayed.elapsedDays;
+     current pace. Uses the same "Avg daily spend" figure shown above (which
+     excludes today, since today isn't finished yet) for consistency. */
+  if (isCurrent && daysLeft > 0 && avgSpentPerDay !== null) {
+    var pacePerDay = avgSpentPerDay;
     var projectedSpend = displayed.spent + pacePerDay * daysLeft;
     var projectedSaved = period.target - projectedSpend;
     var onTrack = projectedSaved >= 0;
     h += '<div class="card" style="padding:16px; margin-bottom:16px;">';
     h += '<div class="eyebrow" style="margin-bottom:2px;">Forecast at '+(state.view==="week"?"week":state.view==="month"?"month":"year")+' close</div>';
-    h += '<div class="muted" style="font-size:11px; margin-bottom:12px;">If you keep spending '+fmt(pacePerDay,0)+' AED/day for the remaining '+daysLeft+' day'+(daysLeft===1?"":"s")+'</div>';
+    h += '<div class="muted" style="font-size:11px; margin-bottom:12px;">Based on your '+fmt(pacePerDay,0)+' AED/day average, for the remaining '+daysLeft+' day'+(daysLeft===1?"":"s")+'</div>';
     h += '<div class="stat-grid">';
     h += statBlock("Projected spend", fmt(projectedSpend,0)+" AED", projectedSpend>period.target?"var(--rust)":"var(--text)");
     h += statBlock("Projected saved", (projectedSaved>=0?"+":"−")+fmt(Math.abs(projectedSaved),0)+" AED", onTrack?"var(--positive)":"var(--rust)");
