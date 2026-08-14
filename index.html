@@ -63,7 +63,7 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"] };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null };
 var PALETTES = {
   dark:  { bg:"#0C1322", card:"#131C31", raised:"#0C1322", hairline:"#26314D", text:"#E8EDF7", textMuted:"#8595B5", accent:"#E0B368", accentInk:"#0C1322", rust:"#D4614A", rustWash:"rgba(212,97,74,0.10)", positive:"#5EBD8C" },
   light: { bg:"#F4F6FB", card:"#FFFFFF", raised:"#F4F6FB", hairline:"#E1E6F1", text:"#16203A", textMuted:"#66748F", accent:"#B07F2A", accentInk:"#FFFFFF", rust:"#C0442B", rustWash:"rgba(192,68,43,0.08)", positive:"#1E8E5A" },
@@ -91,11 +91,15 @@ function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ re
 function getPeriodBounds(viewType, off, weeklyTarget, dailyAllowanceVal) {
   var now = new Date();
   var tsd = state.settings.trackingStartDate;
+  /* Sum the per-day allowance actually in effect on each day, so a past period is
+     measured against the rate that applied then rather than today's rate. */
   function clippedTarget(startStr, endStr, fullTarget) {
-    if (!tsd || tsd <= startStr) return fullTarget; // tracking already covers the whole period
-    if (tsd > endStr) return 0; // tracking hasn't started within this period at all
-    var trackedDays = daysBetween(tsd, endStr) + 1;
-    return dailyAllowanceVal * trackedDays;
+    var s = (tsd && tsd > startStr) ? tsd : startStr;
+    if (s > endStr) return 0;
+    var sum = 0;
+    var cur = parseD(s);
+    while (toStr(cur) <= endStr) { sum += allowanceForDate(toStr(cur)); cur = addDays(cur,1); }
+    return sum;
   }
   if (viewType === "week") {
     var start = addDays(startOfWeek(now), off*7);
@@ -154,9 +158,39 @@ var state = {
   editingOriginalDate: null,
   showAddTxn: false,
   toastMessage: null,
+  settingsTab: "budget",
 };
 
-function dailyAllowance(){ return state.settings.weeklyTarget/7; }
+/* Rate history: records what the weekly target was over time, so past periods are
+   judged against the rate that was actually in effect then, not today's rate. */
+function rateForDate(ds) {
+  var hist = state.settings.rateHistory;
+  if (!hist || !hist.length) return state.settings.weeklyTarget;
+  var rate = hist[0].weeklyTarget;
+  for (var i=0;i<hist.length;i++) {
+    if (hist[i].from <= ds) rate = hist[i].weeklyTarget; else break;
+  }
+  return rate;
+}
+function currentWeeklyTarget(){ return rateForDate(todayStr()); }
+function dailyAllowance(){ return currentWeeklyTarget()/7; }
+/* A logged day keeps whatever rate it was saved at; unlogged days fall back to
+   whatever rate history says applied on that date. */
+function allowanceForDate(ds) {
+  var e = state.entries[ds];
+  if (e && typeof e.allowance === "number") return e.allowance;
+  return rateForDate(ds)/7;
+}
+function normalizeRateHistory(hist) {
+  var out = (hist||[]).slice().sort(function(a,b){ return a.from < b.from ? -1 : a.from > b.from ? 1 : 0; });
+  var dedup = [];
+  for (var i=0;i<out.length;i++) {
+    if (dedup.length && dedup[dedup.length-1].from === out[i].from) dedup[dedup.length-1] = out[i];
+    else if (dedup.length && dedup[dedup.length-1].weeklyTarget === out[i].weeklyTarget) continue;
+    else dedup.push(out[i]);
+  }
+  return dedup;
+}
 
 /* ---------------- persistence ---------------- */
 function loadInitial() {
@@ -165,9 +199,15 @@ function loadInitial() {
     if (raw) {
       var parsed = JSON.parse(raw);
       state.settings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings||{});
+      if (!state.settings.rateHistory || !state.settings.rateHistory.length) {
+        state.settings.rateHistory = [{ from: "1900-01-01", weeklyTarget: state.settings.weeklyTarget }];
+      }
       state.entries = migrateEntries(parsed.entries||{}, dailyAllowance());
     }
   } catch(e) { /* first run */ }
+  if (!state.settings.rateHistory || !state.settings.rateHistory.length) {
+    state.settings.rateHistory = [{ from: "1900-01-01", weeklyTarget: state.settings.weeklyTarget }];
+  }
   state.loading = false;
   try {
     localStorage.setItem(TEST_KEY, "1");
@@ -202,7 +242,7 @@ function periodStats(startStr, endStrRaw) {
     while (toStr(cur) <= endStr) {
       var ds = toStr(cur);
       var e = state.entries[ds];
-      rows.push({ date: ds, logged: !!e, items: e ? e.items : [], spent: e ? sumSpent(e) : 0, allowance: e ? e.allowance : dailyAllowance() });
+      rows.push({ date: ds, logged: !!e, items: e ? e.items : [], spent: e ? sumSpent(e) : 0, allowance: allowanceForDate(ds) });
       cur = addDays(cur, 1);
     }
   }
@@ -318,40 +358,7 @@ function render() {
   // modals
   if (state.showAddTxn) html += renderAddTxnModal();
   if (state.showSettings) {
-    html += '<div class="modal-backdrop" data-action="close-settings">';
-    html += '<div class="modal-card" data-action="noop">';
-    html += '<div class="row between" style="margin-bottom:16px;"><div class="display" style="font-size:18px;">Settings</div><button data-action="close-settings" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div>';
-    html += '<label class="eyebrow">Weekly budget target</label>';
-    html += '<div style="position:relative; margin:6px 0 4px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
-    html += '<input id="weeklyDraftInput" type="number" inputmode="decimal" class="field mono" style="padding-left:44px;" value="'+state.settings.weeklyTarget+'" /></div>';
-    html += '<div class="muted" style="font-size:12px; margin-bottom:16px;">New days use this rate; days already logged keep the rate they were saved at.</div>';
-    html += '<label class="eyebrow">Tracking start date (optional)</label>';
-    html += '<input id="trackingStartInput" type="date" class="field mono" style="margin:6px 0 4px;" value="'+(state.settings.trackingStartDate||"")+'" max="'+todayStr()+'" />';
-    html += '<div class="muted" style="font-size:12px; margin-bottom:16px;">Caps how far back Week/Month/Year totals count. Set this to when you actually started using the app so untracked earlier days aren\'t assumed as saved. Leave blank to count from each period\'s natural start.</div>';
-    html += '<button data-action="save-settings" class="btn-accent" style="width:100%; margin-bottom:20px;">Save</button>';
-    html += '<div class="hairline-top" style="padding-top:16px; margin-bottom:16px;">';
-    html += '<label class="eyebrow">Categories</label>';
-    html += '<div style="display:flex; flex-direction:column; gap:6px; margin:8px 0 10px;">';
-    var catList = state.settings.categories||[];
-    catList.forEach(function(c,ci){
-      html += '<div class="row between" style="background:var(--raised); border:1px solid var(--hairline); border-radius:8px; padding:7px 8px 7px 12px;">';
-      html += '<span style="font-size:13px;">'+esc(c)+'</span>';
-      html += '<div class="row gap2">';
-      html += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(ci===0?"var(--hairline)":"var(--text-muted)")+';" '+(ci===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
-      html += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(ci===catList.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(ci===catList.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
-      html += '<button data-action="remove-category" data-cat="'+esc(c)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Remove">'+ICONS.trash+'</button>';
-      html += '</div></div>';
-    });
-    if (!catList.length) html += '<span class="muted" style="font-size:12px;">No categories yet.</span>';
-    html += '</div>';
-    html += '<div class="row gap2"><input id="newCategoryInput" type="text" class="field" placeholder="New category" style="flex:1;" /><button data-action="add-category" class="btn-outline">Add</button></div>';
-    html += '</div>';
-    html += '<div class="hairline-top" style="padding-top:16px;">';
-    html += '<label class="eyebrow">One-time fix</label>';
-    html += '<div class="muted" style="font-size:12px; margin:6px 0 10px;">Rewrites every already-logged day to use today\'s rate ('+fmt(dailyAllowance(),0)+' AED/day), instead of the rate that was live when each was saved. Use this if you were still dialing in your target and want history to match. New days keep locking to whatever rate is live when logged, same as before.</div>';
-    html += '<button data-action="recalc-allowance" class="btn-outline" style="width:100%;">Apply current rate to all logged days</button>';
-    html += '</div>';
-    html += '</div></div>';
+    html += renderSettingsModal();
   }
 
   if (state.showBackup) {
@@ -471,6 +478,86 @@ function renderHomeBody(T, da) {
   }
   h += '</div>'; // end period card
 
+  /* Forecast: project where this period lands if spending continues at the
+     current pace. Only meaningful for the live period with days still to come. */
+  if (isCurrent && displayed.elapsedDays > 0 && daysLeft > 0) {
+    var pacePerDay = displayed.spent / displayed.elapsedDays;
+    var projectedSpend = displayed.spent + pacePerDay * daysLeft;
+    var projectedSaved = period.target - projectedSpend;
+    var onTrack = projectedSaved >= 0;
+    h += '<div class="card" style="padding:16px; margin-bottom:16px;">';
+    h += '<div class="eyebrow" style="margin-bottom:2px;">Forecast at '+(state.view==="week"?"week":state.view==="month"?"month":"year")+' close</div>';
+    h += '<div class="muted" style="font-size:11px; margin-bottom:12px;">If you keep spending '+fmt(pacePerDay,0)+' AED/day for the remaining '+daysLeft+' day'+(daysLeft===1?"":"s")+'</div>';
+    h += '<div class="stat-grid">';
+    h += statBlock("Projected spend", fmt(projectedSpend,0)+" AED", projectedSpend>period.target?"var(--rust)":"var(--text)");
+    h += statBlock("Projected saved", (projectedSaved>=0?"+":"−")+fmt(Math.abs(projectedSaved),0)+" AED", onTrack?"var(--positive)":"var(--rust)");
+    h += '</div>';
+    h += '<div style="margin-top:10px; font-size:12px; color:'+(onTrack?"var(--positive)":"var(--rust)")+';">'+(onTrack?"On track to finish under budget":"On track to overshoot — ease off to recover")+'</div>';
+    h += '</div>';
+  }
+
+  return h;
+}
+
+function renderSettingsModal() {
+  var tabs = [{id:"budget",label:"Budget"},{id:"tracking",label:"Tracking"},{id:"categories",label:"Categories"}];
+  var h = '<div class="modal-backdrop" data-action="close-settings">';
+  h += '<div class="modal-card" data-action="noop">';
+  h += '<div class="row between" style="margin-bottom:14px;"><div class="display" style="font-size:18px;">Settings</div><button data-action="close-settings" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div>';
+
+  h += '<div class="row" style="background:var(--raised); border:1px solid var(--hairline); border-radius:10px; padding:3px; margin-bottom:16px;">';
+  tabs.forEach(function(t){
+    var active = state.settingsTab === t.id;
+    h += '<button data-action="settings-tab" data-tab="'+t.id+'" style="flex:1; border:none; border-radius:8px; padding:6px 0; font-size:13px; background:'+(active?"var(--accent)":"transparent")+'; color:'+(active?"var(--accent-ink)":"var(--text-muted)")+'; font-weight:'+(active?600:400)+';">'+t.label+'</button>';
+  });
+  h += '</div>';
+
+  if (state.settingsTab === "budget") {
+    var curWeekly = currentWeeklyTarget();
+    var wkBounds = getPeriodBounds("week", 0, curWeekly, curWeekly/7);
+    h += '<label class="eyebrow">Weekly budget target</label>';
+    h += '<div style="position:relative; margin:6px 0 6px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
+    h += '<input id="weeklyDraftInput" type="number" inputmode="decimal" class="field mono" style="padding-left:44px;" value="'+curWeekly+'" /></div>';
+    h += '<div class="muted" style="font-size:12px; margin-bottom:14px;">= '+fmt(curWeekly/7,2)+' AED per day. Choose how far this change should reach:</div>';
+    h += '<button data-action="apply-budget" data-scope="future" class="btn-accent" style="width:100%; margin-bottom:8px;">This week onward</button>';
+    h += '<div class="muted" style="font-size:11px; margin-bottom:12px;">From '+esc(shortLabel(wkBounds.startStr))+' forward. Earlier weeks keep their old rate — this is usually what you want.</div>';
+    h += '<button data-action="apply-budget" data-scope="thisPeriod" class="btn-outline" style="width:100%; margin-bottom:8px;">This week only</button>';
+    h += '<div class="muted" style="font-size:11px; margin-bottom:12px;">Just '+esc(shortLabel(wkBounds.startStr))+'–'+esc(shortLabel(wkBounds.endStr))+'. Reverts to the previous rate afterwards.</div>';
+    h += '<button data-action="apply-budget" data-scope="all" class="btn-outline" style="width:100%; margin-bottom:8px;">All periods, past and future</button>';
+    h += '<div class="muted" style="font-size:11px;">Rewrites your whole history to this rate. Use if you were still dialling the number in and want past weeks re-judged against it.</div>';
+  }
+
+  if (state.settingsTab === "tracking") {
+    h += '<label class="eyebrow">Tracking start date (optional)</label>';
+    h += '<input id="trackingStartInput" type="date" class="field mono" style="margin:6px 0 6px;" value="'+(state.settings.trackingStartDate||"")+'" max="'+todayStr()+'" />';
+    h += '<div class="muted" style="font-size:12px; margin-bottom:16px;">Caps how far back Week/Month/Year totals count. Set this to when you actually started using the app so untracked earlier days aren\'t assumed as saved. Leave blank to count from each period\'s natural start.</div>';
+    h += '<button data-action="save-tracking" class="btn-accent" style="width:100%; margin-bottom:20px;">Save</button>';
+    h += '<div class="hairline-top" style="padding-top:14px;">';
+    h += '<label class="eyebrow">Backup & restore</label>';
+    h += '<div class="muted" style="font-size:12px; margin:6px 0 10px;">Copy your data out, or paste it back in — also how you move data between devices or browsers.</div>';
+    h += '<button data-action="open-backup" class="btn-outline" style="width:100%;">Open backup & restore</button>';
+    h += '</div>';
+  }
+
+  if (state.settingsTab === "categories") {
+    h += '<label class="eyebrow">Categories</label>';
+    h += '<div style="display:flex; flex-direction:column; gap:6px; margin:8px 0 10px;">';
+    var catList = state.settings.categories||[];
+    catList.forEach(function(c,ci){
+      h += '<div class="row between" style="background:var(--raised); border:1px solid var(--hairline); border-radius:8px; padding:7px 8px 7px 12px;">';
+      h += '<span style="font-size:13px;">'+esc(c)+'</span>';
+      h += '<div class="row gap2">';
+      h += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(ci===0?"var(--hairline)":"var(--text-muted)")+';" '+(ci===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
+      h += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(ci===catList.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(ci===catList.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
+      h += '<button data-action="remove-category" data-cat="'+esc(c)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Remove">'+ICONS.trash+'</button>';
+      h += '</div></div>';
+    });
+    if (!catList.length) h += '<span class="muted" style="font-size:12px;">No categories yet.</span>';
+    h += '</div>';
+    h += '<div class="row gap2"><input id="newCategoryInput" type="text" class="field" placeholder="New category" style="flex:1;" /><button data-action="add-category" class="btn-outline">Add</button></div>';
+  }
+
+  h += '</div></div>';
   return h;
 }
 
@@ -655,6 +742,33 @@ function renderCalendarBody() {
   return h;
 }
 
+var PIE_COLORS = ["#E0B368","#5EBD8C","#7BA7D4","#D4614A","#B58BD0","#5FC2C2","#E08A5E","#9AAF7A","#C77FA3","#7E8CC4"];
+
+function renderPieChart(slices, T) {
+  var size = 180, r = 78, cx = size/2, cy = size/2;
+  var total = slices.reduce(function(s,x){ return s+x.value; }, 0);
+  if (total <= 0) return "";
+  var angle = -Math.PI/2;
+  var paths = "";
+  slices.forEach(function(sl, i){
+    var frac = sl.value/total;
+    var sweep = frac * Math.PI * 2;
+    var end = angle + sweep;
+    var color = PIE_COLORS[i % PIE_COLORS.length];
+    if (frac >= 0.9999) {
+      paths += '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+color+'"/>';
+    } else {
+      var x1 = cx + r*Math.cos(angle), y1 = cy + r*Math.sin(angle);
+      var x2 = cx + r*Math.cos(end),   y2 = cy + r*Math.sin(end);
+      var large = sweep > Math.PI ? 1 : 0;
+      paths += '<path d="M '+cx+' '+cy+' L '+x1+' '+y1+' A '+r+' '+r+' 0 '+large+' 1 '+x2+' '+y2+' Z" fill="'+color+'"/>';
+    }
+    angle = end;
+  });
+  paths += '<circle cx="'+cx+'" cy="'+cy+'" r="'+(r*0.55)+'" fill="'+T.card+'"/>';
+  return '<svg viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'">'+paths+'</svg>';
+}
+
 function renderBarChart(items, T) {
   var w = 340, h = 140, padL = 30, padR = 8, padT = 10, padB = 20;
   var maxVal = Math.max.apply(null, items.map(function(i){ return Math.max(i.spent, i.target); }).concat([1]));
@@ -723,6 +837,31 @@ function renderAnalysisBody(T) {
     dowSums[idx] += r.spent;
     dowCounts[idx] += 1;
   });
+  /* Spend by category */
+  var catTotals = {};
+  cs.rows.forEach(function(r){
+    r.items.forEach(function(it){
+      var key = it.category || "Uncategorised";
+      catTotals[key] = (catTotals[key] || 0) + it.amount;
+    });
+  });
+  var catSlices = Object.keys(catTotals).map(function(k){ return { label:k, value:catTotals[k] }; })
+    .sort(function(a,b){ return b.value - a.value; });
+  var catTotal = catSlices.reduce(function(s,x){ return s+x.value; }, 0);
+  if (catSlices.length) {
+    h += '<div class="card" style="padding:16px; margin-bottom:16px;">';
+    h += '<div class="eyebrow" style="margin-bottom:10px;">Spend by category</div>';
+    h += '<div style="display:flex; justify-content:center; margin-bottom:12px;">'+renderPieChart(catSlices, T)+'</div>';
+    catSlices.forEach(function(sl,i){
+      var pct = catTotal>0 ? (sl.value/catTotal*100) : 0;
+      h += '<div class="row between" style="padding:5px 0;'+(i>0?"border-top:1px solid var(--hairline);":"")+'">';
+      h += '<div class="row" style="align-items:center; gap:7px; min-width:0;"><span style="width:10px;height:10px;border-radius:3px;flex-shrink:0;background:'+PIE_COLORS[i % PIE_COLORS.length]+';"></span><span style="font-size:13px;">'+esc(sl.label)+'</span></div>';
+      h += '<div class="row" style="align-items:baseline; gap:8px;"><span class="mono" style="font-size:13px;">'+fmt(sl.value,0)+'</span><span class="muted mono" style="font-size:10px; width:34px; text-align:right;">'+pct.toFixed(0)+'%</span></div>';
+      h += '</div>';
+    });
+    h += '</div>';
+  }
+
   var dowLabels = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
   var dowAvg = dowSums.map(function(s,i){ return dowCounts[i]>0 ? s/dowCounts[i] : 0; });
   var maxDow = Math.max.apply(null, dowAvg.concat([1]));
@@ -822,6 +961,54 @@ function handleAddTransaction() {
   state.entryDate = date;
   persistAll(state.settings, nextEntries, "your entry");
   showToast(wasEditing ? "Record updated" : "Record added");
+  render();
+}
+
+function handleApplyBudget(scope) {
+  var wEl = document.getElementById("weeklyDraftInput");
+  var v = wEl ? parseFloat(wEl.value) : NaN;
+  if (isNaN(v) || v <= 0) return;
+  var newDaily = v / 7;
+  var wk = getPeriodBounds("week", 0, v, newDaily);
+  var hist = (state.settings.rateHistory || []).slice();
+  var nextEntries = Object.assign({}, state.entries);
+  var label;
+
+  function rewriteLoggedFrom(fromStr, toStr_) {
+    Object.keys(nextEntries).forEach(function(d){
+      if (d >= fromStr && (!toStr_ || d <= toStr_)) {
+        nextEntries[d] = Object.assign({}, nextEntries[d], { allowance: newDaily });
+      }
+    });
+  }
+
+  if (scope === "all") {
+    hist = [{ from: "1900-01-01", weeklyTarget: v }];
+    rewriteLoggedFrom("1900-01-01", null);
+    label = "Applied to all periods";
+  } else if (scope === "future") {
+    hist.push({ from: wk.startStr, weeklyTarget: v });
+    rewriteLoggedFrom(wk.startStr, null);
+    label = "Applied from this week onward";
+  } else { // thisPeriod
+    var prevRate = rateForDate(wk.startStr);
+    var dayAfter = toStr(addDays(parseD(wk.endStr), 1));
+    hist.push({ from: wk.startStr, weeklyTarget: v });
+    hist.push({ from: dayAfter, weeklyTarget: prevRate });
+    rewriteLoggedFrom(wk.startStr, wk.endStr);
+    label = "Applied to this week only";
+  }
+
+  hist = normalizeRateHistory(hist);
+  var nextSettings = Object.assign({}, state.settings, { rateHistory: hist });
+  nextSettings.weeklyTarget = (function(){
+    var r = hist[0].weeklyTarget, t = todayStr();
+    for (var i=0;i<hist.length;i++){ if (hist[i].from <= t) r = hist[i].weeklyTarget; else break; }
+    return r;
+  })();
+  persistAll(nextSettings, nextEntries, "your budget");
+  state.showSettings = false;
+  showToast(label);
   render();
 }
 
@@ -955,30 +1142,19 @@ document.addEventListener("click", function(e) {
       if (state.saveError) { var se = state.saveError; state.saveError = null; persistAll(se.nextSettings, se.nextEntries, se.label); }
       render();
       break;
-    case "save-settings":
-      var wEl = document.getElementById("weeklyDraftInput");
-      var tsEl = document.getElementById("trackingStartInput");
-      var v = wEl ? parseFloat(wEl.value) : NaN;
-      var nextSettings = Object.assign({}, state.settings);
-      if (!isNaN(v) && v > 0) nextSettings.weeklyTarget = v;
-      nextSettings.trackingStartDate = (tsEl && tsEl.value) ? tsEl.value : null;
-      persistAll(nextSettings, state.entries, "your settings");
-      state.showSettings = false;
+    case "settings-tab":
+      state.settingsTab = el.dataset.tab;
       render();
       break;
-    case "recalc-allowance":
-      var rwEl = document.getElementById("weeklyDraftInput");
-      var rv = rwEl ? parseFloat(rwEl.value) : NaN;
-      var recalcSettings = Object.assign({}, state.settings);
-      if (!isNaN(rv) && rv > 0) recalcSettings.weeklyTarget = rv;
-      var newDaily = recalcSettings.weeklyTarget / 7;
-      var recalcEntries = {};
-      Object.keys(state.entries).forEach(function(d){
-        recalcEntries[d] = Object.assign({}, state.entries[d], { allowance: newDaily });
-      });
-      persistAll(recalcSettings, recalcEntries, "your entries");
-      state.showSettings = false;
+    case "save-tracking":
+      var tsEl = document.getElementById("trackingStartInput");
+      var trackSettings = Object.assign({}, state.settings, { trackingStartDate: (tsEl && tsEl.value) ? tsEl.value : null });
+      persistAll(trackSettings, state.entries, "your settings");
+      showToast("Tracking date saved");
       render();
+      break;
+    case "apply-budget":
+      handleApplyBudget(el.dataset.scope);
       break;
     case "add-category":
       var newCatEl = document.getElementById("newCategoryInput");
