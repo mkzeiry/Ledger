@@ -449,9 +449,9 @@ function renderHomeBody(T, da) {
 
   var h = "";
   h += '<div class="card" style="padding:14px 16px; margin-bottom:12px;">';
-  h += '<div class="row between"><span class="eyebrow" style="font-size:10px;">Left to spend today</span><span class="mono" style="font-size:14px; color:'+leftTodayColor+';">'+fmt(leftToday,2)+' AED</span></div>';
-  h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow" style="font-size:10px;">Spent today</span><span class="mono" style="font-size:14px; color:'+spentTodayColor+';">'+fmt(spentToday,2)+' AED</span></div>';
-  h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow" style="font-size:10px;">'+esc(cumLabel)+'</span><span class="mono" style="font-size:14px; color:'+cumColor+';">'+(cumulative.net>=0?"+":"−")+fmt(Math.abs(cumulative.net),0)+' AED</span></div>';
+  h += '<div class="row between"><span class="eyebrow" style="font-size:10px;">Left to spend today</span><span class="mono" style="font-size:16px; color:'+leftTodayColor+';">'+fmt(leftToday,2)+' AED</span></div>';
+  h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow" style="font-size:10px;">Spent today</span><span class="mono" style="font-size:16px; color:'+spentTodayColor+';">'+fmt(spentToday,2)+' AED</span></div>';
+  h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow" style="font-size:10px;">'+esc(cumLabel)+'</span><span class="mono" style="font-size:16px; color:'+cumColor+';">'+(cumulative.net>=0?"+":"−")+fmt(Math.abs(cumulative.net),0)+' AED</span></div>';
   h += '</div>';
 
   h += '<div class="row card" style="padding:4px; margin-bottom:12px;">';
