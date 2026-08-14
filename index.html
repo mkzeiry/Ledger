@@ -660,15 +660,7 @@ function renderTransactionsBody() {
       h += '</div>';
       h += '<div style="margin-top:4px;">';
       newestFirst(day.items).forEach(function(it){
-        var key = date+"|"+it.id;
-        if (state.pendingDeleteKey === key) {
-          h += '<div class="txn-line" style="background:var(--rust-wash); border-radius:6px; padding:4px 8px;"><span style="font-size:11px;">Delete this?</span>';
-          h += '<div class="row gap2"><button data-action="delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:var(--rust);border:none;border-radius:5px;padding:4px;color:#fff;" aria-label="Confirm delete">'+ICONS.check+'</button>';
-          h += '<button data-action="cancel-delete-txn" style="background:none;border:1px solid var(--hairline);border-radius:5px;padding:4px;color:var(--text-muted);" aria-label="Cancel">'+ICONS.x+'</button></div></div>';
-        } else {
-          h += '<div class="txn-line"><button data-action="edit-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;text-align:left;flex:1;display:flex;align-items:center;gap:5px;"><span style="color:var(--text-muted);">'+ICONS.pencil+'</span><span class="muted" style="font-size:11px;">'+(it.category?('<span style="color:var(--accent);">'+esc(it.category)+'</span> · '):"")+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span></button>';
-          h += '<button data-action="ask-delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button></div>';
-        }
+        h += renderTxnRow(date, it);
       });
       h += '</div></div>';
       if (i < dates.length - 1) {
@@ -687,6 +679,29 @@ function renderTransactionsBody() {
 
 function legendSwatch(bg, label, fg) {
   return '<div class="row" style="align-items:center; gap:5px;"><span style="width:10px; height:10px; border-radius:3px; background:'+bg+'; display:inline-block;"></span><span style="font-size:10px; color:'+(fg||"var(--text-muted)")+';">'+esc(label)+'</span></div>';
+}
+
+/* Shared transaction-row renderer used by both the Transactions page and the
+   Calendar day-detail panel, so the two never visually drift apart. */
+function renderTxnRow(date, it) {
+  var key = date+"|"+it.id;
+  if (state.pendingDeleteKey === key) {
+    return '<div class="row between" style="background:var(--rust-wash); border-radius:8px; padding:8px 10px; margin-bottom:2px;">'
+      + '<span style="font-size:12px;">Delete this?</span>'
+      + '<div class="row gap2"><button data-action="delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:var(--rust);border:none;border-radius:5px;padding:4px;color:#fff;" aria-label="Confirm delete">'+ICONS.check+'</button>'
+      + '<button data-action="cancel-delete-txn" style="background:none;border:1px solid var(--hairline);border-radius:5px;padding:4px;color:var(--text-muted);" aria-label="Cancel">'+ICONS.x+'</button></div></div>';
+  }
+  var h = '<div class="row" style="align-items:center; gap:10px; padding:6px 0; margin-bottom:2px;">';
+  h += '<button data-action="edit-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;flex:1;min-width:0;display:flex;align-items:center;gap:10px;text-align:left;">';
+  h += catIconCircle(it.category);
+  h += '<span style="min-width:0; flex:1;">';
+  h += '<div style="font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+(it.category?esc(it.category):"Spent")+'</div>';
+  if (it.note) h += '<div class="muted" style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(it.note)+'</div>';
+  h += '</span></button>';
+  h += '<div class="mono" style="font-size:13px; font-weight:600; color:var(--rust); flex-shrink:0;">−'+fmt(it.amount,2)+' AED</div>';
+  h += '<button data-action="ask-delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);flex-shrink:0;" aria-label="Delete">'+ICONS.trash+'</button>';
+  h += '</div>';
+  return h;
 }
 
 function renderCalendarBody() {
@@ -774,15 +789,7 @@ function renderCalendarBody() {
     h += '<div class="eyebrow" style="margin-bottom:8px;">'+esc(dayLabel(sd))+'</div>';
     if (sday && sday.items.length) {
       newestFirst(sday.items).forEach(function(it){
-        var key2 = sd+"|"+it.id;
-        if (state.pendingDeleteKey === key2) {
-          h += '<div class="txn-line" style="background:var(--rust-wash); border-radius:6px; padding:4px 8px;"><span style="font-size:12px;">Delete this?</span>';
-          h += '<div class="row gap2"><button data-action="delete-txn" data-date="'+sd+'" data-id="'+esc(it.id)+'" style="background:var(--rust);border:none;border-radius:5px;padding:4px;color:#fff;" aria-label="Confirm delete">'+ICONS.check+'</button>';
-          h += '<button data-action="cancel-delete-txn" style="background:none;border:1px solid var(--hairline);border-radius:5px;padding:4px;color:var(--text-muted);" aria-label="Cancel">'+ICONS.x+'</button></div></div>';
-        } else {
-          h += '<div class="txn-line"><button data-action="edit-txn" data-date="'+sd+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;text-align:left;flex:1;display:flex;align-items:center;gap:5px;"><span style="color:var(--text-muted);">'+ICONS.pencil+'</span><span class="muted" style="font-size:12px;">'+(it.category?('<span style="color:var(--accent);">'+esc(it.category)+'</span> · '):"")+(it.note?esc(it.note):"Spent")+' <span class="mono">— '+fmt(it.amount,2)+' AED</span></span></button>';
-          h += '<button data-action="ask-delete-txn" data-date="'+sd+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button></div>';
-        }
+        h += renderTxnRow(sd, it);
       });
     } else {
       h += '<div class="muted" style="font-size:13px;">Nothing logged this day.</div>';
@@ -794,6 +801,40 @@ function renderCalendarBody() {
 }
 
 var PIE_COLORS = ["#E0B368","#5EBD8C","#7BA7D4","#D4614A","#B58BD0","#5FC2C2","#E08A5E","#9AAF7A","#C77FA3","#7E8CC4"];
+
+/* Category icons & colors: fixed for the built-in set, hashed to a stable
+   fallback color for any custom category the user adds. */
+var CAT_ICON_SVGS = {
+  fork: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7a2 2 0 0 0 4 0V2M5 2v20M21 15V2a5 5 0 0 0-5 5v6a2 2 0 0 0 2 2h3zm0 0v7"/></svg>',
+  basket: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 8h13l-1.5 11.2a2 2 0 0 1-2 1.8H9a2 2 0 0 1-2-1.8z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>',
+  car: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17V11l2-5h14l2 5v6"/><path d="M5 17h14"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>',
+  bag: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/></svg>',
+  bolt: '<svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>',
+  heart: '<svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><path d="M12 21s-6.7-4.35-9.3-8.1C.8 9.9 1.9 6 5.4 5.1 7.6 4.5 9.8 5.5 12 8c2.2-2.5 4.4-3.5 6.6-2.9 3.5.9 4.6 4.8 2.7 7.8C18.7 16.65 12 21 12 21z"/></svg>',
+  film: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M7 3v18M17 3v18M2 8h5M2 16h5M17 8h5M17 16h5"/></svg>',
+  tag: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 12.6 12.6 20.6a2 2 0 0 1-2.83 0L2.6 13.4a2 2 0 0 1 0-2.83l8-8A2 2 0 0 1 12 2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-.4 1.2Z"/><circle cx="16.5" cy="7.5" r="1"/></svg>',
+};
+var CATEGORY_STYLES = {
+  "Food & Dining": { icon:"fork", color:"#D4614A" },
+  "Groceries": { icon:"basket", color:"#5EA05E" },
+  "Transport": { icon:"car", color:"#7BA7D4" },
+  "Shopping": { icon:"bag", color:"#B58BD0" },
+  "Bills & Utilities": { icon:"bolt", color:"#C9A227" },
+  "Health": { icon:"heart", color:"#E0687A" },
+  "Entertainment": { icon:"film", color:"#7E8CC4" },
+  "Other": { icon:"tag", color:"#8595B5" },
+};
+function categoryStyle(name) {
+  if (!name) return { icon:"tag", color:"#8595B5" };
+  if (CATEGORY_STYLES[name]) return CATEGORY_STYLES[name];
+  var hash = 0;
+  for (var i=0;i<name.length;i++) hash = (hash*31 + name.charCodeAt(i)) >>> 0;
+  return { icon:"tag", color: PIE_COLORS[hash % PIE_COLORS.length] };
+}
+function catIconCircle(categoryName) {
+  var st = categoryStyle(categoryName);
+  return '<span style="width:32px; height:32px; border-radius:50%; background:'+st.color+'; display:flex; align-items:center; justify-content:center; flex-shrink:0;">'+CAT_ICON_SVGS[st.icon]+'</span>';
+}
 
 function renderPieChart(slices, T) {
   var size = 180, r = 78, cx = size/2, cy = size/2;
