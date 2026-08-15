@@ -174,8 +174,8 @@ var state = {
   txnPeriodDate: "",
   txnPeriodFrom: "",
   txnPeriodTo: "",
-  analysisPeriodMode: "all",
-  analysisPeriodDate: "",
+  analysisPeriodMode: "month",
+  analysisOffset: 0,
   analysisPeriodFrom: "",
   analysisPeriodTo: "",
   analysisReorderMode: false,
@@ -1023,32 +1023,33 @@ function renderBarChart(items, T) {
     + bars + '</svg>';
 }
 
-/* Generic per-day bar chart: one bar per row in `rows`, value from getValue(),
-   color from getColor(row, value). Bars can go negative (drawn below a zero
-   line) which the saved-per-day chart needs. Value labels are drawn above/below
+/* Generic bucketed bar chart: one bar per bucket, value from getValue(), color
+   from getColor(bucket, value). Bars can go negative (drawn below a zero line)
+   which the saved-per-period chart needs. Value labels are drawn above/below
    each bar (rounded, no decimals) as long as bars are wide enough to fit them
-   without overlapping; refLine (optional) draws a dashed horizontal marker,
-   e.g. the daily budget. */
-function renderDailyBarChart(rows, getValue, getColor, T, refLine) {
-  if (!rows.length) return '<div class="muted" style="font-size:12px;">No data in this period.</div>';
+   without overlapping; refLine (optional) draws a labelled dashed marker, e.g.
+   the daily budget. Buckets carry their own `label`, so the same chart works
+   whether they're days or months. */
+function renderDailyBarChart(buckets, getValue, getColor, T, refLine) {
+  if (!buckets.length) return '<div class="muted" style="font-size:12px;">No data in this period.</div>';
   var w = 340, h = 156, padL = 30, padR = 8, padT = 18, padB = 20;
-  var values = rows.map(getValue);
+  var values = buckets.map(getValue);
   var maxVal = Math.max.apply(null, values.concat([0, refLine==null?0:refLine]));
   var minVal = Math.min.apply(null, values.concat([0]));
   var range = (maxVal - minVal) || 1;
   var plotW = w-padL-padR, plotH = h-padT-padB;
-  var n = rows.length;
+  var n = buckets.length;
   var slot = plotW/n;
   var barW = Math.max(1, Math.min(20, slot*0.7));
   var showLabels = slot >= 20;
   function y(v){ return padT + plotH - ((v-minVal)/range)*plotH; }
   var zeroY = y(0);
-  var bars = rows.map(function(r,i){
-    var v = getValue(r);
+  var bars = buckets.map(function(b,i){
+    var v = getValue(b);
     var cx = padL + slot*i + slot/2;
     var top = v>=0 ? y(v) : zeroY;
     var barH = Math.max(0.5, Math.abs(y(v)-zeroY));
-    var svg = '<rect x="'+(cx-barW/2)+'" y="'+top+'" width="'+barW+'" height="'+barH+'" fill="'+getColor(r,v)+'" rx="1"/>';
+    var svg = '<rect x="'+(cx-barW/2)+'" y="'+top+'" width="'+barW+'" height="'+barH+'" fill="'+getColor(b,v)+'" rx="1"/>';
     if (showLabels && Math.round(v) !== 0) {
       var labelY = v>=0 ? Math.max(9, top-3) : (top+barH+9);
       var roundedV = Math.round(v);
@@ -1060,75 +1061,105 @@ function renderDailyBarChart(rows, getValue, getColor, T, refLine) {
   var refSvg = "";
   if (refLine != null) {
     var ry = y(refLine);
-    refSvg = '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+ry+'" y2="'+ry+'" stroke="'+T.textMuted+'" stroke-dasharray="3,3"/>';
+    refSvg = '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+ry+'" y2="'+ry+'" stroke="'+T.textMuted+'" stroke-dasharray="3,3"/>'
+      + '<text x="2" y="'+(ry+3)+'" font-size="8" fill="'+T.textMuted+'">'+fmt(Math.round(refLine),0)+'</text>';
   }
   return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'">'
     + refSvg
     + '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+zeroY+'" y2="'+zeroY+'" stroke="'+T.hairline+'"/>'
     + bars
-    + '<text x="'+padL+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'">'+esc(shortLabel(rows[0].date))+'</text>'
-    + '<text x="'+(w-padR)+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="end">'+esc(shortLabel(rows[rows.length-1].date))+'</text>'
+    + '<text x="'+padL+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'">'+esc(buckets[0].label)+'</text>'
+    + '<text x="'+(w-padR)+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="end">'+esc(buckets[buckets.length-1].label)+'</text>'
     + '</svg>';
 }
 
-function getAnalysisPeriodBounds() {
+/* Resolves the Analysis page's selected period. week/month/year are navigable
+   via analysisOffset (0 = current, -1 = previous, …), reusing getPeriodBounds so
+   titles and bounds match the Home page exactly. custom uses explicit dates. */
+function getAnalysisPeriodInfo() {
   var today = todayStr();
-  var tsd = state.settings.trackingStartDate;
-  var entryDatesAll = Object.keys(state.entries).sort();
-  var naturalAnchor = tsd || (entryDatesAll.length ? entryDatesAll[0] : today);
-  var mode = state.analysisPeriodMode || "all";
-  var anchor = state.analysisPeriodDate || "";
-  var from = state.analysisPeriodFrom || "";
-  var to = state.analysisPeriodTo || "";
-  if (mode === "week" && anchor) {
-    var s = startOfWeek(parseD(anchor));
-    return { start: toStr(s), end: toStr(addDays(s,6)) };
+  var mode = state.analysisPeriodMode || "month";
+  var off = state.analysisOffset || 0;
+  if (mode === "custom") {
+    var entryDatesAll = Object.keys(state.entries).sort();
+    var fallbackStart = state.settings.trackingStartDate || (entryDatesAll.length ? entryDatesAll[0] : today);
+    var from = state.analysisPeriodFrom || fallbackStart;
+    var to = state.analysisPeriodTo || today;
+    if (from > to) { var swap = from; from = to; to = swap; }
+    return { start: from, end: to, title: shortLabel(from)+" – "+shortLabel(to), sub: "Custom range", isCurrent: true, mode: mode };
   }
-  if (mode === "month" && anchor) {
-    var s2 = startOfMonth(parseD(anchor));
-    return { start: toStr(s2), end: toStr(endOfMonth(s2)) };
-  }
-  if (mode === "range") {
-    return { start: from || naturalAnchor, end: to || today };
-  }
-  return { start: naturalAnchor, end: today };
+  var per = getPeriodBounds(mode, off, currentWeeklyTarget(), dailyAllowance());
+  return { start: per.startStr, end: per.endStr, title: per.title, sub: per.sub, isCurrent: off === 0, mode: mode };
 }
+
+/* Week/month are short enough to read day-by-day; a year would be 365 bars, so
+   it rolls up to months. Custom ranges switch over at roughly two months. */
+function analysisGranularity(info) {
+  if (info.mode === "year") return "month";
+  if (info.mode === "custom") return daysBetween(info.start, info.end) > 62 ? "month" : "day";
+  return "day";
+}
+
+/* Collapses periodStats rows into chart buckets at the chosen granularity.
+   Monthly buckets sum both spend and allowance, so a bucket's own target stays
+   correct even when months differ in length. */
+function buildAnalysisBuckets(rows, granularity) {
+  if (granularity !== "month") {
+    return rows.map(function(r){
+      return { label: shortLabel(r.date), date: r.date, spent: r.spent, allowance: r.allowance, days: 1 };
+    });
+  }
+  var map = {}, order = [];
+  rows.forEach(function(r){
+    var key = r.date.slice(0,7);
+    if (!map[key]) {
+      map[key] = { label: parseD(r.date).toLocaleDateString("en-GB",{month:"short"}), date: r.date, spent: 0, allowance: 0, days: 0 };
+      order.push(key);
+    }
+    map[key].spent += r.spent;
+    map[key].allowance += r.allowance;
+    map[key].days += 1;
+  });
+  return order.map(function(k){ return map[k]; });
+}
+
 
 function renderAnalysisBody(T) {
   var da = dailyAllowance();
   var today = todayStr();
-  var periodMode = state.analysisPeriodMode || "all";
-  var periodAnchor = state.analysisPeriodDate || "";
+  var periodMode = state.analysisPeriodMode || "month";
   var periodFrom = state.analysisPeriodFrom || "";
   var periodTo = state.analysisPeriodTo || "";
-  var bounds = getAnalysisPeriodBounds();
-  var cs = periodStats(bounds.start, bounds.end);
+  var info = getAnalysisPeriodInfo();
+  var cs = periodStats(info.start, info.end);
+  var granularity = analysisGranularity(info);
+  var buckets = buildAnalysisBuckets(cs.rows, granularity);
+  var perLabel = granularity === "month" ? "month" : "day";
 
   var h = "";
-  h += '<div class="row between" style="align-items:center; margin-bottom:4px;">';
+  h += '<div class="row between" style="align-items:center; margin-bottom:10px;">';
   h += '<div class="eyebrow">Analysis</div>';
-  h += '<button class="icon-btn" data-action="toggle-analysis-reorder" style="padding:5px;" aria-label="Reorder sections">'+(state.analysisReorderMode?ICONS.check:ICONS.pencil)+'</button>';
+  h += '<button data-action="toggle-analysis-reorder" class="btn-outline row gap2" style="padding:5px 10px; font-size:12px; align-items:center;">'+(state.analysisReorderMode?ICONS.check+" Done":ICONS.pencil+" Reorder")+'</button>';
   h += '</div>';
 
-  var periodLabel;
-  if (periodMode === "week" && periodAnchor) periodLabel = shortLabel(bounds.start)+' – '+shortLabel(bounds.end);
-  else if (periodMode === "month" && periodAnchor) periodLabel = parseD(bounds.start).toLocaleDateString("en-GB",{month:"long",year:"numeric"});
-  else if (periodMode === "range") periodLabel = shortLabel(bounds.start)+' – '+shortLabel(bounds.end);
-  else periodLabel = "Since "+parseD(bounds.start).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
-  h += '<div class="muted" style="font-size:11px; margin-bottom:10px;">'+esc(periodLabel)+'</div>';
-
-  h += '<div style="padding-bottom:8px;"><select id="analysisPeriodModeSelect" class="field" style="font-size:13px;">';
-  [["all","All time"],["week","Specific week"],["month","Specific month"],["range","Custom range"]].forEach(function(opt){
-    h += '<option value="'+opt[0]+'"'+(periodMode===opt[0]?" selected":"")+'>'+opt[1]+'</option>';
+  h += '<div class="row card" style="padding:4px; margin-bottom:10px;">';
+  [["week","Week"],["month","Month"],["year","Year"],["custom","Custom"]].forEach(function(opt){
+    var active = periodMode === opt[0];
+    h += '<button data-action="set-analysis-period" data-mode="'+opt[0]+'" style="flex:1; border:none; border-radius:10px; padding:6px 0; font-size:13px; background:'+(active?"var(--accent)":"transparent")+'; color:'+(active?"var(--accent-ink)":"var(--text-muted)")+'; font-weight:'+(active?600:400)+';">'+opt[1]+'</button>';
   });
-  h += '</select></div>';
-  if (periodMode === "week" || periodMode === "month") {
-    h += '<div style="padding-bottom:12px;"><input id="analysisPeriodAnchorInput" type="date" class="field mono" style="font-size:13px;" value="'+esc(periodAnchor)+'" max="'+today+'" /></div>';
-  }
-  if (periodMode === "range") {
-    h += '<div class="row gap2" style="padding-bottom:12px;">';
+  h += '</div>';
+
+  if (periodMode === "custom") {
+    h += '<div class="row gap2" style="margin-bottom:12px;">';
     h += '<input id="analysisPeriodFromInput" type="date" class="field mono" style="flex:1; font-size:13px;" value="'+esc(periodFrom)+'" max="'+today+'" />';
     h += '<input id="analysisPeriodToInput" type="date" class="field mono" style="flex:1; font-size:13px;" value="'+esc(periodTo)+'" max="'+today+'" />';
+    h += '</div>';
+  } else {
+    h += '<div class="row between card" style="padding:8px 10px; margin-bottom:12px;">';
+    h += '<button data-action="analysis-nav-offset" data-delta="-1" class="icon-btn" style="border-radius:10px;" aria-label="Previous">'+ICONS.chevronLeft+'</button>';
+    h += '<div style="text-align:center; min-width:0;"><div style="font-size:13px; font-weight:500;">'+esc(info.title)+'</div>';
+    h += '<div class="eyebrow" style="margin-top:2px;">'+esc(info.sub)+'</div></div>';
+    h += '<button data-action="analysis-nav-offset" data-delta="1" class="icon-btn" style="border-radius:10px;'+(info.isCurrent?"opacity:0.3;pointer-events:none;":"")+'" aria-label="Next">'+ICONS.chevronRight+'</button>';
     h += '</div>';
   }
 
@@ -1146,25 +1177,30 @@ function renderAnalysisBody(T) {
   };
 
   sectionHtml.dailySpend = function(){
+    /* Reference line is the budget for one bucket: the daily rate when bars are
+       days, or the average bucket target when they're months. */
+    var refSpend = granularity === "month"
+      ? (buckets.length ? buckets.reduce(function(t,b){ return t+b.allowance; },0)/buckets.length : null)
+      : da;
     var s = '<div class="card" style="padding:14px; margin-bottom:16px;">';
-    s += '<div class="eyebrow" style="margin-bottom:8px;">Spend per day</div>';
-    s += renderDailyBarChart(cs.rows, function(r){ return r.spent; }, function(r,v){ return v>r.allowance ? T.rust : T.positive; }, T, da);
+    s += '<div class="eyebrow" style="margin-bottom:8px;">Spend per '+perLabel+'</div>';
+    s += renderDailyBarChart(buckets, function(b){ return b.spent; }, function(b,v){ return v>b.allowance ? T.rust : T.positive; }, T, refSpend);
     s += '</div>';
     return s;
   };
 
   sectionHtml.dailySaving = function(){
     var s = '<div class="card" style="padding:14px; margin-bottom:16px;">';
-    s += '<div class="eyebrow" style="margin-bottom:8px;">Saved per day</div>';
-    s += renderDailyBarChart(cs.rows, function(r){ return r.allowance - r.spent; }, function(r,v){ return v>=0 ? T.positive : T.rust; }, T);
+    s += '<div class="eyebrow" style="margin-bottom:8px;">Saved per '+perLabel+'</div>';
+    s += renderDailyBarChart(buckets, function(b){ return b.allowance - b.spent; }, function(b,v){ return v>=0 ? T.positive : T.rust; }, T);
     s += '</div>';
     return s;
   };
 
   sectionHtml.monthlyBar = function(){
     var now = new Date();
-    var endMonthStart = startOfMonth(parseD(bounds.end));
-    var startMonthStart = startOfMonth(parseD(bounds.start));
+    var endMonthStart = startOfMonth(parseD(info.end));
+    var startMonthStart = startOfMonth(parseD(info.start));
     var offEnd = (endMonthStart.getFullYear()-now.getFullYear())*12 + (endMonthStart.getMonth()-now.getMonth());
     var offStart = (startMonthStart.getFullYear()-now.getFullYear())*12 + (startMonthStart.getMonth()-now.getMonth());
     var months = [];
@@ -1579,6 +1615,15 @@ document.addEventListener("click", function(e) {
       state.analysisReorderMode = !state.analysisReorderMode;
       render();
       break;
+    case "set-analysis-period":
+      state.analysisPeriodMode = el.dataset.mode;
+      state.analysisOffset = 0;
+      render();
+      break;
+    case "analysis-nav-offset":
+      state.analysisOffset = Math.min(0, (state.analysisOffset||0) + parseInt(el.dataset.delta,10));
+      render();
+      break;
     case "move-analysis-section":
       var dirA = parseInt(el.dataset.dir,10);
       var orderA = normalizeAnalysisOrder(state.settings.analysisSectionOrder);
@@ -1611,12 +1656,6 @@ document.addEventListener("change", function(e) {
   if (e.target && e.target.id === "txnPeriodAnchorInput") { state.txnPeriodDate = e.target.value; render(); }
   if (e.target && e.target.id === "txnPeriodFromInput") { state.txnPeriodFrom = e.target.value; render(); }
   if (e.target && e.target.id === "txnPeriodToInput") { state.txnPeriodTo = e.target.value; render(); }
-  if (e.target && e.target.id === "analysisPeriodModeSelect") {
-    state.analysisPeriodMode = e.target.value;
-    if ((state.analysisPeriodMode === "week" || state.analysisPeriodMode === "month") && !state.analysisPeriodDate) state.analysisPeriodDate = todayStr();
-    render();
-  }
-  if (e.target && e.target.id === "analysisPeriodAnchorInput") { state.analysisPeriodDate = e.target.value; render(); }
   if (e.target && e.target.id === "analysisPeriodFromInput") { state.analysisPeriodFrom = e.target.value; render(); }
   if (e.target && e.target.id === "analysisPeriodToInput") { state.analysisPeriodTo = e.target.value; render(); }
 });
