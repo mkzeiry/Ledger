@@ -698,6 +698,36 @@ function unlockBodyScroll() {
   window.scrollTo(0, lockedScrollY);
 }
 
+/* Manual touch-scroll for whichever .modal-card is open. CSS alone (overflow
+   hidden, overscroll-behavior: contain) stops normal scroll chaining, but iOS
+   can still pan the visual viewport mid-gesture as its own keyboard-avoidance
+   heuristic — that's a compositor-level behavior CSS doesn't govern, and it's
+   what let the page behind a modal visibly shift while scrolling near a
+   focused field. Blocking touchmove outright and driving scrollTop by hand
+   means iOS never receives a native gesture to act on, so it has nothing to
+   pan in response to. The note field is exempted so text-cursor dragging
+   inside it still works natively. */
+var touchLockCard = null, touchLockStartY = null, touchLockStartScrollTop = null;
+document.addEventListener("touchstart", function(e) {
+  if (!bodyScrollLocked) return;
+  var card = e.target.closest(".modal-card");
+  touchLockCard = card || null;
+  touchLockStartY = e.touches[0].clientY;
+  touchLockStartScrollTop = card ? card.scrollTop : 0;
+}, { passive: true });
+document.addEventListener("touchmove", function(e) {
+  if (!bodyScrollLocked) return;
+  if (e.target && e.target.id === "entryNoteInput") return;
+  e.preventDefault();
+  if (!touchLockCard || touchLockStartY == null) return;
+  var deltaY = touchLockStartY - e.touches[0].clientY;
+  var maxScroll = Math.max(0, touchLockCard.scrollHeight - touchLockCard.clientHeight);
+  touchLockCard.scrollTop = Math.max(0, Math.min(maxScroll, touchLockStartScrollTop + deltaY));
+}, { passive: false });
+document.addEventListener("touchend", function() {
+  touchLockCard = null; touchLockStartY = null; touchLockStartScrollTop = null;
+}, { passive: true });
+
 function render() {
   var root = document.getElementById("root");
   var T = effectivePalette();
