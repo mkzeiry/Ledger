@@ -703,6 +703,8 @@ var bodyScrollLocked = false;
    this right after replacing innerHTML to wire up the scrub interaction,
    since the string-building code has no other way to hand data back out. */
 var lastChartData = null;
+/* Same idea as lastChartData, for the Analysis page's Forecast chart. */
+var lastForecastChartData = null;
 var lockedScrollY = 0;
 function lockBodyScroll() {
   if (bodyScrollLocked) return;
@@ -847,6 +849,7 @@ function render() {
 
   root.innerHTML = html;
   if (state.page === "home" && lastChartData) wireBalanceChart(lastChartData);
+  if (state.page === "analysis" && lastForecastChartData) wireForecastChart(lastForecastChartData);
 }
 
 function renderHomeBody(T, da) {
@@ -1526,16 +1529,23 @@ function renderBarChart(items, T) {
    whether they're days or months. */
 function renderDailyBarChart(buckets, getValue, getColor, T, refLine, selectedKey, chartId) {
   if (!buckets.length) return '<div class="muted" style="font-size:12px;">No data in this period.</div>';
-  var w = 340, h = 156, padL = 30, padR = 8, padT = 18, padB = 20;
+  var w = 340, h = 156, padL = 30, padR = 8, padB = 20;
+  var n = buckets.length;
+  var plotW = w-padL-padR;
+  var slot = plotW/n;
+  var barW = Math.max(1, Math.min(20, slot*0.7));
+  /* Horizontal labels need real width to read; below that, rotate them
+     vertical so a value is still visible even at daily-for-a-month density —
+     hiding it outright was the old behavior, but a label you have to tap to
+     see isn't a label. Vertical labels get extra top padding so they don't
+     clip against the chart's edge above a tall bar. */
+  var labelMode = slot >= 20 ? "h" : (slot >= 7 ? "v" : "none");
+  var padT = labelMode === "v" ? 40 : 18;
   var values = buckets.map(getValue);
   var maxVal = Math.max.apply(null, values.concat([0, refLine==null?0:refLine]));
   var minVal = Math.min.apply(null, values.concat([0]));
   var range = (maxVal - minVal) || 1;
-  var plotW = w-padL-padR, plotH = h-padT-padB;
-  var n = buckets.length;
-  var slot = plotW/n;
-  var barW = Math.max(1, Math.min(20, slot*0.7));
-  var showLabels = slot >= 20;
+  var plotH = h-padT-padB;
   function y(v){ return padT + plotH - ((v-minVal)/range)*plotH; }
   var zeroY = y(0);
   /* Each column gets a full-height transparent hit rect so thin bars are still
@@ -1552,11 +1562,22 @@ function renderDailyBarChart(buckets, getValue, getColor, T, refLine, selectedKe
     if (isSel) {
       svg += '<rect x="'+(cx-barW/2-1.5)+'" y="'+(top-1.5)+'" width="'+(barW+3)+'" height="'+(barH+3)+'" fill="none" stroke="'+T.text+'" stroke-width="1.5" rx="3"/>';
     }
-    if (showLabels && Math.round(v) !== 0) {
-      var labelY = v>=0 ? Math.max(9, top-3) : (top+barH+9);
+    if (labelMode !== "none" && Math.round(v) !== 0) {
       var roundedV = Math.round(v);
       var labelStr = roundedV < 0 ? ("−"+fmt(Math.abs(roundedV),0)) : fmt(roundedV,0);
-      svg += '<text x="'+cx+'" y="'+labelY+'" font-size="8" fill="'+(isSel?T.text:T.textMuted)+'" text-anchor="middle">'+labelStr+'</text>';
+      var labelFill = isSel ? T.text : T.textMuted;
+      if (labelMode === "h") {
+        var labelY = v>=0 ? Math.max(9, top-3) : (top+barH+9);
+        svg += '<text x="'+cx+'" y="'+labelY+'" font-size="8" fill="'+labelFill+'" text-anchor="middle">'+labelStr+'</text>';
+      } else {
+        // Vertical label: reads bottom-to-top above a positive bar, or
+        // top-to-bottom below a negative one, so it never overlaps the bar.
+        if (v>=0) {
+          svg += '<text x="0" y="0" font-size="7" fill="'+labelFill+'" text-anchor="start" transform="translate('+cx+','+Math.max(10,top-3)+') rotate(-90)">'+labelStr+'</text>';
+        } else {
+          svg += '<text x="0" y="0" font-size="7" fill="'+labelFill+'" text-anchor="start" transform="translate('+cx+','+(top+barH+3)+') rotate(90)">'+labelStr+'</text>';
+        }
+      }
     }
     svg += '<rect class="chart-hit" data-action="select-bucket" data-key="'+esc(hitKey)+'" x="'+(padL+slot*i)+'" y="'+padT+'" width="'+slot+'" height="'+plotH+'" fill="transparent"/>';
     return svg;
@@ -1576,14 +1597,9 @@ function renderDailyBarChart(buckets, getValue, getColor, T, refLine, selectedKe
     + '</svg>';
 }
 
-/* Cumulative spend for the elapsed portion of a period (smooth green curve),
-   continuing as a straight projected line from today's actual total up to the
-   forecasted end-of-period total — reusing the same avg-daily-pace math as
-   the Home page's Forecast card, so the two numbers never disagree. A flat
-   projection (as some budget apps show) would imply spending stops entirely;
-   a straight line to the real forecast total is the honest version of the
-   same picture. */
-function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel) {
+/* Shared by renderForecastChart and wireForecastChart, mirroring
+   balanceChartGeom's role for the Home page chart. */
+function forecastChartGeom(rows, totalDays, target, projectedSpend) {
   var w=340, h=190, padL=44, padR=8, padT=24, padB=20;
   var plotW=w-padL-padR, plotH=h-padT-padB;
   var n = Math.max(totalDays, 2);
@@ -1592,10 +1608,35 @@ function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabe
   rows.forEach(function(r){ acc += r.spent; actualVals.push(acc); });
   var maxY = Math.max(target, projectedSpend, actualVals.length ? Math.max.apply(null, actualVals) : 0, 1);
   function yAt(v){ return padT + plotH - (v/maxY)*plotH; }
-
-  var actualPts = actualVals.map(function(v,i){ return [xAt(i), yAt(v)]; });
   var lastIdx = actualVals.length - 1;
   var lastVal = actualVals.length ? actualVals[actualVals.length-1] : 0;
+  return { w:w, h:h, padL:padL, padR:padR, padT:padT, padB:padB, plotW:plotW, plotH:plotH,
+           n:n, xAt:xAt, yAt:yAt, maxY:maxY, actualVals:actualVals, lastIdx:lastIdx, lastVal:lastVal };
+}
+/* Cumulative value at any index along the chart, actual portion or
+   interpolated along the straight projected segment beyond it — lets the
+   scrub tooltip report a sensible number no matter where on the axis the
+   finger lands. */
+function forecastValueAt(g, idx, projectedSpend) {
+  if (idx <= g.lastIdx && g.actualVals.length) return g.actualVals[Math.max(0,idx)];
+  if (g.n-1 === g.lastIdx) return g.lastVal;
+  var frac = (idx - g.lastIdx) / ((g.n-1) - g.lastIdx);
+  return g.lastVal + (projectedSpend - g.lastVal) * frac;
+}
+
+/* Cumulative spend for the elapsed portion of a period (smooth green curve),
+   continuing as a straight projected line from today's actual total up to the
+   forecasted end-of-period total — reusing the same avg-daily-pace math as
+   the Home page's Forecast card, so the two numbers never disagree. A flat
+   projection (as some budget apps show) would imply spending stops entirely;
+   a straight line to the real forecast total is the honest version of the
+   same picture. */
+function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel) {
+  var g = forecastChartGeom(rows, totalDays, target, projectedSpend);
+  var w=g.w, h=g.h, padL=g.padL, padR=g.padR, padT=g.padT, padB=g.padB, plotW=g.plotW, plotH=g.plotH, n=g.n;
+  var xAt=g.xAt, yAt=g.yAt, maxY=g.maxY, actualVals=g.actualVals, lastIdx=g.lastIdx, lastVal=g.lastVal;
+
+  var actualPts = actualVals.map(function(v,i){ return [xAt(i), yAt(v)]; });
   var curveD = actualPts.length >= 2 ? smoothPathD(actualPts) : (actualPts.length===1 ? ("M "+actualPts[0][0]+","+actualPts[0][1]) : "");
   var areaD = curveD ? (curveD+" L "+xAt(Math.max(0,lastIdx))+","+yAt(0)+" L "+xAt(0)+","+yAt(0)+" Z") : "";
 
@@ -1614,7 +1655,7 @@ function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabe
       + '<text x="2" y="'+(yAt(t)+3)+'" font-size="9" fill="'+T.textMuted+'">'+fmt(t,0)+'</text>';
   }).join("");
 
-  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'">'
+  return '<svg id="forecastChartSvg" viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'">'
     + tickSvg
     + '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+budgetY+'" y2="'+budgetY+'" stroke="'+T.text+'" stroke-width="1.5" stroke-dasharray="4,3"/>'
     + '<text x="'+padL+'" y="'+(budgetY-5)+'" font-size="9" font-weight="600" fill="'+T.text+'">'+esc(refLabel||"Budget")+'</text>'
@@ -1622,7 +1663,61 @@ function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabe
     + (curveD ? '<path d="'+curveD+'" fill="none" stroke="'+T.positive+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' : "")
     + (forecastD ? '<path d="'+forecastD+'" fill="none" stroke="'+T.accent+'" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1,5"/>' : "")
     + todayMarker
+    + '<line id="forecastChartCrosshair" x1="0" x2="0" y1="'+padT+'" y2="'+(h-padB)+'" stroke="'+T.text+'" stroke-width="1" opacity="0"/>'
+    + '<circle id="forecastChartDot" r="4.5" fill="'+T.accent+'" stroke="'+T.bg+'" stroke-width="2" opacity="0"/>'
+    + '<rect id="forecastChartHit" x="0" y="0" width="'+w+'" height="'+h+'" fill="transparent" style="touch-action:none;"/>'
     + '</svg>';
+}
+
+/* Drives the crosshair/dot/tooltip during a touch or mouse drag across the
+   forecast chart — same bypass-render() approach as wireBalanceChart, for
+   the same reason: rebuilding the DOM on every pixel of movement would kill
+   the smoothness of the drag. Reports whichever of the actual or projected
+   value applies at the touched point, labelled accordingly. */
+function wireForecastChart(data) {
+  var svg = document.getElementById("forecastChartSvg");
+  var hit = document.getElementById("forecastChartHit");
+  var crosshair = document.getElementById("forecastChartCrosshair");
+  var dot = document.getElementById("forecastChartDot");
+  var tip = document.getElementById("forecastChartTip");
+  if (!svg || !hit || !crosshair || !dot || !tip || !data) return;
+  var g = forecastChartGeom(data.rows, data.totalDays, data.target, data.projectedSpend);
+  if (g.n < 2) return;
+
+  function indexAt(clientX) {
+    var rect = svg.getBoundingClientRect();
+    if (!rect.width) return 0;
+    var frac = Math.max(0, Math.min(1, (clientX-rect.left)/rect.width));
+    var vbX = frac * g.w;
+    var idx = Math.round(((vbX-g.padL)/g.plotW) * (g.n-1));
+    return Math.max(0, Math.min(g.n-1, idx));
+  }
+  function showAt(idx) {
+    var val = forecastValueAt(g, idx, data.projectedSpend);
+    var px = g.xAt(idx), py = g.yAt(val);
+    crosshair.setAttribute("x1", px); crosshair.setAttribute("x2", px); crosshair.setAttribute("opacity", "1");
+    dot.setAttribute("cx", px); dot.setAttribute("cy", py); dot.setAttribute("opacity", "1");
+    tip.style.left = ((px/g.w)*100) + "%";
+    tip.style.opacity = "1";
+    var dateStr = shortLabel(toStr(addDays(parseD(data.start), idx)));
+    var isProjected = idx > g.lastIdx;
+    tip.innerHTML = '<span class="muted">'+esc(dateStr)+(isProjected?" (projected)":"")+'</span> <span style="color:var(--text); font-weight:600;">'+fmt(Math.round(val),0)+' AED</span>';
+  }
+  function hide() {
+    crosshair.setAttribute("opacity", "0");
+    dot.setAttribute("opacity", "0");
+    tip.style.opacity = "0";
+  }
+  function move(clientX) { showAt(indexAt(clientX)); }
+
+  hit.addEventListener("touchstart", function(e){ move(e.touches[0].clientX); }, {passive:true});
+  hit.addEventListener("touchmove", function(e){ move(e.touches[0].clientX); e.preventDefault(); }, {passive:false});
+  hit.addEventListener("touchend", hide);
+  hit.addEventListener("touchcancel", hide);
+  hit.addEventListener("mousedown", function(e){ move(e.clientX); });
+  hit.addEventListener("mousemove", function(e){ if (e.buttons===1) move(e.clientX); });
+  hit.addEventListener("mouseleave", hide);
+  hit.addEventListener("mouseup", hide);
 }
 
 /* Bar chart across several recent instances of the same period type, colored
@@ -1632,7 +1727,7 @@ function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabe
    forecast to run well over). One dashed line marks the most recent period's
    budget, since target can drift over time via rate changes. */
 function renderTrendBarChart(items, refTarget, T, refLabel) {
-  var w=340, h=150, padL=34, padR=8, padT=12, padB=20;
+  var w=340, h=150, padL=34, padR=8, padT=22, padB=20;
   var plotW=w-padL-padR, plotH=h-padT-padB;
   var maxVal = Math.max.apply(null, items.map(function(i){ return i.spent; }).concat([refTarget, 1]));
   var n = items.length;
@@ -1644,7 +1739,9 @@ function renderTrendBarChart(items, refTarget, T, refLabel) {
     var cx = padL + slot*i + slot/2;
     var topY = y(it.spent);
     var barH = Math.max(0, plotH - (topY-padT));
+    var labelSvg = it.spent > 0 ? '<text x="'+cx+'" y="'+Math.max(9,topY-4)+'" font-size="8" fill="'+T.textMuted+'" text-anchor="middle">'+fmt(Math.round(it.spent),0)+'</text>' : '';
     return '<rect x="'+(cx-barW/2)+'" y="'+topY+'" width="'+barW+'" height="'+barH+'" fill="'+(colorFor[it.status]||T.positive)+'" rx="3"/>'
+      + labelSvg
       + '<text x="'+cx+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="middle">'+esc(it.label)+'</text>';
   }).join("");
   var refY = y(refTarget);
@@ -1737,6 +1834,7 @@ function buildAnalysisBuckets(rows, granularity, catFilter) {
 
 
 function renderAnalysisBody(T) {
+  lastForecastChartData = null;
   var da = dailyReference();
   var today = todayStr();
   var periodMode = state.analysisPeriodMode || "month";
@@ -1926,7 +2024,11 @@ function renderAnalysisBody(T) {
     s += '<div><div class="muted caption">THIS '+esc(periodWord.toUpperCase())+'</div><div class="mono" style="font-size:22px; font-weight:700; margin-top:2px;">'+fmt(projectedSpend,0)+' AED</div></div>';
     s += '<div style="text-align:right;"><div class="muted caption">VS '+esc(basisWordCap().toUpperCase())+'</div><div class="chip" style="margin-top:4px; background:'+(vsBudgetPct<=0?"var(--positive)":"var(--rust)")+'; color:#fff; font-weight:700;">'+(vsBudgetPct>=0?"+":"")+vsBudgetPct+'%</div></div>';
     s += '</div>';
+    s += '<div id="forecastChartWrap" style="position:relative;">';
+    s += '<div id="forecastChartTip" class="mono footnote" style="position:absolute; top:0; left:50%; transform:translateX(-50%); background:var(--fill); border-radius:8px; padding:4px 9px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:2;"></div>';
     s += renderForecastChart(cs.rows, info.days, periodTarget, projectedSpend, T, basisWordCap());
+    s += '</div>';
+    lastForecastChartData = { rows: cs.rows, totalDays: info.days, target: periodTarget, projectedSpend: projectedSpend, start: info.start };
     if (!hasForecast) s += '<div class="muted caption" style="margin-top:8px;">'+(daysLeftFC<=0?"Period is complete — nothing left to forecast.":"Log a full day to start forecasting.")+'</div>';
     s += '</div>';
     return s;
