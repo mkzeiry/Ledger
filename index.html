@@ -105,7 +105,7 @@
   .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px 12px; }
 
   /* Sheet-style modal with grabber */
-  .modal-backdrop { position:fixed; inset:0; background:rgba(3,7,15,0.6); display:flex; align-items:flex-end; justify-content:center; z-index:50; }
+  .modal-backdrop { position:fixed; top:0; left:0; right:0; bottom:var(--vvb, 0px); background:rgba(3,7,15,0.6); display:flex; align-items:flex-end; justify-content:center; z-index:50; }
   @media (min-width: 480px) { .modal-backdrop { align-items:center; } }
   .modal-card {
     width:100%; max-width:460px; max-height:88vh; overflow-y:auto; -webkit-overflow-scrolling: touch;
@@ -1999,12 +1999,22 @@ function handleApplyBudget(scope) {
    person can start typing the amount without an extra tap. preventScroll
    stops iOS's own "scroll the focused field into view" behavior, which would
    otherwise fight the body scroll lock the moment the keyboard opens — the
-   modal already handles its own scrolling via .modal-card. */
+   modal already handles its own scrolling via .modal-card. The extra
+   updateVisualViewportOffset calls make sure --vvb (which the modal backdrop
+   now uses to stay above the keyboard) catches up promptly, rather than
+   waiting on the visualViewport "resize" event, which can lag the keyboard's
+   slide-in animation by a beat on iOS. */
 function focusAmountInput() {
   var el = document.getElementById("entryAmountInput");
   if (!el) return;
   try { el.focus({ preventScroll: true }); }
   catch(e) { try { el.focus(); } catch(e2) {} }
+  if (typeof updateVisualViewportOffset === "function") {
+    updateVisualViewportOffset();
+    setTimeout(updateVisualViewportOffset, 60);
+    setTimeout(updateVisualViewportOffset, 250);
+    setTimeout(updateVisualViewportOffset, 400);
+  }
 }
 
 function showToast(msg) {
