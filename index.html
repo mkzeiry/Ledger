@@ -518,7 +518,9 @@ function computeDailyBudgetLeft(viewType, spentTodayVal) {
 }
 
 /* ---------------- chart (plain SVG string) ---------------- */
-function renderChart(data, T) {
+/* Shared by renderChart (drawing) and wireBalanceChart (touch hit-testing) so
+   the two can never disagree about where a given day sits on the x-axis. */
+function balanceChartGeom(data) {
   var w=340,h=230,padL=40,padR=8,padT=12,padB=22;
   var values = data.map(function(d){return d.balance;});
   var min = Math.min.apply(null,[0].concat(values)), max = Math.max.apply(null,[0].concat(values));
@@ -526,21 +528,99 @@ function renderChart(data, T) {
   var plotW=w-padL-padR, plotH=h-padT-padB;
   function x(i){ return padL + (data.length>1 ? (i/(data.length-1))*plotW : plotW/2); }
   function y(v){ return padT + plotH - ((v-min)/range)*plotH; }
-  var linePts = data.map(function(d,i){ return x(i)+","+y(d.balance); }).join(" ");
-  var areaPts = x(0)+","+y(0)+" "+linePts+" "+x(data.length-1)+","+y(0);
-  var ticksSet = {}; [max,min,0].forEach(function(t){ ticksSet[Math.round(t)] = true; });
+  return { w:w, h:h, padL:padL, padR:padR, padT:padT, padB:padB, plotW:plotW, plotH:plotH, min:min, max:max, x:x, y:y };
+}
+
+/* Smooth cubic-bezier path through a set of points (light Catmull-Rom-style
+   tangents). Runs only between real data points — the curve never invents a
+   value, it just rounds the corners between the ones that are real. */
+function smoothPathD(points) {
+  function ctrl(cur, prev, next, reverse) {
+    var p = prev || cur, n = next || cur;
+    var lx = n[0]-p[0], ly = n[1]-p[1];
+    var angle = Math.atan2(ly, lx) + (reverse ? Math.PI : 0);
+    var len = Math.sqrt(lx*lx+ly*ly) * 0.15;
+    return [cur[0]+Math.cos(angle)*len, cur[1]+Math.sin(angle)*len];
+  }
+  return points.reduce(function(acc, pt, i, a){
+    if (i===0) return "M "+pt[0]+","+pt[1];
+    var c1 = ctrl(a[i-1], a[i-2], pt);
+    var c2 = ctrl(pt, a[i-1], a[i+1], true);
+    return acc+" C "+c1[0]+","+c1[1]+" "+c2[0]+","+c2[1]+" "+pt[0]+","+pt[1];
+  }, "");
+}
+
+function renderChart(data, T) {
+  var g = balanceChartGeom(data);
+  var pts = data.map(function(d,i){ return [g.x(i), g.y(d.balance)]; });
+  var curveD = smoothPathD(pts);
+  var areaD = curveD+" L "+g.x(data.length-1)+","+g.y(0)+" L "+g.x(0)+","+g.y(0)+" Z";
+  var ticksSet = {}; [g.max,g.min,0].forEach(function(t){ ticksSet[Math.round(t)] = true; });
   var ticks = Object.keys(ticksSet).map(Number);
   var tickSvg = ticks.map(function(t){
-    return '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+y(t)+'" y2="'+y(t)+'" stroke="'+T.hairline+'" stroke-dasharray="3,3"/>'
-      + '<text x="2" y="'+(y(t)+3)+'" font-size="9" fill="'+T.textMuted+'" font-family="var(--f-mono)">'+fmt(t)+'</text>';
+    return '<line x1="'+g.padL+'" x2="'+(g.w-g.padR)+'" y1="'+g.y(t)+'" y2="'+g.y(t)+'" stroke="'+T.hairline+'" stroke-dasharray="3,3"/>'
+      + '<text x="2" y="'+(g.y(t)+3)+'" font-size="9" fill="'+T.textMuted+'" font-family="var(--f-mono)">'+fmt(t)+'</text>';
   }).join("");
-  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="none">'
+  return '<svg id="balanceChartSvg" viewBox="0 0 '+g.w+' '+g.h+'" width="100%" height="'+g.h+'" preserveAspectRatio="none">'
     + tickSvg
-    + '<polygon points="'+areaPts+'" fill="'+T.accent+'" fill-opacity="0.18"/>'
-    + '<polyline points="'+linePts+'" fill="none" stroke="'+T.accent+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
-    + '<text x="'+x(0)+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'">'+esc(data[0].label)+'</text>'
-    + '<text x="'+x(data.length-1)+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="end">'+esc(data[data.length-1].label)+'</text>'
+    + '<path d="'+areaD+'" fill="'+T.accent+'" fill-opacity="0.18" stroke="none"/>'
+    + '<path d="'+curveD+'" fill="none" stroke="'+T.accent+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+    + '<text x="'+g.x(0)+'" y="'+(g.h-4)+'" font-size="9" fill="'+T.textMuted+'">'+esc(data[0].label)+'</text>'
+    + '<text x="'+g.x(data.length-1)+'" y="'+(g.h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="end">'+esc(data[data.length-1].label)+'</text>'
+    + '<line id="balanceChartCrosshair" x1="0" x2="0" y1="'+g.padT+'" y2="'+(g.h-g.padB)+'" stroke="'+T.text+'" stroke-width="1" opacity="0"/>'
+    + '<circle id="balanceChartDot" r="4.5" fill="'+T.accent+'" stroke="'+T.bg+'" stroke-width="2" opacity="0"/>'
+    + '<rect id="balanceChartHit" x="0" y="0" width="'+g.w+'" height="'+g.h+'" fill="transparent" style="touch-action:none;"/>'
     + '</svg>';
+}
+
+/* Drives the crosshair/dot/tooltip during a touch or mouse drag across the
+   balance chart. Bypasses state/render() entirely — a full re-render on every
+   pixel of finger movement would destroy the SVG node and feel laggy, so this
+   updates the existing elements' attributes directly instead. Re-wired after
+   every render() since the chart's DOM is rebuilt each time. */
+function wireBalanceChart(data) {
+  var svg = document.getElementById("balanceChartSvg");
+  var hit = document.getElementById("balanceChartHit");
+  var crosshair = document.getElementById("balanceChartCrosshair");
+  var dot = document.getElementById("balanceChartDot");
+  var tip = document.getElementById("balanceChartTip");
+  if (!svg || !hit || !crosshair || !dot || !tip || !data || data.length < 2) return;
+  var g = balanceChartGeom(data);
+
+  function indexAt(clientX) {
+    var rect = svg.getBoundingClientRect();
+    if (!rect.width) return 0;
+    var frac = Math.max(0, Math.min(1, (clientX-rect.left)/rect.width));
+    var vbX = frac * g.w;
+    var idx = Math.round(((vbX-g.padL)/g.plotW) * (data.length-1));
+    return Math.max(0, Math.min(data.length-1, idx));
+  }
+  function showAt(idx) {
+    var d = data[idx];
+    var px = g.x(idx), py = g.y(d.balance);
+    crosshair.setAttribute("x1", px); crosshair.setAttribute("x2", px); crosshair.setAttribute("opacity", "1");
+    dot.setAttribute("cx", px); dot.setAttribute("cy", py); dot.setAttribute("opacity", "1");
+    tip.style.left = ((px/g.w)*100) + "%";
+    tip.style.opacity = "1";
+    var delta = d.delta || 0;
+    var deltaStr = (delta>=0?"+":"−")+fmt(Math.abs(Math.round(delta)),0)+" AED";
+    tip.innerHTML = '<span class="muted">'+esc(d.label)+'</span> <span style="color:'+(delta>=0?"var(--positive)":"var(--rust)")+'; font-weight:600;">'+deltaStr+'</span>';
+  }
+  function hide() {
+    crosshair.setAttribute("opacity", "0");
+    dot.setAttribute("opacity", "0");
+    tip.style.opacity = "0";
+  }
+  function move(clientX) { showAt(indexAt(clientX)); }
+
+  hit.addEventListener("touchstart", function(e){ move(e.touches[0].clientX); }, {passive:true});
+  hit.addEventListener("touchmove", function(e){ move(e.touches[0].clientX); e.preventDefault(); }, {passive:false});
+  hit.addEventListener("touchend", hide);
+  hit.addEventListener("touchcancel", hide);
+  hit.addEventListener("mousedown", function(e){ move(e.clientX); });
+  hit.addEventListener("mousemove", function(e){ if (e.buttons===1) move(e.clientX); });
+  hit.addEventListener("mouseleave", hide);
+  hit.addEventListener("mouseup", hide);
 }
 
 /* ---------------- tiny inline icons ---------------- */
@@ -582,13 +662,21 @@ function applyTheme(T) {
 
 /* Body scroll lock: while any modal is open, pin the underlying page in place
    so touch-scrolling inside the modal can't bleed through and scroll the page
-   behind it (a known iOS quirk with position:fixed overlays). The modal's own
-   .modal-card keeps its internal overflow-y:auto scroll regardless. */
+   behind it (a known iOS quirk with position:fixed overlays). Locks both html
+   and body — with body's height:100% set in CSS, iOS can treat <html> as the
+   actual scrolling element, so body-only locking still let the page move.
+   The modal's own .modal-card keeps its internal overflow-y:auto regardless. */
 var bodyScrollLocked = false;
+/* Set by renderHomeBody whenever the balance chart is shown; render() reads
+   this right after replacing innerHTML to wire up the scrub interaction,
+   since the string-building code has no other way to hand data back out. */
+var lastChartData = null;
 var lockedScrollY = 0;
 function lockBodyScroll() {
   if (bodyScrollLocked) return;
   lockedScrollY = window.scrollY || window.pageYOffset || 0;
+  document.documentElement.style.overflow = "hidden";
+  document.body.style.overflow = "hidden";
   document.body.style.position = "fixed";
   document.body.style.top = (-lockedScrollY) + "px";
   document.body.style.left = "0";
@@ -598,6 +686,8 @@ function lockBodyScroll() {
 }
 function unlockBodyScroll() {
   if (!bodyScrollLocked) return;
+  document.documentElement.style.overflow = "";
+  document.body.style.overflow = "";
   document.body.style.position = "";
   document.body.style.top = "";
   document.body.style.left = "";
@@ -692,6 +782,7 @@ function render() {
   }
 
   root.innerHTML = html;
+  if (state.page === "home" && lastChartData) wireBalanceChart(lastChartData);
 }
 
 function renderHomeBody(T, da) {
@@ -705,7 +796,11 @@ function renderHomeBody(T, da) {
 
   var chartData = displayed.rows.length ? (function(){
     var acc = displayed.opening;
-    return displayed.rows.map(function(r){ acc = round2(acc + (r.allowance-r.spent)); return { label: shortLabel(r.date), balance: acc }; });
+    return displayed.rows.map(function(r){
+      var delta = round2(r.allowance-r.spent);
+      acc = round2(acc + delta);
+      return { label: shortLabel(r.date), date: r.date, balance: acc, delta: delta };
+    });
   })() : [];
 
   var netColor = displayed.net >= 0 ? "var(--positive)" : "var(--rust)";
@@ -817,8 +912,14 @@ function renderHomeBody(T, da) {
   h += statBlock("Daily "+basisWord()+" left"+(daysLeft>0?" ("+planDaysShown+"d)":""), allowedText, allowedTone);
   h += '</div>';
 
+  lastChartData = null;
   if (chartData.length >= 2) {
-    h += '<div class="hairline-top" style="padding:12px 8px 12px;">'+renderChart(chartData, T)+'</div>';
+    h += '<div class="hairline-top" style="padding:12px 8px 12px;">';
+    h += '<div id="balanceChartWrap" style="position:relative;">';
+    h += '<div id="balanceChartTip" class="mono footnote" style="position:absolute; top:0; left:50%; transform:translateX(-50%); background:var(--fill); border-radius:8px; padding:4px 9px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:2;"></div>';
+    h += renderChart(chartData, T);
+    h += '</div></div>';
+    lastChartData = chartData;
   }
   h += '</div>'; // end period card
 
@@ -1895,13 +1996,15 @@ function handleApplyBudget(scope) {
 }
 
 /* Brings up the number pad the instant the Add/Edit sheet opens, so the
-   person can start typing the amount without an extra tap. Wrapped in
-   try/catch since type="number" inputs don't support text selection in
-   every browser. */
+   person can start typing the amount without an extra tap. preventScroll
+   stops iOS's own "scroll the focused field into view" behavior, which would
+   otherwise fight the body scroll lock the moment the keyboard opens — the
+   modal already handles its own scrolling via .modal-card. */
 function focusAmountInput() {
   var el = document.getElementById("entryAmountInput");
   if (!el) return;
-  try { el.focus(); } catch(e) {}
+  try { el.focus({ preventScroll: true }); }
+  catch(e) { try { el.focus(); } catch(e2) {} }
 }
 
 function showToast(msg) {
