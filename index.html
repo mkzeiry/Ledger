@@ -2607,11 +2607,19 @@ document.addEventListener("change", function(e) {
   if (e.target && e.target.id === "analysisPeriodToInput") { state.analysisPeriodTo = e.target.value; render(); }
   if (e.target && e.target.id === "categoryColorInput") {
     var catC = e.target.dataset.cat;
-    var curC = categoryStyle(catC);
-    var nextStylesC = Object.assign({}, state.settings.categoryStyles||{});
-    nextStylesC[catC] = { icon: curC.icon, color: e.target.value };
-    persistAll(Object.assign({}, state.settings, { categoryStyles: nextStylesC }), state.entries, "your settings");
-    render();
+    var newColorC = e.target.value;
+    /* Deferred deliberately: render() replaces the whole page's innerHTML,
+       and doing that synchronously inside this handler tears out the <input>
+       while iOS's native color picker sheet is still mid-close-animation —
+       that DOM-teardown-under-an-active-native-picker race is what was
+       crashing the page. A short delay lets the native UI finish first. */
+    setTimeout(function() {
+      var curC = categoryStyle(catC);
+      var nextStylesC = Object.assign({}, state.settings.categoryStyles||{});
+      nextStylesC[catC] = { icon: curC.icon, color: newColorC };
+      persistAll(Object.assign({}, state.settings, { categoryStyles: nextStylesC }), state.entries, "your settings");
+      render();
+    }, 300);
   }
 });
 
