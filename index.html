@@ -63,7 +63,7 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null };
 var DEFAULT_ANALYSIS_ORDER = ["summary","dailySpend","dailySaving","monthlyBar","category","dow","topTransactions"];
 var ANALYSIS_SECTION_LABELS = { summary:"Summary", dailySpend:"Spend per day", dailySaving:"Saved per day", monthlyBar:"Monthly spend vs target", category:"Spend by category", dow:"Average by day of week", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
@@ -107,7 +107,7 @@ function getPeriodBounds(viewType, off, weeklyTarget, dailyAllowanceVal) {
     if (s > endStr) return 0;
     var sum = 0;
     var cur = parseD(s);
-    while (toStr(cur) <= endStr) { sum += allowanceForDate(toStr(cur)); cur = addDays(cur,1); }
+    while (toStr(cur) <= endStr) { sum += referenceForDate(toStr(cur)); cur = addDays(cur,1); }
     return sum;
   }
   if (viewType === "week") {
@@ -179,6 +179,9 @@ var state = {
   analysisPeriodFrom: "",
   analysisPeriodTo: "",
   analysisReorderMode: false,
+  basis: "budget",
+  incomeDraftMode: null,
+  incomeDraftAmount: null,
 };
 
 /* Rate history: records what the weekly target was over time, so past periods are
@@ -212,6 +215,63 @@ function normalizeRateHistory(hist) {
   return dedup;
 }
 
+/* ---------------- income ----------------
+   Income mirrors rateHistory: whatever was in effect on a given day is what
+   that day is judged against, so a raise never retroactively rewrites history.
+   Entered either as a monthly figure (divided across that month's real length,
+   so it accrues to exactly the full amount by month end) or as a flat daily
+   figure. */
+function incomeForDate(ds) {
+  var hist = state.settings.incomeHistory;
+  if (!hist || !hist.length) {
+    return { mode: state.settings.incomeMode || "monthly", amount: Number(state.settings.incomeAmount) || 0 };
+  }
+  var cur = hist[0];
+  for (var i=0;i<hist.length;i++) {
+    if (hist[i].from <= ds) cur = hist[i]; else break;
+  }
+  return cur;
+}
+function dailyIncomeForDate(ds) {
+  var inc = incomeForDate(ds);
+  var amt = Number(inc && inc.amount) || 0;
+  if (amt <= 0) return 0;
+  if (inc.mode === "daily") return amt;
+  return amt / daysInMonth(parseD(ds));
+}
+function monthlyIncomeForDate(ds) {
+  var inc = incomeForDate(ds);
+  var amt = Number(inc && inc.amount) || 0;
+  if (amt <= 0) return 0;
+  if (inc.mode === "daily") return amt * daysInMonth(parseD(ds));
+  return amt;
+}
+function incomeIsSet() {
+  return dailyIncomeForDate(todayStr()) > 0;
+}
+function normalizeIncomeHistory(hist) {
+  var out = (hist||[]).slice().sort(function(a,b){ return a.from < b.from ? -1 : a.from > b.from ? 1 : 0; });
+  var dedup = [];
+  for (var i=0;i<out.length;i++) {
+    var prev = dedup.length ? dedup[dedup.length-1] : null;
+    if (prev && prev.from === out[i].from) dedup[dedup.length-1] = out[i];
+    else if (prev && prev.mode === out[i].mode && prev.amount === out[i].amount) continue;
+    else dedup.push(out[i]);
+  }
+  return dedup;
+}
+
+/* The single number every savings calculation compares a day's spending
+   against. Swapping the basis swaps this, and every downstream figure —
+   headline saved, calendar deltas, charts, forecasts — follows automatically. */
+function referenceForDate(ds) {
+  return state.basis === "income" ? dailyIncomeForDate(ds) : allowanceForDate(ds);
+}
+function dailyReference() { return referenceForDate(todayStr()); }
+function basisWord() { return state.basis === "income" ? "income" : "budget"; }
+function basisWordCap() { return state.basis === "income" ? "Income" : "Budget"; }
+
+
 /* ---------------- persistence ---------------- */
 function loadInitial() {
   try {
@@ -229,6 +289,7 @@ function loadInitial() {
     state.settings.rateHistory = [{ from: "1900-01-01", weeklyTarget: state.settings.weeklyTarget }];
   }
   state.settings.analysisSectionOrder = normalizeAnalysisOrder(state.settings.analysisSectionOrder);
+  state.settings.incomeHistory = normalizeIncomeHistory(state.settings.incomeHistory);
   state.loading = false;
   try {
     localStorage.setItem(TEST_KEY, "1");
@@ -263,7 +324,7 @@ function periodStats(startStr, endStrRaw) {
     while (toStr(cur) <= endStr) {
       var ds = toStr(cur);
       var e = state.entries[ds];
-      rows.push({ date: ds, logged: !!e, items: e ? e.items : [], spent: e ? sumSpent(e) : 0, allowance: allowanceForDate(ds) });
+      rows.push({ date: ds, logged: !!e, items: e ? e.items : [], spent: e ? sumSpent(e) : 0, allowance: referenceForDate(ds) });
       cur = addDays(cur, 1);
     }
   }
@@ -278,7 +339,7 @@ function periodStats(startStr, endStrRaw) {
    treating today as a fresh, still-available day rather than one already
    partly spent. Returns null when there are no days left to plan for. */
 function computeDailyBudgetLeft(viewType, spentTodayVal) {
-  var da_ = dailyAllowance();
+  var da_ = dailyReference();
   var per = getPeriodBounds(viewType, 0, currentWeeklyTarget(), da_);
   var stats = periodStats(per.startStr, per.endStr);
   var daysLeftLocal = Math.max(0, per.days - stats.calendarElapsedDays);
@@ -388,13 +449,13 @@ function render() {
     return;
   }
 
-  var da = dailyAllowance();
+  var da = dailyReference();
   var html = "";
   html += '<div class="wrap">';
 
   // header
   html += '<div class="row between" style="align-items:flex-start; margin-bottom:16px;">';
-  html += '<div><div class="display" style="font-size:22px;">The Ledger</div><div class="muted" style="font-size:12px; margin-top:2px;">'+fmt(da,0)+' AED a day · weeks run Mon–Sun</div></div>';
+  html += '<div><div class="display" style="font-size:22px;">The Ledger</div><div class="muted" style="font-size:12px; margin-top:2px;">'+fmt(da,0)+' AED a day'+(state.basis==="income"?" income":"")+' · weeks run Mon–Sun</div></div>';
   html += '<div class="row gap2">';
   html += '<button class="icon-btn" data-action="toggle-theme" aria-label="Toggle theme">'+(state.settings.theme==="dark"?ICONS.sun:ICONS.moon)+'</button>';
   html += '<button class="icon-btn" data-action="open-settings" aria-label="Settings">'+ICONS.settings+'</button>';
@@ -484,7 +545,7 @@ function renderHomeBody(T, da) {
   var todayEntryForCard = state.entries[todayStr()];
   var spentToday = todayEntryForCard ? sumSpent(todayEntryForCard) : 0;
   var spentTodayColor = spentToday > da ? "var(--rust)" : "var(--text)";
-  var todayAllowanceForCard = allowanceForDate(todayStr());
+  var todayAllowanceForCard = referenceForDate(todayStr());
 
   /* Left to spend today: take the tightest of today's own rate, this week's
      pace-adjusted daily left, and this month's — whichever is lowest wins,
@@ -505,9 +566,27 @@ function renderHomeBody(T, da) {
   var leftTodayBudgetColor = leftTodayBudget < 0 ? "var(--rust)" : "var(--positive)";
 
   var h = "";
+
+  /* Basis toggle: budget = the spending cap you set yourself; income = money
+     actually earned, accrued day by day. Everything below reads from it. */
+  h += '<div class="row card" style="padding:4px; margin-bottom:12px;">';
+  [["budget","vs Budget"],["income","vs Income"]].forEach(function(opt){
+    var active = state.basis === opt[0];
+    h += '<button data-action="set-basis" data-basis="'+opt[0]+'" style="flex:1; border:none; border-radius:10px; padding:6px 0; font-size:13px; background:'+(active?"var(--accent)":"transparent")+'; color:'+(active?"var(--accent-ink)":"var(--text-muted)")+'; font-weight:'+(active?600:400)+';">'+opt[1]+'</button>';
+  });
+  h += '</div>';
+
+  if (state.basis === "income" && !incomeIsSet()) {
+    h += '<div class="card" style="padding:14px 16px; margin-bottom:12px; background:var(--rust-wash); border-color:var(--rust);">';
+    h += '<div style="font-size:13px; margin-bottom:8px;">Set your income to use this view.</div>';
+    h += '<button data-action="open-income-settings" class="btn-accent" style="width:100%;">Set income</button>';
+    h += '</div>';
+    return h;
+  }
+
   h += '<div class="card" style="padding:14px 16px; margin-bottom:12px;">';
   h += '<div class="row between"><span class="eyebrow" style="font-size:10px;">Left to spend today</span><span class="mono" style="font-size:16px; color:'+leftTodayColor+';">'+fmt(leftToday,0)+' AED</span></div>';
-  h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow" style="font-size:10px;">Left to spend today (budget)</span><span class="mono" style="font-size:16px; color:'+leftTodayBudgetColor+';">'+fmt(leftTodayBudget,0)+' AED</span></div>';
+  h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow" style="font-size:10px;">Left to spend today ('+basisWord()+')</span><span class="mono" style="font-size:16px; color:'+leftTodayBudgetColor+';">'+fmt(leftTodayBudget,0)+' AED</span></div>';
   h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow" style="font-size:10px;">Spent today</span><span class="mono" style="font-size:16px; color:'+spentTodayColor+';">'+fmt(spentToday,0)+' AED</span></div>';
   h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow" style="font-size:10px;">'+esc(cumLabel)+'</span><span class="mono" style="font-size:16px; color:'+cumColor+';">'+(cumulative.net>=0?"+":"−")+fmt(Math.abs(cumulative.net),0)+' AED</span></div>';
   h += '</div>';
@@ -523,7 +602,7 @@ function renderHomeBody(T, da) {
   h += '<div class="row between" style="padding:12px; border-bottom:1px solid var(--hairline);">';
   h += '<button data-action="nav-offset" data-delta="-1" class="icon-btn" style="border-radius:10px;" aria-label="Previous">'+ICONS.chevronLeft+'</button>';
   h += '<div style="text-align:center;"><div style="font-size:14px; font-weight:500;">'+esc(period.title)+'</div>';
-  h += '<div class="eyebrow" style="margin-top:2px;">'+esc(period.sub)+(isClosed?" · closed":"")+' · Budget '+fmt(period.target,0)+' AED</div>';
+  h += '<div class="eyebrow" style="margin-top:2px;">'+esc(period.sub)+(isClosed?" · closed":"")+' · '+basisWordCap()+' '+fmt(period.target,0)+' AED</div>';
   if (isCurrent) {
     h += '<div class="muted" style="font-size:11px; margin-top:4px;">'+(state.view==="week"?esc(weekdayLong(todayStr()))+" · ":"")+'Day '+displayed.calendarElapsedDays+' of '+period.days+' · '+daysLeft+' day'+(daysLeft===1?"":"s")+' left</div>';
   }
@@ -557,9 +636,9 @@ function renderHomeBody(T, da) {
   }
   h += '<div class="stat-grid hairline-top" style="padding:12px 20px 16px;">';
   h += statBlock("Spent so far", fmt(displayed.spent,0)+" AED", displayed.spent>elapsedTarget?"var(--rust)":"var(--text)");
-  h += statBlock("Budget remaining", (remainingBudget>=0?"":"−")+fmt(Math.abs(remainingBudget),0)+" AED", remainingBudget<0?"var(--rust)":"var(--text)");
+  h += statBlock(basisWordCap()+" remaining", (remainingBudget>=0?"":"−")+fmt(Math.abs(remainingBudget),0)+" AED", remainingBudget<0?"var(--rust)":"var(--text)");
   h += statBlock("Avg daily spend", avgSpentPerDay===null ? "—" : (fmt(avgSpentPerDay,0)+" AED"), (avgSpentPerDay!==null && avgSpentPerDay>da)?"var(--rust)":"var(--text)");
-  h += statBlock("Daily budget left"+(daysLeft>0?" ("+planDaysShown+"d)":""), allowedText, allowedTone);
+  h += statBlock("Daily "+basisWord()+" left"+(daysLeft>0?" ("+planDaysShown+"d)":""), allowedText, allowedTone);
   h += '</div>';
 
   if (chartData.length >= 2) {
@@ -590,7 +669,7 @@ function renderHomeBody(T, da) {
 }
 
 function renderSettingsModal() {
-  var tabs = [{id:"budget",label:"Budget"},{id:"tracking",label:"Tracking"},{id:"categories",label:"Categories"}];
+  var tabs = [{id:"budget",label:"Budget"},{id:"income",label:"Income"},{id:"tracking",label:"Tracking"},{id:"categories",label:"Categories"}];
   var h = '<div class="modal-backdrop" data-action="close-settings">';
   h += '<div class="modal-card" data-action="noop">';
   h += '<div class="row between" style="margin-bottom:14px;"><div class="display" style="font-size:18px;">Settings</div><button data-action="close-settings" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div>';
@@ -627,6 +706,38 @@ function renderSettingsModal() {
     h += '<div class="muted" style="font-size:12px; margin:6px 0 10px;">Copy your data out, or paste it back in — also how you move data between devices or browsers.</div>';
     h += '<button data-action="open-backup" class="btn-outline" style="width:100%;">Open backup & restore</button>';
     h += '</div>';
+  }
+
+  if (state.settingsTab === "income") {
+    var curInc = incomeForDate(todayStr());
+    var draftMode = state.incomeDraftMode || curInc.mode || "monthly";
+    var curAmt = Number(curInc.amount) || 0;
+    var dim = daysInMonth(new Date());
+    var monthName = new Date().toLocaleDateString("en-GB",{month:"long"});
+    var mBounds = getPeriodBounds("month", 0, currentWeeklyTarget(), dailyReference());
+    h += '<label class="eyebrow">How do you want to enter it?</label>';
+    h += '<div class="row" style="background:var(--raised); border:1px solid var(--hairline); border-radius:10px; padding:3px; margin:6px 0 10px;">';
+    [["monthly","Monthly"],["daily","Daily"]].forEach(function(opt){
+      var act = draftMode === opt[0];
+      h += '<button data-action="income-mode" data-mode="'+opt[0]+'" style="flex:1; border:none; border-radius:8px; padding:6px 0; font-size:13px; background:'+(act?"var(--accent)":"transparent")+'; color:'+(act?"var(--accent-ink)":"var(--text-muted)")+'; font-weight:'+(act?600:400)+';">'+opt[1]+'</button>';
+    });
+    h += '</div>';
+    h += '<label class="eyebrow">'+(draftMode==="monthly"?"Monthly income":"Daily income")+'</label>';
+    h += '<div style="position:relative; margin:6px 0 6px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
+    var shownAmt = (state.incomeDraftAmount != null) ? state.incomeDraftAmount : (curAmt || "");
+    h += '<input id="incomeDraftInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" value="'+esc(shownAmt)+'" /></div>';
+    if (curAmt > 0) {
+      var perDayNow = dailyIncomeForDate(todayStr());
+      var perMonthNow = monthlyIncomeForDate(todayStr());
+      h += '<div class="muted" style="font-size:12px; margin-bottom:6px;">Currently '+fmt(perMonthNow,0)+' AED in '+esc(monthName)+' · '+fmt(perDayNow,2)+' AED a day.</div>';
+    }
+    h += '<div class="muted" style="font-size:11px; margin-bottom:14px;">'+(draftMode==="monthly"
+      ? ("A monthly figure is divided across that month's real length ("+dim+" days in "+esc(monthName)+"), so it accrues to exactly the full amount by month end.")
+      : "A daily figure stays flat, so a month's total varies with its length.")+'</div>';
+    h += '<button data-action="apply-income" data-scope="future" class="btn-accent" style="width:100%; margin-bottom:8px;">From this month onward</button>';
+    h += '<div class="muted" style="font-size:11px; margin-bottom:12px;">From '+esc(shortLabel(mBounds.startStr))+' forward. Earlier months keep the income they were actually judged against — this is usually what you want.</div>';
+    h += '<button data-action="apply-income" data-scope="all" class="btn-outline" style="width:100%; margin-bottom:8px;">All periods, past and future</button>';
+    h += '<div class="muted" style="font-size:11px;">Rewrites your whole history to this figure. Use if you were just correcting the number.</div>';
   }
 
   if (state.settingsTab === "categories") {
@@ -788,14 +899,15 @@ function renderTransactionsBody() {
     dates.forEach(function(date, i){
       var day = state.entries[date];
       var spent = sumSpent(day);
-      var delta = day.allowance - spent;
+      var dayRef = referenceForDate(date);
+      var delta = dayRef - spent;
       var bal = balanceMap[date];
       var displayItems = categoryFilter ? day.items.filter(function(it){ return itemCat(it) === categoryFilter; }) : day.items;
       var dayFilteredSpent = displayItems.reduce(function(s,it){ return s+it.amount; }, 0);
       h += '<div style="padding:12px 16px;'+(i===0?"":"border-top:1px solid var(--hairline);")+'">';
       h += '<div class="row between">';
       h += '<div><div style="font-size:14px;">'+esc(dayLabel(date))+'</div>';
-      h += '<div class="mono muted" style="font-size:11px; margin-top:2px;">'+day.items.length+' txn'+(day.items.length===1?"":"s")+' · spent '+fmt(spent,2)+' of '+fmt(day.allowance,2)+(categoryFilter?' · '+displayItems.length+' match'+(displayItems.length===1?"":"es"):"")+'</div></div>';
+      h += '<div class="mono muted" style="font-size:11px; margin-top:2px;">'+day.items.length+' txn'+(day.items.length===1?"":"s")+' · spent '+fmt(spent,2)+' of '+fmt(dayRef,2)+(categoryFilter?' · '+displayItems.length+' match'+(displayItems.length===1?"":"es"):"")+'</div></div>';
       if (categoryFilter) {
         h += '<div style="text-align:right;"><div class="mono" style="font-size:12px; color:var(--rust);">−'+fmt(dayFilteredSpent,2)+'</div>';
         h += '<div class="mono muted" style="font-size:10px;">in '+esc(categoryFilter)+'</div></div>';
@@ -812,7 +924,7 @@ function renderTransactionsBody() {
       if (!anyFilterActive && i < dates.length - 1) {
         var gapDays = daysBetween(dates[i+1], date) - 1;
         if (gapDays > 0) {
-          var gapAmount = round2(gapDays * dailyAllowance());
+          var gapAmount = round2(gapDays * dailyReference());
           h += '<div style="padding:6px 16px; text-align:center; font-size:10px; color:var(--text-muted); background:var(--raised); border-top:1px solid var(--hairline); border-bottom:1px solid var(--hairline);">'+gapDays+' unlogged day'+(gapDays===1?"":"s")+' in between · assumed +'+fmt(gapAmount,0)+' AED saved</div>';
         }
       }
@@ -855,7 +967,7 @@ function renderCalendarBody() {
   var monthStartStr = toStr(base);
   var monthEndStr = toStr(endOfMonth(base));
   var title = base.toLocaleDateString("en-GB",{month:"long",year:"numeric"});
-  var da = dailyAllowance();
+  var da = dailyReference();
   var today = todayStr();
   var tsd = state.settings.trackingStartDate;
 
@@ -882,7 +994,7 @@ function renderCalendarBody() {
     var e = state.entries[ds];
     var logged = !!e;
     var spent = logged ? sumSpent(e) : 0;
-    var allowance = logged ? e.allowance : da;
+    var allowance = referenceForDate(ds);
     var isFuture = ds > today;
     var isPreTracking = tsd && ds < tsd;
     var isToday = ds === today;
@@ -1088,7 +1200,7 @@ function getAnalysisPeriodInfo() {
     if (from > to) { var swap = from; from = to; to = swap; }
     return { start: from, end: to, title: shortLabel(from)+" – "+shortLabel(to), sub: "Custom range", isCurrent: true, mode: mode };
   }
-  var per = getPeriodBounds(mode, off, currentWeeklyTarget(), dailyAllowance());
+  var per = getPeriodBounds(mode, off, currentWeeklyTarget(), dailyReference());
   return { start: per.startStr, end: per.endStr, title: per.title, sub: per.sub, isCurrent: off === 0, mode: mode };
 }
 
@@ -1125,7 +1237,7 @@ function buildAnalysisBuckets(rows, granularity) {
 
 
 function renderAnalysisBody(T) {
-  var da = dailyAllowance();
+  var da = dailyReference();
   var today = todayStr();
   var periodMode = state.analysisPeriodMode || "month";
   var periodFrom = state.analysisPeriodFrom || "";
@@ -1141,6 +1253,21 @@ function renderAnalysisBody(T) {
   h += '<div class="eyebrow">Analysis</div>';
   h += '<button data-action="toggle-analysis-reorder" class="btn-outline row gap2" style="padding:5px 10px; font-size:12px; align-items:center;">'+(state.analysisReorderMode?ICONS.check+" Done":ICONS.pencil+" Reorder")+'</button>';
   h += '</div>';
+
+  h += '<div class="row card" style="padding:4px; margin-bottom:10px;">';
+  [["budget","vs Budget"],["income","vs Income"]].forEach(function(opt){
+    var activeB = state.basis === opt[0];
+    h += '<button data-action="set-basis" data-basis="'+opt[0]+'" style="flex:1; border:none; border-radius:10px; padding:6px 0; font-size:13px; background:'+(activeB?"var(--accent)":"transparent")+'; color:'+(activeB?"var(--accent-ink)":"var(--text-muted)")+'; font-weight:'+(activeB?600:400)+';">'+opt[1]+'</button>';
+  });
+  h += '</div>';
+
+  if (state.basis === "income" && !incomeIsSet()) {
+    h += '<div class="card" style="padding:14px 16px; margin-bottom:12px; background:var(--rust-wash); border-color:var(--rust);">';
+    h += '<div style="font-size:13px; margin-bottom:8px;">Set your income to use this view.</div>';
+    h += '<button data-action="open-income-settings" class="btn-accent" style="width:100%;">Set income</button>';
+    h += '</div>';
+    return h;
+  }
 
   h += '<div class="row card" style="padding:4px; margin-bottom:10px;">';
   [["week","Week"],["month","Month"],["year","Year"],["custom","Custom"]].forEach(function(opt){
@@ -1377,6 +1504,40 @@ function handleAddTransaction() {
   render();
 }
 
+/* Mirrors handleApplyBudget: "future" appends a history entry from the start of
+   this month so earlier months stay judged against what they actually had;
+   "all" collapses history to a single entry. */
+function handleApplyIncome(scope) {
+  var el = document.getElementById("incomeDraftInput");
+  var v = el ? parseFloat(el.value) : NaN;
+  if (isNaN(v) || v < 0) return;
+  var mode = state.incomeDraftMode || incomeForDate(todayStr()).mode || "monthly";
+  var monthStart = toStr(startOfMonth(new Date()));
+  var hist = (state.settings.incomeHistory || []).slice();
+  var label;
+
+  if (scope === "all") {
+    hist = [{ from: "1900-01-01", mode: mode, amount: v }];
+    label = "Income applied to all periods";
+  } else {
+    hist.push({ from: monthStart, mode: mode, amount: v });
+    label = "Income applied from this month onward";
+  }
+  hist = normalizeIncomeHistory(hist);
+
+  var nextSettings = Object.assign({}, state.settings, {
+    incomeHistory: hist,
+    incomeMode: mode,
+    incomeAmount: v
+  });
+  persistAll(nextSettings, state.entries, "your income");
+  state.incomeDraftMode = null;
+  state.incomeDraftAmount = null;
+  state.showSettings = false;
+  showToast(label);
+  render();
+}
+
 function handleApplyBudget(scope) {
   var wEl = document.getElementById("weeklyDraftInput");
   var v = wEl ? parseFloat(wEl.value) : NaN;
@@ -1486,6 +1647,7 @@ function handleRestore() {
     if (!parsed || typeof parsed !== "object" || typeof parsed.entries !== "object") throw new Error("bad shape");
     var nextSettings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings||{});
     nextSettings.analysisSectionOrder = normalizeAnalysisOrder(nextSettings.analysisSectionOrder);
+    nextSettings.incomeHistory = normalizeIncomeHistory(nextSettings.incomeHistory);
     var nextEntries = migrateEntries(parsed.entries||{}, nextSettings.weeklyTarget/7);
     persistAll(nextSettings, nextEntries, "restored data");
     state.restoreError = null;
@@ -1619,6 +1781,26 @@ document.addEventListener("click", function(e) {
       state.analysisPeriodMode = el.dataset.mode;
       state.analysisOffset = 0;
       render();
+      break;
+    case "set-basis":
+      state.basis = el.dataset.basis;
+      render();
+      break;
+    case "open-income-settings":
+      state.settingsTab = "income";
+      state.incomeDraftMode = null;
+      state.incomeDraftAmount = null;
+      state.showSettings = true;
+      render();
+      break;
+    case "income-mode":
+      var incEl = document.getElementById("incomeDraftInput");
+      if (incEl) state.incomeDraftAmount = incEl.value;
+      state.incomeDraftMode = el.dataset.mode;
+      render();
+      break;
+    case "apply-income":
+      handleApplyIncome(el.dataset.scope);
       break;
     case "analysis-nav-offset":
       state.analysisOffset = Math.min(0, (state.analysisOffset||0) + parseInt(el.dataset.delta,10));
