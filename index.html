@@ -152,13 +152,16 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null };
-var DEFAULT_ANALYSIS_ORDER = ["summary","dailySpend","dailySaving","monthlyBar","category","dow","topTransactions"];
-var ANALYSIS_SECTION_LABELS = { summary:"Summary", dailySpend:"Spend per day", dailySaving:"Saved per day", monthlyBar:"Monthly spend vs target", category:"Spend by category", dow:"Average by day of week", topTransactions:"Biggest transactions" };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null };
+var DEFAULT_ANALYSIS_ORDER = ["summary","forecastedSpend","spendTrend","dailySpend","dailySaving","category","dow","topTransactions"];
+var ANALYSIS_SECTION_LABELS = { summary:"Summary", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", dailySaving:"Saved per day", category:"Spend by category", dow:"Average by day of week", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_ANALYSIS_ORDER.indexOf(id) !== -1; });
   DEFAULT_ANALYSIS_ORDER.forEach(function(id){ if (out.indexOf(id)===-1) out.push(id); });
   return out;
+}
+function normalizeHiddenSections(hidden) {
+  return (hidden||[]).filter(function(id){ return DEFAULT_ANALYSIS_ORDER.indexOf(id) !== -1; });
 }
 /* Palette roles follow iOS semantics: a grouped background sits behind cards
    that are one step lighter (dark) or pure white (light), with separators and
@@ -166,10 +169,10 @@ function normalizeAnalysisOrder(order) {
 var PALETTES = {
   dark:  { bg:"#0B1120", card:"#151E33", raised:"#1C2740", hairline:"#2A3550", sep:"#252F49", fill:"#1C2740",
            text:"#F2F5FA", textMuted:"#8A99B8", accent:"#E0B368", accentInk:"#0C1322",
-           rust:"#E0705A", rustWash:"rgba(224,112,90,0.12)", positive:"#5EBD8C", tabBg:"rgba(21,30,51,0.82)" },
+           rust:"#E0705A", rustWash:"rgba(224,112,90,0.12)", positive:"#5EBD8C", amber:"#E0972E", tabBg:"rgba(21,30,51,0.82)" },
   light: { bg:"#F2F2F7", card:"#FFFFFF", raised:"#EFEFF4", hairline:"#D8D8DE", sep:"#E5E5EA", fill:"#EFEFF4",
            text:"#11131A", textMuted:"#6B7280", accent:"#B07F2A", accentInk:"#FFFFFF",
-           rust:"#C0442B", rustWash:"rgba(192,68,43,0.08)", positive:"#1E8E5A", tabBg:"rgba(255,255,255,0.82)" },
+           rust:"#C0442B", rustWash:"rgba(192,68,43,0.08)", positive:"#1E8E5A", amber:"#B8730A", tabBg:"rgba(255,255,255,0.82)" },
 };
 
 /* ---------------- custom appearance ----------------
@@ -457,6 +460,7 @@ function loadInitial() {
     state.settings.rateHistory = [{ from: "1900-01-01", weeklyTarget: state.settings.weeklyTarget }];
   }
   state.settings.analysisSectionOrder = normalizeAnalysisOrder(state.settings.analysisSectionOrder);
+  state.settings.analysisHiddenSections = normalizeHiddenSections(state.settings.analysisHiddenSections);
   state.settings.incomeHistory = normalizeIncomeHistory(state.settings.incomeHistory);
   state.loading = false;
   try {
@@ -479,6 +483,19 @@ function persistAll(nextSettings, nextEntries, label) {
 }
 
 /* ---------------- period math ---------------- */
+/* The budget/income target for an entire [start,end] range, including days
+   that haven't happened yet — unlike periodStats().rows, which only walks up
+   to today and would understate a still-in-progress period's target. */
+function fullPeriodTarget(startStr, endStr) {
+  var tsd = state.settings.trackingStartDate;
+  var s = (tsd && tsd > startStr) ? tsd : startStr;
+  if (s > endStr) return 0;
+  var sum = 0;
+  var cur = parseD(s);
+  while (toStr(cur) <= endStr) { sum += referenceForDate(toStr(cur)); cur = addDays(cur,1); }
+  return sum;
+}
+
 function periodStats(startStr, endStrRaw) {
   var endStr = minStr(endStrRaw, todayStr());
   var opening = 0; // each period is self-contained: always starts fresh at 0
@@ -645,6 +662,8 @@ var ICONS = {
   chart: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
   pencil: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>',
   check: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  eye: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',
 };
 
 /* ---------------- rendering ---------------- */
@@ -655,6 +674,7 @@ function applyTheme(T) {
   r.setProperty("--accent", T.accent); r.setProperty("--accent-ink", T.accentInk);
   r.setProperty("--rust", T.rust); r.setProperty("--rust-wash", T.rustWash);
   r.setProperty("--positive", T.positive);
+  r.setProperty("--amber", T.amber);
   r.setProperty("--sep", T.sep); r.setProperty("--fill", T.fill);
   r.setProperty("--tab-bg", T.tabBg);
   var meta = document.querySelector('meta[name="theme-color"]');
@@ -1529,6 +1549,84 @@ function renderDailyBarChart(buckets, getValue, getColor, T, refLine, selectedKe
     + '</svg>';
 }
 
+/* Cumulative spend for the elapsed portion of a period (smooth green curve),
+   continuing as a straight projected line from today's actual total up to the
+   forecasted end-of-period total — reusing the same avg-daily-pace math as
+   the Home page's Forecast card, so the two numbers never disagree. A flat
+   projection (as some budget apps show) would imply spending stops entirely;
+   a straight line to the real forecast total is the honest version of the
+   same picture. */
+function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel) {
+  var w=340, h=190, padL=44, padR=8, padT=24, padB=20;
+  var plotW=w-padL-padR, plotH=h-padT-padB;
+  var n = Math.max(totalDays, 2);
+  function xAt(i){ return padL + (i/(n-1))*plotW; }
+  var actualVals = []; var acc = 0;
+  rows.forEach(function(r){ acc += r.spent; actualVals.push(acc); });
+  var maxY = Math.max(target, projectedSpend, actualVals.length ? Math.max.apply(null, actualVals) : 0, 1);
+  function yAt(v){ return padT + plotH - (v/maxY)*plotH; }
+
+  var actualPts = actualVals.map(function(v,i){ return [xAt(i), yAt(v)]; });
+  var lastIdx = actualVals.length - 1;
+  var lastVal = actualVals.length ? actualVals[actualVals.length-1] : 0;
+  var curveD = actualPts.length >= 2 ? smoothPathD(actualPts) : (actualPts.length===1 ? ("M "+actualPts[0][0]+","+actualPts[0][1]) : "");
+  var areaD = curveD ? (curveD+" L "+xAt(Math.max(0,lastIdx))+","+yAt(0)+" L "+xAt(0)+","+yAt(0)+" Z") : "";
+
+  var forecastD = "";
+  var todayMarker = "";
+  if (rows.length > 0 && rows.length < totalDays) {
+    forecastD = 'M '+xAt(lastIdx)+','+yAt(lastVal)+' L '+xAt(n-1)+','+yAt(projectedSpend);
+    todayMarker = '<line x1="'+xAt(lastIdx)+'" x2="'+xAt(lastIdx)+'" y1="'+padT+'" y2="'+(h-padB)+'" stroke="'+T.hairline+'" stroke-dasharray="2,2"/>'
+      + '<text x="'+xAt(lastIdx)+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="middle">Today</text>';
+  }
+
+  var budgetY = yAt(target);
+  var ticksSet = {}; [0, Math.round(maxY/2), Math.round(maxY)].forEach(function(t){ ticksSet[t]=true; });
+  var tickSvg = Object.keys(ticksSet).map(Number).map(function(t){
+    return '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+yAt(t)+'" y2="'+yAt(t)+'" stroke="'+T.sep+'" stroke-dasharray="2,2"/>'
+      + '<text x="2" y="'+(yAt(t)+3)+'" font-size="9" fill="'+T.textMuted+'">'+fmt(t,0)+'</text>';
+  }).join("");
+
+  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'">'
+    + tickSvg
+    + '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+budgetY+'" y2="'+budgetY+'" stroke="'+T.text+'" stroke-width="1.5" stroke-dasharray="4,3"/>'
+    + '<text x="'+padL+'" y="'+(budgetY-5)+'" font-size="9" font-weight="600" fill="'+T.text+'">'+esc(refLabel||"Budget")+'</text>'
+    + (areaD ? '<path d="'+areaD+'" fill="'+T.positive+'" fill-opacity="0.16" stroke="none"/>' : "")
+    + (curveD ? '<path d="'+curveD+'" fill="none" stroke="'+T.positive+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' : "")
+    + (forecastD ? '<path d="'+forecastD+'" fill="none" stroke="'+T.accent+'" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1,5"/>' : "")
+    + todayMarker
+    + '</svg>';
+}
+
+/* Bar chart across several recent instances of the same period type, colored
+   by a 3-tier status: on track (green), trending over (amber — only possible
+   for the still-in-progress current period, based on its forecast), or over
+   budget (red — either a finished period that ran over, or a current period
+   forecast to run well over). One dashed line marks the most recent period's
+   budget, since target can drift over time via rate changes. */
+function renderTrendBarChart(items, refTarget, T, refLabel) {
+  var w=340, h=150, padL=34, padR=8, padT=12, padB=20;
+  var plotW=w-padL-padR, plotH=h-padT-padB;
+  var maxVal = Math.max.apply(null, items.map(function(i){ return i.spent; }).concat([refTarget, 1]));
+  var n = items.length;
+  var slot = plotW/n;
+  var barW = Math.min(30, slot*0.6);
+  function y(v){ return padT + plotH - (Math.min(v,maxVal)/maxVal)*plotH; }
+  var colorFor = { positive: T.positive, amber: T.amber, rust: T.rust };
+  var bars = items.map(function(it,i){
+    var cx = padL + slot*i + slot/2;
+    var topY = y(it.spent);
+    var barH = Math.max(0, plotH - (topY-padT));
+    return '<rect x="'+(cx-barW/2)+'" y="'+topY+'" width="'+barW+'" height="'+barH+'" fill="'+(colorFor[it.status]||T.positive)+'" rx="3"/>'
+      + '<text x="'+cx+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="middle">'+esc(it.label)+'</text>';
+  }).join("");
+  var refY = y(refTarget);
+  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'">'
+    + '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+refY+'" y2="'+refY+'" stroke="'+T.text+'" stroke-width="1.5" stroke-dasharray="4,3"/>'
+    + '<text x="'+padL+'" y="'+(refY-5)+'" font-size="9" font-weight="600" fill="'+T.text+'">'+esc(refLabel||"Budget")+'</text>'
+    + bars + '</svg>';
+}
+
 /* Resolves the Analysis page's selected period. week/month/year are navigable
    via analysisOffset (0 = current, -1 = previous, …), reusing getPeriodBounds so
    titles and bounds match the Home page exactly. custom uses explicit dates. */
@@ -1542,10 +1640,10 @@ function getAnalysisPeriodInfo() {
     var from = state.analysisPeriodFrom || fallbackStart;
     var to = state.analysisPeriodTo || today;
     if (from > to) { var swap = from; from = to; to = swap; }
-    return { start: from, end: to, title: shortLabel(from)+" – "+shortLabel(to), sub: "Custom range", isCurrent: true, mode: mode };
+    return { start: from, end: to, title: shortLabel(from)+" – "+shortLabel(to), sub: "Custom range", isCurrent: true, mode: mode, days: daysBetween(from,to)+1 };
   }
   var per = getPeriodBounds(mode, off, currentWeeklyTarget(), dailyReference());
-  return { start: per.startStr, end: per.endStr, title: per.title, sub: per.sub, isCurrent: off === 0, mode: mode };
+  return { start: per.startStr, end: per.endStr, title: per.title, sub: per.sub, isCurrent: off === 0, mode: mode, days: per.days };
 }
 
 /* Week/month are short enough to read day-by-day; a year would be 365 bars, so
@@ -1760,24 +1858,80 @@ function renderAnalysisBody(T) {
     return s;
   };
 
-  sectionHtml.monthlyBar = function(){
-    if (catFilter) return "";
-    var now = new Date();
-    var endMonthStart = startOfMonth(parseD(info.end));
-    var startMonthStart = startOfMonth(parseD(info.start));
-    var offEnd = (endMonthStart.getFullYear()-now.getFullYear())*12 + (endMonthStart.getMonth()-now.getMonth());
-    var offStart = (startMonthStart.getFullYear()-now.getFullYear())*12 + (startMonthStart.getMonth()-now.getMonth());
-    var months = [];
-    for (var mOff = offStart; mOff <= offEnd && months.length < 36; mOff++) {
-      var mb = getPeriodBounds("month", mOff, state.settings.weeklyTarget, da);
-      var ms = periodStats(mb.startStr, mb.endStr);
-      months.push({ label: parseD(mb.startStr).toLocaleDateString("en-GB",{month:"short"}), spent: ms.spent, target: mb.target });
-    }
-    if (months.length < 2) return "";
+  sectionHtml.forecastedSpend = function(){
+    if (catFilter || !cs.rows.length) return "";
+    var periodTarget = fullPeriodTarget(info.start, info.end);
+    var todayIncludedFC = cs.rows[cs.rows.length-1].date === today;
+    var todaySpentFC = todayIncludedFC ? cs.rows[cs.rows.length-1].spent : 0;
+    var pastDaysFC = todayIncludedFC ? cs.elapsedDays - 1 : cs.elapsedDays;
+    var pastSpentFC = cs.spent - todaySpentFC;
+    var avgSpentPerDayFC = pastDaysFC > 0 ? (pastSpentFC/pastDaysFC) : null;
+    var daysLeftFC = Math.max(0, daysBetween(today, info.end));
+    var hasForecast = daysLeftFC > 0 && avgSpentPerDayFC !== null;
+    var projectedSpend = hasForecast ? (cs.spent + avgSpentPerDayFC * daysLeftFC) : cs.spent;
+    var vsBudgetPct = periodTarget > 0 ? Math.round(((projectedSpend-periodTarget)/periodTarget)*100) : 0;
+    var periodWord = info.mode === "week" ? "week" : info.mode === "month" ? "month" : info.mode === "year" ? "year" : "period";
     var s = '<div class="card card-pad" style="margin-bottom:16px;">';
-    s += '<div class="eyebrow" style="margin-bottom:8px;">Monthly spend vs '+basisWord()+'</div>';
-    s += renderBarChart(months, T);
-    s += '<div class="muted caption" style="margin-top:6px;">Dashed line marks that month\'s target · red bars ran over</div>';
+    s += '<div class="eyebrow" style="margin-bottom:10px;">Forecasted spend</div>';
+    s += '<div class="row between" style="align-items:flex-start; margin-bottom:14px;">';
+    s += '<div><div class="muted caption">THIS '+esc(periodWord.toUpperCase())+'</div><div class="mono" style="font-size:22px; font-weight:700; margin-top:2px;">'+fmt(projectedSpend,0)+' AED</div></div>';
+    s += '<div style="text-align:right;"><div class="muted caption">VS '+esc(basisWordCap().toUpperCase())+'</div><div class="chip" style="margin-top:4px; background:'+(vsBudgetPct<=0?"var(--positive)":"var(--rust)")+'; color:#fff; font-weight:700;">'+(vsBudgetPct>=0?"+":"")+vsBudgetPct+'%</div></div>';
+    s += '</div>';
+    s += renderForecastChart(cs.rows, info.days, periodTarget, projectedSpend, T, basisWordCap());
+    if (!hasForecast) s += '<div class="muted caption" style="margin-top:8px;">'+(daysLeftFC<=0?"Period is complete — nothing left to forecast.":"Log a full day to start forecasting.")+'</div>';
+    s += '</div>';
+    return s;
+  };
+
+  sectionHtml.spendTrend = function(){
+    if (catFilter || periodMode === "custom") return "";
+    var N = 5;
+    var bars = [];
+    for (var trendOff = -(N-1); trendOff <= 0; trendOff++) {
+      var pb = getPeriodBounds(periodMode, trendOff, currentWeeklyTarget(), da);
+      var ps = periodStats(pb.startStr, pb.endStr);
+      var isCurBar = trendOff === 0;
+      var targetB = pb.target;
+      var spentB = ps.spent;
+      var projB = spentB;
+      if (isCurBar) {
+        var todayInclB = ps.rows.length>0 && ps.rows[ps.rows.length-1].date===today;
+        var todaySpentB = todayInclB ? ps.rows[ps.rows.length-1].spent : 0;
+        var pastDaysB = todayInclB ? ps.elapsedDays-1 : ps.elapsedDays;
+        var pastSpentB = ps.spent - todaySpentB;
+        var avgB = pastDaysB>0 ? pastSpentB/pastDaysB : null;
+        var daysLeftB = Math.max(0, pb.days - ps.calendarElapsedDays);
+        if (avgB!=null && daysLeftB>0) projB = ps.spent + avgB*daysLeftB;
+      }
+      var status = "positive";
+      if (targetB > 0) {
+        if (isCurBar) {
+          if (projB > targetB*1.15) status = "rust";
+          else if (projB > targetB) status = "amber";
+        } else {
+          status = spentB > targetB ? "rust" : "positive";
+        }
+      }
+      var lbl = periodMode === "week" ? shortLabel(pb.startStr) : periodMode === "year" ? pb.title : parseD(pb.startStr).toLocaleDateString("en-GB",{month:"short"});
+      bars.push({ label: lbl, spent: spentB, target: targetB, status: status });
+    }
+    var lastBar = bars[bars.length-1], prevBar = bars[bars.length-2];
+    var vsPrevPct = (prevBar && prevBar.spent>0) ? Math.round(((lastBar.spent-prevBar.spent)/prevBar.spent)*100) : null;
+    var s = '<div class="card card-pad" style="margin-bottom:16px;">';
+    s += '<div class="eyebrow" style="margin-bottom:10px;">Spend trend</div>';
+    s += '<div class="row between" style="align-items:flex-start; margin-bottom:14px;">';
+    s += '<div><div class="muted caption">THIS '+esc(periodMode.toUpperCase())+'</div><div class="mono" style="font-size:22px; font-weight:700; margin-top:2px;">'+fmt(lastBar.spent,0)+' AED</div></div>';
+    s += '<div style="text-align:right;"><div class="muted caption">VS PREVIOUS PERIOD</div>';
+    s += vsPrevPct===null
+      ? '<div class="chip" style="margin-top:4px; background:var(--fill); color:var(--text-muted);">---</div>'
+      : '<div class="chip" style="margin-top:4px; background:'+(vsPrevPct<=0?"var(--positive)":"var(--rust)")+'; color:#fff; font-weight:700;">'+(vsPrevPct>=0?"+":"")+vsPrevPct+'%</div>';
+    s += '</div></div>';
+    s += renderTrendBarChart(bars, lastBar.target, T, basisWordCap());
+    s += '<div class="row gap2" style="margin-top:10px; flex-wrap:wrap;">';
+    s += legendSwatch("var(--positive)", "On track");
+    s += legendSwatch("var(--amber)", "Trending over");
+    s += legendSwatch("var(--rust)", "Over budget");
+    s += '</div>';
     s += '</div>';
     return s;
   };
@@ -1864,18 +2018,27 @@ function renderAnalysisBody(T) {
   };
 
   var order = normalizeAnalysisOrder(state.settings.analysisSectionOrder);
+  var hiddenSet = normalizeHiddenSections(state.settings.analysisHiddenSections);
   order.forEach(function(id, idx){
-    var content = sectionHtml[id] ? sectionHtml[id]() : "";
-    if (!content) return;
-    if (state.analysisReorderMode) {
-      h += '<div class="row between" style="padding:0 2px 6px; align-items:center;">';
-      h += '<span class="muted" style="font-size:11px;">'+esc(ANALYSIS_SECTION_LABELS[id]||id)+'</span>';
-      h += '<div class="row gap2">';
-      h += '<button data-action="move-analysis-section" data-section="'+id+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(idx===0?"var(--hairline)":"var(--text-muted)")+';" '+(idx===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
-      h += '<button data-action="move-analysis-section" data-section="'+id+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(idx===order.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(idx===order.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
-      h += '</div></div>';
+    var isHidden = hiddenSet.indexOf(id) !== -1;
+    if (!state.analysisReorderMode) {
+      if (isHidden) return;
+      var content = sectionHtml[id] ? sectionHtml[id]() : "";
+      if (!content) return;
+      h += content;
+      return;
     }
-    h += content;
+    h += '<div class="row between" style="padding:0 2px 6px; align-items:center;'+(isHidden?"opacity:0.55;":"")+'">';
+    h += '<span class="muted" style="font-size:11px;">'+esc(ANALYSIS_SECTION_LABELS[id]||id)+(isHidden?" · hidden":"")+'</span>';
+    h += '<div class="row gap2">';
+    h += '<button data-action="toggle-analysis-hidden" data-section="'+id+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="'+(isHidden?"Show":"Hide")+' section">'+(isHidden?ICONS.eyeOff:ICONS.eye)+'</button>';
+    h += '<button data-action="move-analysis-section" data-section="'+id+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(idx===0?"var(--hairline)":"var(--text-muted)")+';" '+(idx===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
+    h += '<button data-action="move-analysis-section" data-section="'+id+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(idx===order.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(idx===order.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
+    h += '</div></div>';
+    if (!isHidden) {
+      var contentR = sectionHtml[id] ? sectionHtml[id]() : "";
+      h += contentR;
+    }
   });
 
   return h;
@@ -2110,6 +2273,7 @@ function handleRestore() {
     if (!parsed || typeof parsed !== "object" || typeof parsed.entries !== "object") throw new Error("bad shape");
     var nextSettings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings||{});
     nextSettings.analysisSectionOrder = normalizeAnalysisOrder(nextSettings.analysisSectionOrder);
+    nextSettings.analysisHiddenSections = normalizeHiddenSections(nextSettings.analysisHiddenSections);
     nextSettings.incomeHistory = normalizeIncomeHistory(nextSettings.incomeHistory);
     var nextEntries = migrateEntries(parsed.entries||{}, nextSettings.weeklyTarget/7);
     persistAll(nextSettings, nextEntries, "restored data");
@@ -2319,6 +2483,13 @@ document.addEventListener("click", function(e) {
         persistAll(Object.assign({}, state.settings, { analysisSectionOrder: orderA }), state.entries, "your settings");
         render();
       }
+      break;
+    case "toggle-analysis-hidden":
+      var hiddenH = normalizeHiddenSections(state.settings.analysisHiddenSections);
+      var secH = el.dataset.section;
+      var nextHidden = hiddenH.indexOf(secH) !== -1 ? hiddenH.filter(function(x){ return x!==secH; }) : hiddenH.concat([secH]);
+      persistAll(Object.assign({}, state.settings, { analysisHiddenSections: nextHidden }), state.entries, "your settings");
+      render();
       break;
     case "copy-backup": handleCopyBackup(); break;
     case "restore-backup": handleRestore(); break;
