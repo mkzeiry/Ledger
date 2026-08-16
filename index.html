@@ -151,7 +151,7 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null };
 var DEFAULT_ANALYSIS_ORDER = ["summary","dailySpend","dailySaving","monthlyBar","category","dow","topTransactions"];
 var ANALYSIS_SECTION_LABELS = { summary:"Summary", dailySpend:"Spend per day", dailySaving:"Saved per day", monthlyBar:"Monthly spend vs target", category:"Spend by category", dow:"Average by day of week", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
@@ -170,6 +170,65 @@ var PALETTES = {
            text:"#11131A", textMuted:"#6B7280", accent:"#B07F2A", accentInk:"#FFFFFF",
            rust:"#C0442B", rustWash:"rgba(192,68,43,0.08)", positive:"#1E8E5A", tabBg:"rgba(255,255,255,0.82)" },
 };
+
+/* ---------------- custom appearance ----------------
+   Lets a person override the dark-mode background and the accent color from
+   Settings. A single picked background is expanded into the same tonal
+   relationships as the built-in dark palette (card/raised/fill/sep/hairline
+   each sit a fixed lightness step above bg) so a custom color still reads as
+   one cohesive theme rather than one mismatched swatch. */
+function hexToHsl(hex) {
+  hex = String(hex||"").replace("#","");
+  if (hex.length===3) hex = hex.split("").map(function(c){return c+c;}).join("");
+  var r = parseInt(hex.substr(0,2),16)/255, g = parseInt(hex.substr(2,2),16)/255, b = parseInt(hex.substr(4,2),16)/255;
+  var max=Math.max(r,g,b), min=Math.min(r,g,b), h=0, s=0, l=(max+min)/2;
+  if (max !== min) {
+    var d = max-min;
+    s = l>0.5 ? d/(2-max-min) : d/(max+min);
+    if (max===r) h = (g-b)/d + (g<b?6:0);
+    else if (max===g) h = (b-r)/d + 2;
+    else h = (r-g)/d + 4;
+    h /= 6;
+  }
+  return [h*360, s*100, l*100];
+}
+function hslToHex(h,s,l) {
+  h/=360; s/=100; l/=100;
+  var r,g,b;
+  if (s===0) { r=g=b=l; }
+  else {
+    var q = l<0.5 ? l*(1+s) : l+s-l*s;
+    var p = 2*l-q;
+    function hue2rgb(t){ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; }
+    r = hue2rgb(h+1/3); g = hue2rgb(h); b = hue2rgb(h-1/3);
+  }
+  function toHex(x){ var v=Math.round(Math.max(0,Math.min(1,x))*255).toString(16); return v.length===1?"0"+v:v; }
+  return "#"+toHex(r)+toHex(g)+toHex(b);
+}
+function deriveDarkTones(bgHex) {
+  var hsl = hexToHsl(bgHex), h = hsl[0], s = hsl[1];
+  function at(l){ return hslToHex(h, s, l); }
+  return { bg: bgHex, card: at(15), raised: at(19), fill: at(19), sep: at(22), hairline: at(24) };
+}
+/* Picks readable ink for text/icons sitting on top of a custom accent color. */
+function readableInk(hex) {
+  return hexToHsl(hex)[2] > 58 ? "#0C1322" : "#FFFFFF";
+}
+/* Merges any custom background/accent on top of the built-in palette for the
+   active theme. Background customization only applies to dark mode (that's
+   what was asked for); accent customization applies to either theme. */
+function effectivePalette() {
+  var base = PALETTES[state.settings.theme] || PALETTES.dark;
+  var T = Object.assign({}, base);
+  if (state.settings.theme === "dark" && state.settings.customDarkBg) {
+    Object.assign(T, deriveDarkTones(state.settings.customDarkBg));
+  }
+  if (state.settings.customAccent) {
+    T.accent = state.settings.customAccent;
+    T.accentInk = readableInk(state.settings.customAccent);
+  }
+  return T;
+}
 
 function toStr(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function parseD(s){ return new Date(s+"T00:00:00"); }
@@ -367,6 +426,17 @@ function referenceForDate(ds) {
 function dailyReference() { return referenceForDate(todayStr()); }
 function basisWord() { return state.basis === "income" ? "income" : "budget"; }
 function basisWordCap() { return state.basis === "income" ? "Income" : "Budget"; }
+/* Runs fn() with the basis pinned to "budget" regardless of what's currently
+   selected, then restores it. Used for the one figure that should never bend
+   with the income view: "Left to spend today" is a real spending cap, and
+   letting it loosen just because you're looking at the income tab would be
+   an easy way to accidentally overspend against your own budget. */
+function withBudgetBasis(fn) {
+  var saved = state.basis;
+  state.basis = "budget";
+  try { return fn(); }
+  finally { state.basis = saved; }
+}
 
 
 /* ---------------- persistence ---------------- */
@@ -539,7 +609,7 @@ function unlockBodyScroll() {
 
 function render() {
   var root = document.getElementById("root");
-  var T = PALETTES[state.settings.theme] || PALETTES.dark;
+  var T = effectivePalette();
   applyTheme(T);
 
   var anyModalOpen = state.showAddTxn || state.showSettings || state.showBackup || state.showResetConfirm;
@@ -652,14 +722,17 @@ function renderHomeBody(T, da) {
 
   /* Left to spend today: take the tightest of today's own rate, this week's
      pace-adjusted daily left, and this month's — whichever is lowest wins,
-     so today's spending stays honest against both horizons at once. */
-  var weekDBL = computeDailyBudgetLeft("week", spentToday);
-  var monthDBL = computeDailyBudgetLeft("month", spentToday);
-  var capCandidates = [todayAllowanceForCard];
-  if (weekDBL) capCandidates.push(weekDBL.value);
-  if (monthDBL) capCandidates.push(monthDBL.value);
-  var effectiveDailyCap = Math.min.apply(null, capCandidates);
-  var leftToday = effectiveDailyCap - spentToday;
+     so today's spending stays honest against both horizons at once. Always
+     computed against budget, never income — see withBudgetBasis above. */
+  var leftToday = withBudgetBasis(function(){
+    var todayBudgetAllowance = allowanceForDate(todayStr());
+    var weekDBL = computeDailyBudgetLeft("week", spentToday);
+    var monthDBL = computeDailyBudgetLeft("month", spentToday);
+    var capCandidates = [todayBudgetAllowance];
+    if (weekDBL) capCandidates.push(weekDBL.value);
+    if (monthDBL) capCandidates.push(monthDBL.value);
+    return Math.min.apply(null, capCandidates) - spentToday;
+  });
   var leftTodayColor = leftToday < 0 ? "var(--rust)" : "var(--positive)";
 
   /* Left to spend today (budget): the plain, uncapped daily rate minus what's
@@ -772,7 +845,7 @@ function renderHomeBody(T, da) {
 }
 
 function renderSettingsModal() {
-  var tabs = [{id:"budget",label:"Budget"},{id:"income",label:"Income"},{id:"tracking",label:"Tracking"},{id:"categories",label:"Categories"}];
+  var tabs = [{id:"budget",label:"Budget"},{id:"income",label:"Income"},{id:"tracking",label:"Tracking"},{id:"categories",label:"Categories"},{id:"theme",label:"Theme"}];
   var h = '<div class="modal-backdrop" data-action="close-settings">';
   h += '<div class="modal-card" data-action="noop">';
   h += '<div class="grabber"></div>';
@@ -842,6 +915,28 @@ function renderSettingsModal() {
     h += '<div class="muted" style="font-size:11px; margin-bottom:12px;">From '+esc(shortLabel(mBounds.startStr))+' forward. Earlier months keep the income they were actually judged against — this is usually what you want.</div>';
     h += '<button data-action="apply-income" data-scope="all" class="btn-outline" style="width:100%; margin-bottom:8px;">All periods, past and future</button>';
     h += '<div class="muted" style="font-size:11px;">Rewrites your whole history to this figure. Use if you were just correcting the number.</div>';
+  }
+
+  if (state.settingsTab === "theme") {
+    var curBg = state.settings.customDarkBg || PALETTES.dark.bg;
+    var curAccent = state.settings.customAccent || PALETTES.dark.accent;
+    var hasCustom = !!(state.settings.customDarkBg || state.settings.customAccent);
+    h += '<label class="eyebrow">Dark mode background</label>';
+    h += '<div class="row gap2" style="margin:8px 0 4px; align-items:center;">';
+    h += '<input id="customBgInput" type="color" value="'+curBg+'" style="width:48px; height:40px; border:none; border-radius:10px; padding:0; background:none;" />';
+    h += '<span class="mono subhead" id="customBgLabel">'+curBg.toUpperCase()+'</span>';
+    h += '</div>';
+    h += '<div class="muted footnote" style="margin-bottom:18px;">Card, fill and separator colors update to match, so it stays one cohesive theme.</div>';
+
+    h += '<label class="eyebrow">Accent color</label>';
+    h += '<div class="row gap2" style="margin:8px 0 4px; align-items:center;">';
+    h += '<input id="customAccentInput" type="color" value="'+curAccent+'" style="width:48px; height:40px; border:none; border-radius:10px; padding:0; background:none;" />';
+    h += '<span class="mono subhead" id="customAccentLabel">'+curAccent.toUpperCase()+'</span>';
+    h += '</div>';
+    h += '<div class="muted footnote" style="margin-bottom:18px;">Used for buttons, active tabs, and chart highlights, in either theme.</div>';
+
+    h += '<button data-action="apply-appearance" class="btn-accent" style="width:100%; margin-bottom:8px;">Apply</button>';
+    h += '<button data-action="reset-appearance" class="btn-outline" style="width:100%;'+(hasCustom?"":"opacity:0.4;")+'" '+(hasCustom?"":"disabled")+'>Reset to default</button>';
   }
 
   if (state.settingsTab === "categories") {
@@ -1799,6 +1894,16 @@ function handleApplyBudget(scope) {
   render();
 }
 
+/* Brings up the number pad the instant the Add/Edit sheet opens, so the
+   person can start typing the amount without an extra tap. Wrapped in
+   try/catch since type="number" inputs don't support text selection in
+   every browser. */
+function focusAmountInput() {
+  var el = document.getElementById("entryAmountInput");
+  if (!el) return;
+  try { el.focus(); } catch(e) {}
+}
+
 function showToast(msg) {
   state.toastMessage = msg;
   setTimeout(function(){ state.toastMessage = null; render(); }, 2200);
@@ -1811,6 +1916,7 @@ function handleEditTxn(date, id) {
   state.showAddTxn = true;
   state.pendingDeleteKey = null;
   render();
+  focusAmountInput();
 }
 
 function handleCancelEdit() {
@@ -1916,6 +2022,7 @@ document.addEventListener("click", function(e) {
       state.showAddTxn = true;
       state.pendingDeleteKey = null;
       render();
+      focusAmountInput();
       break;
     case "close-add-txn":
       state.showAddTxn = false;
@@ -2035,6 +2142,24 @@ document.addEventListener("click", function(e) {
     case "apply-income":
       handleApplyIncome(el.dataset.scope);
       break;
+    case "apply-appearance":
+      var bgEl = document.getElementById("customBgInput");
+      var accEl = document.getElementById("customAccentInput");
+      var nextAppearance = Object.assign({}, state.settings, {
+        customDarkBg: bgEl ? bgEl.value : state.settings.customDarkBg,
+        customAccent: accEl ? accEl.value : state.settings.customAccent
+      });
+      persistAll(nextAppearance, state.entries, "your settings");
+      state.showSettings = false;
+      showToast("Appearance updated");
+      render();
+      break;
+    case "reset-appearance":
+      var resetAppearance = Object.assign({}, state.settings, { customDarkBg: null, customAccent: null });
+      persistAll(resetAppearance, state.entries, "your settings");
+      showToast("Appearance reset");
+      render();
+      break;
     case "analysis-nav-offset":
       state.analysisOffset = Math.min(0, (state.analysisOffset||0) + parseInt(el.dataset.delta,10));
       state.analysisSelectedBucket = null;
@@ -2058,6 +2183,29 @@ document.addEventListener("click", function(e) {
       state.showResetConfirm = false;
       render();
       break;
+  }
+});
+
+/* Live preview for the theme color pickers: recolors the whole UI the instant
+   a color is picked, without waiting for Apply or a full re-render (which
+   would rebuild the sheet mid-pick and could interrupt the native picker). */
+document.addEventListener("input", function(e) {
+  if (e.target && e.target.id === "customBgInput") {
+    var tones = deriveDarkTones(e.target.value);
+    var r = document.documentElement.style;
+    r.setProperty("--bg", tones.bg); r.setProperty("--card", tones.card); r.setProperty("--raised", tones.raised);
+    r.setProperty("--fill", tones.fill); r.setProperty("--sep", tones.sep); r.setProperty("--hairline", tones.hairline);
+    var metaBg = document.querySelector('meta[name="theme-color"]');
+    if (metaBg) metaBg.setAttribute("content", tones.bg);
+    var lbl = document.getElementById("customBgLabel");
+    if (lbl) lbl.textContent = e.target.value.toUpperCase();
+  }
+  if (e.target && e.target.id === "customAccentInput") {
+    var r2 = document.documentElement.style;
+    r2.setProperty("--accent", e.target.value);
+    r2.setProperty("--accent-ink", readableInk(e.target.value));
+    var lbl2 = document.getElementById("customAccentLabel");
+    if (lbl2) lbl2.textContent = e.target.value.toUpperCase();
   }
 });
 
