@@ -152,7 +152,7 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, categoryStyles: null };
 var DEFAULT_ANALYSIS_ORDER = ["summary","forecastedSpend","spendTrend","dailySpend","dailySaving","category","dow","topTransactions"];
 var ANALYSIS_SECTION_LABELS = { summary:"Summary", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", dailySaving:"Saved per day", category:"Spend by category", dow:"Average by day of week", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
@@ -162,6 +162,14 @@ function normalizeAnalysisOrder(order) {
 }
 function normalizeHiddenSections(hidden) {
   return (hidden||[]).filter(function(id){ return DEFAULT_ANALYSIS_ORDER.indexOf(id) !== -1; });
+}
+function normalizeCategoryStyles(styles, categories) {
+  var out = {};
+  var valid = categories || [];
+  Object.keys(styles||{}).forEach(function(name){
+    if (valid.indexOf(name) !== -1) out[name] = styles[name];
+  });
+  return out;
 }
 /* Palette roles follow iOS semantics: a grouped background sits behind cards
    that are one step lighter (dark) or pure white (light), with separators and
@@ -342,6 +350,7 @@ var state = {
   basis: "budget",
   incomeDraftMode: null,
   incomeDraftAmount: null,
+  categoryStyleEditing: null,
 };
 
 /* Rate history: records what the weekly target was over time, so past periods are
@@ -462,6 +471,7 @@ function loadInitial() {
   state.settings.analysisSectionOrder = normalizeAnalysisOrder(state.settings.analysisSectionOrder);
   state.settings.analysisHiddenSections = normalizeHiddenSections(state.settings.analysisHiddenSections);
   state.settings.incomeHistory = normalizeIncomeHistory(state.settings.incomeHistory);
+  state.settings.categoryStyles = normalizeCategoryStyles(state.settings.categoryStyles, state.settings.categories);
   state.loading = false;
   try {
     localStorage.setItem(TEST_KEY, "1");
@@ -1096,13 +1106,38 @@ function renderSettingsModal() {
     h += '<div style="display:flex; flex-direction:column; gap:6px; margin:8px 0 10px;">';
     var catList = state.settings.categories||[];
     catList.forEach(function(c,ci){
-      h += '<div class="row between" style="background:var(--raised); border:1px solid var(--hairline); border-radius:8px; padding:7px 8px 7px 12px;">';
-      h += '<span style="font-size:13px;">'+esc(c)+'</span>';
-      h += '<div class="row gap2">';
+      var isEditingStyle = state.categoryStyleEditing === c;
+      h += '<div style="background:var(--raised); border:1px solid var(--hairline); border-radius:8px; overflow:hidden;">';
+      h += '<div class="row between" style="padding:7px 8px 7px 8px;">';
+      h += '<div class="row gap2" style="align-items:center; min-width:0;">';
+      h += '<button data-action="edit-category-style" data-cat="'+esc(c)+'" style="background:none;border:none;padding:0;flex-shrink:0;" aria-label="Change icon and color">'+catIconCircle(c)+'</button>';
+      h += '<span style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(c)+'</span>';
+      h += '</div>';
+      h += '<div class="row gap2" style="flex-shrink:0;">';
       h += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(ci===0?"var(--hairline)":"var(--text-muted)")+';" '+(ci===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
       h += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(ci===catList.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(ci===catList.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
       h += '<button data-action="remove-category" data-cat="'+esc(c)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Remove">'+ICONS.trash+'</button>';
       h += '</div></div>';
+      if (isEditingStyle) {
+        var curStyle = categoryStyle(c);
+        var hasCustom = !!(state.settings.categoryStyles && state.settings.categoryStyles[c]);
+        h += '<div style="padding:4px 12px 14px;">';
+        h += '<div class="muted caption" style="margin-bottom:8px;">Icon</div>';
+        h += '<div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">';
+        CAT_ICON_ORDER.forEach(function(iconKey){
+          var isSel = curStyle.icon === iconKey;
+          h += '<button data-action="set-category-icon" data-cat="'+esc(c)+'" data-icon="'+iconKey+'" style="width:36px; height:36px; border-radius:50%; background:'+curStyle.color+'; border:'+(isSel?"2px solid var(--text)":"2px solid transparent")+'; display:flex; align-items:center; justify-content:center; padding:0;" aria-label="'+iconKey+'">'+CAT_ICON_SVGS[iconKey]+'</button>';
+        });
+        h += '</div>';
+        h += '<div class="muted caption" style="margin-bottom:8px;">Color</div>';
+        h += '<div class="row gap2" style="align-items:center; margin-bottom:12px;">';
+        h += '<input id="categoryColorInput" data-cat="'+esc(c)+'" type="color" value="'+curStyle.color+'" style="width:44px; height:36px; border:none; border-radius:8px; padding:0; background:none;" />';
+        h += '<span class="mono subhead">'+curStyle.color.toUpperCase()+'</span>';
+        h += '</div>';
+        h += '<button data-action="reset-category-style" data-cat="'+esc(c)+'" class="btn-plain" style="'+(hasCustom?"":"opacity:0.4;")+'" '+(hasCustom?"":"disabled")+'>Reset to default</button>';
+        h += '</div>';
+      }
+      h += '</div>';
     });
     if (!catList.length) h += '<span class="muted" style="font-size:12px;">No categories yet.</span>';
     h += '</div>';
@@ -1406,7 +1441,9 @@ function renderCalendarBody() {
 var PIE_COLORS = ["#E0B368","#5EBD8C","#7BA7D4","#D4614A","#B58BD0","#5FC2C2","#E08A5E","#9AAF7A","#C77FA3","#7E8CC4"];
 
 /* Category icons & colors: fixed for the built-in set, hashed to a stable
-   fallback color for any custom category the user adds. */
+   fallback color for any custom category the user adds — unless the person
+   has explicitly picked an icon/color for that category, in which case that
+   always wins. */
 var CAT_ICON_SVGS = {
   fork: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7a2 2 0 0 0 4 0V2M5 2v20M21 15V2a5 5 0 0 0-5 5v6a2 2 0 0 0 2 2h3zm0 0v7"/></svg>',
   basket: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 8h13l-1.5 11.2a2 2 0 0 1-2 1.8H9a2 2 0 0 1-2-1.8z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>',
@@ -1415,8 +1452,13 @@ var CAT_ICON_SVGS = {
   bolt: '<svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>',
   heart: '<svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><path d="M12 21s-6.7-4.35-9.3-8.1C.8 9.9 1.9 6 5.4 5.1 7.6 4.5 9.8 5.5 12 8c2.2-2.5 4.4-3.5 6.6-2.9 3.5.9 4.6 4.8 2.7 7.8C18.7 16.65 12 21 12 21z"/></svg>',
   film: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M7 3v18M17 3v18M2 8h5M2 16h5M17 8h5M17 16h5"/></svg>',
+  house: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+  gift: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C9 2 12 7 12 7z"/></svg>',
+  book: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  plane: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>',
   tag: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 12.6 12.6 20.6a2 2 0 0 1-2.83 0L2.6 13.4a2 2 0 0 1 0-2.83l8-8A2 2 0 0 1 12 2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-.4 1.2Z"/><circle cx="16.5" cy="7.5" r="1"/></svg>',
 };
+var CAT_ICON_ORDER = ["tag","fork","basket","bag","house","car","bolt","heart","film","book","gift","plane"];
 var CATEGORY_STYLES = {
   "Food & Dining": { icon:"fork", color:"#D4614A" },
   "Groceries": { icon:"basket", color:"#5EA05E" },
@@ -1429,6 +1471,8 @@ var CATEGORY_STYLES = {
 };
 function categoryStyle(name) {
   if (!name) return { icon:"tag", color:"#8595B5" };
+  var custom = state.settings.categoryStyles && state.settings.categoryStyles[name];
+  if (custom) return { icon: (custom.icon && CAT_ICON_SVGS[custom.icon]) ? custom.icon : "tag", color: custom.color || "#8595B5" };
   if (CATEGORY_STYLES[name]) return CATEGORY_STYLES[name];
   var hash = 0;
   for (var i=0;i<name.length;i++) hash = (hash*31 + name.charCodeAt(i)) >>> 0;
@@ -2275,6 +2319,7 @@ function handleRestore() {
     nextSettings.analysisSectionOrder = normalizeAnalysisOrder(nextSettings.analysisSectionOrder);
     nextSettings.analysisHiddenSections = normalizeHiddenSections(nextSettings.analysisHiddenSections);
     nextSettings.incomeHistory = normalizeIncomeHistory(nextSettings.incomeHistory);
+    nextSettings.categoryStyles = normalizeCategoryStyles(nextSettings.categoryStyles, nextSettings.categories);
     var nextEntries = migrateEntries(parsed.entries||{}, nextSettings.weeklyTarget/7);
     persistAll(nextSettings, nextEntries, "restored data");
     state.restoreError = null;
@@ -2385,8 +2430,31 @@ document.addEventListener("click", function(e) {
       break;
     case "remove-category":
       var catToRemove = el.dataset.cat;
-      var withoutCat = Object.assign({}, state.settings, { categories: (state.settings.categories||[]).filter(function(c){ return c !== catToRemove; }) });
+      var nextCatsAfterRemove = (state.settings.categories||[]).filter(function(c){ return c !== catToRemove; });
+      var stylesAfterRemove = Object.assign({}, state.settings.categoryStyles||{});
+      delete stylesAfterRemove[catToRemove];
+      var withoutCat = Object.assign({}, state.settings, { categories: nextCatsAfterRemove, categoryStyles: stylesAfterRemove });
+      if (state.categoryStyleEditing === catToRemove) state.categoryStyleEditing = null;
       persistAll(withoutCat, state.entries, "your settings");
+      render();
+      break;
+    case "edit-category-style":
+      state.categoryStyleEditing = (state.categoryStyleEditing === el.dataset.cat) ? null : el.dataset.cat;
+      render();
+      break;
+    case "set-category-icon":
+      var catI = el.dataset.cat;
+      var curI = categoryStyle(catI);
+      var nextStylesI = Object.assign({}, state.settings.categoryStyles||{});
+      nextStylesI[catI] = { icon: el.dataset.icon, color: curI.color };
+      persistAll(Object.assign({}, state.settings, { categoryStyles: nextStylesI }), state.entries, "your settings");
+      render();
+      break;
+    case "reset-category-style":
+      var catR = el.dataset.cat;
+      var nextStylesR = Object.assign({}, state.settings.categoryStyles||{});
+      delete nextStylesR[catR];
+      persistAll(Object.assign({}, state.settings, { categoryStyles: nextStylesR }), state.entries, "your settings");
       render();
       break;
     case "move-category":
@@ -2537,6 +2605,14 @@ document.addEventListener("change", function(e) {
   if (e.target && e.target.id === "txnPeriodToInput") { state.txnPeriodTo = e.target.value; render(); }
   if (e.target && e.target.id === "analysisPeriodFromInput") { state.analysisPeriodFrom = e.target.value; render(); }
   if (e.target && e.target.id === "analysisPeriodToInput") { state.analysisPeriodTo = e.target.value; render(); }
+  if (e.target && e.target.id === "categoryColorInput") {
+    var catC = e.target.dataset.cat;
+    var curC = categoryStyle(catC);
+    var nextStylesC = Object.assign({}, state.settings.categoryStyles||{});
+    nextStylesC[catC] = { icon: curC.icon, color: e.target.value };
+    persistAll(Object.assign({}, state.settings, { categoryStyles: nextStylesC }), state.entries, "your settings");
+    render();
+  }
 });
 
 /* ---------------- init ---------------- */
