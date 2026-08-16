@@ -1469,8 +1469,8 @@ function catIconCircle(categoryName) {
   return '<span style="width:32px; height:32px; border-radius:50%; background:'+st.color+'; display:flex; align-items:center; justify-content:center; flex-shrink:0;">'+CAT_ICON_SVGS[st.icon]+'</span>';
 }
 
-function renderPieChart(slices, T, selectedLabel) {
-  var size = 180, r = 78, cx = size/2, cy = size/2;
+function renderPieChart(slices, T, selectedLabel, centerLabel, centerValue) {
+  var size = 180, rOuter = 78, rInner = rOuter*0.55, cx = size/2, cy = size/2;
   var total = slices.reduce(function(s,x){ return s+x.value; }, 0);
   if (total <= 0) return "";
   var angle = -Math.PI/2;
@@ -1483,18 +1483,31 @@ function renderPieChart(slices, T, selectedLabel) {
     var isSel = selectedLabel != null && sl.label === selectedLabel;
     var op = (selectedLabel != null && !isSel) ? ' opacity="0.3"' : '';
     var tap = ' class="chart-hit" data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'"';
+    var d;
     if (frac >= 0.9999) {
-      paths += '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+color+'"'+op+tap+'/>';
+      // A single category holding 100%: draw the ring as outer circle minus
+      // inner circle via evenodd, since there's no adjoining slice to arc against.
+      d = 'M '+(cx+rOuter)+' '+cy+' A '+rOuter+' '+rOuter+' 0 1 1 '+(cx-rOuter)+' '+cy+' A '+rOuter+' '+rOuter+' 0 1 1 '+(cx+rOuter)+' '+cy+' Z'
+        + ' M '+(cx+rInner)+' '+cy+' A '+rInner+' '+rInner+' 0 1 0 '+(cx-rInner)+' '+cy+' A '+rInner+' '+rInner+' 0 1 0 '+(cx+rInner)+' '+cy+' Z';
+      paths += '<path d="'+d+'" fill="'+color+'" fill-rule="evenodd"'+op+tap+'/>';
     } else {
-      var x1 = cx + r*Math.cos(angle), y1 = cy + r*Math.sin(angle);
-      var x2 = cx + r*Math.cos(end),   y2 = cy + r*Math.sin(end);
+      var ox1 = cx + rOuter*Math.cos(angle), oy1 = cy + rOuter*Math.sin(angle);
+      var ox2 = cx + rOuter*Math.cos(end),   oy2 = cy + rOuter*Math.sin(end);
+      var ix1 = cx + rInner*Math.cos(end),   iy1 = cy + rInner*Math.sin(end);
+      var ix2 = cx + rInner*Math.cos(angle), iy2 = cy + rInner*Math.sin(angle);
       var large = sweep > Math.PI ? 1 : 0;
-      paths += '<path d="M '+cx+' '+cy+' L '+x1+' '+y1+' A '+r+' '+r+' 0 '+large+' 1 '+x2+' '+y2+' Z" fill="'+color+'"'+op+tap+'/>';
+      d = 'M '+ox1+' '+oy1+' A '+rOuter+' '+rOuter+' 0 '+large+' 1 '+ox2+' '+oy2+' L '+ix1+' '+iy1+' A '+rInner+' '+rInner+' 0 '+large+' 0 '+ix2+' '+iy2+' Z';
+      paths += '<path d="'+d+'" fill="'+color+'" stroke="'+T.card+'" stroke-width="2.5" stroke-linejoin="round"'+op+tap+'/>';
     }
     angle = end;
   });
-  paths += '<circle cx="'+cx+'" cy="'+cy+'" r="'+(r*0.55)+'" fill="'+T.card+'"/>';
-  return '<svg viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'">'+paths+'</svg>';
+  var selSlice = selectedLabel != null ? slices.filter(function(s){ return s.label===selectedLabel; })[0] : null;
+  var nameRaw = selSlice ? selSlice.label : (centerLabel || "All");
+  var name = nameRaw.length > 15 ? nameRaw.slice(0,14)+"…" : nameRaw;
+  var valueForCenter = selSlice ? selSlice.value : (centerValue || 0);
+  var centerSvg = '<text x="'+cx+'" y="'+(cy-6)+'" font-size="12" fill="'+T.textMuted+'" text-anchor="middle">'+esc(name)+'</text>'
+    + '<text x="'+cx+'" y="'+(cy+16)+'" font-size="17" font-weight="700" fill="'+T.text+'" text-anchor="middle" font-family="var(--f-num)">'+fmt(Math.round(valueForCenter),0)+' AED</text>';
+  return '<svg viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'">'+paths+centerSvg+'</svg>';
 }
 
 function renderBarChart(items, T) {
@@ -2103,7 +2116,7 @@ function renderAnalysisBody(T) {
     s += '<div class="row between" style="margin-bottom:10px; align-items:baseline;">';
     s += '<span class="eyebrow">Spend by category</span>';
     s += '<span class="muted caption">'+(catFilter?"Tap to clear":"Tap to filter")+'</span></div>';
-    s += '<div style="display:flex; justify-content:center; margin-bottom:12px;">'+renderPieChart(catSlices, T, catFilter||null)+'</div>';
+    s += '<div style="display:flex; justify-content:center; margin-bottom:12px;">'+renderPieChart(catSlices, T, catFilter||null, "All", catTotal)+'</div>';
     catSlices.forEach(function(sl,i){
       var pct = catTotal>0 ? (sl.value/catTotal*100) : 0;
       var isSel = catFilter === sl.label;
