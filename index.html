@@ -1470,7 +1470,7 @@ function catIconCircle(categoryName) {
 }
 
 function renderPieChart(slices, T, selectedLabel, centerLabel, centerValue) {
-  var size = 180, rOuter = 78, rInner = rOuter*0.55, cx = size/2, cy = size/2;
+  var size = 240, rOuter = 104, rInner = rOuter*0.55, cx = size/2, cy = size/2;
   var total = slices.reduce(function(s,x){ return s+x.value; }, 0);
   if (total <= 0) return "";
   var angle = -Math.PI/2;
@@ -1497,16 +1497,16 @@ function renderPieChart(slices, T, selectedLabel, centerLabel, centerValue) {
       var ix2 = cx + rInner*Math.cos(angle), iy2 = cy + rInner*Math.sin(angle);
       var large = sweep > Math.PI ? 1 : 0;
       d = 'M '+ox1+' '+oy1+' A '+rOuter+' '+rOuter+' 0 '+large+' 1 '+ox2+' '+oy2+' L '+ix1+' '+iy1+' A '+rInner+' '+rInner+' 0 '+large+' 0 '+ix2+' '+iy2+' Z';
-      paths += '<path d="'+d+'" fill="'+color+'" stroke="'+T.card+'" stroke-width="2.5" stroke-linejoin="round"'+op+tap+'/>';
+      paths += '<path d="'+d+'" fill="'+color+'" stroke="'+T.card+'" stroke-width="3.5" stroke-linejoin="round"'+op+tap+'/>';
     }
     angle = end;
   });
   var selSlice = selectedLabel != null ? slices.filter(function(s){ return s.label===selectedLabel; })[0] : null;
   var nameRaw = selSlice ? selSlice.label : (centerLabel || "All");
-  var name = nameRaw.length > 15 ? nameRaw.slice(0,14)+"…" : nameRaw;
+  var name = nameRaw.length > 16 ? nameRaw.slice(0,15)+"…" : nameRaw;
   var valueForCenter = selSlice ? selSlice.value : (centerValue || 0);
-  var centerSvg = '<text x="'+cx+'" y="'+(cy-6)+'" font-size="12" fill="'+T.textMuted+'" text-anchor="middle">'+esc(name)+'</text>'
-    + '<text x="'+cx+'" y="'+(cy+16)+'" font-size="17" font-weight="700" fill="'+T.text+'" text-anchor="middle" font-family="var(--f-num)">'+fmt(Math.round(valueForCenter),0)+' AED</text>';
+  var centerSvg = '<text x="'+cx+'" y="'+(cy-8)+'" font-size="15" fill="'+T.textMuted+'" text-anchor="middle">'+esc(name)+'</text>'
+    + '<text x="'+cx+'" y="'+(cy+21)+'" font-size="22" font-weight="700" fill="'+T.text+'" text-anchor="middle" font-family="var(--f-num)">'+fmt(Math.round(valueForCenter),0)+' AED</text>';
   return '<svg viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'">'+paths+centerSvg+'</svg>';
 }
 
