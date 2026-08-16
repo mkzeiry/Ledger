@@ -602,7 +602,7 @@ function renderHomeBody(T, da) {
   h += '<div class="row between" style="padding:12px; border-bottom:1px solid var(--hairline);">';
   h += '<button data-action="nav-offset" data-delta="-1" class="icon-btn" style="border-radius:10px;" aria-label="Previous">'+ICONS.chevronLeft+'</button>';
   h += '<div style="text-align:center;"><div style="font-size:14px; font-weight:500;">'+esc(period.title)+'</div>';
-  h += '<div class="eyebrow" style="margin-top:2px;">'+esc(period.sub)+(isClosed?" · closed":"")+' · '+basisWordCap()+' '+fmt(period.target,0)+' AED</div>';
+  h += '<div class="eyebrow" style="margin-top:2px;">'+esc(period.sub)+(isClosed?" · closed":"")+' · '+basisWordCap()+' '+fmt(period.target,0)+' AED ('+fmt(da,0)+'/day)</div>';
   if (isCurrent) {
     h += '<div class="muted" style="font-size:11px; margin-top:4px;">'+(state.view==="week"?esc(weekdayLong(todayStr()))+" · ":"")+'Day '+displayed.calendarElapsedDays+' of '+period.days+' · '+daysLeft+' day'+(daysLeft===1?"":"s")+' left</div>';
   }
