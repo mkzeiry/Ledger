@@ -177,10 +177,10 @@ function normalizeCategoryStyles(styles, categories) {
 var PALETTES = {
   dark:  { bg:"#0B1120", card:"#151E33", raised:"#1C2740", hairline:"#2A3550", sep:"#252F49", fill:"#1C2740",
            text:"#F2F5FA", textMuted:"#8A99B8", accent:"#E0B368", accentInk:"#0C1322",
-           rust:"#E0705A", rustWash:"rgba(224,112,90,0.12)", positive:"#5EBD8C", amber:"#E0972E", tabBg:"rgba(21,30,51,0.82)" },
+           rust:"#E0705A", rustWash:"rgba(224,112,90,0.12)", positive:"#5EBD8C", positiveWash:"rgba(94,189,140,0.20)", amber:"#E0972E", tabBg:"rgba(21,30,51,0.82)" },
   light: { bg:"#F2F2F7", card:"#FFFFFF", raised:"#EFEFF4", hairline:"#D8D8DE", sep:"#E5E5EA", fill:"#EFEFF4",
            text:"#11131A", textMuted:"#6B7280", accent:"#B07F2A", accentInk:"#FFFFFF",
-           rust:"#C0442B", rustWash:"rgba(192,68,43,0.08)", positive:"#1E8E5A", amber:"#B8730A", tabBg:"rgba(255,255,255,0.82)" },
+           rust:"#C0442B", rustWash:"rgba(192,68,43,0.08)", positive:"#1E8E5A", positiveWash:"rgba(30,142,90,0.14)", amber:"#B8730A", tabBg:"rgba(255,255,255,0.82)" },
 };
 
 /* ---------------- custom appearance ----------------
@@ -337,7 +337,7 @@ var state = {
   pendingDeleteKey: null,
   txnCategoryFilter: "",
   txnPeriodMode: "all",
-  txnPeriodDate: "",
+  txnOffset: 0,
   txnPeriodFrom: "",
   txnPeriodTo: "",
   analysisPeriodMode: "month",
@@ -683,6 +683,7 @@ function applyTheme(T) {
   r.setProperty("--hairline", T.hairline); r.setProperty("--text", T.text); r.setProperty("--text-muted", T.textMuted);
   r.setProperty("--accent", T.accent); r.setProperty("--accent-ink", T.accentInk);
   r.setProperty("--rust", T.rust); r.setProperty("--rust-wash", T.rustWash);
+  r.setProperty("--positive-wash", T.positiveWash);
   r.setProperty("--positive", T.positive);
   r.setProperty("--amber", T.amber);
   r.setProperty("--sep", T.sep); r.setProperty("--fill", T.fill);
@@ -736,7 +737,9 @@ function unlockBodyScroll() {
    focused field. Blocking touchmove outright and driving scrollTop by hand
    means iOS never receives a native gesture to act on, so it has nothing to
    pan in response to. The note field is exempted so text-cursor dragging
-   inside it still works natively. */
+   inside it still works natively, and color inputs are exempted so their
+   native spectrum/slider picker gets real drag gestures instead of having
+   them swallowed mid-slide (which was registering as an instant tap-select). */
 var touchLockCard = null, touchLockStartY = null, touchLockStartScrollTop = null;
 document.addEventListener("touchstart", function(e) {
   if (!bodyScrollLocked) return;
@@ -747,7 +750,7 @@ document.addEventListener("touchstart", function(e) {
 }, { passive: true });
 document.addEventListener("touchmove", function(e) {
   if (!bodyScrollLocked) return;
-  if (e.target && e.target.id === "entryNoteInput") return;
+  if (e.target && (e.target.id === "entryNoteInput" || e.target.type === "color")) return;
   e.preventDefault();
   if (!touchLockCard || touchLockStartY == null) return;
   var deltaY = touchLockStartY - e.touches[0].clientY;
@@ -1192,29 +1195,11 @@ function renderTransactionsBody() {
 
   var categoryFilter = state.txnCategoryFilter || "";
   var periodMode = state.txnPeriodMode || "all";
-  var periodAnchor = state.txnPeriodDate || "";
   var periodFrom = state.txnPeriodFrom || "";
   var periodTo = state.txnPeriodTo || "";
+  var info = getTxnPeriodInfo();
   function itemCat(it){ return it.category || "Uncategorised"; }
-
-  function periodWeekBounds(){ var s = startOfWeek(parseD(periodAnchor)); return { start: toStr(s), end: toStr(addDays(s,6)) }; }
-  function periodMonthBounds(){ var s = startOfMonth(parseD(periodAnchor)); return { start: toStr(s), end: toStr(endOfMonth(s)) }; }
-  function inPeriod(d) {
-    if (periodMode === "week") {
-      if (!periodAnchor) return true;
-      var wb = periodWeekBounds(); return d >= wb.start && d <= wb.end;
-    }
-    if (periodMode === "month") {
-      if (!periodAnchor) return true;
-      var mb = periodMonthBounds(); return d >= mb.start && d <= mb.end;
-    }
-    if (periodMode === "range") {
-      if (periodFrom && d < periodFrom) return false;
-      if (periodTo && d > periodTo) return false;
-      return true;
-    }
-    return true;
-  }
+  function inPeriod(d) { return d >= info.start && d <= info.end; }
   var periodActive = periodMode !== "all";
   var anyFilterActive = !!categoryFilter || periodActive;
 
@@ -1240,36 +1225,34 @@ function renderTransactionsBody() {
   });
   h += '</select></div>';
 
-  h += '<div style="padding:0 16px 8px;"><select id="txnPeriodModeSelect" class="field" style="font-size:13px;">';
-  [["all","All time"],["week","Specific week"],["month","Specific month"],["range","Custom range"]].forEach(function(opt){
-    h += '<option value="'+opt[0]+'"'+(periodMode===opt[0]?" selected":"")+'>'+opt[1]+'</option>';
+  h += '<div style="padding:0 16px 8px;"><div class="seg">';
+  [["all","All"],["week","Week"],["month","Month"],["year","Year"],["custom","Custom"]].forEach(function(opt){
+    var active = periodMode === opt[0];
+    h += '<button class="seg-btn" role="tab" aria-selected="'+active+'" data-action="set-txn-period" data-mode="'+opt[0]+'">'+opt[1]+'</button>';
   });
-  h += '</select></div>';
+  h += '</div></div>';
 
-  if (periodMode === "week" || periodMode === "month") {
-    h += '<div style="padding:0 16px 8px;"><input id="txnPeriodAnchorInput" type="date" class="field mono" style="font-size:13px;" value="'+esc(periodAnchor)+'" max="'+todayStr()+'" /></div>';
-    if (periodAnchor) {
-      var boundsLabel = periodMode === "week" ? periodWeekBounds() : periodMonthBounds();
-      h += '<div class="muted" style="font-size:11px; padding:0 16px 8px;">'+esc(shortLabel(boundsLabel.start))+' – '+esc(shortLabel(boundsLabel.end))+'</div>';
-    }
-  }
-  if (periodMode === "range") {
+  if (periodMode === "custom") {
     h += '<div class="row gap2" style="padding:0 16px 8px;">';
     h += '<input id="txnPeriodFromInput" type="date" class="field mono" style="flex:1; font-size:13px;" value="'+esc(periodFrom)+'" max="'+todayStr()+'" />';
     h += '<input id="txnPeriodToInput" type="date" class="field mono" style="flex:1; font-size:13px;" value="'+esc(periodTo)+'" max="'+todayStr()+'" />';
     h += '</div>';
+  } else if (periodMode !== "all") {
+    h += '<div style="padding:0 16px 8px;"><div class="row between card" style="padding:8px 10px;">';
+    h += '<button data-action="txn-nav-offset" data-delta="-1" class="icon-btn" style="border-radius:10px;" aria-label="Previous">'+ICONS.chevronLeft+'</button>';
+    h += '<div style="text-align:center; min-width:0;"><div style="font-size:13px; font-weight:500;">'+esc(info.title)+'</div>';
+    h += '<div class="eyebrow" style="margin-top:2px;">'+esc(info.sub)+'</div></div>';
+    h += '<button data-action="txn-nav-offset" data-delta="1" class="icon-btn" style="border-radius:10px;'+(info.isCurrent?"opacity:0.3;pointer-events:none;":"")+'" aria-label="Next">'+ICONS.chevronRight+'</button>';
+    h += '</div></div>';
   }
 
   if (anyFilterActive) {
     var descParts = [];
     if (categoryFilter) descParts.push("in "+categoryFilter);
-    if (periodMode === "week" && periodAnchor) descParts.push("week of "+shortLabel(periodWeekBounds().start));
-    if (periodMode === "month" && periodAnchor) descParts.push(parseD(periodMonthBounds().start).toLocaleDateString("en-GB",{month:"long",year:"numeric"}));
-    if (periodMode === "range") {
-      if (periodFrom && periodTo) descParts.push(shortLabel(periodFrom)+" – "+shortLabel(periodTo));
-      else if (periodFrom) descParts.push("from "+shortLabel(periodFrom));
-      else if (periodTo) descParts.push("up to "+shortLabel(periodTo));
-    }
+    if (periodMode === "week") descParts.push("week of "+shortLabel(info.start));
+    if (periodMode === "month") descParts.push(parseD(info.start).toLocaleDateString("en-GB",{month:"long",year:"numeric"}));
+    if (periodMode === "year") descParts.push(info.title);
+    if (periodMode === "custom") descParts.push(shortLabel(info.start)+" – "+shortLabel(info.end));
     h += '<div class="muted" style="font-size:11px; padding:0 16px 12px;">'+filterCount+' transaction'+(filterCount===1?"":"s")+' · '+fmt(filterSum,2)+' AED total'+(descParts.length?" "+esc(descParts.join(", ")):"")+'</div>';
   }
 
@@ -1391,7 +1374,7 @@ function renderCalendarBody() {
     if (isFuture) { bg = "transparent"; fg = "var(--text-muted)"; }
     else if (isPreTracking) { bg = "var(--raised)"; fg = "var(--text-muted)"; }
     else if (!logged) { bg = "rgba(224,179,104,0.14)"; fg = "var(--text)"; }
-    else if (spent <= allowance) { bg = "rgba(224,179,104,0.32)"; fg = "var(--text)"; }
+    else if (spent <= allowance) { bg = "var(--positive-wash)"; fg = "var(--text)"; }
     else { bg = "var(--rust-wash)"; fg = "var(--rust)"; }
 
     var isTracked = !isFuture && !isPreTracking;
@@ -1414,7 +1397,7 @@ function renderCalendarBody() {
   h += '</div>'; // end grid card
 
   h += '<div class="row" style="gap:14px; margin-bottom:16px; flex-wrap:wrap;">';
-  h += legendSwatch("rgba(224,179,104,0.32)", "Under budget");
+  h += legendSwatch("var(--positive-wash)", "Under budget");
   h += legendSwatch("var(--rust-wash)", "Over budget", "var(--rust)");
   h += legendSwatch("rgba(224,179,104,0.14)", "Not logged");
   h += legendSwatch("var(--raised)", "Before tracking");
@@ -1674,6 +1657,28 @@ function renderTrendBarChart(items, refTarget, T, refLabel) {
 /* Resolves the Analysis page's selected period. week/month/year are navigable
    via analysisOffset (0 = current, -1 = previous, …), reusing getPeriodBounds so
    titles and bounds match the Home page exactly. custom uses explicit dates. */
+/* Same shape as getAnalysisPeriodInfo, for the Transactions page's filter —
+   kept separate since Transactions also offers "all time" (a real list of
+   everything ever logged), which doesn't make sense for Analysis's charts. */
+function getTxnPeriodInfo() {
+  var today = todayStr();
+  var mode = state.txnPeriodMode || "all";
+  var off = state.txnOffset || 0;
+  var entryDatesAll = Object.keys(state.entries).sort();
+  var naturalStart = state.settings.trackingStartDate || (entryDatesAll.length ? entryDatesAll[0] : today);
+  if (mode === "all") {
+    return { start: naturalStart, end: today, title: "All time", sub: "", isCurrent: true, mode: mode };
+  }
+  if (mode === "custom") {
+    var from = state.txnPeriodFrom || naturalStart;
+    var to = state.txnPeriodTo || today;
+    if (from > to) { var swap = from; from = to; to = swap; }
+    return { start: from, end: to, title: shortLabel(from)+" – "+shortLabel(to), sub: "Custom range", isCurrent: true, mode: mode };
+  }
+  var per = getPeriodBounds(mode, off, currentWeeklyTarget(), dailyReference());
+  return { start: per.startStr, end: per.endStr, title: per.title, sub: per.sub, isCurrent: off === 0, mode: mode };
+}
+
 function getAnalysisPeriodInfo() {
   var today = todayStr();
   var mode = state.analysisPeriodMode || "month";
@@ -2541,6 +2546,15 @@ document.addEventListener("click", function(e) {
       state.analysisSelectedBucket = null;
       render();
       break;
+    case "set-txn-period":
+      state.txnPeriodMode = el.dataset.mode;
+      state.txnOffset = 0;
+      render();
+      break;
+    case "txn-nav-offset":
+      state.txnOffset = Math.min(0, (state.txnOffset||0) + parseInt(el.dataset.delta,10));
+      render();
+      break;
     case "move-analysis-section":
       var dirA = parseInt(el.dataset.dir,10);
       var orderA = normalizeAnalysisOrder(state.settings.analysisSectionOrder);
@@ -2595,12 +2609,6 @@ document.addEventListener("input", function(e) {
 document.addEventListener("change", function(e) {
   if (e.target && e.target.id === "entryDateInput") handleQuickDate(e.target.value);
   if (e.target && e.target.id === "txnCategoryFilterSelect") { state.txnCategoryFilter = e.target.value; render(); }
-  if (e.target && e.target.id === "txnPeriodModeSelect") {
-    state.txnPeriodMode = e.target.value;
-    if ((state.txnPeriodMode === "week" || state.txnPeriodMode === "month") && !state.txnPeriodDate) state.txnPeriodDate = todayStr();
-    render();
-  }
-  if (e.target && e.target.id === "txnPeriodAnchorInput") { state.txnPeriodDate = e.target.value; render(); }
   if (e.target && e.target.id === "txnPeriodFromInput") { state.txnPeriodFrom = e.target.value; render(); }
   if (e.target && e.target.id === "txnPeriodToInput") { state.txnPeriodTo = e.target.value; render(); }
   if (e.target && e.target.id === "analysisPeriodFromInput") { state.analysisPeriodFrom = e.target.value; render(); }
