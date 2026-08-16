@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="mobile-web-app-capable" content="yes" />
@@ -105,11 +105,12 @@
   .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px 12px; }
 
   /* Sheet-style modal with grabber */
-  .modal-backdrop { position:fixed; top:0; left:0; right:0; bottom:var(--vvb, 0px); background:rgba(3,7,15,0.6); display:flex; align-items:flex-end; justify-content:center; z-index:50; }
+  .modal-backdrop { position:fixed; top:var(--vvt, 0px); left:0; right:0; height:var(--vvh, 100dvh); background:rgba(3,7,15,0.6); display:flex; align-items:flex-end; justify-content:center; z-index:50; }
   @media (min-width: 480px) { .modal-backdrop { align-items:center; } }
   .modal-card {
-    width:100%; max-width:460px; max-height:88vh; overflow-y:auto; -webkit-overflow-scrolling: touch;
+    width:100%; max-width:460px; max-height:88vh; max-height:min(88vh, calc(var(--vvh, 100dvh) - 24px)); overflow-y:auto; -webkit-overflow-scrolling: touch;
     background:var(--card); border:none; border-radius:16px 16px 0 0; padding:8px 20px 24px;
+    overscroll-behavior: contain;
   }
   @media (min-width: 480px) { .modal-card { border-radius:16px; padding-top:20px; } }
   .grabber { width:36px; height:5px; border-radius:999px; background:var(--hairline); margin:0 auto 12px; }
@@ -2345,15 +2346,31 @@ setViewportHeightVar();
 window.addEventListener("resize", setViewportHeightVar);
 window.addEventListener("orientationchange", setViewportHeightVar);
 
-/* visualViewport: corrects position:fixed bottom offset when the browser's own
-   chrome (address bar, toolbar) takes up space that CSS position:fixed doesn't
-   know about, which iOS Safari/Chrome get wrong specifically on pages that
-   don't need to scroll. */
+/* visualViewport tracking, for two different jobs that both need it:
+   --vvb (bottom gap) is what the tab bar/FAB use, assuming the viewport's top
+   stays put and only its bottom shrinks for the keyboard.
+   --vvt/--vvh (top offset + height) pin the modal backdrop to the actual
+   visible rectangle, top edge included — needed because iOS doesn't just
+   shrink the visual viewport for the keyboard, it can also *pan* it (offsetTop
+   != 0), which happens mid-gesture while scrolling inside a focused modal.
+   A bottom-gap-only assumption goes wrong exactly then: as offsetTop grows,
+   the --vvb formula understates the true gap, and a backdrop anchored with
+   top:0 lets its bottom edge sink back down behind the keyboard even though
+   the modal never closed. Anchoring top+height to the live rectangle instead
+   means the backdrop tracks reality regardless of why the viewport moved. */
 function updateVisualViewportOffset() {
   var vv = window.visualViewport;
-  if (!vv) { document.documentElement.style.setProperty("--vvb", "0px"); return; }
+  var r = document.documentElement.style;
+  if (!vv) {
+    r.setProperty("--vvb", "0px");
+    r.setProperty("--vvt", "0px");
+    r.setProperty("--vvh", "100dvh");
+    return;
+  }
   var gap = window.innerHeight - vv.height - vv.offsetTop;
-  document.documentElement.style.setProperty("--vvb", Math.max(0, Math.round(gap)) + "px");
+  r.setProperty("--vvb", Math.max(0, Math.round(gap)) + "px");
+  r.setProperty("--vvt", Math.round(vv.offsetTop) + "px");
+  r.setProperty("--vvh", Math.round(vv.height) + "px");
 }
 updateVisualViewportOffset();
 if (window.visualViewport) {
