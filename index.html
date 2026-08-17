@@ -524,6 +524,16 @@ function overallAvgDailySpend() {
   return histStats.spent / histStats.elapsedDays;
 }
 
+/* The real start of a range once trackingStartDate clips it — e.g. a "This
+   year" view nominally starts Jan 1, but if tracking began Aug 1, the range
+   that actually has (or could have) data starts there instead. Used to keep
+   periodStats, targets, and the forecast chart's day-0 all agreeing on the
+   same starting point. */
+function effectiveRangeStart(startStr) {
+  var tsd = state.settings.trackingStartDate;
+  return (tsd && tsd > startStr) ? tsd : startStr;
+}
+
 function periodStats(startStr, endStrRaw) {
   var endStr = minStr(endStrRaw, todayStr());
   var opening = 0; // each period is self-contained: always starts fresh at 0
@@ -1020,7 +1030,9 @@ function renderHomeBody(T, da) {
      never show conflicting numbers or drift apart visually. */
   if (isCurrent && chartData.length) {
     var periodWordHome = state.view === "week" ? "week" : state.view === "month" ? "month" : "year";
-    h += buildForecastCard(displayed.rows, period.days, period.target, period.startStr, T, basisWordCap(), periodWordHome);
+    var chartStartHome = effectiveRangeStart(period.startStr);
+    var chartDaysHome = daysBetween(chartStartHome, period.endStr) + 1;
+    h += buildForecastCard(displayed.rows, chartDaysHome, period.target, chartStartHome, T, basisWordCap(), periodWordHome);
   }
 
   return h;
@@ -2088,7 +2100,9 @@ function renderAnalysisBody(T) {
     if (catFilter || !cs.rows.length) return "";
     var periodTarget = fullPeriodTarget(info.start, info.end);
     var periodWord = info.mode === "week" ? "week" : info.mode === "month" ? "month" : info.mode === "year" ? "year" : "period";
-    return buildForecastCard(cs.rows, info.days, periodTarget, info.start, T, basisWordCap(), periodWord);
+    var chartStart = effectiveRangeStart(info.start);
+    var chartDays = daysBetween(chartStart, info.end) + 1;
+    return buildForecastCard(cs.rows, chartDays, periodTarget, chartStart, T, basisWordCap(), periodWord);
   };
 
   sectionHtml.spendTrend = function(){
