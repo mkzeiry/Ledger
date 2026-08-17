@@ -506,14 +506,19 @@ function fullPeriodTarget(startStr, endStr) {
   return sum;
 }
 
-/* Overall average daily spend from whenever tracking began (or the earliest
-   entry) up through yesterday — the fallback pace for forecasting on day 1
-   of a new period, when there's no local data yet to establish one from. */
+/* Average daily spend over recent history — the fallback/blending pace for
+   forecasting when a new period doesn't have (much) local data yet. Capped
+   to the last 60 days rather than all of tracked history: an old, long-unused
+   stretch (say, trackingStartDate set months before regular use began)
+   shouldn't drag today's forecast toward a near-zero pace that no longer
+   reflects anything real. */
 function overallAvgDailySpend() {
   var entryDatesAll = Object.keys(state.entries).sort();
-  var anchor = state.settings.trackingStartDate || (entryDatesAll.length ? entryDatesAll[0] : todayStr());
+  var naturalAnchor = state.settings.trackingStartDate || (entryDatesAll.length ? entryDatesAll[0] : todayStr());
   var yesterday = toStr(addDays(parseD(todayStr()), -1));
-  if (anchor > yesterday) return null;
+  if (naturalAnchor > yesterday) return null;
+  var windowFloor = toStr(addDays(parseD(yesterday), -59));
+  var anchor = naturalAnchor > windowFloor ? naturalAnchor : windowFloor;
   var histStats = periodStats(anchor, yesterday);
   if (histStats.elapsedDays <= 0 || histStats.loggedCount <= 0) return null;
   return histStats.spent / histStats.elapsedDays;
@@ -1744,11 +1749,13 @@ function wireForecastChart(data) {
 
 /* Builds the entire Forecasted Spend card — header, badge, chart, and any
    footnote — shared by Home and Analysis so the two can't drift apart or
-   disagree on a number. Pace comes from elapsed days *within this period*
-   when there are any; on day 1, when there's nothing local to go on yet,
-   it falls back to the overall historical daily average (if any exists) so
-   the projection isn't just a flat, useless line the moment a new period
-   starts — it's smart about using what you already know from past spending. */
+   disagree on a number. Pace blends this period's own elapsed days with the
+   overall historical daily average, weighted by a simple shrinkage estimator:
+   avg = (local spend + historicalAvg*K) / (local days + K). On day 1 that's
+   pure history (0 local days); as local days accumulate they count for more,
+   and once local days reach K the historical average barely matters anymore.
+   This avoids both a flat, useless day-1 projection AND an abrupt full
+   switchover the moment a single local day exists. */
 function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, periodWord) {
   if (!rows.length) return "";
   var today = todayStr();
@@ -1758,13 +1765,11 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   var spentSoFar = rows.reduce(function(s,r){ return s+r.spent; }, 0);
   var pastDays = todayIncluded ? elapsedDays - 1 : elapsedDays;
   var pastSpent = spentSoFar - todaySpent;
-  var localAvg = pastDays > 0 ? (pastSpent/pastDays) : null;
-  var usedFallback = false;
-  var avgSpentPerDay = localAvg;
-  if (avgSpentPerDay === null) {
-    var fallbackAvg = overallAvgDailySpend();
-    if (fallbackAvg !== null) { avgSpentPerDay = fallbackAvg; usedFallback = true; }
-  }
+  var historicalAvg = overallAvgDailySpend();
+  var BLEND_K = historicalAvg !== null ? 3 : 0;
+  var blendDenom = pastDays + BLEND_K;
+  var avgSpentPerDay = blendDenom > 0 ? ((pastSpent + (historicalAvg !== null ? historicalAvg*BLEND_K : 0)) / blendDenom) : null;
+  var stillBlending = historicalAvg !== null && pastDays < BLEND_K;
   var daysLeftFC = Math.max(0, totalDays - elapsedDays);
   var hasForecast = daysLeftFC > 0 && avgSpentPerDay !== null;
   var projectedSpend = hasForecast ? (spentSoFar + avgSpentPerDay * daysLeftFC) : spentSoFar;
@@ -1786,8 +1791,8 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   s += '</div>';
   if (!hasForecast) {
     s += '<div class="muted caption" style="margin-top:8px;">'+(daysLeftFC<=0?"Period is complete — nothing left to forecast.":"Log a full day to start forecasting.")+'</div>';
-  } else if (usedFallback) {
-    s += '<div class="muted caption" style="margin-top:8px;">'+(todaySpent>0?"Today\u2019s spending alone isn\u2019t enough to set a pace yet":"No spending logged yet this "+esc(periodWord))+' — projecting from your '+fmt(avgSpentPerDay,0)+' AED/day overall average.</div>';
+  } else if (stillBlending) {
+    s += '<div class="muted caption" style="margin-top:8px;">'+(spentSoFar>0?"Blending with your overall average for now — it\u2019ll lean more on this "+esc(periodWord)+"\u2019s own pace as more days come in.":"No spending logged yet this "+esc(periodWord)+" — blending with your overall average for now.")+'</div>';
   }
   s += '</div>';
   lastForecastChartData = { rows: rows, totalDays: totalDays, target: target, projectedSpend: projectedSpend, start: periodStart };
