@@ -257,13 +257,14 @@ function addMonths(d,n){ return new Date(d.getFullYear(), d.getMonth()+n, 1); }
 function endOfMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
 function daysInMonth(d){ return endOfMonth(d).getDate(); }
 function daysBetween(aStr,bStr){ return Math.round((parseD(bStr)-parseD(aStr))/86400000); }
-/* The date of the Nth occurrence (0-based) of a recurring rule. Weekly is
+/* The date of the Nth occurrence (0-based) of a rule. Daily and weekly are
    flat day arithmetic. Monthly clamps the day-of-month to whatever the
    target month actually has — otherwise a rule started on the 31st would
    have JS's Date silently roll February's "31st" into early March, and
    every later occurrence would drift off the intended day permanently. */
 function recurringOccurrenceDate(rule, n) {
   var start = parseD(rule.startDate);
+  if (rule.frequency === "daily") return toStr(addDays(start, n));
   if (rule.frequency === "weekly") return toStr(addDays(start, n*7));
   var totalMonthIndex = start.getMonth() + n;
   var targetYear = start.getFullYear() + Math.floor(totalMonthIndex/12);
@@ -272,17 +273,35 @@ function recurringOccurrenceDate(rule, n) {
   var day = Math.min(start.getDate(), lastDayOfTargetMonth);
   return toStr(new Date(targetYear, targetMonth, day));
 }
-function normalizeRecurringRules(rules) {
-  return (rules||[]).filter(function(r){ return r && r.id && r.startDate && (r.frequency==="weekly"||r.frequency==="monthly"); });
+/* A split spreads one total across N days, so each day gets an equal
+   floor-rounded share except the last, which absorbs the leftover cents —
+   that keeps the days reading evenly while the sum stays exact. Plain
+   recurring rules just repeat the same amount every time. */
+function ruleOccurrenceAmount(rule, n) {
+  if (rule.kind !== "split" || rule.splitTotal == null || rule.occurrencesTotal == null) return rule.amount;
+  var isLast = n === rule.occurrencesTotal - 1;
+  if (!isLast) return rule.amount;
+  return round2(rule.splitTotal - rule.amount * (rule.occurrencesTotal - 1));
 }
-/* Generates any occurrences of active recurring rules that are due (today or
-   earlier) and haven't been logged yet — this is the only mechanism that
-   makes "automatic" recurring payments actually happen, since a client-side
-   PWA has no way to run code while it isn't open. Runs once at load, so a
-   rule catches up on everything missed since the app was last opened. Each
-   rule is capped defensively (500 occurrences per run) so a very old,
-   very frequent rule can't spin through an enormous backlog in one pass —
-   it'll simply keep catching up a bit more on each subsequent open. */
+function ruleIsComplete(rule) {
+  if (rule.occurrencesTotal != null && rule.occurrencesLogged >= rule.occurrencesTotal) return true;
+  if (rule.endDate) {
+    var nextDue = recurringOccurrenceDate(rule, rule.occurrencesLogged||0);
+    if (nextDue > rule.endDate) return true;
+  }
+  return false;
+}
+function normalizeRecurringRules(rules) {
+  return (rules||[]).filter(function(r){ return r && r.id && r.startDate && (r.frequency==="daily"||r.frequency==="weekly"||r.frequency==="monthly"); });
+}
+/* Generates any occurrences of active rules that are due (today or earlier)
+   and haven't been logged yet — this is the only mechanism that makes
+   "automatic" scheduling actually happen, since a client-side PWA has no way
+   to run code while it isn't open. Runs once at load, so a rule catches up on
+   everything missed since the app was last opened. Each rule is capped
+   defensively (500 occurrences per run) so a very old, very frequent rule
+   can't spin through an enormous backlog in one pass — it'll simply keep
+   catching up a bit more on each subsequent open. */
 function runRecurringCatchUp() {
   var today = todayStr();
   var rules = state.settings.recurringRules || [];
@@ -292,13 +311,20 @@ function runRecurringCatchUp() {
     var guard = 0;
     while (guard < 500) {
       if (rule.occurrencesTotal != null && rule.occurrencesLogged >= rule.occurrencesTotal) break;
-      var due = recurringOccurrenceDate(rule, rule.occurrencesLogged);
+      var seq = rule.occurrencesLogged||0;
+      var due = recurringOccurrenceDate(rule, seq);
       if (due > today) break;
-      var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7)+"-"+guard, amount: rule.amount, note: rule.note||"", category: rule.category||"", recurringId: rule.id };
+      if (rule.endDate && due > rule.endDate) break;
+      var newItem = {
+        id: Date.now()+"-"+Math.random().toString(36).slice(2,7)+"-"+guard,
+        amount: ruleOccurrenceAmount(rule, seq),
+        note: rule.note||"", category: rule.category||"",
+        recurringId: rule.id, seq: seq+1, seqTotal: rule.occurrencesTotal
+      };
       var existingDay = state.entries[due];
       if (existingDay) state.entries[due] = Object.assign({}, existingDay, { items: existingDay.items.concat([newItem]) });
       else state.entries[due] = { allowance: allowanceForDate(due), items: [newItem] };
-      rule.occurrencesLogged = (rule.occurrencesLogged||0) + 1;
+      rule.occurrencesLogged = seq + 1;
       changed = true;
       guard++;
     }
@@ -768,6 +794,7 @@ var ICONS = {
   pause: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>',
   play: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg>',
   repeat: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>',
+  repeatNav: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>',
 };
 
 /* ---------------- rendering ---------------- */
@@ -893,6 +920,7 @@ function render() {
 
   if (state.page === "transactions") html += renderTransactionsBody();
   else if (state.page === "calendar") html += renderCalendarBody();
+  else if (state.page === "plans") html += renderPlansBody();
   else if (state.page === "analysis") html += renderAnalysisBody(T);
   else html += renderHomeBody(T, da);
 
@@ -1099,7 +1127,7 @@ function renderHomeBody(T, da) {
 }
 
 function renderSettingsModal() {
-  var tabs = [{id:"budget",label:"Budget"},{id:"income",label:"Income"},{id:"tracking",label:"Tracking"},{id:"categories",label:"Categories"},{id:"recurring",label:"Recurring"},{id:"theme",label:"Theme"}];
+  var tabs = [{id:"budget",label:"Budget"},{id:"income",label:"Income"},{id:"tracking",label:"Tracking"},{id:"categories",label:"Categories"},{id:"theme",label:"Theme"}];
   var h = '<div class="modal-backdrop" data-action="close-settings">';
   h += '<div class="modal-card" data-action="noop">';
   h += '<div class="grabber"></div>';
@@ -1236,58 +1264,6 @@ function renderSettingsModal() {
     h += '<div class="row gap2"><input id="newCategoryInput" type="text" class="field" placeholder="New category" style="flex:1;" /><button data-action="add-category" class="btn-outline">Add</button></div>';
   }
 
-  if (state.settingsTab === "recurring") {
-    h += '<label class="eyebrow">Recurring payments</label>';
-    h += '<div class="muted caption" style="margin:6px 0 12px;">Logged automatically each time they\u2019re due, including catching up on anything missed while the app was closed.</div>';
-    var rules = state.settings.recurringRules || [];
-    h += '<div style="display:flex; flex-direction:column; gap:6px; margin-bottom:16px;">';
-    rules.forEach(function(rule){
-      var isCompleted = rule.occurrencesTotal != null && rule.occurrencesLogged >= rule.occurrencesTotal;
-      var freqLabel = rule.frequency === "weekly" ? "Every week" : "Every month";
-      var progressLabel = rule.occurrencesTotal != null ? (rule.occurrencesLogged+" of "+rule.occurrencesTotal) : (rule.occurrencesLogged+" logged");
-      var dimmed = (!rule.active && !isCompleted);
-      h += '<div class="row between" style="background:var(--raised); border:1px solid var(--hairline); border-radius:8px; padding:10px 12px;'+(dimmed?" opacity:0.55;":"")+'">';
-      h += '<div class="row gap2" style="align-items:center; min-width:0;">';
-      h += catIconCircle(rule.category);
-      h += '<div style="min-width:0;">';
-      h += '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(rule.note || rule.category || "Recurring payment")+'</div>';
-      h += '<div class="muted caption" style="margin-top:2px;">'+esc(freqLabel)+' \u00b7 '+fmt(rule.amount,2)+' AED \u00b7 '+esc(progressLabel)+(isCompleted?" \u00b7 Completed":(!rule.active?" \u00b7 Paused":""))+'</div>';
-      h += '</div></div>';
-      h += '<div class="row gap2" style="flex-shrink:0;">';
-      if (!isCompleted) {
-        h += '<button data-action="toggle-recurring-active" data-id="'+esc(rule.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="'+(rule.active?"Pause":"Resume")+'">'+(rule.active?ICONS.pause:ICONS.play)+'</button>';
-      }
-      h += '<button data-action="delete-recurring" data-id="'+esc(rule.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button>';
-      h += '</div></div>';
-    });
-    if (!rules.length) h += '<span class="muted" style="font-size:12px;">No recurring payments set up yet.</span>';
-    h += '</div>';
-
-    h += '<div class="hairline-top" style="padding-top:14px;">';
-    h += '<label class="eyebrow">Add recurring payment</label>';
-    h += '<div style="position:relative; margin:8px 0;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
-    h += '<input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="Amount" /></div>';
-    h += '<select id="recurringCategoryInput" class="field" style="margin-bottom:8px;"><option value="">No category</option>';
-    (state.settings.categories||[]).forEach(function(c){ h += '<option value="'+esc(c)+'">'+esc(c)+'</option>'; });
-    h += '</select>';
-    h += '<input id="recurringNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="What\u2019s it for? (e.g. Rent)" />';
-    h += '<div class="row gap2" style="margin-bottom:8px;">';
-    h += '<select id="recurringFrequencyInput" class="field" style="flex:1;"><option value="weekly">Every week</option><option value="monthly">Every month</option></select>';
-    h += '<input id="recurringStartDateInput" type="date" class="field mono" style="flex:1;" value="'+todayStr()+'" max="2100-01-01" />';
-    h += '</div>';
-    h += '<div class="muted caption" style="margin-bottom:8px;">Starts on the date above, then repeats on that same day each week or month.</div>';
-    var limitMode = state.recurringLimitMode || "ongoing";
-    h += '<div class="seg" style="margin-bottom:8px;">';
-    h += '<button class="seg-btn" role="tab" aria-selected="'+(limitMode==="ongoing")+'" data-action="set-recurring-limit-mode" data-mode="ongoing">Ongoing</button>';
-    h += '<button class="seg-btn" role="tab" aria-selected="'+(limitMode==="count")+'" data-action="set-recurring-limit-mode" data-mode="count">Specific number</button>';
-    h += '</div>';
-    if (limitMode === "count") {
-      h += '<input id="recurringCountInput" type="number" inputmode="numeric" min="1" step="1" class="field" style="margin-bottom:8px;" placeholder="Number of times" />';
-    }
-    h += '<button data-action="add-recurring" class="btn-accent" style="width:100%;">Add recurring payment</button>';
-    h += '</div>';
-  }
-
   h += '</div></div>';
   return h;
 }
@@ -1306,9 +1282,16 @@ function renderAddTxnModal() {
   h += '<div class="modal-card" data-action="noop">';
   h += '<div class="grabber"></div>';
   h += '<div class="row between" style="margin-bottom:16px;"><div class="display" style="font-size:18px;">'+(editingItem?"Edit transaction":"Add transaction")+'</div><button data-action="close-add-txn" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div>';
+  var splitMode = state.txnSplitMode || "single";
+  if (!editingItem) {
+    h += '<div class="seg" style="margin-bottom:10px;">';
+    h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==="single")+'" data-action="set-txn-split-mode" data-mode="single">Single day</button>';
+    h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==="split")+'" data-action="set-txn-split-mode" data-mode="split">Split across days</button>';
+    h += '</div>';
+  }
   h += '<input id="entryDateInput" type="date" class="field mono" style="margin-bottom:8px;" value="'+formDate+'" max="'+todayStr()+'" />';
   h += '<div style="position:relative; margin-bottom:8px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none;">AED</span>';
-  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="Amount" value="'+(editingItem?editingItem.amount:"")+'" /></div>';
+  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="'+(splitMode==="split"&&!editingItem?"Total amount":"Amount")+'" value="'+(editingItem?editingItem.amount:"")+'" /></div>';
   h += '<select id="entryCategoryInput" class="field" style="margin-bottom:8px;">';
   h += '<option value="">No category</option>';
   cats.forEach(function(c){
@@ -1316,16 +1299,9 @@ function renderAddTxnModal() {
   });
   h += '</select>';
   h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:12px;" placeholder="What was it for? (optional)" value="'+(editingItem?esc(editingItem.note||""):"")+'" />';
-  if (!editingItem) {
-    var splitMode = state.txnSplitMode || "single";
-    h += '<div class="seg" style="margin-bottom:8px;">';
-    h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==="single")+'" data-action="set-txn-split-mode" data-mode="single">Single day</button>';
-    h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==="split")+'" data-action="set-txn-split-mode" data-mode="split">Split across days</button>';
-    h += '</div>';
-    if (splitMode === "split") {
-      h += '<input id="splitDaysInput" type="number" inputmode="numeric" min="2" step="1" class="field" style="margin-bottom:8px;" placeholder="Number of days" />';
-      h += '<div class="muted caption" style="margin-bottom:12px;">Splits the amount evenly across that many days, ending on the date above.</div>';
-    }
+  if (!editingItem && splitMode === "split") {
+    h += '<input id="splitDaysInput" type="number" inputmode="numeric" min="2" step="1" class="field" style="margin-bottom:8px;" placeholder="Number of days" />';
+    h += '<div class="muted caption" style="margin-bottom:12px;">Spreads the total evenly starting from the date above, one share per day. Days still to come are logged as they arrive \u2014 track progress under Plans.</div>';
   }
   h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent row gap2" style="width:100%; justify-content:center; align-items:center;">'+(editingItem?ICONS.check+" Save":ICONS.plus+" Add")+'</button>';
   h += '<div id="entryHint" class="muted" style="font-size:11px; margin-top:8px;">'+(todayEntry && !editingItem ? (esc(dayLabel(formDate))+" so far: "+todayEntry.items.length+" transaction"+(todayEntry.items.length===1?"":"s")+", "+fmt(sumSpent(todayEntry),2)+" AED total.") : "")+'</div>';
@@ -1475,7 +1451,13 @@ function renderTxnRow(date, it) {
   h += '<button data-action="edit-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;flex:1;min-width:0;display:flex;align-items:center;gap:10px;text-align:left;">';
   h += catIconCircle(it.category);
   h += '<span style="min-width:0; flex:1;">';
-  h += '<div style="font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:5px;">'+(it.category?esc(it.category):"Spent")+(it.recurringId?'<span style="color:var(--text-muted); flex-shrink:0;" title="Recurring payment">'+ICONS.repeat+'</span>':'')+'</div>';
+  var seqBadge = "";
+  if (it.recurringId) {
+    seqBadge = (it.seq && it.seqTotal)
+      ? '<span class="mono" style="color:var(--text-muted); flex-shrink:0; font-size:10px;">'+it.seq+'/'+it.seqTotal+'</span>'
+      : '<span style="color:var(--text-muted); flex-shrink:0;" title="Recurring payment">'+ICONS.repeat+'</span>';
+  }
+  h += '<div style="font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:5px;">'+(it.category?esc(it.category):"Spent")+seqBadge+'</div>';
   if (it.note) h += '<div class="muted" style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(it.note)+'</div>';
   h += '</span></button>';
   h += '<div class="mono" style="font-size:13px; font-weight:600; color:var(--rust); flex-shrink:0;">−'+fmt(it.amount,2)+' AED</div>';
@@ -2389,11 +2371,121 @@ function renderAnalysisBody(T) {
   return h;
 }
 
+/* Total already logged by a rule so far — summed per-occurrence rather than
+   multiplied, since a split's final day carries a different (remainder)
+   amount than the rest. */
+function ruleLoggedAmount(rule) {
+  var sum = 0;
+  for (var i=0; i<(rule.occurrencesLogged||0); i++) sum += ruleOccurrenceAmount(rule, i);
+  return round2(sum);
+}
+
+function renderPlansBody() {
+  var rules = state.settings.recurringRules || [];
+  var today = todayStr();
+  var h = "";
+  h += '<div class="eyebrow" style="margin-bottom:4px;">Plans</div>';
+  h += '<div class="muted caption" style="margin-bottom:14px;">Recurring payments and spread-out costs. Each one logs itself when its day arrives \u2014 including catching up on anything missed while the app was closed.</div>';
+
+  function ruleCard(rule) {
+    var complete = ruleIsComplete(rule);
+    var paused = !rule.active && !complete;
+    var freqLabel = rule.frequency === "daily" ? "Daily" : rule.frequency === "weekly" ? "Every week" : "Every month";
+    var logged = rule.occurrencesLogged || 0;
+    var s = '<div class="card card-pad" style="margin-bottom:8px;'+(paused?" opacity:0.6;":"")+'">';
+    s += '<div class="row between" style="align-items:flex-start;">';
+    s += '<div class="row gap2" style="align-items:center; min-width:0;">';
+    s += catIconCircle(rule.category);
+    s += '<div style="min-width:0;">';
+    s += '<div style="font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(rule.note || rule.category || (rule.kind==="split"?"Spread":"Recurring payment"))+'</div>';
+    var metaBits = [];
+    if (rule.kind === "split") metaBits.push("Spread over "+rule.occurrencesTotal+" days");
+    else metaBits.push(freqLabel);
+    metaBits.push(fmt(rule.amount,2)+" AED"+(rule.kind==="split"?"/day":""));
+    s += '<div class="muted caption" style="margin-top:2px;">'+esc(metaBits.join(" \u00b7 "))+'</div>';
+    s += '</div></div>';
+    s += '<div class="row gap2" style="flex-shrink:0;">';
+    if (!complete) s += '<button data-action="toggle-recurring-active" data-id="'+esc(rule.id)+'" style="background:none;border:none;padding:5px;color:var(--text-muted);" aria-label="'+(rule.active?"Pause":"Resume")+'">'+(rule.active?ICONS.pause:ICONS.play)+'</button>';
+    s += '<button data-action="delete-recurring" data-id="'+esc(rule.id)+'" style="background:none;border:none;padding:5px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button>';
+    s += '</div></div>';
+
+    s += '<div class="hairline-top" style="margin-top:10px; padding-top:10px;">';
+    if (rule.occurrencesTotal != null) {
+      var pct = Math.round((logged/rule.occurrencesTotal)*100);
+      s += '<div class="row between" style="margin-bottom:6px;"><span class="muted caption">'+logged+' of '+rule.occurrencesTotal+' logged</span>';
+      if (rule.kind === "split") {
+        var remaining = round2(rule.splitTotal - ruleLoggedAmount(rule));
+        s += '<span class="mono caption">'+fmt(remaining,2)+' AED left</span>';
+      }
+      s += '</div>';
+      s += '<div style="background:var(--fill); border-radius:999px; height:6px; overflow:hidden;"><div style="width:'+pct+'%; height:100%; background:'+(complete?"var(--positive)":"var(--accent)")+';"></div></div>';
+    } else {
+      s += '<div class="muted caption">'+logged+' logged so far \u00b7 ongoing</div>';
+    }
+    var statusLine;
+    if (complete) statusLine = rule.occurrencesTotal != null ? "Finished" : "Ended "+shortLabel(rule.endDate);
+    else if (paused) statusLine = "Paused";
+    else {
+      var nextDue = recurringOccurrenceDate(rule, logged);
+      statusLine = (nextDue <= today ? "Due now" : "Next on "+shortLabel(nextDue));
+      if (rule.endDate) statusLine += " \u00b7 until "+shortLabel(rule.endDate);
+    }
+    s += '<div class="caption" style="margin-top:8px; color:'+(complete?"var(--positive)":(paused?"var(--text-muted)":"var(--accent)"))+';">'+esc(statusLine)+'</div>';
+    s += '</div></div>';
+    return s;
+  }
+
+  var activeRules = rules.filter(function(r){ return !ruleIsComplete(r); });
+  var doneRules = rules.filter(function(r){ return ruleIsComplete(r); });
+
+  if (!rules.length) {
+    h += '<div class="card card-pad" style="margin-bottom:16px;"><div class="muted" style="font-size:13px;">Nothing scheduled yet. Add a recurring payment below, or use \u201cSplit across days\u201d when adding a transaction to spread one cost out.</div></div>';
+  }
+  if (activeRules.length) {
+    h += '<div class="eyebrow" style="margin-bottom:8px;">Active</div>';
+    activeRules.forEach(function(r){ h += ruleCard(r); });
+  }
+  if (doneRules.length) {
+    h += '<div class="eyebrow" style="margin:16px 0 8px;">Finished</div>';
+    doneRules.forEach(function(r){ h += ruleCard(r); });
+  }
+
+  h += '<div class="card card-pad" style="margin-top:16px; margin-bottom:16px;">';
+  h += '<div class="eyebrow" style="margin-bottom:10px;">Add recurring payment</div>';
+  h += '<div style="position:relative; margin-bottom:8px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
+  h += '<input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="Amount" /></div>';
+  h += '<select id="recurringCategoryInput" class="field" style="margin-bottom:8px;"><option value="">No category</option>';
+  (state.settings.categories||[]).forEach(function(c){ h += '<option value="'+esc(c)+'">'+esc(c)+'</option>'; });
+  h += '</select>';
+  h += '<input id="recurringNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="What\u2019s it for? (e.g. Rent)" />';
+  h += '<div class="row gap2" style="margin-bottom:8px;">';
+  h += '<select id="recurringFrequencyInput" class="field" style="flex:1;"><option value="weekly">Every week</option><option value="monthly">Every month</option></select>';
+  h += '<input id="recurringStartDateInput" type="date" class="field mono" style="flex:1;" value="'+today+'" />';
+  h += '</div>';
+  h += '<div class="muted caption" style="margin-bottom:10px;">Starts on that date, then repeats on the same day each week or month.</div>';
+  var limitMode = state.recurringLimitMode || "ongoing";
+  h += '<div class="seg" style="margin-bottom:8px;">';
+  [["ongoing","Ongoing"],["count","Set number"],["until","Until date"]].forEach(function(opt){
+    h += '<button class="seg-btn" role="tab" aria-selected="'+(limitMode===opt[0])+'" data-action="set-recurring-limit-mode" data-mode="'+opt[0]+'">'+opt[1]+'</button>';
+  });
+  h += '</div>';
+  if (limitMode === "count") {
+    h += '<input id="recurringCountInput" type="number" inputmode="numeric" min="1" step="1" class="field" style="margin-bottom:8px;" placeholder="Number of times" />';
+  } else if (limitMode === "until") {
+    h += '<input id="recurringEndDateInput" type="date" class="field mono" style="margin-bottom:8px;" />';
+    h += '<div class="muted caption" style="margin-bottom:8px;">Stops after this date.</div>';
+  }
+  h += '<button data-action="add-recurring" class="btn-accent" style="width:100%;">Add recurring payment</button>';
+  h += '</div>';
+  return h;
+}
+
 function renderBottomNav() {
   var tabs = [
     {id:"home", label:"Home", icon:ICONS.home},
-    {id:"transactions", label:"Transactions", icon:ICONS.list},
+    {id:"transactions", label:"Txns", icon:ICONS.list},
     {id:"calendar", label:"Calendar", icon:ICONS.calendar},
+    {id:"plans", label:"Plans", icon:ICONS.repeatNav},
     {id:"analysis", label:"Analysis", icon:ICONS.chart},
   ];
   var h = '<div class="tabbar">';
@@ -2461,32 +2553,36 @@ function handleAddTransaction() {
   render();
 }
 
-/* Splits one entered amount across N consecutive days ending on the chosen
-   date (never forward into the future, since the date picker itself is
-   already capped at today). Each day gets an equal floor-rounded share
-   except the last, which absorbs whatever's left — so the days read evenly
-   at a glance, and the total is always exact to the cent regardless of how
-   unevenly the amount divides. */
-function handleAddSplitTransaction(endDate, totalAmount, category, note, splitDays) {
+/* Spreads one total across N consecutive days running FORWARD from the chosen
+   date, as a tracked plan rather than a pile of pre-written entries. Days that
+   have already passed get logged immediately by the shared catch-up engine;
+   days still to come are logged as each arrives — which is what makes "how
+   much is left / what's coming up" answerable at all. Per-day share is
+   floor-rounded with the final day absorbing the leftover cents, so the days
+   read evenly while the total stays exact. */
+function handleAddSplitTransaction(startDate, totalAmount, category, note, splitDays) {
   var perDayFloor = Math.floor((totalAmount/splitDays)*100)/100;
-  var nextEntries = Object.assign({}, state.entries);
-  var cur = addDays(parseD(endDate), -(splitDays-1));
-  var runningSum = 0;
-  for (var i=0; i<splitDays; i++) {
-    var ds = toStr(cur);
-    var isLast = i === splitDays-1;
-    var amount = isLast ? round2(totalAmount - runningSum) : perDayFloor;
-    if (!isLast) runningSum += perDayFloor;
-    var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7)+"-"+i, amount: amount, note: note, category: category };
-    var existingDay = nextEntries[ds];
-    nextEntries[ds] = existingDay ? Object.assign({}, existingDay, { items: existingDay.items.concat([newItem]) }) : { allowance: dailyAllowance(), items: [newItem] };
-    cur = addDays(cur, 1);
-  }
-  state.entryDate = endDate;
+  var newRule = {
+    id: Date.now()+"-"+Math.random().toString(36).slice(2,7),
+    kind: "split",
+    amount: perDayFloor,
+    splitTotal: totalAmount,
+    category: category,
+    note: note,
+    frequency: "daily",
+    startDate: startDate,
+    endDate: null,
+    occurrencesTotal: splitDays,
+    occurrencesLogged: 0,
+    active: true
+  };
+  state.settings = Object.assign({}, state.settings, { recurringRules: (state.settings.recurringRules||[]).concat([newRule]) });
+  runRecurringCatchUp();
+  state.entryDate = startDate;
   state.showAddTxn = false;
   state.txnSplitMode = "single";
-  persistAll(state.settings, nextEntries, "your entries");
-  showToast("Split across "+splitDays+" days");
+  persistAll(state.settings, state.entries, "your entries");
+  showToast("Spread across "+splitDays+" days");
   render();
 }
 
@@ -2790,22 +2886,30 @@ document.addEventListener("click", function(e) {
       if (isNaN(recAmount) || recAmount < 0 || !recStart) break;
       var recLimitMode = state.recurringLimitMode || "ongoing";
       var recCount = null;
+      var recEndDate = null;
       if (recLimitMode === "count") {
         var recCountEl = document.getElementById("recurringCountInput");
         var parsedCount = parseInt(recCountEl ? recCountEl.value : "", 10);
         if (isNaN(parsedCount) || parsedCount < 1) break;
         recCount = parsedCount;
+      } else if (recLimitMode === "until") {
+        var recEndEl = document.getElementById("recurringEndDateInput");
+        recEndDate = (recEndEl && recEndEl.value) ? recEndEl.value : null;
+        if (!recEndDate || recEndDate < recStart) break;
       }
       var recCategoryEl = document.getElementById("recurringCategoryInput");
       var recNoteEl = document.getElementById("recurringNoteInput");
       var recFreqEl = document.getElementById("recurringFrequencyInput");
       var newRule = {
         id: Date.now()+"-"+Math.random().toString(36).slice(2,7),
+        kind: "recurring",
         amount: recAmount,
+        splitTotal: null,
         category: recCategoryEl ? recCategoryEl.value : "",
         note: recNoteEl ? recNoteEl.value.trim() : "",
         frequency: (recFreqEl && recFreqEl.value === "monthly") ? "monthly" : "weekly",
         startDate: recStart,
+        endDate: recEndDate,
         occurrencesTotal: recCount,
         occurrencesLogged: 0,
         active: true
