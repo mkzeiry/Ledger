@@ -1787,7 +1787,7 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   if (!hasForecast) {
     s += '<div class="muted caption" style="margin-top:8px;">'+(daysLeftFC<=0?"Period is complete — nothing left to forecast.":"Log a full day to start forecasting.")+'</div>';
   } else if (usedFallback) {
-    s += '<div class="muted caption" style="margin-top:8px;">No spending logged yet this '+esc(periodWord)+' — projecting from your '+fmt(avgSpentPerDay,0)+' AED/day overall average.</div>';
+    s += '<div class="muted caption" style="margin-top:8px;">'+(todaySpent>0?"Today\u2019s spending alone isn\u2019t enough to set a pace yet":"No spending logged yet this "+esc(periodWord))+' — projecting from your '+fmt(avgSpentPerDay,0)+' AED/day overall average.</div>';
   }
   s += '</div>';
   lastForecastChartData = { rows: rows, totalDays: totalDays, target: target, projectedSpend: projectedSpend, start: periodStart };
