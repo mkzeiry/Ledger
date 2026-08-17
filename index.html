@@ -855,10 +855,11 @@ function render() {
 
   root.innerHTML = html;
   if (state.page === "home" && lastChartData) wireBalanceChart(lastChartData);
-  if (state.page === "analysis" && lastForecastChartData) wireForecastChart(lastForecastChartData);
+  if ((state.page === "analysis" || state.page === "home") && lastForecastChartData) wireForecastChart(lastForecastChartData);
 }
 
 function renderHomeBody(T, da) {
+  lastForecastChartData = null;
   var period = getPeriodBounds(state.view, state.offset, state.settings.weeklyTarget, da);
   var displayed = periodStats(period.startStr, period.endStr);
 
@@ -996,23 +997,30 @@ function renderHomeBody(T, da) {
   }
   h += '</div>'; // end period card
 
-  /* Forecast: project where this period lands if spending continues at the
-     current pace. Uses the same "Avg daily spend" figure shown above (which
-     excludes today, since today isn't finished yet) for consistency. */
-  if (isCurrent && daysLeft > 0 && avgSpentPerDay !== null) {
+  /* Forecast: same card, same math, same chart as Analysis's Forecasted
+     Spend section — projecting where this period lands at the current pace
+     (the "Avg daily spend" above, which excludes today since it isn't
+     finished yet), reusing renderForecastChart/wireForecastChart so the two
+     pages can never show conflicting numbers or drift apart visually. */
+  if (isCurrent && chartData.length) {
     var pacePerDay = avgSpentPerDay;
-    var projectedSpend = displayed.spent + pacePerDay * daysLeft;
-    var projectedSaved = period.target - projectedSpend;
-    var onTrack = projectedSaved >= 0;
-    h += '<div class="card" style="padding:16px; margin-bottom:16px;">';
-    h += '<div class="eyebrow" style="margin-bottom:2px;">Forecast at '+(state.view==="week"?"week":state.view==="month"?"month":"year")+' close</div>';
-    h += '<div class="muted" style="font-size:11px; margin-bottom:12px;">Based on your '+fmt(pacePerDay,0)+' AED/day average, for the remaining '+daysLeft+' day'+(daysLeft===1?"":"s")+'</div>';
-    h += '<div class="stat-grid">';
-    h += statBlock("Projected spend", fmt(projectedSpend,0)+" AED", projectedSpend>period.target?"var(--rust)":"var(--text)");
-    h += statBlock("Projected saved", (projectedSaved>=0?"+":"−")+fmt(Math.abs(projectedSaved),0)+" AED", onTrack?"var(--positive)":"var(--rust)");
+    var hasForecastHome = daysLeft > 0 && avgSpentPerDay !== null;
+    var projectedSpend = hasForecastHome ? (displayed.spent + pacePerDay * daysLeft) : displayed.spent;
+    var vsBudgetPctHome = period.target > 0 ? Math.round(((projectedSpend-period.target)/period.target)*100) : 0;
+    var periodWordHome = state.view === "week" ? "week" : state.view === "month" ? "month" : "year";
+    h += '<div class="card card-pad" style="margin-bottom:16px;">';
+    h += '<div class="eyebrow" style="margin-bottom:10px;">Forecasted spend</div>';
+    h += '<div class="row between" style="align-items:flex-start; margin-bottom:14px;">';
+    h += '<div><div class="muted caption">THIS '+esc(periodWordHome.toUpperCase())+'</div><div class="mono" style="font-size:22px; font-weight:700; margin-top:2px;">'+fmt(projectedSpend,0)+' AED</div></div>';
+    h += '<div style="text-align:right;"><div class="muted caption">VS '+esc(basisWordCap().toUpperCase())+'</div><div class="chip" style="margin-top:4px; background:'+(vsBudgetPctHome<=0?"var(--positive)":"var(--rust)")+'; color:#fff; font-weight:700;">'+(vsBudgetPctHome>=0?"+":"")+vsBudgetPctHome+'%</div></div>';
     h += '</div>';
-    h += '<div style="margin-top:10px; font-size:12px; color:'+(onTrack?"var(--positive)":"var(--rust)")+';">'+(onTrack?"On track to finish under budget":"On track to overshoot — ease off to recover")+'</div>';
+    h += '<div id="forecastChartWrap" style="position:relative;">';
+    h += '<div id="forecastChartTip" class="mono footnote" style="position:absolute; top:0; left:50%; transform:translateX(-50%); background:var(--fill); border-radius:8px; padding:4px 9px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:2;"></div>';
+    h += renderForecastChart(displayed.rows, period.days, period.target, projectedSpend, T, basisWordCap());
     h += '</div>';
+    if (!hasForecastHome) h += '<div class="muted caption" style="margin-top:8px;">'+(daysLeft<=0?"Period is complete — nothing left to forecast.":"Log a full day to start forecasting.")+'</div>';
+    h += '</div>';
+    lastForecastChartData = { rows: displayed.rows, totalDays: period.days, target: period.target, projectedSpend: projectedSpend, start: period.startStr };
   }
 
   return h;
