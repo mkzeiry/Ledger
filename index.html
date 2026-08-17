@@ -591,13 +591,16 @@ function renderChart(data, T) {
     return '<line x1="'+g.padL+'" x2="'+(g.w-g.padR)+'" y1="'+g.y(t)+'" y2="'+g.y(t)+'" stroke="'+T.hairline+'" stroke-dasharray="3,3"/>'
       + '<text x="2" y="'+(g.y(t)+3)+'" font-size="9" fill="'+T.textMuted+'" font-family="var(--f-mono)">'+fmt(t)+'</text>';
   }).join("");
+  var axisLabels = data.length > 1
+    ? '<text x="'+g.x(0)+'" y="'+(g.h-4)+'" font-size="9" fill="'+T.textMuted+'">'+esc(data[0].label)+'</text>'
+      + '<text x="'+g.x(data.length-1)+'" y="'+(g.h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="end">'+esc(data[data.length-1].label)+'</text>'
+    : (data.length === 1 ? '<text x="'+g.x(0)+'" y="'+(g.h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="middle">'+esc(data[0].label)+'</text>' : "");
   return '<svg id="balanceChartSvg" viewBox="0 0 '+g.w+' '+g.h+'" width="100%" height="'+g.h+'" preserveAspectRatio="none">'
     + tickSvg
     + (hasLine ? '<path d="'+areaD+'" fill="'+T.accent+'" fill-opacity="0.18" stroke="none"/>' : "")
     + (hasLine ? '<path d="'+curveD+'" fill="none" stroke="'+T.accent+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' : "")
     + singleDot
-    + '<text x="'+g.x(0)+'" y="'+(g.h-4)+'" font-size="9" fill="'+T.textMuted+'">'+esc(data[0].label)+'</text>'
-    + '<text x="'+g.x(data.length-1)+'" y="'+(g.h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="end">'+esc(data[data.length-1].label)+'</text>'
+    + axisLabels
     + '<line id="balanceChartCrosshair" x1="0" x2="0" y1="'+g.padT+'" y2="'+(g.h-g.padB)+'" stroke="'+T.text+'" stroke-width="1" opacity="0"/>'
     + '<circle id="balanceChartDot" r="4.5" fill="'+T.accent+'" stroke="'+T.bg+'" stroke-width="2" opacity="0"/>'
     + '<rect id="balanceChartHit" x="0" y="0" width="'+g.w+'" height="'+g.h+'" fill="transparent" style="touch-action:none;"/>'
