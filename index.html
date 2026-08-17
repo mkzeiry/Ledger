@@ -548,16 +548,15 @@ function computeDailyBudgetLeft(viewType, spentTodayVal) {
 /* ---------------- chart (plain SVG string) ---------------- */
 /* Shared by renderChart (drawing) and wireBalanceChart (touch hit-testing) so
    the two can never disagree about where a given day sits on the x-axis. */
-function balanceChartGeom(data, totalDays) {
-  var n = totalDays || data.length || 1;
+function balanceChartGeom(data) {
   var w=340,h=230,padL=40,padR=8,padT=12,padB=22;
   var values = data.map(function(d){return d.balance;});
   var min = Math.min.apply(null,[0].concat(values)), max = Math.max.apply(null,[0].concat(values));
   var range = (max-min)||1;
   var plotW=w-padL-padR, plotH=h-padT-padB;
-  function x(i){ return padL + (n>1 ? (i/(n-1))*plotW : plotW/2); }
+  function x(i){ return padL + (data.length>1 ? (i/(data.length-1))*plotW : plotW/2); }
   function y(v){ return padT + plotH - ((v-min)/range)*plotH; }
-  return { w:w, h:h, padL:padL, padR:padR, padT:padT, padB:padB, plotW:plotW, plotH:plotH, min:min, max:max, x:x, y:y, n:n };
+  return { w:w, h:h, padL:padL, padR:padR, padT:padT, padB:padB, plotW:plotW, plotH:plotH, min:min, max:max, x:x, y:y };
 }
 
 /* Smooth cubic-bezier path through a set of points (light Catmull-Rom-style
@@ -579,8 +578,8 @@ function smoothPathD(points) {
   }, "");
 }
 
-function renderChart(data, T, totalDays, periodStartLabel, periodEndLabel) {
-  var g = balanceChartGeom(data, totalDays);
+function renderChart(data, T) {
+  var g = balanceChartGeom(data);
   var hasLine = data.length >= 2;
   var pts = data.map(function(d,i){ return [g.x(i), g.y(d.balance)]; });
   var curveD = hasLine ? smoothPathD(pts) : "";
@@ -592,15 +591,13 @@ function renderChart(data, T, totalDays, periodStartLabel, periodEndLabel) {
     return '<line x1="'+g.padL+'" x2="'+(g.w-g.padR)+'" y1="'+g.y(t)+'" y2="'+g.y(t)+'" stroke="'+T.hairline+'" stroke-dasharray="3,3"/>'
       + '<text x="2" y="'+(g.y(t)+3)+'" font-size="9" fill="'+T.textMuted+'" font-family="var(--f-mono)">'+fmt(t)+'</text>';
   }).join("");
-  var startLabel = periodStartLabel != null ? periodStartLabel : (data.length ? data[0].label : "");
-  var endLabel = periodEndLabel != null ? periodEndLabel : (data.length ? data[data.length-1].label : "");
   return '<svg id="balanceChartSvg" viewBox="0 0 '+g.w+' '+g.h+'" width="100%" height="'+g.h+'" preserveAspectRatio="none">'
     + tickSvg
     + (hasLine ? '<path d="'+areaD+'" fill="'+T.accent+'" fill-opacity="0.18" stroke="none"/>' : "")
     + (hasLine ? '<path d="'+curveD+'" fill="none" stroke="'+T.accent+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' : "")
     + singleDot
-    + '<text x="'+g.x(0)+'" y="'+(g.h-4)+'" font-size="9" fill="'+T.textMuted+'">'+esc(startLabel)+'</text>'
-    + '<text x="'+g.x(g.n-1)+'" y="'+(g.h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="end">'+esc(endLabel)+'</text>'
+    + '<text x="'+g.x(0)+'" y="'+(g.h-4)+'" font-size="9" fill="'+T.textMuted+'">'+esc(data[0].label)+'</text>'
+    + '<text x="'+g.x(data.length-1)+'" y="'+(g.h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="end">'+esc(data[data.length-1].label)+'</text>'
     + '<line id="balanceChartCrosshair" x1="0" x2="0" y1="'+g.padT+'" y2="'+(g.h-g.padB)+'" stroke="'+T.text+'" stroke-width="1" opacity="0"/>'
     + '<circle id="balanceChartDot" r="4.5" fill="'+T.accent+'" stroke="'+T.bg+'" stroke-width="2" opacity="0"/>'
     + '<rect id="balanceChartHit" x="0" y="0" width="'+g.w+'" height="'+g.h+'" fill="transparent" style="touch-action:none;"/>'
@@ -612,21 +609,21 @@ function renderChart(data, T, totalDays, periodStartLabel, periodEndLabel) {
    pixel of finger movement would destroy the SVG node and feel laggy, so this
    updates the existing elements' attributes directly instead. Re-wired after
    every render() since the chart's DOM is rebuilt each time. */
-function wireBalanceChart(data, totalDays) {
+function wireBalanceChart(data) {
   var svg = document.getElementById("balanceChartSvg");
   var hit = document.getElementById("balanceChartHit");
   var crosshair = document.getElementById("balanceChartCrosshair");
   var dot = document.getElementById("balanceChartDot");
   var tip = document.getElementById("balanceChartTip");
   if (!svg || !hit || !crosshair || !dot || !tip || !data || data.length < 1) return;
-  var g = balanceChartGeom(data, totalDays);
+  var g = balanceChartGeom(data);
 
   function indexAt(clientX) {
     var rect = svg.getBoundingClientRect();
     if (!rect.width) return 0;
     var frac = Math.max(0, Math.min(1, (clientX-rect.left)/rect.width));
     var vbX = frac * g.w;
-    var idx = Math.round(((vbX-g.padL)/g.plotW) * (g.n-1));
+    var idx = Math.round(((vbX-g.padL)/g.plotW) * (data.length-1));
     return Math.max(0, Math.min(data.length-1, idx));
   }
   function showAt(idx) {
@@ -854,7 +851,7 @@ function render() {
   }
 
   root.innerHTML = html;
-  if (state.page === "home" && lastChartData) wireBalanceChart(lastChartData.points, lastChartData.totalDays);
+  if (state.page === "home" && lastChartData) wireBalanceChart(lastChartData);
   if (state.page === "analysis" && lastForecastChartData) wireForecastChart(lastForecastChartData);
 }
 
@@ -990,9 +987,9 @@ function renderHomeBody(T, da) {
     h += '<div class="hairline-top" style="padding:12px 8px 12px;">';
     h += '<div id="balanceChartWrap" style="position:relative;">';
     h += '<div id="balanceChartTip" class="mono footnote" style="position:absolute; top:0; left:50%; transform:translateX(-50%); background:var(--fill); border-radius:8px; padding:4px 9px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:2;"></div>';
-    h += renderChart(chartData, T, period.days, shortLabel(period.startStr), shortLabel(period.endStr));
+    h += renderChart(chartData, T);
     h += '</div></div>';
-    lastChartData = { points: chartData, totalDays: period.days };
+    lastChartData = chartData;
   }
   h += '</div>'; // end period card
 
