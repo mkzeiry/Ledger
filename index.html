@@ -425,6 +425,7 @@ var state = {
   analysisSelectedBucket: null,
   analysisCategoryFilter: "",
   basis: "budget",
+  forecastCompareMode: "previous",
   incomeDraftMode: null,
   incomeDraftAmount: null,
   categoryStyleEditing: null,
@@ -650,6 +651,23 @@ function overallAvgDailySpend() {
 function effectiveRangeStart(startStr) {
   var tsd = state.settings.trackingStartDate;
   return (tsd && tsd > startStr) ? tsd : startStr;
+}
+
+/* Rows for the period immediately preceding the one currently shown, used
+   for the Forecast chart's "previous period" compare line. week/month/year
+   reuse getPeriodBounds so "previous" means the actual previous calendar
+   week/month/year (handled correctly even when month lengths differ, unlike
+   a naive "N days earlier"); a custom range has no calendar analog, so it
+   falls back to the immediately preceding range of the same length. */
+function previousPeriodRows(mode, offset, startStr, endStr) {
+  if (mode === "custom") {
+    var lenDays = daysBetween(startStr, endStr) + 1;
+    var prevEnd = toStr(addDays(parseD(startStr), -1));
+    var prevStart = toStr(addDays(parseD(prevEnd), -(lenDays-1)));
+    return periodStats(prevStart, prevEnd).rows;
+  }
+  var per = getPeriodBounds(mode, (offset||0) - 1, currentWeeklyTarget(), dailyReference());
+  return periodStats(per.startStr, per.endStr).rows;
 }
 
 function periodStats(startStr, endStrRaw) {
@@ -1155,7 +1173,8 @@ function renderHomeBody(T, da) {
     var periodWordHome = state.view === "week" ? "week" : state.view === "month" ? "month" : "year";
     var chartStartHome = effectiveRangeStart(period.startStr);
     var chartDaysHome = daysBetween(chartStartHome, period.endStr) + 1;
-    h += buildForecastCard(displayed.rows, chartDaysHome, period.target, chartStartHome, T, basisWordCap(), periodWordHome);
+    var compareRowsHome = previousPeriodRows(state.view, state.offset, period.startStr, period.endStr);
+    h += buildForecastCard(displayed.rows, chartDaysHome, period.target, chartStartHome, T, basisWordCap(), periodWordHome, compareRowsHome);
   }
 
   return h;
@@ -1778,14 +1797,15 @@ function renderDailyBarChart(buckets, getValue, getColor, T, refLine, selectedKe
 
 /* Shared by renderForecastChart and wireForecastChart, mirroring
    balanceChartGeom's role for the Home page chart. */
-function forecastChartGeom(rows, totalDays, target, projectedSpend) {
+function forecastChartGeom(rows, totalDays, target, projectedSpend, compareValues) {
   var w=340, h=190, padL=44, padR=8, padT=24, padB=20;
   var plotW=w-padL-padR, plotH=h-padT-padB;
   var n = Math.max(totalDays, 2);
   function xAt(i){ return padL + (i/(n-1))*plotW; }
   var actualVals = []; var acc = 0;
   rows.forEach(function(r){ acc += r.spent; actualVals.push(acc); });
-  var maxY = Math.max(target, projectedSpend, actualVals.length ? Math.max.apply(null, actualVals) : 0, 1);
+  var compareMax = (compareValues && compareValues.length) ? Math.max.apply(null, compareValues) : 0;
+  var maxY = Math.max(target, projectedSpend, actualVals.length ? Math.max.apply(null, actualVals) : 0, compareMax, 1);
   function yAt(v){ return padT + plotH - (v/maxY)*plotH; }
   var lastIdx = actualVals.length - 1;
   var lastVal = actualVals.length ? actualVals[actualVals.length-1] : 0;
@@ -1810,8 +1830,8 @@ function forecastValueAt(g, idx, projectedSpend) {
    projection (as some budget apps show) would imply spending stops entirely;
    a straight line to the real forecast total is the honest version of the
    same picture. */
-function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel) {
-  var g = forecastChartGeom(rows, totalDays, target, projectedSpend);
+function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel, compareValues) {
+  var g = forecastChartGeom(rows, totalDays, target, projectedSpend, compareValues);
   var w=g.w, h=g.h, padL=g.padL, padR=g.padR, padT=g.padT, padB=g.padB, plotW=g.plotW, plotH=g.plotH, n=g.n;
   var xAt=g.xAt, yAt=g.yAt, maxY=g.maxY, actualVals=g.actualVals, lastIdx=g.lastIdx, lastVal=g.lastVal;
 
@@ -1827,6 +1847,18 @@ function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabe
       + '<text x="'+xAt(lastIdx)+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="middle">Today</text>';
   }
 
+  /* Compare line: a secondary, visually-muted reference curve (previous
+     period's actual pace, or a flat "average pace" line) drawn UNDER the
+     real actual/projected lines so it reads as background context rather
+     than competing with the primary data. */
+  var compareD = "";
+  if (compareValues && compareValues.length >= 2) {
+    var comparePts = compareValues.map(function(v,i){ return [xAt(i), yAt(v)]; });
+    compareD = smoothPathD(comparePts);
+  } else if (compareValues && compareValues.length === 1) {
+    compareD = "M "+xAt(0)+","+yAt(compareValues[0]);
+  }
+
   var budgetY = yAt(target);
   var ticksSet = {}; [0, Math.round(maxY/2), Math.round(maxY)].forEach(function(t){ ticksSet[t]=true; });
   var tickSvg = Object.keys(ticksSet).map(Number).map(function(t){
@@ -1838,6 +1870,7 @@ function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabe
     + tickSvg
     + '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+budgetY+'" y2="'+budgetY+'" stroke="'+T.text+'" stroke-width="1.5" stroke-dasharray="4,3"/>'
     + '<text x="'+padL+'" y="'+(budgetY-5)+'" font-size="9" font-weight="600" fill="'+T.text+'">'+esc(refLabel||"Budget")+'</text>'
+    + (compareD ? '<path d="'+compareD+'" fill="none" stroke="'+T.textMuted+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="5,4"/>' : "")
     + (areaD ? '<path d="'+areaD+'" fill="'+T.positive+'" fill-opacity="0.16" stroke="none"/>' : "")
     + (curveD ? '<path d="'+curveD+'" fill="none" stroke="'+T.positive+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' : "")
     + (forecastD ? '<path d="'+forecastD+'" fill="none" stroke="'+T.accent+'" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1,5"/>' : "")
@@ -1860,7 +1893,7 @@ function wireForecastChart(data) {
   var dot = document.getElementById("forecastChartDot");
   var tip = document.getElementById("forecastChartTip");
   if (!svg || !hit || !crosshair || !dot || !tip || !data) return;
-  var g = forecastChartGeom(data.rows, data.totalDays, data.target, data.projectedSpend);
+  var g = forecastChartGeom(data.rows, data.totalDays, data.target, data.projectedSpend, data.compareValues);
   if (g.n < 2) return;
 
   function indexAt(clientX) {
@@ -1880,7 +1913,11 @@ function wireForecastChart(data) {
     tip.style.opacity = "1";
     var dateStr = shortLabel(toStr(addDays(parseD(data.start), idx)));
     var isProjected = idx > g.lastIdx;
-    tip.innerHTML = '<span class="muted">'+esc(dateStr)+(isProjected?" (projected)":"")+'</span> <span style="color:var(--text); font-weight:600;">'+fmt(Math.round(val),0)+' AED</span>';
+    var tipHtml = '<span class="muted">'+esc(dateStr)+(isProjected?" (projected)":"")+'</span> <span style="color:var(--text); font-weight:600;">'+fmt(Math.round(val),0)+' AED</span>';
+    if (data.compareValues && data.compareValues.length > idx) {
+      tipHtml += ' <span class="muted">· '+esc(data.compareLabel||"Compare")+' </span><span style="color:var(--text-muted); font-weight:600;">'+fmt(Math.round(data.compareValues[idx]),0)+' AED</span>';
+    }
+    tip.innerHTML = tipHtml;
   }
   function hide() {
     crosshair.setAttribute("opacity", "0");
@@ -1908,7 +1945,7 @@ function wireForecastChart(data) {
    and once local days reach K the historical average barely matters anymore.
    This avoids both a flat, useless day-1 projection AND an abrupt full
    switchover the moment a single local day exists. */
-function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, periodWord) {
+function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, periodWord, compareRows) {
   if (!rows.length) return "";
   var today = todayStr();
   var elapsedDays = rows.length;
@@ -1935,6 +1972,31 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   var favorable = projectedSaved >= 0;
   var vsBudgetPct = target > 0 ? Math.round(((projectedSpend-target)/target)*100) : 0;
 
+  /* Compare line: an optional second curve on the chart, toggled between
+     the previous period's actual day-by-day pace and a flat "average pace"
+     reference. "Average" reuses avgSpentPerDay as-is — the exact same pace
+     already driving the projection above — so the reference line and the
+     dotted projection can never imply two different averages. Indexed by
+     day-offset (not calendar date) so it lines up with the current period's
+     x-axis regardless of the two periods' actual dates. */
+  var compareMode = state.forecastCompareMode === "average" ? "average" : "previous";
+  var compareLabel = compareMode === "average" ? "Average pace" : (periodWord === "period" ? "Previous period" : ("Last "+periodWord));
+  var compareValues = null;
+  var compareUnavailableNote = null;
+  if (compareMode === "previous") {
+    if (compareRows && compareRows.length) {
+      var cAcc = 0;
+      compareValues = compareRows.slice(0, totalDays).map(function(r){ cAcc += r.spent; return cAcc; });
+    } else {
+      compareUnavailableNote = "No " + compareLabel.toLowerCase() + " logged yet to compare against.";
+    }
+  } else if (avgSpentPerDay !== null) {
+    compareValues = [];
+    for (var ci=0; ci<totalDays; ci++) compareValues.push(avgSpentPerDay * ci);
+  } else {
+    compareUnavailableNote = "Not enough history yet to show an average pace.";
+  }
+
   var s = '<div class="card card-pad" style="margin-bottom:16px;">';
   s += '<div class="eyebrow" style="margin-bottom:10px;">Forecasted spend</div>';
   s += '<div class="row between" style="align-items:flex-start; margin-bottom:14px;">';
@@ -1943,11 +2005,25 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   s += '<div class="chip" style="margin-top:4px; background:'+(favorable?"var(--positive)":"var(--rust)")+'; color:#fff; font-weight:700;">'+(vsBudgetPct>=0?"+":"")+vsBudgetPct+'%</div>';
   s += '<div class="mono footnote" style="margin-top:4px; color:'+(favorable?"var(--positive)":"var(--rust)")+';">'+(projectedSaved>=0?"+":"−")+fmt(Math.abs(projectedSaved),0)+' AED</div>';
   s += '</div></div>';
+  s += '<div class="seg" style="margin-bottom:12px;">';
+  [["previous", periodWord === "period" ? "vs Previous period" : ("vs Last "+periodWord)], ["average","vs Average pace"]].forEach(function(opt){
+    var active = compareMode === opt[0];
+    s += '<button class="seg-btn" role="tab" aria-selected="'+active+'" data-action="set-forecast-compare" data-mode="'+opt[0]+'">'+opt[1]+'</button>';
+  });
+  s += '</div>';
   s += '<div id="forecastChartWrap" style="position:relative;">';
   s += '<div id="forecastChartTip" class="mono footnote" style="position:absolute; top:0; left:50%; transform:translateX(-50%); background:var(--fill); border-radius:8px; padding:4px 9px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:2;"></div>';
-  s += renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel);
+  s += renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel, compareValues);
   s += '</div>';
+  if (compareValues) {
+    s += '<div class="row gap2" style="margin-top:10px; flex-wrap:wrap;">';
+    s += legendSwatch(T.positive, "Actual");
+    s += legendSwatch(T.accent, "Projected");
+    s += legendSwatch(T.textMuted, compareLabel);
+    s += '</div>';
+  }
   var notes = [];
+  if (compareUnavailableNote) notes.push(compareUnavailableNote);
   if (!hasForecast) {
     notes.push(daysLeftFC<=0 ? "Period is complete — nothing left to forecast." : "Log a full day to start forecasting.");
   } else {
@@ -1956,7 +2032,7 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   }
   notes.forEach(function(n){ s += '<div class="muted caption" style="margin-top:8px;">'+esc(n)+'</div>'; });
   s += '</div>';
-  lastForecastChartData = { rows: rows, totalDays: totalDays, target: target, projectedSpend: projectedSpend, start: periodStart };
+  lastForecastChartData = { rows: rows, totalDays: totalDays, target: target, projectedSpend: projectedSpend, start: periodStart, compareValues: compareValues, compareLabel: compareLabel };
   return s;
 }
 
@@ -2261,7 +2337,8 @@ function renderAnalysisBody(T) {
     var periodWord = info.mode === "week" ? "week" : info.mode === "month" ? "month" : info.mode === "year" ? "year" : "period";
     var chartStart = effectiveRangeStart(info.start);
     var chartDays = daysBetween(chartStart, info.end) + 1;
-    return buildForecastCard(cs.rows, chartDays, periodTarget, chartStart, T, basisWordCap(), periodWord);
+    var compareRowsA = previousPeriodRows(info.mode, state.analysisOffset, info.start, info.end);
+    return buildForecastCard(cs.rows, chartDays, periodTarget, chartStart, T, basisWordCap(), periodWord, compareRowsA);
   };
 
   sectionHtml.spendTrend = function(){
@@ -3078,6 +3155,10 @@ document.addEventListener("click", function(e) {
     case "set-basis":
       state.basis = el.dataset.basis;
       state.analysisSelectedBucket = null;
+      render();
+      break;
+    case "set-forecast-compare":
+      state.forecastCompareMode = el.dataset.mode;
       render();
       break;
     case "open-income-settings":
