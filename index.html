@@ -1816,7 +1816,7 @@ function renderDailyBarChart(buckets, getValue, getColor, T, refLine, selectedKe
 
 /* Shared by renderForecastChart and wireForecastChart, mirroring
    balanceChartGeom's role for the Home page chart. */
-function forecastChartGeom(rows, totalDays, target, projectedSpend, compareValues) {
+function forecastChartGeom(rows, totalDays, target, projectedSpend, compareValues, pastDays) {
   var w=340, h=190, padL=44, padR=8, padT=24, padB=20;
   var plotW=w-padL-padR, plotH=h-padT-padB;
   var n = Math.max(totalDays, 2);
@@ -1828,8 +1828,17 @@ function forecastChartGeom(rows, totalDays, target, projectedSpend, compareValue
   function yAt(v){ return padT + plotH - (v/maxY)*plotH; }
   var lastIdx = actualVals.length - 1;
   var lastVal = actualVals.length ? actualVals[actualVals.length-1] : 0;
+  /* knownIdx/knownVal mark the last FULLY COMPLETE day — where the dotted
+     projection actually starts from, since today (if it's the last row)
+     isn't complete yet and shouldn't be treated as a settled point. On a
+     period's first day there is no complete day yet, so this anchors to
+     the very start of the chart at 0. */
+  var pd = pastDays || 0;
+  var knownIdx = pd > 0 ? pd - 1 : 0;
+  var knownVal = pd > 0 ? actualVals[pd-1] : 0;
   return { w:w, h:h, padL:padL, padR:padR, padT:padT, padB:padB, plotW:plotW, plotH:plotH,
-           n:n, xAt:xAt, yAt:yAt, maxY:maxY, actualVals:actualVals, lastIdx:lastIdx, lastVal:lastVal };
+           n:n, xAt:xAt, yAt:yAt, maxY:maxY, actualVals:actualVals, lastIdx:lastIdx, lastVal:lastVal,
+           knownIdx:knownIdx, knownVal:knownVal };
 }
 /* Cumulative value at any index along the chart, actual portion or
    interpolated along the straight projected segment beyond it — lets the
@@ -1837,9 +1846,9 @@ function forecastChartGeom(rows, totalDays, target, projectedSpend, compareValue
    finger lands. */
 function forecastValueAt(g, idx, projectedSpend) {
   if (idx <= g.lastIdx && g.actualVals.length) return g.actualVals[Math.max(0,idx)];
-  if (g.n-1 === g.lastIdx) return g.lastVal;
-  var frac = (idx - g.lastIdx) / ((g.n-1) - g.lastIdx);
-  return g.lastVal + (projectedSpend - g.lastVal) * frac;
+  if (g.n-1 === g.knownIdx) return g.knownVal;
+  var frac = (idx - g.knownIdx) / ((g.n-1) - g.knownIdx);
+  return g.knownVal + (projectedSpend - g.knownVal) * frac;
 }
 
 /* Cumulative spend for the elapsed portion of a period (smooth green curve),
@@ -1849,8 +1858,8 @@ function forecastValueAt(g, idx, projectedSpend) {
    projection (as some budget apps show) would imply spending stops entirely;
    a straight line to the real forecast total is the honest version of the
    same picture. */
-function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel, compareValues) {
-  var g = forecastChartGeom(rows, totalDays, target, projectedSpend, compareValues);
+function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel, compareValues, pastDays, hasForecast) {
+  var g = forecastChartGeom(rows, totalDays, target, projectedSpend, compareValues, pastDays);
   var w=g.w, h=g.h, padL=g.padL, padR=g.padR, padT=g.padT, padB=g.padB, plotW=g.plotW, plotH=g.plotH, n=g.n;
   var xAt=g.xAt, yAt=g.yAt, maxY=g.maxY, actualVals=g.actualVals, lastIdx=g.lastIdx, lastVal=g.lastVal;
 
@@ -1860,8 +1869,17 @@ function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabe
 
   var forecastD = "";
   var todayMarker = "";
-  if (rows.length > 0 && rows.length < totalDays) {
-    forecastD = 'M '+xAt(lastIdx)+','+yAt(lastVal)+' L '+xAt(n-1)+','+yAt(projectedSpend);
+  var daysToEstimateLocal = totalDays - (pastDays||0);
+  if (rows.length > 0 && daysToEstimateLocal > 0) {
+    /* The dotted projection starts from the last FULLY COMPLETE day, not
+       today — today is one of the days being estimated, since it isn't
+       over yet, so its actual-so-far number shouldn't be mistaken for its
+       final one. That's why the dotted line visibly diverges from the
+       solid "actual" curve one step before "Today" rather than exactly at
+       it — the gap between them at Today's x-position is precisely the
+       difference between what's really happened today and what the pace
+       expects for the day as a whole. */
+    if (hasForecast) forecastD = 'M '+xAt(g.knownIdx)+','+yAt(g.knownVal)+' L '+xAt(n-1)+','+yAt(projectedSpend);
     todayMarker = '<line x1="'+xAt(lastIdx)+'" x2="'+xAt(lastIdx)+'" y1="'+padT+'" y2="'+(h-padB)+'" stroke="'+T.hairline+'" stroke-dasharray="2,2"/>'
       + '<text x="'+xAt(lastIdx)+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="middle">Today</text>';
   }
@@ -1912,7 +1930,7 @@ function wireForecastChart(data) {
   var dot = document.getElementById("forecastChartDot");
   var tip = document.getElementById("forecastChartTip");
   if (!svg || !hit || !crosshair || !dot || !tip || !data) return;
-  var g = forecastChartGeom(data.rows, data.totalDays, data.target, data.projectedSpend, data.compareValues);
+  var g = forecastChartGeom(data.rows, data.totalDays, data.target, data.projectedSpend, data.compareValues, data.pastDays);
   if (g.n < 2) return;
 
   function indexAt(clientX) {
@@ -1968,26 +1986,39 @@ function wireForecastChart(data) {
 function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, periodWord, compareRows) {
   if (!rows.length) return "";
   var today = todayStr();
-  var elapsedDays = rows.length;
-  var spentSoFar = rows.reduce(function(s,r){ return s+r.spent; }, 0);
+  var todayIncluded = rows[rows.length-1].date === today;
+  var todayRow = todayIncluded ? rows[rows.length-1] : null;
+  var pastRows = todayIncluded ? rows.slice(0, rows.length-1) : rows.slice();
+  var pastDays = pastRows.length;
+  var pastSpent = pastRows.reduce(function(s,r){ return s+r.spent; }, 0);
   /* Pace is discretionary-only: scheduled plan amounts are added back below
      on their actual due dates, so including them here too would count a
      monthly rent both as "typical daily spending" and as a future payment. */
-  var pastRows = rows.filter(function(r){ return r.date !== today; });
-  var pastDays = pastRows.length;
   var pastDiscretionary = discretionarySpentInRows(pastRows);
+  /* Any recurring/split amount already logged today is fixed regardless of
+     the hour — a rent payment logged today is exactly what it is, it isn't
+     going to grow — so it still counts as known. Today's discretionary
+     spend-so-far does not: the day isn't over, so what's logged so far
+     isn't the day's final number, and shouldn't be treated as if it were. */
+  var todayScheduledSpent = todayRow ? (todayRow.items||[]).reduce(function(s,it){ return it.recurringId ? s+it.amount : s; }, 0) : 0;
+  var actualSpentSoFar = pastSpent + (todayRow ? todayRow.spent : 0);
+  var knownSpent = pastSpent + todayScheduledSpent;
   var historicalAvg = overallAvgDailySpend();
   var BLEND_K = historicalAvg !== null ? 3 : 0;
   var blendDenom = pastDays + BLEND_K;
   var avgSpentPerDay = blendDenom > 0 ? ((pastDiscretionary + (historicalAvg !== null ? historicalAvg*BLEND_K : 0)) / blendDenom) : null;
   var stillBlending = historicalAvg !== null && pastDays < BLEND_K;
-  var daysLeftFC = Math.max(0, totalDays - elapsedDays);
+  /* Today is one of the days being estimated, not one already banked — its
+     partial spend-so-far isn't mistaken for its final total. On a period's
+     first day (pastDays === 0) that means there's nothing local yet at all,
+     so the entire forecast runs on historical pace alone. */
+  var daysToEstimate = Math.max(0, totalDays - pastDays);
   var periodEnd = toStr(addDays(parseD(periodStart), totalDays-1));
-  var scheduledUpcoming = daysLeftFC > 0 ? scheduledAmountInRange(today, periodEnd) : 0;
-  var hasForecast = daysLeftFC > 0 && (avgSpentPerDay !== null || scheduledUpcoming > 0);
+  var scheduledUpcoming = daysToEstimate > 0 ? scheduledAmountInRange(toStr(addDays(parseD(today), -1)), periodEnd) : 0;
+  var hasForecast = daysToEstimate > 0 && (avgSpentPerDay !== null || scheduledUpcoming > 0);
   var projectedSpend = hasForecast
-    ? (spentSoFar + (avgSpentPerDay || 0) * daysLeftFC + scheduledUpcoming)
-    : spentSoFar;
+    ? (knownSpent + (avgSpentPerDay || 0) * daysToEstimate + scheduledUpcoming)
+    : actualSpentSoFar;
   var projectedSaved = target - projectedSpend;
   var favorable = projectedSaved >= 0;
   var vsBudgetPct = target > 0 ? Math.round(((projectedSpend-target)/target)*100) : 0;
@@ -2033,7 +2064,7 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   s += '</div>';
   s += '<div id="forecastChartWrap" style="position:relative;">';
   s += '<div id="forecastChartTip" class="mono footnote" style="position:absolute; top:0; left:0; background:var(--fill); border-radius:8px; padding:4px 9px; max-width:250px; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:2;"></div>';
-  s += renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel, compareValues);
+  s += renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel, compareValues, pastDays, hasForecast);
   s += '</div>';
   if (compareValues) {
     s += '<div class="row gap2" style="margin-top:10px; flex-wrap:wrap;">';
@@ -2045,14 +2076,15 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   var notes = [];
   if (compareUnavailableNote) notes.push(compareUnavailableNote);
   if (!hasForecast) {
-    notes.push(daysLeftFC<=0 ? "Period is complete — nothing left to forecast." : "Log a full day to start forecasting.");
+    notes.push(daysToEstimate<=0 ? "Period is complete — nothing left to forecast." : "Log a few days to start forecasting.");
   } else {
+    if (todayIncluded) notes.push("Today isn't finished yet, so it's estimated from your pace rather than today's spend so far.");
     if (scheduledUpcoming > 0) notes.push("Includes "+fmt(scheduledUpcoming,0)+" AED of scheduled payments still to come.");
     if (stillBlending) notes.push(pastDiscretionary>0 ? "Day-to-day pace is blended with your overall average for now." : "No day-to-day spending logged yet this "+periodWord+" — pace blended from your overall average.");
   }
   notes.forEach(function(n){ s += '<div class="muted caption" style="margin-top:8px;">'+esc(n)+'</div>'; });
   s += '</div>';
-  lastForecastChartData = { rows: rows, totalDays: totalDays, target: target, projectedSpend: projectedSpend, start: periodStart, compareValues: compareValues, compareLabel: compareLabel };
+  lastForecastChartData = { rows: rows, totalDays: totalDays, target: target, projectedSpend: projectedSpend, start: periodStart, compareValues: compareValues, compareLabel: compareLabel, pastDays: pastDays };
   return s;
 }
 
