@@ -2004,7 +2004,17 @@ function getTxnPeriodInfo() {
   var entryDatesAll = Object.keys(state.entries).sort();
   var naturalStart = state.settings.trackingStartDate || (entryDatesAll.length ? entryDatesAll[0] : today);
   if (mode === "all") {
-    return { start: naturalStart, end: today, title: "All time", sub: "", isCurrent: true, mode: mode };
+    /* "All time" must mean all of it: if any logged entry falls after today
+       (e.g. a recurring/split plan that caught up while the device clock was
+       ahead, or any other edge case), the upper bound has to stretch to
+       cover it too — otherwise this view silently drops entries that Week/
+       Month (which use real calendar bounds, not an artificial "up to
+       today" cap) would still show, which is exactly the inconsistency that
+       made deleted-but-orphaned split entries "disappear" from All while
+       still appearing under Week. */
+    var latestEntryDate = entryDatesAll.length ? entryDatesAll[entryDatesAll.length-1] : today;
+    var endAll = latestEntryDate > today ? latestEntryDate : today;
+    return { start: naturalStart, end: endAll, title: "All time", sub: "", isCurrent: true, mode: mode };
   }
   if (mode === "custom") {
     var from = state.txnPeriodFrom || naturalStart;
@@ -2977,7 +2987,23 @@ document.addEventListener("click", function(e) {
     case "delete-recurring":
       var deleteId = el.dataset.id;
       var remainingRules = (state.settings.recurringRules||[]).filter(function(r){ return r.id !== deleteId; });
-      persistAll(Object.assign({}, state.settings, { recurringRules: remainingRules }), state.entries, "your settings");
+      /* Deleting a plan undoes everything it already logged, not just the
+         rule itself — otherwise every day it already wrote to `entries`
+         (each tagged with this recurringId) lingers behind forever, still
+         showing up on Home/Transactions/Calendar/Analysis even though the
+         plan that "owns" it is gone. A day that ends up with zero items
+         after stripping is removed entirely, same as a normal delete. */
+      var entriesAfterDelete = Object.assign({}, state.entries);
+      Object.keys(entriesAfterDelete).forEach(function(d){
+        var day = entriesAfterDelete[d];
+        if (!day || !Array.isArray(day.items)) return;
+        var stripped = day.items.filter(function(it){ return it.recurringId !== deleteId; });
+        if (stripped.length !== day.items.length) {
+          if (stripped.length === 0) delete entriesAfterDelete[d];
+          else entriesAfterDelete[d] = Object.assign({}, day, { items: stripped });
+        }
+      });
+      persistAll(Object.assign({}, state.settings, { recurringRules: remainingRules }), entriesAfterDelete, "your settings");
       render();
       break;
     case "remove-category":
