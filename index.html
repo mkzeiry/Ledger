@@ -776,6 +776,25 @@ function renderChart(data, T) {
    pixel of finger movement would destroy the SVG node and feel laggy, so this
    updates the existing elements' attributes directly instead. Re-wired after
    every render() since the chart's DOM is rebuilt each time. */
+/* Positions an absolutely-positioned chart tooltip so it never overflows its
+   container: converts a viewBox-space x-coordinate to actual on-screen
+   pixels (the SVG renders at width:100%, so viewBox units and real pixels
+   scale by a ratio that changes with device width), then clamps the
+   tooltip's left edge so its full rendered width stays within the SVG's
+   bounds. This is what stops the scrub tooltip from running off the right
+   edge of the screen near the last day of a period. Shared by the balance
+   chart and the forecast chart so the two can't drift out of sync. */
+function positionChartTooltip(tip, svg, pxInViewBox, viewBoxWidth) {
+  var rect = svg.getBoundingClientRect();
+  if (!rect.width) return;
+  var xPx = (pxInViewBox / viewBoxWidth) * rect.width;
+  var tipWidth = tip.offsetWidth || 0;
+  var maxLeft = Math.max(0, rect.width - tipWidth);
+  var left = Math.max(0, Math.min(maxLeft, xPx - tipWidth/2));
+  tip.style.left = left + "px";
+  tip.style.transform = "none";
+}
+
 function wireBalanceChart(data) {
   var svg = document.getElementById("balanceChartSvg");
   var hit = document.getElementById("balanceChartHit");
@@ -798,11 +817,11 @@ function wireBalanceChart(data) {
     var px = g.x(idx), py = g.y(d.balance);
     crosshair.setAttribute("x1", px); crosshair.setAttribute("x2", px); crosshair.setAttribute("opacity", "1");
     dot.setAttribute("cx", px); dot.setAttribute("cy", py); dot.setAttribute("opacity", "1");
-    tip.style.left = ((px/g.w)*100) + "%";
-    tip.style.opacity = "1";
     var delta = d.delta || 0;
     var deltaStr = (delta>=0?"+":"−")+fmt(Math.abs(Math.round(delta)),0)+" AED";
     tip.innerHTML = '<span class="muted">'+esc(d.label)+'</span> <span style="color:'+(delta>=0?"var(--positive)":"var(--rust)")+'; font-weight:600;">'+deltaStr+'</span>';
+    positionChartTooltip(tip, svg, px, g.w);
+    tip.style.opacity = "1";
   }
   function hide() {
     crosshair.setAttribute("opacity", "0");
@@ -1159,7 +1178,7 @@ function renderHomeBody(T, da) {
   if (chartData.length >= 1) {
     h += '<div class="hairline-top" style="padding:12px 8px 12px;">';
     h += '<div id="balanceChartWrap" style="position:relative;">';
-    h += '<div id="balanceChartTip" class="mono footnote" style="position:absolute; top:0; left:50%; transform:translateX(-50%); background:var(--fill); border-radius:8px; padding:4px 9px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:2;"></div>';
+    h += '<div id="balanceChartTip" class="mono footnote" style="position:absolute; top:0; left:0; background:var(--fill); border-radius:8px; padding:4px 9px; max-width:250px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:2;"></div>';
     h += renderChart(chartData, T);
     h += '</div></div>';
     lastChartData = chartData;
@@ -1869,7 +1888,7 @@ function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabe
   return '<svg id="forecastChartSvg" viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'">'
     + tickSvg
     + '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+budgetY+'" y2="'+budgetY+'" stroke="'+T.text+'" stroke-width="1.5" stroke-dasharray="4,3"/>'
-    + '<text x="'+padL+'" y="'+(budgetY-5)+'" font-size="9" font-weight="600" fill="'+T.text+'">'+esc(refLabel||"Budget")+'</text>'
+    + '<text x="'+padL+'" y="'+(budgetY-5)+'" font-size="9" font-weight="600" fill="'+T.text+'">'+esc(refLabel||"Budget")+' – '+fmt(target,0)+' AED</text>'
     + (compareD ? '<path d="'+compareD+'" fill="none" stroke="'+T.textMuted+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="5,4"/>' : "")
     + (areaD ? '<path d="'+areaD+'" fill="'+T.positive+'" fill-opacity="0.16" stroke="none"/>' : "")
     + (curveD ? '<path d="'+curveD+'" fill="none" stroke="'+T.positive+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' : "")
@@ -1909,15 +1928,16 @@ function wireForecastChart(data) {
     var px = g.xAt(idx), py = g.yAt(val);
     crosshair.setAttribute("x1", px); crosshair.setAttribute("x2", px); crosshair.setAttribute("opacity", "1");
     dot.setAttribute("cx", px); dot.setAttribute("cy", py); dot.setAttribute("opacity", "1");
-    tip.style.left = ((px/g.w)*100) + "%";
-    tip.style.opacity = "1";
     var dateStr = shortLabel(toStr(addDays(parseD(data.start), idx)));
     var isProjected = idx > g.lastIdx;
-    var tipHtml = '<span class="muted">'+esc(dateStr)+(isProjected?" (projected)":"")+'</span> <span style="color:var(--text); font-weight:600;">'+fmt(Math.round(val),0)+' AED</span>';
+    var lineStyle = 'white-space:nowrap; overflow:hidden; text-overflow:ellipsis;';
+    var tipHtml = '<div style="'+lineStyle+'"><span class="muted">'+esc(dateStr)+(isProjected?" (projected)":"")+'</span> <span style="color:var(--text); font-weight:600;">'+fmt(Math.round(val),0)+' AED</span></div>';
     if (data.compareValues && data.compareValues.length > idx) {
-      tipHtml += ' <span class="muted">· '+esc(data.compareLabel||"Compare")+' </span><span style="color:var(--text-muted); font-weight:600;">'+fmt(Math.round(data.compareValues[idx]),0)+' AED</span>';
+      tipHtml += '<div style="'+lineStyle+' margin-top:2px;"><span class="muted">'+esc(data.compareLabel||"Compare")+' </span><span style="color:var(--text-muted); font-weight:600;">'+fmt(Math.round(data.compareValues[idx]),0)+' AED</span></div>';
     }
     tip.innerHTML = tipHtml;
+    positionChartTooltip(tip, svg, px, g.w);
+    tip.style.opacity = "1";
   }
   function hide() {
     crosshair.setAttribute("opacity", "0");
@@ -2012,7 +2032,7 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   });
   s += '</div>';
   s += '<div id="forecastChartWrap" style="position:relative;">';
-  s += '<div id="forecastChartTip" class="mono footnote" style="position:absolute; top:0; left:50%; transform:translateX(-50%); background:var(--fill); border-radius:8px; padding:4px 9px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:2;"></div>';
+  s += '<div id="forecastChartTip" class="mono footnote" style="position:absolute; top:0; left:0; background:var(--fill); border-radius:8px; padding:4px 9px; max-width:250px; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:2;"></div>';
   s += renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel, compareValues);
   s += '</div>';
   if (compareValues) {
