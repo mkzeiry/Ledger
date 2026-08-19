@@ -155,9 +155,9 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, categoryStyles: null, recurringRules: null };
-var DEFAULT_ANALYSIS_ORDER = ["summary","forecastedSpend","spendTrend","dailySpend","dailySaving","category","dow","topTransactions"];
-var ANALYSIS_SECTION_LABELS = { summary:"Summary", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", dailySaving:"Saved per day", category:"Spend by category", dow:"Average by day of week", topTransactions:"Biggest transactions" };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, categoryStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null };
+var DEFAULT_ANALYSIS_ORDER = ["summary","forecastedSpend","spendTrend","dailySpend","dailySaving","cumulativeSaving","category","dow","topTransactions"];
+var ANALYSIS_SECTION_LABELS = { summary:"Summary", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", dailySaving:"Saved per day", cumulativeSaving:"Cumulative saving", category:"Spend by category", dow:"Average by day of week", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_ANALYSIS_ORDER.indexOf(id) !== -1; });
   DEFAULT_ANALYSIS_ORDER.forEach(function(id){ if (out.indexOf(id)===-1) out.push(id); });
@@ -173,6 +173,32 @@ function normalizeCategoryStyles(styles, categories) {
     if (valid.indexOf(name) !== -1) out[name] = styles[name];
   });
   return out;
+}
+/* Groups are an optional second, broader level above categories — e.g.
+   "Food & Drinks" containing the Restaurants/Food & Dining/Groceries
+   categories, or "Vehicle" containing Fuel/Parking/Fines. A category
+   belongs to at most one group; anything unassigned falls into an implicit
+   "Ungrouped" bucket in Analysis rather than needing every category to be
+   sorted before grouping is useful at all. */
+function normalizeCategoryGroups(groups) {
+  var out = [];
+  (groups||[]).forEach(function(g){
+    if (typeof g === "string" && g.trim() && out.indexOf(g) === -1) out.push(g);
+  });
+  return out;
+}
+function normalizeCategoryGroupOf(groupOf, categories, groups) {
+  var out = {};
+  var validCats = categories || [];
+  var validGroups = groups || [];
+  Object.keys(groupOf||{}).forEach(function(c){
+    if (validCats.indexOf(c) !== -1 && validGroups.indexOf(groupOf[c]) !== -1) out[c] = groupOf[c];
+  });
+  return out;
+}
+function categoryGroupOf(catName) {
+  var g = state.settings.categoryGroupOf && state.settings.categoryGroupOf[catName];
+  return g || null;
 }
 /* Palette roles follow iOS semantics: a grouped background sits behind cards
    that are one step lighter (dark) or pure white (light), with separators and
@@ -424,6 +450,7 @@ var state = {
   analysisReorderMode: false,
   analysisSelectedBucket: null,
   analysisCategoryFilter: "",
+  analysisSelectedGroup: null,
   basis: "budget",
   forecastCompareMode: "previous",
   incomeDraftMode: null,
@@ -552,6 +579,8 @@ function loadInitial() {
   state.settings.analysisHiddenSections = normalizeHiddenSections(state.settings.analysisHiddenSections);
   state.settings.incomeHistory = normalizeIncomeHistory(state.settings.incomeHistory);
   state.settings.categoryStyles = normalizeCategoryStyles(state.settings.categoryStyles, state.settings.categories);
+  state.settings.categoryGroups = normalizeCategoryGroups(state.settings.categoryGroups);
+  state.settings.categoryGroupOf = normalizeCategoryGroupOf(state.settings.categoryGroupOf, state.settings.categories, state.settings.categoryGroups);
   state.settings.recurringRules = normalizeRecurringRules(state.settings.recurringRules);
   if (runRecurringCatchUp()) {
     persistAll(state.settings, state.entries, "recurring payments");
@@ -1042,7 +1071,7 @@ function render() {
   }
 
   root.innerHTML = html;
-  if (state.page === "home" && lastChartData) wireBalanceChart(lastChartData);
+  if ((state.page === "home" || state.page === "analysis") && lastChartData) wireBalanceChart(lastChartData);
   if ((state.page === "analysis" || state.page === "home") && lastForecastChartData) wireForecastChart(lastForecastChartData);
 }
 
@@ -1295,7 +1324,25 @@ function renderSettingsModal() {
   }
 
   if (state.settingsTab === "categories") {
-    h += '<label class="eyebrow">Categories</label>';
+    var groupList = state.settings.categoryGroups||[];
+    h += '<label class="eyebrow">Groups</label>';
+    h += '<div class="muted caption" style="margin:4px 0 10px;">Organize related categories under a broader group — e.g. Restaurants, Food & Dining, and Groceries under "Food & Drinks" — so Analysis can show either level.</div>';
+    h += '<div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">';
+    groupList.forEach(function(g,gi){
+      var memberCount = (state.settings.categories||[]).filter(function(c){ return categoryGroupOf(c)===g; }).length;
+      h += '<div class="row between" style="background:var(--raised); border:1px solid var(--hairline); border-radius:8px; padding:7px 8px 7px 12px;">';
+      h += '<div class="row gap2" style="align-items:baseline; min-width:0;"><span style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(g)+'</span><span class="muted caption">'+memberCount+' categor'+(memberCount===1?"y":"ies")+'</span></div>';
+      h += '<div class="row gap2" style="flex-shrink:0;">';
+      h += '<button data-action="move-group" data-group="'+esc(g)+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(gi===0?"var(--hairline)":"var(--text-muted)")+';" '+(gi===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
+      h += '<button data-action="move-group" data-group="'+esc(g)+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(gi===groupList.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(gi===groupList.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
+      h += '<button data-action="remove-group" data-group="'+esc(g)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Remove">'+ICONS.trash+'</button>';
+      h += '</div></div>';
+    });
+    if (!groupList.length) h += '<span class="muted" style="font-size:12px;">No groups yet — categories stay flat until you add one.</span>';
+    h += '</div>';
+    h += '<div class="row gap2" style="margin-bottom:20px;"><input id="newGroupInput" type="text" class="field" placeholder="New group" style="flex:1;" /><button data-action="add-group" class="btn-outline">Add</button></div>';
+
+    h += '<label class="eyebrow hairline-top" style="display:block; padding-top:14px;">Categories</label>';
     h += '<div style="display:flex; flex-direction:column; gap:6px; margin:8px 0 10px;">';
     var catList = state.settings.categories||[];
     catList.forEach(function(c,ci){
@@ -1311,6 +1358,14 @@ function renderSettingsModal() {
       h += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(ci===catList.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(ci===catList.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
       h += '<button data-action="remove-category" data-cat="'+esc(c)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Remove">'+ICONS.trash+'</button>';
       h += '</div></div>';
+      if (groupList.length) {
+        h += '<div style="padding:0 12px 8px;"><select data-role="category-group-select" data-cat="'+esc(c)+'" class="field" style="font-size:12px; padding:6px 10px;">';
+        h += '<option value=""'+(!categoryGroupOf(c)?' selected':'')+'>No group</option>';
+        groupList.forEach(function(g){
+          h += '<option value="'+esc(g)+'"'+(categoryGroupOf(c)===g?' selected':'')+'>'+esc(g)+'</option>';
+        });
+        h += '</select></div>';
+      }
       if (isEditingStyle) {
         var curStyle = categoryStyle(c);
         var hasCustom = !!(state.settings.categoryStyles && state.settings.categoryStyles[c]);
@@ -1673,7 +1728,7 @@ function catIconCircle(categoryName) {
   return '<span style="width:32px; height:32px; border-radius:50%; background:'+st.color+'; display:flex; align-items:center; justify-content:center; flex-shrink:0;">'+CAT_ICON_SVGS[st.icon]+'</span>';
 }
 
-function renderPieChart(slices, T, selectedLabel, centerLabel, centerValue) {
+function renderPieChart(slices, T, selectedLabel, centerLabel, centerValue, tapAction, tapDataKey) {
   var size = 240, rOuter = 104, rInner = rOuter*0.55, cx = size/2, cy = size/2;
   var total = slices.reduce(function(s,x){ return s+x.value; }, 0);
   if (total <= 0) return "";
@@ -1686,7 +1741,7 @@ function renderPieChart(slices, T, selectedLabel, centerLabel, centerValue) {
     var color = PIE_COLORS[i % PIE_COLORS.length];
     var isSel = selectedLabel != null && sl.label === selectedLabel;
     var op = (selectedLabel != null && !isSel) ? ' opacity="0.3"' : '';
-    var tap = ' class="chart-hit" data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'"';
+    var tap = ' class="chart-hit" data-action="'+(tapAction||"filter-analysis-category")+'" data-'+(tapDataKey||"cat")+'="'+esc(sl.label)+'"';
     var d;
     if (frac >= 0.9999) {
       // A single category holding 100%: draw the ring as outer circle minus
@@ -1974,6 +2029,47 @@ function wireForecastChart(data) {
   hit.addEventListener("mouseup", hide);
 }
 
+/* Single source of truth for the forecast's pace/projection math — shared
+   by the Forecasted Spend card and the Spend Trend chart's current-period
+   classification, so the two can never disagree about whether today is
+   genuinely trending over budget. Today is treated as a day still being
+   estimated, not a completed one: its spend-so-far isn't mistaken for its
+   final number, so a period's first day (no completed local days yet) is
+   projected purely from historical pace rather than a raw, unblended,
+   small-sample average of whatever's happened so far this period. */
+function computeForecastNumbers(rows, totalDays, periodStart) {
+  if (!rows.length) return null;
+  var today = todayStr();
+  var todayIncluded = rows[rows.length-1].date === today;
+  var todayRow = todayIncluded ? rows[rows.length-1] : null;
+  var pastRows = todayIncluded ? rows.slice(0, rows.length-1) : rows.slice();
+  var pastDays = pastRows.length;
+  var pastSpent = pastRows.reduce(function(s,r){ return s+r.spent; }, 0);
+  var pastDiscretionary = discretionarySpentInRows(pastRows);
+  var todayScheduledSpent = todayRow ? (todayRow.items||[]).reduce(function(s,it){ return it.recurringId ? s+it.amount : s; }, 0) : 0;
+  var actualSpentSoFar = pastSpent + (todayRow ? todayRow.spent : 0);
+  var knownSpent = pastSpent + todayScheduledSpent;
+  var historicalAvg = overallAvgDailySpend();
+  var BLEND_K = historicalAvg !== null ? 3 : 0;
+  var blendDenom = pastDays + BLEND_K;
+  var avgSpentPerDay = blendDenom > 0 ? ((pastDiscretionary + (historicalAvg !== null ? historicalAvg*BLEND_K : 0)) / blendDenom) : null;
+  var stillBlending = historicalAvg !== null && pastDays < BLEND_K;
+  var daysToEstimate = Math.max(0, totalDays - pastDays);
+  var periodEnd = toStr(addDays(parseD(periodStart), totalDays-1));
+  var scheduledUpcoming = daysToEstimate > 0 ? scheduledAmountInRange(toStr(addDays(parseD(today), -1)), periodEnd) : 0;
+  var hasForecast = daysToEstimate > 0 && (avgSpentPerDay !== null || scheduledUpcoming > 0);
+  var projectedSpend = hasForecast
+    ? (knownSpent + (avgSpentPerDay || 0) * daysToEstimate + scheduledUpcoming)
+    : actualSpentSoFar;
+  return {
+    todayIncluded: todayIncluded, pastDays: pastDays, pastSpent: pastSpent,
+    pastDiscretionary: pastDiscretionary, actualSpentSoFar: actualSpentSoFar,
+    knownSpent: knownSpent, avgSpentPerDay: avgSpentPerDay, stillBlending: stillBlending,
+    daysToEstimate: daysToEstimate, scheduledUpcoming: scheduledUpcoming,
+    hasForecast: hasForecast, projectedSpend: projectedSpend
+  };
+}
+
 /* Builds the entire Forecasted Spend card — header, badge, chart, and any
    footnote — shared by Home and Analysis so the two can't drift apart or
    disagree on a number. Pace blends this period's own elapsed days with the
@@ -1985,40 +2081,10 @@ function wireForecastChart(data) {
    switchover the moment a single local day exists. */
 function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, periodWord, compareRows) {
   if (!rows.length) return "";
-  var today = todayStr();
-  var todayIncluded = rows[rows.length-1].date === today;
-  var todayRow = todayIncluded ? rows[rows.length-1] : null;
-  var pastRows = todayIncluded ? rows.slice(0, rows.length-1) : rows.slice();
-  var pastDays = pastRows.length;
-  var pastSpent = pastRows.reduce(function(s,r){ return s+r.spent; }, 0);
-  /* Pace is discretionary-only: scheduled plan amounts are added back below
-     on their actual due dates, so including them here too would count a
-     monthly rent both as "typical daily spending" and as a future payment. */
-  var pastDiscretionary = discretionarySpentInRows(pastRows);
-  /* Any recurring/split amount already logged today is fixed regardless of
-     the hour — a rent payment logged today is exactly what it is, it isn't
-     going to grow — so it still counts as known. Today's discretionary
-     spend-so-far does not: the day isn't over, so what's logged so far
-     isn't the day's final number, and shouldn't be treated as if it were. */
-  var todayScheduledSpent = todayRow ? (todayRow.items||[]).reduce(function(s,it){ return it.recurringId ? s+it.amount : s; }, 0) : 0;
-  var actualSpentSoFar = pastSpent + (todayRow ? todayRow.spent : 0);
-  var knownSpent = pastSpent + todayScheduledSpent;
-  var historicalAvg = overallAvgDailySpend();
-  var BLEND_K = historicalAvg !== null ? 3 : 0;
-  var blendDenom = pastDays + BLEND_K;
-  var avgSpentPerDay = blendDenom > 0 ? ((pastDiscretionary + (historicalAvg !== null ? historicalAvg*BLEND_K : 0)) / blendDenom) : null;
-  var stillBlending = historicalAvg !== null && pastDays < BLEND_K;
-  /* Today is one of the days being estimated, not one already banked — its
-     partial spend-so-far isn't mistaken for its final total. On a period's
-     first day (pastDays === 0) that means there's nothing local yet at all,
-     so the entire forecast runs on historical pace alone. */
-  var daysToEstimate = Math.max(0, totalDays - pastDays);
-  var periodEnd = toStr(addDays(parseD(periodStart), totalDays-1));
-  var scheduledUpcoming = daysToEstimate > 0 ? scheduledAmountInRange(toStr(addDays(parseD(today), -1)), periodEnd) : 0;
-  var hasForecast = daysToEstimate > 0 && (avgSpentPerDay !== null || scheduledUpcoming > 0);
-  var projectedSpend = hasForecast
-    ? (knownSpent + (avgSpentPerDay || 0) * daysToEstimate + scheduledUpcoming)
-    : actualSpentSoFar;
+  var fc = computeForecastNumbers(rows, totalDays, periodStart);
+  var todayIncluded = fc.todayIncluded, pastDays = fc.pastDays, pastDiscretionary = fc.pastDiscretionary,
+      avgSpentPerDay = fc.avgSpentPerDay, stillBlending = fc.stillBlending, daysToEstimate = fc.daysToEstimate,
+      scheduledUpcoming = fc.scheduledUpcoming, hasForecast = fc.hasForecast, projectedSpend = fc.projectedSpend;
   var projectedSaved = target - projectedSpend;
   var favorable = projectedSaved >= 0;
   var vsBudgetPct = target > 0 ? Math.round(((projectedSpend-target)/target)*100) : 0;
@@ -2213,6 +2279,7 @@ function buildAnalysisBuckets(rows, granularity, catFilter) {
 
 function renderAnalysisBody(T) {
   lastForecastChartData = null;
+  lastChartData = null;
   var da = dailyReference();
   var today = todayStr();
   var periodMode = state.analysisPeriodMode || "month";
@@ -2383,6 +2450,36 @@ function renderAnalysisBody(T) {
     return s;
   };
 
+  /* Running balance from the period's start through today (or the period's
+     end if it's already closed) — the same cumulative curve Home shows for
+     the current week, but available for whichever period Analysis is
+     browsing. Reuses Home's own chart component (renderChart/
+     wireBalanceChart) rather than a separate implementation, so drag-scrub
+     and visual style can never drift apart between the two pages. */
+  sectionHtml.cumulativeSaving = function(){
+    if (catFilter || !cs.rows.length) return "";
+    var acc = 0;
+    var chartData = cs.rows.map(function(r){
+      var delta = round2(r.allowance - r.spent);
+      acc = round2(acc + delta);
+      return { label: shortLabel(r.date), date: r.date, balance: acc, delta: delta };
+    });
+    var lastRowDate = cs.rows[cs.rows.length-1].date;
+    var netColor = acc >= 0 ? "var(--positive)" : "var(--rust)";
+    var s = '<div class="card card-pad" style="margin-bottom:16px;">';
+    s += '<div class="row between" style="margin-bottom:2px; align-items:baseline;">';
+    s += '<span class="eyebrow">Cumulative saving</span>';
+    s += '<span class="mono footnote" style="color:'+netColor+'; font-weight:600;">'+(acc>=0?"+":"−")+fmt(Math.abs(acc),0)+' AED</span>';
+    s += '</div>';
+    s += '<div class="muted caption" style="margin-bottom:10px;">Running total from '+esc(shortLabel(info.start))+' through '+(lastRowDate===today?"today":esc(shortLabel(lastRowDate)))+'.</div>';
+    s += '<div id="analysisSavingChartWrap" style="position:relative;">';
+    s += '<div id="balanceChartTip" class="mono footnote" style="position:absolute; top:0; left:0; background:var(--fill); border-radius:8px; padding:4px 9px; max-width:250px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:2;"></div>';
+    s += renderChart(chartData, T);
+    s += '</div></div>';
+    lastChartData = chartData;
+    return s;
+  };
+
   sectionHtml.forecastedSpend = function(){
     if (catFilter || !cs.rows.length) return "";
     var periodTarget = fullPeriodTarget(info.start, info.end);
@@ -2405,13 +2502,8 @@ function renderAnalysisBody(T) {
       var spentB = ps.spent;
       var projB = spentB;
       if (isCurBar) {
-        var todayInclB = ps.rows.length>0 && ps.rows[ps.rows.length-1].date===today;
-        var todaySpentB = todayInclB ? ps.rows[ps.rows.length-1].spent : 0;
-        var pastDaysB = todayInclB ? ps.elapsedDays-1 : ps.elapsedDays;
-        var pastSpentB = ps.spent - todaySpentB;
-        var avgB = pastDaysB>0 ? pastSpentB/pastDaysB : null;
-        var daysLeftB = Math.max(0, pb.days - ps.calendarElapsedDays);
-        if (avgB!=null && daysLeftB>0) projB = ps.spent + avgB*daysLeftB;
+        var fcB = computeForecastNumbers(ps.rows, pb.days, pb.startStr);
+        if (fcB && fcB.hasForecast) projB = fcB.projectedSpend;
       }
       var status = "positive";
       if (targetB > 0) {
@@ -2454,23 +2546,63 @@ function renderAnalysisBody(T) {
         catTotals[key] = (catTotals[key] || 0) + it.amount;
       });
     });
-    var catSlices = Object.keys(catTotals).map(function(k){ return { label:k, value:catTotals[k] }; })
-      .sort(function(a,b){ return b.value - a.value; });
-    var catTotal = catSlices.reduce(function(t,x){ return t+x.value; }, 0);
-    if (!catSlices.length) return "";
+    if (!Object.keys(catTotals).length) return "";
+
+    var groupList = state.settings.categoryGroups||[];
+    var selectedGroup = state.analysisSelectedGroup;
+    var showingGroups = groupList.length > 0 && !selectedGroup && !catFilter;
+
     var s = '<div class="card card-pad" style="margin-bottom:16px;">';
-    s += '<div class="row between" style="margin-bottom:10px; align-items:baseline;">';
-    s += '<span class="eyebrow">Spend by category</span>';
-    s += '<span class="muted caption">'+(catFilter?"Tap to clear":"Tap to filter")+'</span></div>';
-    s += '<div style="display:flex; justify-content:center; margin-bottom:12px;">'+renderPieChart(catSlices, T, catFilter||null, "All", catTotal)+'</div>';
-    catSlices.forEach(function(sl,i){
-      var pct = catTotal>0 ? (sl.value/catTotal*100) : 0;
-      var isSel = catFilter === sl.label;
-      s += '<button data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%; text-align:left; background:none; border:none; padding:8px 0;'+(i>0?"border-top:1px solid var(--sep);":"")+(catFilter&&!isSel?"opacity:0.45;":"")+'">';
-      s += '<span class="row" style="align-items:center; gap:9px; min-width:0;"><span style="width:11px;height:11px;border-radius:3px;flex-shrink:0;background:'+PIE_COLORS[i % PIE_COLORS.length]+';"></span><span class="subhead"'+(isSel?' style="font-weight:600;"':'')+'>'+esc(sl.label)+'</span></span>';
-      s += '<span class="row" style="align-items:baseline; gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px; text-align:right;">'+pct.toFixed(0)+'%</span></span>';
-      s += '</button>';
-    });
+
+    if (showingGroups) {
+      var groupTotals = {};
+      Object.keys(catTotals).forEach(function(catName){
+        var g = categoryGroupOf(catName) || "Ungrouped";
+        groupTotals[g] = (groupTotals[g]||0) + catTotals[catName];
+      });
+      var groupSlices = Object.keys(groupTotals).map(function(g){ return { label:g, value:groupTotals[g] }; })
+        .sort(function(a,b){ return b.value - a.value; });
+      var groupTotal = groupSlices.reduce(function(t,x){ return t+x.value; }, 0);
+      s += '<div class="row between" style="margin-bottom:10px; align-items:baseline;">';
+      s += '<span class="eyebrow">Spend by category</span>';
+      s += '<span class="muted caption">Tap to drill in</span></div>';
+      s += '<div style="display:flex; justify-content:center; margin-bottom:12px;">'+renderPieChart(groupSlices, T, null, "All", groupTotal, "drill-analysis-group", "group")+'</div>';
+      groupSlices.forEach(function(sl,i){
+        var pct = groupTotal>0 ? (sl.value/groupTotal*100) : 0;
+        var swatch = sl.label === "Ungrouped" ? "var(--text-muted)" : PIE_COLORS[i % PIE_COLORS.length];
+        s += '<button data-action="drill-analysis-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%; text-align:left; background:none; border:none; padding:8px 0;'+(i>0?"border-top:1px solid var(--sep);":"")+'">';
+        s += '<span class="row" style="align-items:center; gap:9px; min-width:0;"><span style="width:11px;height:11px;border-radius:3px;flex-shrink:0;background:'+swatch+';"></span><span class="subhead">'+esc(sl.label)+'</span></span>';
+        s += '<span class="row" style="align-items:baseline; gap:8px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:32px; text-align:right;">'+pct.toFixed(0)+'%</span><span class="muted" style="display:flex;">'+ICONS.chevronRight+'</span></span>';
+        s += '</button>';
+      });
+    } else {
+      var visibleCatNames = selectedGroup
+        ? Object.keys(catTotals).filter(function(c){ return (categoryGroupOf(c)||"Ungrouped") === selectedGroup; })
+        : Object.keys(catTotals);
+      var catSlices = visibleCatNames.map(function(k){ return { label:k, value:catTotals[k] }; })
+        .sort(function(a,b){ return b.value - a.value; });
+      var catTotal = catSlices.reduce(function(t,x){ return t+x.value; }, 0);
+      s += '<div class="row between" style="margin-bottom:10px; align-items:baseline;">';
+      if (selectedGroup) {
+        s += '<button data-action="clear-analysis-group" class="row gap2" style="background:none;border:none;padding:0;align-items:center;">'+ICONS.chevronLeft+'<span class="eyebrow">'+esc(selectedGroup)+'</span></button>';
+      } else {
+        s += '<span class="eyebrow">Spend by category</span>';
+      }
+      s += '<span class="muted caption">'+(catFilter?"Tap to clear":"Tap to filter")+'</span></div>';
+      if (!catSlices.length) {
+        s += '<div class="muted subhead">Nothing in '+esc(selectedGroup||"")+' this period.</div>';
+      } else {
+        s += '<div style="display:flex; justify-content:center; margin-bottom:12px;">'+renderPieChart(catSlices, T, catFilter||null, "All", catTotal)+'</div>';
+        catSlices.forEach(function(sl,i){
+          var pct = catTotal>0 ? (sl.value/catTotal*100) : 0;
+          var isSel = catFilter === sl.label;
+          s += '<button data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%; text-align:left; background:none; border:none; padding:8px 0;'+(i>0?"border-top:1px solid var(--sep);":"")+(catFilter&&!isSel?"opacity:0.45;":"")+'">';
+          s += '<span class="row" style="align-items:center; gap:9px; min-width:0;"><span style="width:11px;height:11px;border-radius:3px;flex-shrink:0;background:'+PIE_COLORS[i % PIE_COLORS.length]+';"></span><span class="subhead"'+(isSel?' style="font-weight:600;"':'')+'>'+esc(sl.label)+'</span></span>';
+          s += '<span class="row" style="align-items:baseline; gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px; text-align:right;">'+pct.toFixed(0)+'%</span></span>';
+          s += '</button>';
+        });
+      }
+    }
     s += '</div>';
     return s;
   };
@@ -2939,6 +3071,8 @@ function handleRestore() {
     nextSettings.analysisHiddenSections = normalizeHiddenSections(nextSettings.analysisHiddenSections);
     nextSettings.incomeHistory = normalizeIncomeHistory(nextSettings.incomeHistory);
     nextSettings.categoryStyles = normalizeCategoryStyles(nextSettings.categoryStyles, nextSettings.categories);
+    nextSettings.categoryGroups = normalizeCategoryGroups(nextSettings.categoryGroups);
+    nextSettings.categoryGroupOf = normalizeCategoryGroupOf(nextSettings.categoryGroupOf, nextSettings.categories, nextSettings.categoryGroups);
     nextSettings.recurringRules = normalizeRecurringRules(nextSettings.recurringRules);
     var nextEntries = migrateEntries(parsed.entries||{}, nextSettings.weeklyTarget/7);
     state.settings = nextSettings;
@@ -3140,9 +3274,51 @@ document.addEventListener("click", function(e) {
       var nextCatsAfterRemove = (state.settings.categories||[]).filter(function(c){ return c !== catToRemove; });
       var stylesAfterRemove = Object.assign({}, state.settings.categoryStyles||{});
       delete stylesAfterRemove[catToRemove];
-      var withoutCat = Object.assign({}, state.settings, { categories: nextCatsAfterRemove, categoryStyles: stylesAfterRemove });
+      var groupOfAfterRemoveCat = Object.assign({}, state.settings.categoryGroupOf||{});
+      delete groupOfAfterRemoveCat[catToRemove];
+      var withoutCat = Object.assign({}, state.settings, { categories: nextCatsAfterRemove, categoryStyles: stylesAfterRemove, categoryGroupOf: groupOfAfterRemoveCat });
       if (state.categoryStyleEditing === catToRemove) state.categoryStyleEditing = null;
       persistAll(withoutCat, state.entries, "your settings");
+      render();
+      break;
+    case "add-group":
+      var newGroupEl = document.getElementById("newGroupInput");
+      var newGroup = newGroupEl ? newGroupEl.value.trim() : "";
+      if (newGroup && (state.settings.categoryGroups||[]).indexOf(newGroup) === -1) {
+        var withGroup = Object.assign({}, state.settings, { categoryGroups: (state.settings.categoryGroups||[]).concat([newGroup]) });
+        persistAll(withGroup, state.entries, "your settings");
+        render();
+      }
+      break;
+    case "remove-group":
+      var groupToRemove = el.dataset.group;
+      var nextGroups = (state.settings.categoryGroups||[]).filter(function(g){ return g !== groupToRemove; });
+      var groupOfAfterRemoveGroup = Object.assign({}, state.settings.categoryGroupOf||{});
+      Object.keys(groupOfAfterRemoveGroup).forEach(function(c){
+        if (groupOfAfterRemoveGroup[c] === groupToRemove) delete groupOfAfterRemoveGroup[c];
+      });
+      persistAll(Object.assign({}, state.settings, { categoryGroups: nextGroups, categoryGroupOf: groupOfAfterRemoveGroup }), state.entries, "your settings");
+      if (state.analysisSelectedGroup === groupToRemove) state.analysisSelectedGroup = null;
+      render();
+      break;
+    case "move-group":
+      var dirG = parseInt(el.dataset.dir,10);
+      var groups2 = (state.settings.categoryGroups||[]).slice();
+      var idxG = groups2.indexOf(el.dataset.group);
+      var swapIdxG = idxG + dirG;
+      if (idxG >= 0 && swapIdxG >= 0 && swapIdxG < groups2.length) {
+        var tmpG = groups2[idxG]; groups2[idxG] = groups2[swapIdxG]; groups2[swapIdxG] = tmpG;
+        persistAll(Object.assign({}, state.settings, { categoryGroups: groups2 }), state.entries, "your settings");
+        render();
+      }
+      break;
+    case "drill-analysis-group":
+      state.analysisSelectedGroup = el.dataset.group;
+      state.analysisSelectedBucket = null;
+      render();
+      break;
+    case "clear-analysis-group":
+      state.analysisSelectedGroup = null;
       render();
       break;
     case "edit-category-style":
@@ -3184,6 +3360,7 @@ document.addEventListener("click", function(e) {
       state.analysisPeriodMode = el.dataset.mode;
       state.analysisOffset = 0;
       state.analysisSelectedBucket = null;
+      state.analysisSelectedGroup = null;
       render();
       break;
     case "select-bucket":
@@ -3313,6 +3490,15 @@ document.addEventListener("input", function(e) {
 });
 
 document.addEventListener("change", function(e) {
+  if (e.target && e.target.dataset && e.target.dataset.role === "category-group-select") {
+    var catG = e.target.dataset.cat;
+    var newGroupVal = e.target.value;
+    var nextGroupOf = Object.assign({}, state.settings.categoryGroupOf||{});
+    if (newGroupVal) nextGroupOf[catG] = newGroupVal; else delete nextGroupOf[catG];
+    persistAll(Object.assign({}, state.settings, { categoryGroupOf: nextGroupOf }), state.entries, "your settings");
+    render();
+    return;
+  }
   if (e.target && e.target.id === "entryDateInput") handleQuickDate(e.target.value);
   if (e.target && e.target.id === "txnCategoryFilterSelect") { state.txnCategoryFilter = e.target.value; render(); }
   if (e.target && e.target.id === "txnPeriodFromInput") { state.txnPeriodFrom = e.target.value; render(); }
