@@ -155,9 +155,9 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, categoryStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null };
-var DEFAULT_ANALYSIS_ORDER = ["summary","forecastedSpend","spendTrend","dailySpend","dailySaving","cumulativeSaving","category","dow","topTransactions"];
-var ANALYSIS_SECTION_LABELS = { summary:"Summary", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", dailySaving:"Saved per day", cumulativeSaving:"Cumulative saving", category:"Spend by category", dow:"Average by day of week", topTransactions:"Biggest transactions" };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, categoryStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null };
+var DEFAULT_ANALYSIS_ORDER = ["summary","forecastedSpend","spendTrend","dailySpend","dailySaving","cumulativeSaving","category","person","dow","topTransactions"];
+var ANALYSIS_SECTION_LABELS = { summary:"Summary", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", dailySaving:"Saved per day", cumulativeSaving:"Cumulative saving", category:"Spend by category", person:"Spend by person", dow:"Average by day of week", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_ANALYSIS_ORDER.indexOf(id) !== -1; });
   DEFAULT_ANALYSIS_ORDER.forEach(function(id){ if (out.indexOf(id)===-1) out.push(id); });
@@ -199,6 +199,71 @@ function normalizeCategoryGroupOf(groupOf, categories, groups) {
 function categoryGroupOf(catName) {
   var g = state.settings.categoryGroupOf && state.settings.categoryGroupOf[catName];
   return g || null;
+}
+/* People are an optional flat list — who a transaction was for. No styling
+   system (icons/colors) for v1, unlike categories; the Analysis pie just
+   falls back to the same hashed-color scheme uncustomized categories use. */
+function normalizePeople(people) {
+  var out = [];
+  (people||[]).forEach(function(p){
+    if (typeof p === "string" && p.trim() && out.indexOf(p) === -1) out.push(p);
+  });
+  return out;
+}
+/* Renames a category or person everywhere it's referenced: the settings
+   list itself, per-category style/group assignment (categories only), any
+   recurring/split rule still generating future items, and every already-
+   logged transaction item across all of history — so a typo like
+   "Restraunts" can be fixed once rather than needing every past entry
+   hand-edited. If the new name already matches an existing entry, this
+   merges into it (old entry dropped, its items reassigned to the existing
+   one) rather than creating a duplicate — handy for consolidating a
+   duplicate/misspelled category into the correct one. Returns true if the
+   rename was actually a merge, so the caller can give clearer feedback. */
+function renameTag(kind, oldName, newName) {
+  newName = (newName||"").trim();
+  if (!newName || newName === oldName) return false;
+  var field = kind === "person" ? "person" : "category";
+  var listKey = kind === "person" ? "people" : "categories";
+  var list = state.settings[listKey]||[];
+  var isMerge = list.indexOf(newName) !== -1;
+  var nextList = isMerge
+    ? list.filter(function(x){ return x !== oldName; })
+    : list.map(function(x){ return x === oldName ? newName : x; });
+  var patch = {};
+  patch[listKey] = nextList;
+  if (kind === "category") {
+    var nextStyles = Object.assign({}, state.settings.categoryStyles||{});
+    if (!isMerge && nextStyles[oldName]) nextStyles[newName] = nextStyles[oldName];
+    delete nextStyles[oldName];
+    patch.categoryStyles = nextStyles;
+    var nextGroupOf = Object.assign({}, state.settings.categoryGroupOf||{});
+    if (!isMerge && nextGroupOf[oldName]) nextGroupOf[newName] = nextGroupOf[oldName];
+    delete nextGroupOf[oldName];
+    patch.categoryGroupOf = nextGroupOf;
+  }
+  patch.recurringRules = (state.settings.recurringRules||[]).map(function(r){
+    if (r[field] !== oldName) return r;
+    var patched = Object.assign({}, r);
+    patched[field] = newName;
+    return patched;
+  });
+  var nextEntries = {};
+  Object.keys(state.entries).forEach(function(d){
+    var day = state.entries[d];
+    var changedDay = false;
+    var newItems = (day.items||[]).map(function(it){
+      if (it[field] !== oldName) return it;
+      changedDay = true;
+      var patchedIt = Object.assign({}, it);
+      patchedIt[field] = newName;
+      return patchedIt;
+    });
+    nextEntries[d] = changedDay ? Object.assign({}, day, { items: newItems }) : day;
+  });
+  var nextSettings = Object.assign({}, state.settings, patch);
+  persistAll(nextSettings, nextEntries, kind === "person" ? "your people" : "your categories");
+  return isMerge;
 }
 /* Palette roles follow iOS semantics: a grouped background sits behind cards
    that are one step lighter (dark) or pure white (light), with separators and
@@ -344,7 +409,7 @@ function runRecurringCatchUp() {
       var newItem = {
         id: Date.now()+"-"+Math.random().toString(36).slice(2,7)+"-"+guard,
         amount: ruleOccurrenceAmount(rule, seq),
-        note: rule.note||"", category: rule.category||"",
+        note: rule.note||"", category: rule.category||"", person: rule.person||"",
         recurringId: rule.id, seq: seq+1, seqTotal: rule.occurrencesTotal
       };
       var existingDay = state.entries[due];
@@ -456,6 +521,8 @@ var state = {
   incomeDraftMode: null,
   incomeDraftAmount: null,
   categoryStyleEditing: null,
+  categoryRenameEditing: null,
+  personRenameEditing: null,
   recurringLimitMode: "ongoing",
   txnSplitMode: "single",
 };
@@ -581,6 +648,7 @@ function loadInitial() {
   state.settings.categoryStyles = normalizeCategoryStyles(state.settings.categoryStyles, state.settings.categories);
   state.settings.categoryGroups = normalizeCategoryGroups(state.settings.categoryGroups);
   state.settings.categoryGroupOf = normalizeCategoryGroupOf(state.settings.categoryGroupOf, state.settings.categories, state.settings.categoryGroups);
+  state.settings.people = normalizePeople(state.settings.people);
   state.settings.recurringRules = normalizeRecurringRules(state.settings.recurringRules);
   if (runRecurringCatchUp()) {
     persistAll(state.settings, state.entries, "recurring payments");
@@ -1229,7 +1297,7 @@ function renderHomeBody(T, da) {
 }
 
 function renderSettingsModal() {
-  var tabs = [{id:"budget",label:"Budget"},{id:"income",label:"Income"},{id:"tracking",label:"Tracking"},{id:"categories",label:"Categories"},{id:"theme",label:"Theme"}];
+  var tabs = [{id:"budget",label:"Budget"},{id:"income",label:"Income"},{id:"tracking",label:"Tracking"},{id:"categories",label:"Categories"},{id:"people",label:"People"},{id:"theme",label:"Theme"}];
   var h = '<div class="modal-backdrop" data-action="close-settings">';
   h += '<div class="modal-card" data-action="noop">';
   h += '<div class="grabber"></div>';
@@ -1347,18 +1415,29 @@ function renderSettingsModal() {
     var catList = state.settings.categories||[];
     catList.forEach(function(c,ci){
       var isEditingStyle = state.categoryStyleEditing === c;
+      var isRenaming = state.categoryRenameEditing === c;
       h += '<div style="background:var(--raised); border:1px solid var(--hairline); border-radius:8px; overflow:hidden;">';
       h += '<div class="row between" style="padding:7px 8px 7px 8px;">';
-      h += '<div class="row gap2" style="align-items:center; min-width:0;">';
-      h += '<button data-action="edit-category-style" data-cat="'+esc(c)+'" style="background:none;border:none;padding:0;flex-shrink:0;" aria-label="Change icon and color">'+catIconCircle(c)+'</button>';
-      h += '<span style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(c)+'</span>';
+      if (isRenaming) {
+        h += '<input id="categoryRenameInput" data-cat="'+esc(c)+'" type="text" class="field" style="flex:1; margin-right:8px; font-size:13px; padding:6px 10px;" value="'+esc(c)+'" />';
+        h += '<div class="row gap2" style="flex-shrink:0;">';
+        h += '<button data-action="save-category-rename" data-cat="'+esc(c)+'" class="btn-plain" style="font-size:13px;">Save</button>';
+        h += '<button data-action="cancel-category-rename" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Cancel">'+ICONS.x+'</button>';
+        h += '</div>';
+      } else {
+        h += '<div class="row gap2" style="align-items:center; min-width:0;">';
+        h += '<button data-action="edit-category-style" data-cat="'+esc(c)+'" style="background:none;border:none;padding:0;flex-shrink:0;" aria-label="Change icon and color">'+catIconCircle(c)+'</button>';
+        h += '<span style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(c)+'</span>';
+        h += '</div>';
+        h += '<div class="row gap2" style="flex-shrink:0;">';
+        h += '<button data-action="edit-category-name" data-cat="'+esc(c)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Rename">'+ICONS.pencil+'</button>';
+        h += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(ci===0?"var(--hairline)":"var(--text-muted)")+';" '+(ci===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
+        h += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(ci===catList.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(ci===catList.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
+        h += '<button data-action="remove-category" data-cat="'+esc(c)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Remove">'+ICONS.trash+'</button>';
+        h += '</div>';
+      }
       h += '</div>';
-      h += '<div class="row gap2" style="flex-shrink:0;">';
-      h += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(ci===0?"var(--hairline)":"var(--text-muted)")+';" '+(ci===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
-      h += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(ci===catList.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(ci===catList.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
-      h += '<button data-action="remove-category" data-cat="'+esc(c)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Remove">'+ICONS.trash+'</button>';
-      h += '</div></div>';
-      if (groupList.length) {
+      if (!isRenaming && groupList.length) {
         h += '<div style="padding:0 12px 8px;"><select data-role="category-group-select" data-cat="'+esc(c)+'" class="field" style="font-size:12px; padding:6px 10px;">';
         h += '<option value=""'+(!categoryGroupOf(c)?' selected':'')+'>No group</option>';
         groupList.forEach(function(g){
@@ -1390,6 +1469,37 @@ function renderSettingsModal() {
     if (!catList.length) h += '<span class="muted" style="font-size:12px;">No categories yet.</span>';
     h += '</div>';
     h += '<div class="row gap2"><input id="newCategoryInput" type="text" class="field" placeholder="New category" style="flex:1;" /><button data-action="add-category" class="btn-outline">Add</button></div>';
+  }
+
+  if (state.settingsTab === "people") {
+    h += '<label class="eyebrow">People</label>';
+    h += '<div class="muted caption" style="margin:4px 0 10px;">Tag transactions with who they were for, then see the breakdown in Analysis.</div>';
+    h += '<div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">';
+    var peopleList = state.settings.people||[];
+    peopleList.forEach(function(p,pi){
+      var isRenamingP = state.personRenameEditing === p;
+      h += '<div style="background:var(--raised); border:1px solid var(--hairline); border-radius:8px; padding:7px 8px 7px 12px;">';
+      h += '<div class="row between">';
+      if (isRenamingP) {
+        h += '<input id="personRenameInput" data-person="'+esc(p)+'" type="text" class="field" style="flex:1; margin-right:8px; font-size:13px; padding:6px 10px;" value="'+esc(p)+'" />';
+        h += '<div class="row gap2" style="flex-shrink:0;">';
+        h += '<button data-action="save-person-rename" data-person="'+esc(p)+'" class="btn-plain" style="font-size:13px;">Save</button>';
+        h += '<button data-action="cancel-person-rename" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Cancel">'+ICONS.x+'</button>';
+        h += '</div>';
+      } else {
+        h += '<span style="font-size:13px;">'+esc(p)+'</span>';
+        h += '<div class="row gap2" style="flex-shrink:0;">';
+        h += '<button data-action="edit-person-name" data-person="'+esc(p)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Rename">'+ICONS.pencil+'</button>';
+        h += '<button data-action="move-person" data-person="'+esc(p)+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(pi===0?"var(--hairline)":"var(--text-muted)")+';" '+(pi===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
+        h += '<button data-action="move-person" data-person="'+esc(p)+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(pi===peopleList.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(pi===peopleList.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
+        h += '<button data-action="remove-person" data-person="'+esc(p)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Remove">'+ICONS.trash+'</button>';
+        h += '</div>';
+      }
+      h += '</div></div>';
+    });
+    if (!peopleList.length) h += '<span class="muted" style="font-size:12px;">No people yet.</span>';
+    h += '</div>';
+    h += '<div class="row gap2"><input id="newPersonInput" type="text" class="field" placeholder="New person" style="flex:1;" /><button data-action="add-person" class="btn-outline">Add</button></div>';
   }
 
   h += '</div></div>';
@@ -1426,6 +1536,14 @@ function renderAddTxnModal() {
     h += '<option value="'+esc(c)+'"'+(editingItem && editingItem.category===c?" selected":"")+'>'+esc(c)+'</option>';
   });
   h += '</select>';
+  if ((state.settings.people||[]).length) {
+    h += '<select id="entryPersonInput" class="field" style="margin-bottom:8px;">';
+    h += '<option value="">Who\u2019s this for? (optional)</option>';
+    (state.settings.people||[]).forEach(function(p){
+      h += '<option value="'+esc(p)+'"'+(editingItem && editingItem.person===p?" selected":"")+'>'+esc(p)+'</option>';
+    });
+    h += '</select>';
+  }
   h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:12px;" placeholder="What was it for? (optional)" value="'+(editingItem?esc(editingItem.note||""):"")+'" />';
   if (!editingItem && splitMode === "split") {
     h += '<input id="splitDaysInput" type="number" inputmode="numeric" min="2" step="1" class="field" style="margin-bottom:8px;" placeholder="Number of days" />';
@@ -1586,7 +1704,10 @@ function renderTxnRow(date, it) {
       : '<span style="color:var(--text-muted); flex-shrink:0;" title="Recurring payment">'+ICONS.repeat+'</span>';
   }
   h += '<div style="font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:5px;">'+(it.category?esc(it.category):"Spent")+seqBadge+'</div>';
-  if (it.note) h += '<div class="muted" style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(it.note)+'</div>';
+  var subParts = [];
+  if (it.note) subParts.push(it.note);
+  if (it.person) subParts.push(it.person);
+  if (subParts.length) h += '<div class="muted" style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(subParts.join(" · "))+'</div>';
   h += '</span></button>';
   h += '<div class="mono" style="font-size:13px; font-weight:600; color:var(--rust); flex-shrink:0;">−'+fmt(it.amount,2)+' AED</div>';
   h += '<button data-action="ask-delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);flex-shrink:0;" aria-label="Delete">'+ICONS.trash+'</button>';
@@ -1741,7 +1862,7 @@ function renderPieChart(slices, T, selectedLabel, centerLabel, centerValue, tapA
     var color = PIE_COLORS[i % PIE_COLORS.length];
     var isSel = selectedLabel != null && sl.label === selectedLabel;
     var op = (selectedLabel != null && !isSel) ? ' opacity="0.3"' : '';
-    var tap = ' class="chart-hit" data-action="'+(tapAction||"filter-analysis-category")+'" data-'+(tapDataKey||"cat")+'="'+esc(sl.label)+'"';
+    var tap = (tapAction === "none") ? '' : (' class="chart-hit" data-action="'+(tapAction||"filter-analysis-category")+'" data-'+(tapDataKey||"cat")+'="'+esc(sl.label)+'"');
     var d;
     if (frac >= 0.9999) {
       // A single category holding 100%: draw the ring as outer circle minus
@@ -2607,6 +2728,40 @@ function renderAnalysisBody(T) {
     return s;
   };
 
+  /* Read-only for now — no tap-to-filter interaction, since combining a
+     person filter with the existing category filter would need real thought
+     about how the two should interact. Hidden entirely if no people have
+     been configured, so nobody sees an empty "Unassigned: 100%" chart just
+     for using the app without this feature. */
+  sectionHtml.person = function(){
+    if (!(state.settings.people||[]).length) return "";
+    var personTotals = {};
+    cs.rows.forEach(function(r){
+      (r.items||[]).forEach(function(it){
+        if (!keepItem(it)) return;
+        var key = it.person || "Unassigned";
+        personTotals[key] = (personTotals[key] || 0) + it.amount;
+      });
+    });
+    var slices = Object.keys(personTotals).map(function(k){ return { label:k, value:personTotals[k] }; })
+      .sort(function(a,b){ return b.value - a.value; });
+    var total = slices.reduce(function(t,x){ return t+x.value; }, 0);
+    if (!slices.length) return "";
+    var s = '<div class="card card-pad" style="margin-bottom:16px;">';
+    s += '<div class="eyebrow" style="margin-bottom:10px;">Spend by person</div>';
+    s += '<div style="display:flex; justify-content:center; margin-bottom:12px;">'+renderPieChart(slices, T, null, "All", total, "none")+'</div>';
+    slices.forEach(function(sl,i){
+      var pct = total>0 ? (sl.value/total*100) : 0;
+      var swatch = sl.label === "Unassigned" ? "var(--text-muted)" : PIE_COLORS[i % PIE_COLORS.length];
+      s += '<div class="row between" style="padding:8px 0;'+(i>0?"border-top:1px solid var(--sep);":"")+'">';
+      s += '<span class="row" style="align-items:center; gap:9px; min-width:0;"><span style="width:11px;height:11px;border-radius:3px;flex-shrink:0;background:'+swatch+';"></span><span class="subhead">'+esc(sl.label)+'</span></span>';
+      s += '<span class="row" style="align-items:baseline; gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px; text-align:right;">'+pct.toFixed(0)+'%</span></span>';
+      s += '</div>';
+    });
+    s += '</div>';
+    return s;
+  };
+
   sectionHtml.dow = function(){
     var dowSums = [0,0,0,0,0,0,0], dowCounts = [0,0,0,0,0,0,0];
     cs.rows.forEach(function(r){
@@ -2772,6 +2927,11 @@ function renderPlansBody() {
   h += '<select id="recurringCategoryInput" class="field" style="margin-bottom:8px;"><option value="">No category</option>';
   (state.settings.categories||[]).forEach(function(c){ h += '<option value="'+esc(c)+'">'+esc(c)+'</option>'; });
   h += '</select>';
+  if ((state.settings.people||[]).length) {
+    h += '<select id="recurringPersonInput" class="field" style="margin-bottom:8px;"><option value="">Who\u2019s this for? (optional)</option>';
+    (state.settings.people||[]).forEach(function(p){ h += '<option value="'+esc(p)+'">'+esc(p)+'</option>'; });
+    h += '</select>';
+  }
   h += '<input id="recurringNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="What\u2019s it for? (e.g. Rent)" />';
   h += '<div class="row gap2" style="margin-bottom:8px;">';
   h += '<select id="recurringFrequencyInput" class="field" style="flex:1;"><option value="weekly">Every week</option><option value="monthly">Every month</option></select>';
@@ -2822,18 +2982,20 @@ function handleAddTransaction() {
   var amtEl = document.getElementById("entryAmountInput");
   var noteEl = document.getElementById("entryNoteInput");
   var catEl = document.getElementById("entryCategoryInput");
+  var personEl = document.getElementById("entryPersonInput");
   var date = dateEl ? dateEl.value : todayStr();
   var amt = parseFloat(amtEl ? amtEl.value : "");
   if (isNaN(amt) || amt < 0 || !date) return;
   var note = noteEl ? noteEl.value.trim() : "";
   var category = catEl ? catEl.value : "";
+  var person = personEl ? personEl.value : "";
   var wasEditing = !!(state.editingItemId && state.editingOriginalDate);
 
   if (!wasEditing && state.txnSplitMode === "split") {
     var splitDaysEl = document.getElementById("splitDaysInput");
     var splitDays = parseInt(splitDaysEl ? splitDaysEl.value : "", 10);
     if (isNaN(splitDays) || splitDays < 2) return;
-    handleAddSplitTransaction(date, amt, category, note, splitDays);
+    handleAddSplitTransaction(date, amt, category, note, splitDays, person);
     return;
   }
 
@@ -2848,7 +3010,7 @@ function handleAddTransaction() {
       if (remaining.length === 0) delete nextEntries[origDate];
       else nextEntries[origDate] = Object.assign({}, origDay, { items: remaining });
     }
-    var updatedItem = { id: state.editingItemId, amount: amt, note: note, category: category };
+    var updatedItem = { id: state.editingItemId, amount: amt, note: note, category: category, person: person };
     var destDay = nextEntries[date];
     var nextDest = destDay ? Object.assign({}, destDay, { items: destDay.items.concat([updatedItem]) }) : { allowance: carriedAllowance, items: [updatedItem] };
     nextEntries[date] = nextDest;
@@ -2857,7 +3019,7 @@ function handleAddTransaction() {
     state.showAddTxn = false;
   } else {
     var existing = nextEntries[date];
-    var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category };
+    var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category, person: person };
     nextEntries[date] = existing ? Object.assign({}, existing, { items: existing.items.concat([newItem]) }) : { allowance: dailyAllowance(), items: [newItem] };
     state.showAddTxn = false;
   }
@@ -2875,7 +3037,7 @@ function handleAddTransaction() {
    much is left / what's coming up" answerable at all. Per-day share is
    floor-rounded with the final day absorbing the leftover cents, so the days
    read evenly while the total stays exact. */
-function handleAddSplitTransaction(startDate, totalAmount, category, note, splitDays) {
+function handleAddSplitTransaction(startDate, totalAmount, category, note, splitDays, person) {
   var perDayFloor = Math.floor((totalAmount/splitDays)*100)/100;
   var newRule = {
     id: Date.now()+"-"+Math.random().toString(36).slice(2,7),
@@ -2884,6 +3046,7 @@ function handleAddSplitTransaction(startDate, totalAmount, category, note, split
     splitTotal: totalAmount,
     category: category,
     note: note,
+    person: person||"",
     frequency: "daily",
     startDate: startDate,
     endDate: null,
@@ -3073,6 +3236,7 @@ function handleRestore() {
     nextSettings.categoryStyles = normalizeCategoryStyles(nextSettings.categoryStyles, nextSettings.categories);
     nextSettings.categoryGroups = normalizeCategoryGroups(nextSettings.categoryGroups);
     nextSettings.categoryGroupOf = normalizeCategoryGroupOf(nextSettings.categoryGroupOf, nextSettings.categories, nextSettings.categoryGroups);
+    nextSettings.people = normalizePeople(nextSettings.people);
     nextSettings.recurringRules = normalizeRecurringRules(nextSettings.recurringRules);
     var nextEntries = migrateEntries(parsed.entries||{}, nextSettings.weeklyTarget/7);
     state.settings = nextSettings;
@@ -3215,6 +3379,7 @@ document.addEventListener("click", function(e) {
         if (!recEndDate || recEndDate < recStart) break;
       }
       var recCategoryEl = document.getElementById("recurringCategoryInput");
+      var recPersonEl = document.getElementById("recurringPersonInput");
       var recNoteEl = document.getElementById("recurringNoteInput");
       var recFreqEl = document.getElementById("recurringFrequencyInput");
       var newRule = {
@@ -3223,6 +3388,7 @@ document.addEventListener("click", function(e) {
         amount: recAmount,
         splitTotal: null,
         category: recCategoryEl ? recCategoryEl.value : "",
+        person: recPersonEl ? recPersonEl.value : "",
         note: recNoteEl ? recNoteEl.value.trim() : "",
         frequency: (recFreqEl && recFreqEl.value === "monthly") ? "monthly" : "weekly",
         startDate: recStart,
@@ -3278,6 +3444,7 @@ document.addEventListener("click", function(e) {
       delete groupOfAfterRemoveCat[catToRemove];
       var withoutCat = Object.assign({}, state.settings, { categories: nextCatsAfterRemove, categoryStyles: stylesAfterRemove, categoryGroupOf: groupOfAfterRemoveCat });
       if (state.categoryStyleEditing === catToRemove) state.categoryStyleEditing = null;
+      if (state.categoryRenameEditing === catToRemove) state.categoryRenameEditing = null;
       persistAll(withoutCat, state.entries, "your settings");
       render();
       break;
@@ -3312,6 +3479,51 @@ document.addEventListener("click", function(e) {
         render();
       }
       break;
+    case "add-person":
+      var newPersonEl = document.getElementById("newPersonInput");
+      var newPerson = newPersonEl ? newPersonEl.value.trim() : "";
+      if (newPerson && (state.settings.people||[]).indexOf(newPerson) === -1) {
+        persistAll(Object.assign({}, state.settings, { people: (state.settings.people||[]).concat([newPerson]) }), state.entries, "your settings");
+        render();
+      }
+      break;
+    case "remove-person":
+      var personToRemove = el.dataset.person;
+      var nextPeople = (state.settings.people||[]).filter(function(p){ return p !== personToRemove; });
+      if (state.personRenameEditing === personToRemove) state.personRenameEditing = null;
+      persistAll(Object.assign({}, state.settings, { people: nextPeople }), state.entries, "your settings");
+      render();
+      break;
+    case "move-person":
+      var dirP = parseInt(el.dataset.dir,10);
+      var people2 = (state.settings.people||[]).slice();
+      var idxP = people2.indexOf(el.dataset.person);
+      var swapIdxP = idxP + dirP;
+      if (idxP >= 0 && swapIdxP >= 0 && swapIdxP < people2.length) {
+        var tmpP = people2[idxP]; people2[idxP] = people2[swapIdxP]; people2[swapIdxP] = tmpP;
+        persistAll(Object.assign({}, state.settings, { people: people2 }), state.entries, "your settings");
+        render();
+      }
+      break;
+    case "edit-person-name":
+      state.personRenameEditing = (state.personRenameEditing === el.dataset.person) ? null : el.dataset.person;
+      render();
+      break;
+    case "cancel-person-rename":
+      state.personRenameEditing = null;
+      render();
+      break;
+    case "save-person-rename":
+      var personRenameInput = document.getElementById("personRenameInput");
+      var newPersonName = personRenameInput ? personRenameInput.value.trim() : "";
+      var oldPersonName = el.dataset.person;
+      if (newPersonName && newPersonName !== oldPersonName) {
+        var personWasMerge = renameTag("person", oldPersonName, newPersonName);
+        showToast(personWasMerge ? "Merged into "+newPersonName : "Renamed to "+newPersonName);
+      }
+      state.personRenameEditing = null;
+      render();
+      break;
     case "drill-analysis-group":
       state.analysisSelectedGroup = el.dataset.group;
       state.analysisSelectedBucket = null;
@@ -3323,6 +3535,27 @@ document.addEventListener("click", function(e) {
       break;
     case "edit-category-style":
       state.categoryStyleEditing = (state.categoryStyleEditing === el.dataset.cat) ? null : el.dataset.cat;
+      state.categoryRenameEditing = null;
+      render();
+      break;
+    case "edit-category-name":
+      state.categoryRenameEditing = (state.categoryRenameEditing === el.dataset.cat) ? null : el.dataset.cat;
+      state.categoryStyleEditing = null;
+      render();
+      break;
+    case "cancel-category-rename":
+      state.categoryRenameEditing = null;
+      render();
+      break;
+    case "save-category-rename":
+      var catRenameInput = document.getElementById("categoryRenameInput");
+      var newCatNameVal = catRenameInput ? catRenameInput.value.trim() : "";
+      var oldCatNameVal = el.dataset.cat;
+      if (newCatNameVal && newCatNameVal !== oldCatNameVal) {
+        var catWasMerge = renameTag("category", oldCatNameVal, newCatNameVal);
+        showToast(catWasMerge ? "Merged into "+newCatNameVal : "Renamed to "+newCatNameVal);
+      }
+      state.categoryRenameEditing = null;
       render();
       break;
     case "set-category-icon":
