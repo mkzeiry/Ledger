@@ -1132,6 +1132,19 @@ function render() {
   var anyModalOpen = state.showAddTxn || state.showSettings || state.showBackup || state.showResetConfirm;
   if (anyModalOpen) lockBodyScroll(); else unlockBodyScroll();
 
+  /* root.innerHTML = html below destroys and recreates every element on every
+     render, including whichever scrollable container the person is currently
+     scrolled through — so without this, expanding a category's icon editor
+     (or any other in-place UI change) would silently snap them back to the
+     top every single time. Captured here, before the rebuild; restored after
+     it, onto the freshly-created element that takes its place. Modal scroll
+     and page scroll are mutually exclusive: while a modal is open the body is
+     pinned via lockBodyScroll, so only the modal's own scrollTop matters;
+     with no modal open, the page's own scroll position is what matters. */
+  var modalCardEl = document.querySelector(".modal-card");
+  var savedModalScrollTop = modalCardEl ? modalCardEl.scrollTop : 0;
+  var savedPageScrollY = modalCardEl ? 0 : (window.scrollY || window.pageYOffset || 0);
+
   if (state.loading) {
     root.innerHTML = '<div class="row" style="min-height:100vh; align-items:center; justify-content:center;"><div class="muted" style="font-size:14px;">Loading your ledger…</div></div>';
     return;
@@ -1210,6 +1223,12 @@ function render() {
   }
 
   root.innerHTML = html;
+  var newModalCardEl = document.querySelector(".modal-card");
+  if (newModalCardEl) {
+    if (savedModalScrollTop) newModalCardEl.scrollTop = savedModalScrollTop;
+  } else if (savedPageScrollY) {
+    window.scrollTo(0, savedPageScrollY);
+  }
   if ((state.page === "home" || state.page === "analysis") && lastChartData) wireBalanceChart(lastChartData);
   if ((state.page === "analysis" || state.page === "home") && lastForecastChartData) wireForecastChart(lastForecastChartData);
 }
@@ -1464,18 +1483,82 @@ function renderSettingsModal() {
 
   if (state.settingsTab === "categories") {
     var groupList = state.settings.categoryGroups||[];
-    h += '<label class="eyebrow">Groups</label>';
-    h += '<div class="muted caption" style="margin:4px 0 10px;">Organize related categories under a broader group — e.g. Restaurants, Food & Dining, and Groceries under "Food & Drinks" — so Analysis can show either level.</div>';
-    h += '<div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">';
+    var catListAll = state.settings.categories||[];
+
+    /* Shared row renderer: identical markup whether a category is nested
+       under a group or listed under Ungrouped, so the two can't drift apart.
+       "siblings" is whichever list this category's up/down arrows should
+       move it within — its group's members, or the ungrouped list — NOT
+       necessarily the full flat categories array, so the arrows always
+       visibly do something relative to what's on screen. */
+    function renderCategoryRow(c, localIdx, siblings) {
+      var isEditingStyle = state.categoryStyleEditing === c;
+      var isRenaming = state.categoryRenameEditing === c;
+      var atTop = localIdx === 0, atBottom = localIdx === siblings.length-1;
+      var rh = '<div style="background:var(--card); border:1px solid var(--hairline); border-radius:8px; overflow:hidden;">';
+      rh += '<div class="row between" style="padding:7px 8px 7px 8px;">';
+      if (isRenaming) {
+        rh += '<input id="categoryRenameInput" data-cat="'+esc(c)+'" type="text" class="field" style="flex:1; margin-right:8px; font-size:13px; padding:6px 10px;" value="'+esc(c)+'" />';
+        rh += '<div class="row gap2" style="flex-shrink:0;">';
+        rh += '<button data-action="save-category-rename" data-cat="'+esc(c)+'" class="btn-plain" style="font-size:13px;">Save</button>';
+        rh += '<button data-action="cancel-category-rename" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Cancel">'+ICONS.x+'</button>';
+        rh += '</div>';
+      } else {
+        rh += '<div class="row gap2" style="align-items:center; min-width:0;">';
+        rh += '<button data-action="edit-category-style" data-cat="'+esc(c)+'" style="background:none;border:none;padding:0;flex-shrink:0;" aria-label="Change icon and color">'+catIconCircle(c)+'</button>';
+        rh += '<span style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(c)+'</span>';
+        rh += '</div>';
+        rh += '<div class="row gap2" style="flex-shrink:0;">';
+        rh += '<button data-action="edit-category-name" data-cat="'+esc(c)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Rename">'+ICONS.pencil+'</button>';
+        rh += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(atTop?"var(--hairline)":"var(--text-muted)")+';" '+(atTop?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
+        rh += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(atBottom?"var(--hairline)":"var(--text-muted)")+';" '+(atBottom?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
+        rh += '<button data-action="remove-category" data-cat="'+esc(c)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Remove">'+ICONS.trash+'</button>';
+        rh += '</div>';
+      }
+      rh += '</div>';
+      if (!isRenaming && groupList.length) {
+        rh += '<div style="padding:0 12px 8px;"><select data-role="category-group-select" data-cat="'+esc(c)+'" class="field" style="font-size:12px; padding:6px 10px;">';
+        rh += '<option value=""'+(!categoryGroupOf(c)?' selected':'')+'>No group</option>';
+        groupList.forEach(function(g){
+          rh += '<option value="'+esc(g)+'"'+(categoryGroupOf(c)===g?' selected':'')+'>'+esc(g)+'</option>';
+        });
+        rh += '</select></div>';
+      }
+      if (isEditingStyle) {
+        var curStyle = categoryStyle(c);
+        var hasCustom = !!(state.settings.categoryStyles && state.settings.categoryStyles[c]);
+        rh += '<div style="padding:4px 12px 14px;">';
+        rh += '<div class="muted caption" style="margin-bottom:8px;">Icon</div>';
+        rh += '<div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">';
+        CAT_ICON_ORDER.forEach(function(iconKey){
+          var isSel = curStyle.icon === iconKey;
+          rh += '<button data-action="set-category-icon" data-cat="'+esc(c)+'" data-icon="'+iconKey+'" style="width:36px; height:36px; border-radius:50%; background:'+curStyle.color+'; border:'+(isSel?"2px solid var(--text)":"2px solid transparent")+'; display:flex; align-items:center; justify-content:center; padding:0;" aria-label="'+iconKey+'">'+CAT_ICON_SVGS[iconKey]+'</button>';
+        });
+        rh += '</div>';
+        rh += '<div class="muted caption" style="margin-bottom:8px;">Color</div>';
+        rh += '<div class="row gap2" style="align-items:center; margin-bottom:12px;">';
+        rh += '<input id="categoryColorInput" data-cat="'+esc(c)+'" type="color" value="'+curStyle.color+'" style="width:44px; height:36px; border:none; border-radius:8px; padding:0; background:none;" />';
+        rh += '<span class="mono subhead">'+curStyle.color.toUpperCase()+'</span>';
+        rh += '</div>';
+        rh += '<button data-action="reset-category-style" data-cat="'+esc(c)+'" class="btn-plain" style="'+(hasCustom?"":"opacity:0.4;")+'" '+(hasCustom?"":"disabled")+'>Reset to default</button>';
+        rh += '</div>';
+      }
+      rh += '</div>';
+      return rh;
+    }
+
+    h += '<label class="eyebrow">Categories</label>';
+    h += '<div class="muted caption" style="margin:4px 0 10px;">Organize related categories under a group — e.g. Restaurants, Food & Dining, and Groceries under "Food & Drinks" — so Analysis can show either level. Tap a category\u2019s icon to customize it, or a group\u2019s palette icon to style everyone in it at once.</div>';
+    h += '<div style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">';
+
     groupList.forEach(function(g,gi){
-      var memberCats = (state.settings.categories||[]).filter(function(c){ return categoryGroupOf(c)===g; });
-      var memberCount = memberCats.length;
+      var members = catListAll.filter(function(c){ return categoryGroupOf(c)===g; });
       var isStylingGroup = state.groupStyleEditing === g;
-      h += '<div style="background:var(--raised); border:1px solid var(--hairline); border-radius:8px; overflow:hidden;">';
-      h += '<div class="row between" style="padding:7px 8px 7px 12px;">';
-      h += '<div class="row gap2" style="align-items:baseline; min-width:0;"><span style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(g)+'</span><span class="muted caption">'+memberCount+' categor'+(memberCount===1?"y":"ies")+'</span></div>';
+      h += '<div style="background:var(--raised); border:1px solid var(--hairline); border-radius:10px; overflow:hidden;">';
+      h += '<div class="row between" style="padding:8px 8px 8px 12px;">';
+      h += '<div class="row gap2" style="align-items:baseline; min-width:0;"><span style="font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(g)+'</span><span class="muted caption">'+members.length+' categor'+(members.length===1?"y":"ies")+'</span></div>';
       h += '<div class="row gap2" style="flex-shrink:0;">';
-      h += '<button data-action="edit-group-style" data-group="'+esc(g)+'" style="background:none;border:none;padding:3px;color:'+(isStylingGroup?"var(--accent)":"var(--text-muted)")+';'+(memberCount===0?"opacity:0.35;":"")+'" '+(memberCount===0?"disabled":"")+' aria-label="Style all categories in this group">'+ICONS.palette+'</button>';
+      h += '<button data-action="edit-group-style" data-group="'+esc(g)+'" style="background:none;border:none;padding:3px;color:'+(isStylingGroup?"var(--accent)":"var(--text-muted)")+';'+(members.length===0?"opacity:0.35;":"")+'" '+(members.length===0?"disabled":"")+' aria-label="Style all categories in this group">'+ICONS.palette+'</button>';
       h += '<button data-action="move-group" data-group="'+esc(g)+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(gi===0?"var(--hairline)":"var(--text-muted)")+';" '+(gi===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
       h += '<button data-action="move-group" data-group="'+esc(g)+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(gi===groupList.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(gi===groupList.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
       h += '<button data-action="remove-group" data-group="'+esc(g)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Remove">'+ICONS.trash+'</button>';
@@ -1485,9 +1568,9 @@ function renderSettingsModal() {
            in the group at once, overwriting their individual styles. The
            preview swatch uses the first member's current color so the
            starting point reflects reality rather than an arbitrary default. */
-        var seedStyle = categoryStyle(memberCats[0]);
+        var seedStyle = categoryStyle(members[0]);
         h += '<div style="padding:4px 12px 14px;">';
-        h += '<div class="muted caption" style="margin-bottom:8px;">Apply an icon to all '+memberCount+' categor'+(memberCount===1?"y":"ies")+' in this group</div>';
+        h += '<div class="muted caption" style="margin-bottom:8px;">Apply an icon to all '+members.length+' categor'+(members.length===1?"y":"ies")+' in this group</div>';
         h += '<div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">';
         CAT_ICON_ORDER.forEach(function(iconKey){
           h += '<button data-action="set-group-icon" data-group="'+esc(g)+'" data-icon="'+iconKey+'" style="width:36px; height:36px; border-radius:50%; background:'+seedStyle.color+'; border:2px solid transparent; display:flex; align-items:center; justify-content:center; padding:0;" aria-label="'+iconKey+'">'+CAT_ICON_SVGS[iconKey]+'</button>';
@@ -1497,74 +1580,37 @@ function renderSettingsModal() {
         h += '<div class="row gap2" style="align-items:center;">';
         h += '<input id="groupColorInput" data-group="'+esc(g)+'" type="color" value="'+seedStyle.color+'" style="width:44px; height:36px; border:none; border-radius:8px; padding:0; background:none;" />';
         h += '<span class="muted caption">Changes every category in the group</span>';
-        h += '</div>';
-        h += '</div>';
+        h += '</div></div>';
       }
-      h += '</div>';
-    });
-    if (!groupList.length) h += '<span class="muted" style="font-size:12px;">No groups yet — categories stay flat until you add one.</span>';
-    h += '</div>';
-    h += '<div class="row gap2" style="margin-bottom:20px;"><input id="newGroupInput" type="text" class="field" placeholder="New group" style="flex:1;" /><button data-action="add-group" class="btn-outline">Add</button></div>';
-
-    h += '<label class="eyebrow hairline-top" style="display:block; padding-top:14px;">Categories</label>';
-    h += '<div style="display:flex; flex-direction:column; gap:6px; margin:8px 0 10px;">';
-    var catList = state.settings.categories||[];
-    catList.forEach(function(c,ci){
-      var isEditingStyle = state.categoryStyleEditing === c;
-      var isRenaming = state.categoryRenameEditing === c;
-      h += '<div style="background:var(--raised); border:1px solid var(--hairline); border-radius:8px; overflow:hidden;">';
-      h += '<div class="row between" style="padding:7px 8px 7px 8px;">';
-      if (isRenaming) {
-        h += '<input id="categoryRenameInput" data-cat="'+esc(c)+'" type="text" class="field" style="flex:1; margin-right:8px; font-size:13px; padding:6px 10px;" value="'+esc(c)+'" />';
-        h += '<div class="row gap2" style="flex-shrink:0;">';
-        h += '<button data-action="save-category-rename" data-cat="'+esc(c)+'" class="btn-plain" style="font-size:13px;">Save</button>';
-        h += '<button data-action="cancel-category-rename" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Cancel">'+ICONS.x+'</button>';
-        h += '</div>';
+      if (members.length) {
+        h += '<div style="padding:0 10px 10px 10px;">';
+        h += '<div style="padding-left:14px; border-left:2px solid var(--hairline); display:flex; flex-direction:column; gap:6px;">';
+        members.forEach(function(c,ci){ h += renderCategoryRow(c, ci, members); });
+        h += '</div></div>';
       } else {
-        h += '<div class="row gap2" style="align-items:center; min-width:0;">';
-        h += '<button data-action="edit-category-style" data-cat="'+esc(c)+'" style="background:none;border:none;padding:0;flex-shrink:0;" aria-label="Change icon and color">'+catIconCircle(c)+'</button>';
-        h += '<span style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(c)+'</span>';
-        h += '</div>';
-        h += '<div class="row gap2" style="flex-shrink:0;">';
-        h += '<button data-action="edit-category-name" data-cat="'+esc(c)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Rename">'+ICONS.pencil+'</button>';
-        h += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(ci===0?"var(--hairline)":"var(--text-muted)")+';" '+(ci===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
-        h += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(ci===catList.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(ci===catList.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
-        h += '<button data-action="remove-category" data-cat="'+esc(c)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Remove">'+ICONS.trash+'</button>';
-        h += '</div>';
-      }
-      h += '</div>';
-      if (!isRenaming && groupList.length) {
-        h += '<div style="padding:0 12px 8px;"><select data-role="category-group-select" data-cat="'+esc(c)+'" class="field" style="font-size:12px; padding:6px 10px;">';
-        h += '<option value=""'+(!categoryGroupOf(c)?' selected':'')+'>No group</option>';
-        groupList.forEach(function(g){
-          h += '<option value="'+esc(g)+'"'+(categoryGroupOf(c)===g?' selected':'')+'>'+esc(g)+'</option>';
-        });
-        h += '</select></div>';
-      }
-      if (isEditingStyle) {
-        var curStyle = categoryStyle(c);
-        var hasCustom = !!(state.settings.categoryStyles && state.settings.categoryStyles[c]);
-        h += '<div style="padding:4px 12px 14px;">';
-        h += '<div class="muted caption" style="margin-bottom:8px;">Icon</div>';
-        h += '<div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">';
-        CAT_ICON_ORDER.forEach(function(iconKey){
-          var isSel = curStyle.icon === iconKey;
-          h += '<button data-action="set-category-icon" data-cat="'+esc(c)+'" data-icon="'+iconKey+'" style="width:36px; height:36px; border-radius:50%; background:'+curStyle.color+'; border:'+(isSel?"2px solid var(--text)":"2px solid transparent")+'; display:flex; align-items:center; justify-content:center; padding:0;" aria-label="'+iconKey+'">'+CAT_ICON_SVGS[iconKey]+'</button>';
-        });
-        h += '</div>';
-        h += '<div class="muted caption" style="margin-bottom:8px;">Color</div>';
-        h += '<div class="row gap2" style="align-items:center; margin-bottom:12px;">';
-        h += '<input id="categoryColorInput" data-cat="'+esc(c)+'" type="color" value="'+curStyle.color+'" style="width:44px; height:36px; border:none; border-radius:8px; padding:0; background:none;" />';
-        h += '<span class="mono subhead">'+curStyle.color.toUpperCase()+'</span>';
-        h += '</div>';
-        h += '<button data-action="reset-category-style" data-cat="'+esc(c)+'" class="btn-plain" style="'+(hasCustom?"":"opacity:0.4;")+'" '+(hasCustom?"":"disabled")+'>Reset to default</button>';
-        h += '</div>';
+        h += '<div style="padding:0 12px 10px;"><span class="muted caption">No categories yet \u2014 assign one below.</span></div>';
       }
       h += '</div>';
     });
-    if (!catList.length) h += '<span class="muted" style="font-size:12px;">No categories yet.</span>';
+
+    var ungrouped = catListAll.filter(function(c){ return !categoryGroupOf(c); });
+    if (groupList.length) {
+      if (ungrouped.length) {
+        h += '<div><div class="muted caption" style="padding:2px 2px 6px;">Ungrouped</div>';
+        h += '<div style="display:flex; flex-direction:column; gap:6px;">';
+        ungrouped.forEach(function(c,ci){ h += renderCategoryRow(c, ci, ungrouped); });
+        h += '</div></div>';
+      }
+    } else {
+      h += '<div style="display:flex; flex-direction:column; gap:6px;">';
+      catListAll.forEach(function(c,ci){ h += renderCategoryRow(c, ci, catListAll); });
+      h += '</div>';
+    }
+    if (!catListAll.length) h += '<span class="muted" style="font-size:12px;">No categories yet.</span>';
     h += '</div>';
-    h += '<div class="row gap2"><input id="newCategoryInput" type="text" class="field" placeholder="New category" style="flex:1;" /><button data-action="add-category" class="btn-outline">Add</button></div>';
+
+    h += '<div class="row gap2" style="margin-bottom:10px;"><input id="newGroupInput" type="text" class="field" placeholder="New group" style="flex:1;" /><button data-action="add-group" class="btn-outline">Add group</button></div>';
+    h += '<div class="row gap2"><input id="newCategoryInput" type="text" class="field" placeholder="New category" style="flex:1;" /><button data-action="add-category" class="btn-outline">Add category</button></div>';
   }
 
   if (state.settingsTab === "people") {
@@ -1995,6 +2041,9 @@ var CAT_ICON_SVGS = {
   gift: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C9 2 12 7 12 7z"/></svg>',
   book: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
   plane: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>',
+  fuel: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="15" y2="22"/><line x1="4" y1="9" x2="14" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v3a1.5 1.5 0 0 0 3 0V9.5a1.5 1.5 0 0 0-.44-1.06L18 6"/><circle cx="7" cy="5.5" r="1"/></svg>',
+  parking: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 16V8h4a2.5 2.5 0 0 1 0 5H9"/></svg>',
+  sparkles: '<svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8z"/><path d="M19 14l.9 2.6L22.5 17.5l-2.6.9L19 21l-.9-2.6L15.5 17.5l2.6-.9z"/></svg>',
   shirt: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2 12 5 9 2 3 5v6h3v11h12V11h3V5z"/></svg>',
   cart: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.55L21 7H6"/></svg>',
   cross: '<svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><path d="M10 2h4v8h8v4h-8v8h-4v-8H2v-4h8z"/></svg>',
@@ -2006,7 +2055,7 @@ var CAT_ICON_SVGS = {
   ticket: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2a2 2 0 0 0 0 4v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a2 2 0 0 0 0-4z"/><path d="M13 5v14"/></svg>',
   tag: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 12.6 12.6 20.6a2 2 0 0 1-2.83 0L2.6 13.4a2 2 0 0 1 0-2.83l8-8A2 2 0 0 1 12 2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-.4 1.2Z"/><circle cx="16.5" cy="7.5" r="1"/></svg>',
 };
-var CAT_ICON_ORDER = ["tag","fork","coffee","basket","cart","bag","shirt","house","car","bolt","heart","cross","pill","dumbbell","leaf","film","music","ticket","book","gift","plane"];
+var CAT_ICON_ORDER = ["tag","fork","coffee","basket","cart","bag","shirt","house","sparkles","car","fuel","parking","bolt","heart","cross","pill","dumbbell","leaf","film","music","ticket","book","gift","plane"];
 var CATEGORY_STYLES = {
   "Food & Dining": { icon:"fork", color:"#D4614A" },
   "Groceries": { icon:"basket", color:"#5EA05E" },
@@ -3828,10 +3877,16 @@ document.addEventListener("click", function(e) {
       break;
     case "move-category":
       var dir = parseInt(el.dataset.dir,10);
+      var catToMove = el.dataset.cat;
       var cats2 = (state.settings.categories||[]).slice();
-      var idx = cats2.indexOf(el.dataset.cat);
-      var swapIdx = idx + dir;
-      if (idx >= 0 && swapIdx >= 0 && swapIdx < cats2.length) {
+      var myGroupForMove = categoryGroupOf(catToMove);
+      var siblingsForMove = cats2.filter(function(c){ return categoryGroupOf(c) === myGroupForMove; });
+      var sibIdx = siblingsForMove.indexOf(catToMove);
+      var sibSwapIdx = sibIdx + dir;
+      if (sibIdx >= 0 && sibSwapIdx >= 0 && sibSwapIdx < siblingsForMove.length) {
+        var neighborCat = siblingsForMove[sibSwapIdx];
+        var idx = cats2.indexOf(catToMove);
+        var swapIdx = cats2.indexOf(neighborCat);
         var tmp = cats2[idx]; cats2[idx] = cats2[swapIdx]; cats2[swapIdx] = tmp;
         var movedSettings = Object.assign({}, state.settings, { categories: cats2 });
         persistAll(movedSettings, state.entries, "your settings");
