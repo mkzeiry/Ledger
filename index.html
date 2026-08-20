@@ -601,6 +601,8 @@ var state = {
   txnSplitMode: "single",
   txnPersonSplitMode: "single",
   txnCategoryGroup: null,
+  entrySplitDaysDraft: null,
+  entryPersonSplitDraft: null,
 };
 
 /* Rate history: records what the weekly target was over time, so past periods are
@@ -1750,7 +1752,11 @@ function renderAddTxnModal() {
          total amount is edited afterward, and 10% increments keep the
          picker to a plain native <select> (no free-text math to get wrong). */
       var existingSplit = {};
-      if (editingItem && editingItem.personSplit) {
+      if (state.entryPersonSplitDraft) {
+        Object.keys(state.entryPersonSplitDraft).forEach(function(p){
+          existingSplit[p] = parseInt(state.entryPersonSplitDraft[p], 10) || 0;
+        });
+      } else if (editingItem && editingItem.personSplit) {
         editingItem.personSplit.forEach(function(ps){ existingSplit[ps.person] = ps.pct; });
       }
       var splitInitTotal = 0;
@@ -1779,7 +1785,7 @@ function renderAddTxnModal() {
   }
   h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:12px;" placeholder="What was it for? (optional)" value="'+(state.entryNoteDraft != null ? esc(state.entryNoteDraft) : (editingItem?esc(editingItem.note||""):""))+'" />';
   if (!editingItem && splitMode === "split") {
-    h += '<input id="splitDaysInput" type="number" inputmode="numeric" min="2" step="1" class="field" style="margin-bottom:8px;" placeholder="Number of days" />';
+    h += '<input id="splitDaysInput" type="number" inputmode="numeric" min="2" step="1" class="field" style="margin-bottom:8px;" placeholder="Number of days" value="'+(state.entrySplitDaysDraft != null ? esc(state.entrySplitDaysDraft) : "")+'" />';
     h += '<div class="muted caption" style="margin-bottom:12px;">Spreads the total evenly starting from the date above, one share per day. Days still to come are logged as they arrive \u2014 track progress under Plans.</div>';
   }
   h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent row gap2" style="width:100%; justify-content:center; align-items:center;">'+(editingItem?ICONS.check+" Save":ICONS.plus+" Add")+'</button>';
@@ -3611,6 +3617,8 @@ function handleEditTxn(date, id) {
   state.txnCategoryGroup = null;
   state.entryAmountDraft = null;
   state.entryNoteDraft = null;
+  state.entrySplitDaysDraft = null;
+  state.entryPersonSplitDraft = null;
   var editDay = state.entries[date];
   var editItem = editDay ? editDay.items.find(function(i){ return i.id === id; }) : null;
   state.txnPersonSplitMode = (editItem && editItem.personSplit && editItem.personSplit.length) ? "split" : "single";
@@ -3633,6 +3641,28 @@ function handleDeleteTxn(date, id) {
   if (state.editingItemId === id) { state.editingItemId = null; state.editingOriginalDate = null; }
   persistAll(state.settings, nextEntries, "your entry");
   render();
+}
+
+/* render() rebuilds the whole DOM from scratch on every call, including
+   whatever's currently on screen in the Add Transaction sheet — so any
+   in-place toggle within that sheet (day-split mode, person-split mode,
+   category group) needs to stash the sheet's current values into state
+   first, or they'd silently reset the moment the toggle re-renders it.
+   Called at the top of every such toggle handler, before it touches other
+   state and calls render(). */
+function preserveTxnFormDraft() {
+  var amtEl = document.getElementById("entryAmountInput");
+  var noteEl = document.getElementById("entryNoteInput");
+  var daysEl = document.getElementById("splitDaysInput");
+  if (amtEl) state.entryAmountDraft = amtEl.value;
+  if (noteEl) state.entryNoteDraft = noteEl.value;
+  if (daysEl) state.entrySplitDaysDraft = daysEl.value;
+  var pctSelects = document.querySelectorAll(".split-person-pct");
+  if (pctSelects.length) {
+    var draft = {};
+    pctSelects.forEach(function(s){ draft[s.dataset.person] = s.value; });
+    state.entryPersonSplitDraft = draft;
+  }
 }
 
 function handleQuickDate(date) {
@@ -3726,10 +3756,12 @@ document.addEventListener("click", function(e) {
     case "edit-txn": handleEditTxn(el.dataset.date, el.dataset.id); break;
     case "cancel-edit": handleCancelEdit(); break;
     case "set-txn-split-mode":
+      preserveTxnFormDraft();
       state.txnSplitMode = el.dataset.mode;
       render();
       break;
     case "set-txn-person-split-mode":
+      preserveTxnFormDraft();
       state.txnPersonSplitMode = el.dataset.mode;
       render();
       break;
@@ -3744,6 +3776,8 @@ document.addEventListener("click", function(e) {
       state.txnCategoryGroup = null;
       state.entryAmountDraft = null;
       state.entryNoteDraft = null;
+      state.entrySplitDaysDraft = null;
+      state.entryPersonSplitDraft = null;
       render();
       focusAmountInput();
       break;
@@ -3756,6 +3790,8 @@ document.addEventListener("click", function(e) {
       state.txnCategoryGroup = null;
       state.entryAmountDraft = null;
       state.entryNoteDraft = null;
+      state.entrySplitDaysDraft = null;
+      state.entryPersonSplitDraft = null;
       render();
       break;
     case "go-page":
@@ -4214,12 +4250,9 @@ document.addEventListener("change", function(e) {
   }
   if (e.target && e.target.id === "entryGroupInput") {
     /* render() rebuilds the sheet from scratch, which would wipe whatever's
-       already been typed into the amount/note fields — so stash them into
-       state first and let the re-render restore them. */
-    var amtPreserve = document.getElementById("entryAmountInput");
-    var notePreserve = document.getElementById("entryNoteInput");
-    state.entryAmountDraft = amtPreserve ? amtPreserve.value : "";
-    state.entryNoteDraft = notePreserve ? notePreserve.value : "";
+       already been entered — so stash it all into state first and let the
+       re-render restore it. */
+    preserveTxnFormDraft();
     state.txnCategoryGroup = e.target.value;
     render();
     return;
