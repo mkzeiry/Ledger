@@ -157,7 +157,7 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, categoryStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, categoryStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null };
 var DEFAULT_ANALYSIS_ORDER = ["summary","forecastedSpend","spendTrend","dailySpend","dailySaving","cumulativeSaving","category","person","dow","topTransactions"];
 var ANALYSIS_SECTION_LABELS = { summary:"Summary", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", dailySaving:"Saved per day", cumulativeSaving:"Cumulative saving", category:"Spend by category", person:"Spend by person", dow:"Average by day of week", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
@@ -219,6 +219,9 @@ function normalizePersonColors(colors, people) {
     if (valid.indexOf(name) !== -1) out[name] = colors[name];
   });
   return out;
+}
+function normalizeDefaultPerson(defaultPerson, people) {
+  return (people||[]).indexOf(defaultPerson) !== -1 ? defaultPerson : null;
 }
 /* The label color for a person. An explicit choice always wins; otherwise a
    stable hash of the name picks from the shared palette, so every person
@@ -291,6 +294,7 @@ function renameTag(kind, oldName, newName) {
     if (!isMerge && nextPersonColors[oldName]) nextPersonColors[newName] = nextPersonColors[oldName];
     delete nextPersonColors[oldName];
     patch.personColors = nextPersonColors;
+    if (state.settings.defaultPerson === oldName) patch.defaultPerson = newName;
   }
   patch.recurringRules = (state.settings.recurringRules||[]).map(function(r){
     var changed = false;
@@ -570,6 +574,8 @@ var state = {
   settingsTab: "budget",
   pendingDeleteKey: null,
   txnCategoryFilter: "",
+  txnGroupFilter: "",
+  txnPersonFilter: "",
   txnPeriodMode: "all",
   txnOffset: 0,
   txnPeriodFrom: "",
@@ -719,6 +725,7 @@ function loadInitial() {
   state.settings.categoryGroupOf = normalizeCategoryGroupOf(state.settings.categoryGroupOf, state.settings.categories, state.settings.categoryGroups);
   state.settings.people = normalizePeople(state.settings.people);
   state.settings.personColors = normalizePersonColors(state.settings.personColors, state.settings.people);
+  state.settings.defaultPerson = normalizeDefaultPerson(state.settings.defaultPerson, state.settings.people);
   state.settings.recurringRules = normalizeRecurringRules(state.settings.recurringRules);
   if (runRecurringCatchUp()) {
     persistAll(state.settings, state.entries, "recurring payments");
@@ -1616,6 +1623,17 @@ function renderSettingsModal() {
   if (state.settingsTab === "people") {
     h += '<label class="eyebrow">People</label>';
     h += '<div class="muted caption" style="margin:4px 0 10px;">Tag transactions with who they were for, then see the breakdown in Analysis.</div>';
+    var peopleListForDefault = state.settings.people||[];
+    if (peopleListForDefault.length) {
+      h += '<label class="eyebrow">Default person</label>';
+      h += '<select id="defaultPersonInput" class="field" style="margin:6px 0 16px;">';
+      h += '<option value=""'+(!state.settings.defaultPerson?" selected":"")+'>None \u2014 leave blank each time</option>';
+      peopleListForDefault.forEach(function(p){
+        h += '<option value="'+esc(p)+'"'+(state.settings.defaultPerson===p?" selected":"")+'>'+esc(p)+'</option>';
+      });
+      h += '</select>';
+      h += '<div class="muted caption" style="margin:-10px 0 16px;">Pre-fills this person on every new transaction \u2014 still changeable per transaction.</div>';
+    }
     h += '<div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">';
     var peopleList = state.settings.people||[];
     peopleList.forEach(function(p,pi){
@@ -1719,10 +1737,11 @@ function renderAddTxnModal() {
       h += '</div>';
     }
     if (personSplitMode === "single") {
+      var preselectedPerson = editingItem ? (editingItem.person||"") : (state.settings.defaultPerson||"");
       h += '<select id="entryPersonInput" class="field" style="margin-bottom:8px;">';
-      h += '<option value="">Who\u2019s this for? (optional)</option>';
+      h += '<option value=""'+(preselectedPerson===""?" selected":"")+'>Who\u2019s this for? (optional)</option>';
       peopleForTxn.forEach(function(p){
-        h += '<option value="'+esc(p)+'"'+(editingItem && editingItem.person===p?" selected":"")+'>'+esc(p)+'</option>';
+        h += '<option value="'+esc(p)+'"'+(preselectedPerson===p?" selected":"")+'>'+esc(p)+'</option>';
       });
       h += '</select>';
     } else {
@@ -1780,24 +1799,53 @@ function renderTransactionsBody() {
   var balanceMap = {};
   cs.rows.forEach(function(r){ acc = round2(acc + (r.allowance-r.spent)); balanceMap[r.date] = acc; });
 
+  var groupFilter = state.txnGroupFilter || "";
   var categoryFilter = state.txnCategoryFilter || "";
+  var personFilter = state.txnPersonFilter || "";
   var periodMode = state.txnPeriodMode || "all";
   var periodFrom = state.txnPeriodFrom || "";
   var periodTo = state.txnPeriodTo || "";
   var info = getTxnPeriodInfo();
   function itemCat(it){ return it.category || "Uncategorised"; }
   function inPeriod(d) { return d >= info.start && d <= info.end; }
+  function itemMatchesGroup(it) {
+    if (!groupFilter) return true;
+    if (groupFilter === "__ungrouped__") return !categoryGroupOf(it.category);
+    return categoryGroupOf(it.category) === groupFilter;
+  }
+  /* A person filter matches either the single-person field or, for a
+     percentage split, anyone included in that split — being included at
+     any share still means the transaction was at least partly for them. */
+  function itemMatchesPerson(it) {
+    if (!personFilter) return true;
+    if (personFilter === "__unassigned__") return !it.person && (!it.personSplit || !it.personSplit.length);
+    if (it.personSplit && it.personSplit.length) return it.personSplit.some(function(ps){ return ps.person===personFilter; });
+    return it.person === personFilter;
+  }
+  function itemMatchesFilters(it) {
+    return (!categoryFilter || itemCat(it) === categoryFilter) && itemMatchesGroup(it) && itemMatchesPerson(it);
+  }
   var periodActive = periodMode !== "all";
-  var anyFilterActive = !!categoryFilter || periodActive;
+  var anyItemFilterActive = !!categoryFilter || !!groupFilter || !!personFilter;
+  var anyFilterActive = anyItemFilterActive || periodActive;
 
-  var filterOptions = (state.settings.categories||[]).slice();
-  filterOptions.push("Uncategorised");
+  var groupListForFilter = state.settings.categoryGroups||[];
+  var ungroupedCatsExist = (state.settings.categories||[]).some(function(c){ return !categoryGroupOf(c); });
+  /* Cascading, same pattern as the add-transaction modal: picking a group
+     narrows the category list to just its members, so a long flat list
+     never has to be scrolled just to filter down to one bucket. */
+  var filterOptions = !groupFilter
+    ? (state.settings.categories||[]).slice()
+    : (groupFilter === "__ungrouped__"
+        ? (state.settings.categories||[]).filter(function(c){ return !categoryGroupOf(c); })
+        : (state.settings.categories||[]).filter(function(c){ return categoryGroupOf(c)===groupFilter; }));
+  if (!groupFilter || groupFilter === "__ungrouped__") filterOptions.push("Uncategorised");
 
   var filterCount = 0, filterSum = 0;
   entryDates.forEach(function(d){
     if (!inPeriod(d)) return;
     state.entries[d].items.forEach(function(it){
-      if (!categoryFilter || itemCat(it) === categoryFilter) { filterCount++; filterSum += it.amount; }
+      if (itemMatchesFilters(it)) { filterCount++; filterSum += it.amount; }
     });
   });
 
@@ -1805,12 +1853,33 @@ function renderTransactionsBody() {
   h += '<div class="eyebrow" style="padding:16px 16px 4px;">All transactions</div>';
   h += '<div class="muted" style="font-size:11px; padding:0 16px 12px;">Balance is a running total — days between entries you didn\'t log still count, assumed fully saved.</div>';
 
+  if (groupListForFilter.length) {
+    h += '<div style="padding:0 16px 8px;"><select id="txnGroupFilterSelect" class="field" style="font-size:13px;">';
+    h += '<option value=""'+(groupFilter===""?" selected":"")+'>All groups</option>';
+    groupListForFilter.forEach(function(g){
+      h += '<option value="'+esc(g)+'"'+(groupFilter===g?" selected":"")+'>'+esc(g)+'</option>';
+    });
+    if (ungroupedCatsExist) h += '<option value="__ungrouped__"'+(groupFilter==="__ungrouped__"?" selected":"")+'>Ungrouped</option>';
+    h += '</select></div>';
+  }
+
   h += '<div style="padding:0 16px 8px;"><select id="txnCategoryFilterSelect" class="field" style="font-size:13px;">';
   h += '<option value=""'+(categoryFilter===""?" selected":"")+'>All categories</option>';
   filterOptions.forEach(function(c){
     h += '<option value="'+esc(c)+'"'+(categoryFilter===c?" selected":"")+'>'+esc(c)+'</option>';
   });
   h += '</select></div>';
+
+  var peopleListForFilter = state.settings.people||[];
+  if (peopleListForFilter.length) {
+    h += '<div style="padding:0 16px 8px;"><select id="txnPersonFilterSelect" class="field" style="font-size:13px;">';
+    h += '<option value=""'+(personFilter===""?" selected":"")+'>All people</option>';
+    peopleListForFilter.forEach(function(p){
+      h += '<option value="'+esc(p)+'"'+(personFilter===p?" selected":"")+'>'+esc(p)+'</option>';
+    });
+    h += '<option value="__unassigned__"'+(personFilter==="__unassigned__"?" selected":"")+'>Unassigned</option>';
+    h += '</select></div>';
+  }
 
   h += '<div style="padding:0 16px 8px;"><div class="seg">';
   [["all","All"],["week","Week"],["month","Month"],["year","Year"],["custom","Custom"]].forEach(function(opt){
@@ -1835,7 +1904,9 @@ function renderTransactionsBody() {
 
   if (anyFilterActive) {
     var descParts = [];
+    if (groupFilter) descParts.push("in "+(groupFilter==="__ungrouped__"?"Ungrouped":groupFilter));
     if (categoryFilter) descParts.push("in "+categoryFilter);
+    if (personFilter) descParts.push("for "+(personFilter==="__unassigned__"?"Unassigned":personFilter));
     if (periodMode === "week") descParts.push("week of "+shortLabel(info.start));
     if (periodMode === "month") descParts.push(parseD(info.start).toLocaleDateString("en-GB",{month:"long",year:"numeric"}));
     if (periodMode === "year") descParts.push(info.title);
@@ -1846,7 +1917,7 @@ function renderTransactionsBody() {
   var datesDesc = entryDates.slice().reverse();
   var dates = datesDesc.filter(function(d){
     if (!inPeriod(d)) return false;
-    if (categoryFilter) return state.entries[d].items.some(function(it){ return itemCat(it) === categoryFilter; });
+    if (anyItemFilterActive) return state.entries[d].items.some(itemMatchesFilters);
     return true;
   });
 
@@ -1859,15 +1930,15 @@ function renderTransactionsBody() {
       var dayRef = referenceForDate(date);
       var delta = dayRef - spent;
       var bal = balanceMap[date];
-      var displayItems = categoryFilter ? day.items.filter(function(it){ return itemCat(it) === categoryFilter; }) : day.items;
+      var displayItems = anyItemFilterActive ? day.items.filter(itemMatchesFilters) : day.items;
       var dayFilteredSpent = displayItems.reduce(function(s,it){ return s+it.amount; }, 0);
       h += '<div style="padding:12px 16px;'+(i===0?"":"border-top:1px solid var(--hairline);")+'">';
       h += '<div class="row between">';
       h += '<div><div style="font-size:14px;">'+esc(dayLabel(date))+'</div>';
-      h += '<div class="mono muted" style="font-size:11px; margin-top:2px;">'+day.items.length+' txn'+(day.items.length===1?"":"s")+' · spent '+fmt(spent,2)+' of '+fmt(dayRef,2)+(categoryFilter?' · '+displayItems.length+' match'+(displayItems.length===1?"":"es"):"")+'</div></div>';
-      if (categoryFilter) {
+      h += '<div class="mono muted" style="font-size:11px; margin-top:2px;">'+day.items.length+' txn'+(day.items.length===1?"":"s")+' · spent '+fmt(spent,2)+' of '+fmt(dayRef,2)+(anyItemFilterActive?' · '+displayItems.length+' match'+(displayItems.length===1?"":"es"):"")+'</div></div>';
+      if (anyItemFilterActive) {
         h += '<div style="text-align:right;"><div class="mono" style="font-size:12px; color:var(--rust);">−'+fmt(dayFilteredSpent,2)+'</div>';
-        h += '<div class="mono muted" style="font-size:10px;">in '+esc(categoryFilter)+'</div></div>';
+        h += '<div class="mono muted" style="font-size:10px;">filtered</div></div>';
       } else {
         h += '<div style="text-align:right;"><div class="mono" style="font-size:12px; color:'+(delta>=0?"var(--positive)":"var(--rust)")+';">'+(delta>=0?"+":"−")+fmt(Math.abs(delta),2)+'</div>';
         h += '<div class="mono muted" style="font-size:10px;">bal '+fmt(bal,0)+'</div></div>';
@@ -2044,6 +2115,12 @@ var CAT_ICON_SVGS = {
   fuel: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="15" y2="22"/><line x1="4" y1="9" x2="14" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v3a1.5 1.5 0 0 0 3 0V9.5a1.5 1.5 0 0 0-.44-1.06L18 6"/><circle cx="7" cy="5.5" r="1"/></svg>',
   parking: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 16V8h4a2.5 2.5 0 0 1 0 5H9"/></svg>',
   sparkles: '<svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8z"/><path d="M19 14l.9 2.6L22.5 17.5l-2.6.9L19 21l-.9-2.6L15.5 17.5l2.6-.9z"/></svg>',
+  wrench: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.6 5.6L2.3 18.7a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l6.8-6.8a4 4 0 0 0 5.6-5.6l-2.5 2.5-2-2z"/></svg>',
+  bucket: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h16l-1.5 11a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2z"/><path d="M7 8V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/><path d="M4 8a8 3 0 0 0 16 0"/></svg>',
+  spray: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="9" width="9" height="13" rx="2"/><path d="M10 9V5h3v4"/><path d="M13 5h4"/><path d="M17 3l2 2-2 2"/></svg>',
+  chefhat: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18v-6a6 6 0 0 1 12 0v6"/><path d="M4 18h16v3H4z"/><circle cx="8" cy="8" r="2.5"/><circle cx="16" cy="6" r="2.5"/><circle cx="12" cy="5" r="2.5"/></svg>',
+  apple: '<svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><path d="M12 6c-.5-2-2-3-3.5-3-.3 1 .2 2 1 2.5-2 0-4 1.8-4 5 0 4 2.5 8.5 5 8.5 1 0 1.3-.5 2-.5s1 .5 2 .5c2.5 0 5-4.5 5-8.5 0-2.7-1.5-4.5-3.3-4.8.3-1 1-1.7 2-2-1.7-.5-3.5.5-4.2 2.3z"/></svg>',
+  phone: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
   shirt: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2 12 5 9 2 3 5v6h3v11h12V11h3V5z"/></svg>',
   cart: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.55L21 7H6"/></svg>',
   cross: '<svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><path d="M10 2h4v8h8v4h-8v8h-4v-8H2v-4h8z"/></svg>',
@@ -2055,7 +2132,7 @@ var CAT_ICON_SVGS = {
   ticket: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2a2 2 0 0 0 0 4v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a2 2 0 0 0 0-4z"/><path d="M13 5v14"/></svg>',
   tag: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 12.6 12.6 20.6a2 2 0 0 1-2.83 0L2.6 13.4a2 2 0 0 1 0-2.83l8-8A2 2 0 0 1 12 2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-.4 1.2Z"/><circle cx="16.5" cy="7.5" r="1"/></svg>',
 };
-var CAT_ICON_ORDER = ["tag","fork","coffee","basket","cart","bag","shirt","house","sparkles","car","fuel","parking","bolt","heart","cross","pill","dumbbell","leaf","film","music","ticket","book","gift","plane"];
+var CAT_ICON_ORDER = ["tag","fork","chefhat","coffee","basket","apple","cart","bag","phone","shirt","house","wrench","sparkles","bucket","spray","car","fuel","parking","bolt","heart","cross","pill","dumbbell","leaf","film","music","ticket","book","gift","plane"];
 var CATEGORY_STYLES = {
   "Food & Dining": { icon:"fork", color:"#D4614A" },
   "Groceries": { icon:"basket", color:"#5EA05E" },
@@ -3173,8 +3250,9 @@ function renderPlansBody() {
   (state.settings.categories||[]).forEach(function(c){ h += '<option value="'+esc(c)+'">'+esc(c)+'</option>'; });
   h += '</select>';
   if ((state.settings.people||[]).length) {
-    h += '<select id="recurringPersonInput" class="field" style="margin-bottom:8px;"><option value="">Who\u2019s this for? (optional)</option>';
-    (state.settings.people||[]).forEach(function(p){ h += '<option value="'+esc(p)+'">'+esc(p)+'</option>'; });
+    var recDefaultPerson = state.settings.defaultPerson||"";
+    h += '<select id="recurringPersonInput" class="field" style="margin-bottom:8px;"><option value=""'+(recDefaultPerson===""?" selected":"")+'>Who\u2019s this for? (optional)</option>';
+    (state.settings.people||[]).forEach(function(p){ h += '<option value="'+esc(p)+'"'+(recDefaultPerson===p?" selected":"")+'>'+esc(p)+'</option>'; });
     h += '</select>';
   }
   h += '<input id="recurringNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="What\u2019s it for? (e.g. Rent)" />';
@@ -3508,6 +3586,7 @@ function handleRestore() {
     nextSettings.categoryGroupOf = normalizeCategoryGroupOf(nextSettings.categoryGroupOf, nextSettings.categories, nextSettings.categoryGroups);
     nextSettings.people = normalizePeople(nextSettings.people);
     nextSettings.personColors = normalizePersonColors(nextSettings.personColors, nextSettings.people);
+    nextSettings.defaultPerson = normalizeDefaultPerson(nextSettings.defaultPerson, nextSettings.people);
     nextSettings.recurringRules = normalizeRecurringRules(nextSettings.recurringRules);
     var nextEntries = migrateEntries(parsed.entries||{}, nextSettings.weeklyTarget/7);
     state.settings = nextSettings;
@@ -3774,7 +3853,8 @@ document.addEventListener("click", function(e) {
       var personToRemove = el.dataset.person;
       var nextPeople = (state.settings.people||[]).filter(function(p){ return p !== personToRemove; });
       if (state.personRenameEditing === personToRemove) state.personRenameEditing = null;
-      persistAll(Object.assign({}, state.settings, { people: nextPeople }), state.entries, "your settings");
+      var nextDefaultPerson = state.settings.defaultPerson === personToRemove ? null : state.settings.defaultPerson;
+      persistAll(Object.assign({}, state.settings, { people: nextPeople, defaultPerson: nextDefaultPerson }), state.entries, "your settings");
       render();
       break;
     case "move-person":
@@ -4031,6 +4111,11 @@ document.addEventListener("input", function(e) {
 });
 
 document.addEventListener("change", function(e) {
+  if (e.target && e.target.id === "defaultPersonInput") {
+    persistAll(Object.assign({}, state.settings, { defaultPerson: e.target.value||null }), state.entries, "your settings");
+    render();
+    return;
+  }
   if (e.target && e.target.id === "entryGroupInput") {
     /* render() rebuilds the sheet from scratch, which would wipe whatever's
        already been typed into the amount/note fields — so stash them into
@@ -4064,6 +4149,20 @@ document.addEventListener("change", function(e) {
     return;
   }
   if (e.target && e.target.id === "entryDateInput") handleQuickDate(e.target.value);
+  if (e.target && e.target.id === "txnGroupFilterSelect") {
+    var newTxnGroup = e.target.value;
+    var curTxnCat = state.txnCategoryFilter;
+    if (curTxnCat) {
+      var stillBelongs = curTxnCat === "Uncategorised"
+        ? (!newTxnGroup || newTxnGroup === "__ungrouped__")
+        : (!newTxnGroup ? true : (newTxnGroup === "__ungrouped__" ? !categoryGroupOf(curTxnCat) : categoryGroupOf(curTxnCat) === newTxnGroup));
+      if (!stillBelongs) state.txnCategoryFilter = "";
+    }
+    state.txnGroupFilter = newTxnGroup;
+    render();
+    return;
+  }
+  if (e.target && e.target.id === "txnPersonFilterSelect") { state.txnPersonFilter = e.target.value; render(); }
   if (e.target && e.target.id === "txnCategoryFilterSelect") { state.txnCategoryFilter = e.target.value; render(); }
   if (e.target && e.target.id === "txnPeriodFromInput") { state.txnPeriodFrom = e.target.value; render(); }
   if (e.target && e.target.id === "txnPeriodToInput") { state.txnPeriodTo = e.target.value; render(); }
