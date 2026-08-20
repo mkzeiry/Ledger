@@ -104,6 +104,8 @@
   .seg-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
   .seg-scroll::-webkit-scrollbar { display:none; }
   .seg-scroll .seg-btn { flex: 0 0 auto; white-space:nowrap; padding: 7px 14px; }
+  .seg-wrap { flex-wrap: wrap; gap: 6px; }
+  .seg-wrap .seg-btn { flex: 0 0 auto; white-space:nowrap; padding: 7px 14px; }
 
   .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px 12px; }
 
@@ -220,6 +222,23 @@ function normalizePeople(people) {
    one) rather than creating a duplicate — handy for consolidating a
    duplicate/misspelled category into the correct one. Returns true if the
    rename was actually a merge, so the caller can give clearer feedback. */
+/* Renames a person within a percentage split array (see personSplit below).
+   If the rename causes two entries to collide — e.g. merging "Sarh" into an
+   already-present "Sarah" within the same split — their shares are summed
+   rather than left as two entries for the same person. Returns the same
+   array reference unchanged if the old name isn't present, so callers can
+   cheaply check "did this change" via reference equality. */
+function patchPersonSplit(splitArr, oldName, newName) {
+  if (!splitArr || !splitArr.some(function(ps){ return ps.person === oldName; })) return splitArr;
+  var byName = {}, order = [];
+  splitArr.forEach(function(ps){
+    var nm = ps.person === oldName ? newName : ps.person;
+    if (!(nm in byName)) { byName[nm] = 0; order.push(nm); }
+    byName[nm] += ps.pct;
+  });
+  return order.map(function(nm){ return { person: nm, pct: byName[nm] }; });
+}
+
 function renameTag(kind, oldName, newName) {
   newName = (newName||"").trim();
   if (!newName || newName === oldName) return false;
@@ -243,20 +262,36 @@ function renameTag(kind, oldName, newName) {
     patch.categoryGroupOf = nextGroupOf;
   }
   patch.recurringRules = (state.settings.recurringRules||[]).map(function(r){
-    if (r[field] !== oldName) return r;
-    var patched = Object.assign({}, r);
-    patched[field] = newName;
-    return patched;
+    var changed = false;
+    var patched = r;
+    if (r[field] === oldName) {
+      var tmp = {}; tmp[field] = newName;
+      patched = Object.assign({}, patched, tmp);
+      changed = true;
+    }
+    if (kind === "person") {
+      var newRuleSplit = patchPersonSplit(r.personSplit, oldName, newName);
+      if (newRuleSplit !== r.personSplit) { patched = Object.assign({}, patched, { personSplit: newRuleSplit }); changed = true; }
+    }
+    return changed ? patched : r;
   });
   var nextEntries = {};
   Object.keys(state.entries).forEach(function(d){
     var day = state.entries[d];
     var changedDay = false;
     var newItems = (day.items||[]).map(function(it){
-      if (it[field] !== oldName) return it;
-      changedDay = true;
-      var patchedIt = Object.assign({}, it);
-      patchedIt[field] = newName;
+      var changed = false;
+      var patchedIt = it;
+      if (it[field] === oldName) {
+        var tmp2 = {}; tmp2[field] = newName;
+        patchedIt = Object.assign({}, patchedIt, tmp2);
+        changed = true;
+      }
+      if (kind === "person") {
+        var newItemSplit = patchPersonSplit(it.personSplit, oldName, newName);
+        if (newItemSplit !== it.personSplit) { patchedIt = Object.assign({}, patchedIt, { personSplit: newItemSplit }); changed = true; }
+      }
+      if (changed) changedDay = true;
       return patchedIt;
     });
     nextEntries[d] = changedDay ? Object.assign({}, day, { items: newItems }) : day;
@@ -409,7 +444,7 @@ function runRecurringCatchUp() {
       var newItem = {
         id: Date.now()+"-"+Math.random().toString(36).slice(2,7)+"-"+guard,
         amount: ruleOccurrenceAmount(rule, seq),
-        note: rule.note||"", category: rule.category||"", person: rule.person||"",
+        note: rule.note||"", category: rule.category||"", person: rule.person||"", personSplit: rule.personSplit||null,
         recurringId: rule.id, seq: seq+1, seqTotal: rule.occurrencesTotal
       };
       var existingDay = state.entries[due];
@@ -525,6 +560,7 @@ var state = {
   personRenameEditing: null,
   recurringLimitMode: "ongoing",
   txnSplitMode: "single",
+  txnPersonSplitMode: "single",
 };
 
 /* Rate history: records what the weekly target was over time, so past periods are
@@ -1303,7 +1339,7 @@ function renderSettingsModal() {
   h += '<div class="grabber"></div>';
   h += '<div class="row between" style="margin-bottom:14px;"><div class="display" style="font-size:18px;">Settings</div><button data-action="close-settings" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div>';
 
-  h += '<div class="seg seg-scroll" style="margin-bottom:18px;">';
+  h += '<div class="seg seg-wrap" style="margin-bottom:18px;">';
   tabs.forEach(function(t){
     var active = state.settingsTab === t.id;
     h += '<button class="seg-btn" role="tab" aria-selected="'+active+'" data-action="settings-tab" data-tab="'+t.id+'">'+t.label+'</button>';
@@ -1536,13 +1572,53 @@ function renderAddTxnModal() {
     h += '<option value="'+esc(c)+'"'+(editingItem && editingItem.category===c?" selected":"")+'>'+esc(c)+'</option>';
   });
   h += '</select>';
-  if ((state.settings.people||[]).length) {
-    h += '<select id="entryPersonInput" class="field" style="margin-bottom:8px;">';
-    h += '<option value="">Who\u2019s this for? (optional)</option>';
-    (state.settings.people||[]).forEach(function(p){
-      h += '<option value="'+esc(p)+'"'+(editingItem && editingItem.person===p?" selected":"")+'>'+esc(p)+'</option>';
-    });
-    h += '</select>';
+  var peopleForTxn = state.settings.people||[];
+  if (peopleForTxn.length) {
+    var personSplitMode = peopleForTxn.length >= 2 ? (state.txnPersonSplitMode||"single") : "single";
+    if (peopleForTxn.length >= 2) {
+      h += '<div class="seg" style="margin-bottom:8px;">';
+      h += '<button class="seg-btn" role="tab" aria-selected="'+(personSplitMode==="single")+'" data-action="set-txn-person-split-mode" data-mode="single">Single person</button>';
+      h += '<button class="seg-btn" role="tab" aria-selected="'+(personSplitMode==="split")+'" data-action="set-txn-person-split-mode" data-mode="split">Split between people</button>';
+      h += '</div>';
+    }
+    if (personSplitMode === "single") {
+      h += '<select id="entryPersonInput" class="field" style="margin-bottom:8px;">';
+      h += '<option value="">Who\u2019s this for? (optional)</option>';
+      peopleForTxn.forEach(function(p){
+        h += '<option value="'+esc(p)+'"'+(editingItem && editingItem.person===p?" selected":"")+'>'+esc(p)+'</option>';
+      });
+      h += '</select>';
+    } else {
+      /* Percentages, not fixed amounts: the split stays correct even if the
+         total amount is edited afterward, and 10% increments keep the
+         picker to a plain native <select> (no free-text math to get wrong). */
+      var existingSplit = {};
+      if (editingItem && editingItem.personSplit) {
+        editingItem.personSplit.forEach(function(ps){ existingSplit[ps.person] = ps.pct; });
+      }
+      var splitInitTotal = 0;
+      h += '<div class="card" style="padding:10px 12px; margin-bottom:8px;">';
+      peopleForTxn.forEach(function(p){
+        var curPct = existingSplit[p] || 0;
+        splitInitTotal += curPct;
+        h += '<div class="row between" style="padding:5px 0;">';
+        h += '<span style="font-size:13px;">'+esc(p)+'</span>';
+        h += '<select class="split-person-pct field mono" data-person="'+esc(p)+'" style="width:84px; padding:6px 8px; font-size:13px;">';
+        var pctOptions = [];
+        for (var pctOpt=0; pctOpt<=100; pctOpt+=10) pctOptions.push(pctOpt);
+        if (curPct % 10 !== 0 && pctOptions.indexOf(curPct) === -1) pctOptions.push(curPct);
+        pctOptions.sort(function(a,b){ return a-b; });
+        pctOptions.forEach(function(opt){
+          h += '<option value="'+opt+'"'+(curPct===opt?' selected':'')+'>'+opt+'%</option>';
+        });
+        h += '</select></div>';
+      });
+      var splitTotalColor = splitInitTotal===100 ? "var(--positive)" : (splitInitTotal===0 ? "var(--text-muted)" : "var(--rust)");
+      h += '<div class="row between hairline-top" style="padding-top:8px; margin-top:2px;">';
+      h += '<span class="muted caption">Total</span>';
+      h += '<span id="splitPersonTotal" class="mono caption" style="font-weight:600; color:'+splitTotalColor+';">'+splitInitTotal+'%</span>';
+      h += '</div></div>';
+    }
   }
   h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:12px;" placeholder="What was it for? (optional)" value="'+(editingItem?esc(editingItem.note||""):"")+'" />';
   if (!editingItem && splitMode === "split") {
@@ -1706,7 +1782,11 @@ function renderTxnRow(date, it) {
   h += '<div style="font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:5px;">'+(it.category?esc(it.category):"Spent")+seqBadge+'</div>';
   var subParts = [];
   if (it.note) subParts.push(it.note);
-  if (it.person) subParts.push(it.person);
+  if (it.personSplit && it.personSplit.length) {
+    subParts.push(it.personSplit.map(function(ps){ return ps.person+" "+ps.pct+"%"; }).join(", "));
+  } else if (it.person) {
+    subParts.push(it.person);
+  }
   if (subParts.length) h += '<div class="muted" style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(subParts.join(" · "))+'</div>';
   h += '</span></button>';
   h += '<div class="mono" style="font-size:13px; font-weight:600; color:var(--rust); flex-shrink:0;">−'+fmt(it.amount,2)+' AED</div>';
@@ -2739,8 +2819,15 @@ function renderAnalysisBody(T) {
     cs.rows.forEach(function(r){
       (r.items||[]).forEach(function(it){
         if (!keepItem(it)) return;
-        var key = it.person || "Unassigned";
-        personTotals[key] = (personTotals[key] || 0) + it.amount;
+        if (it.personSplit && it.personSplit.length) {
+          it.personSplit.forEach(function(ps){
+            var share = round2(it.amount * ps.pct / 100);
+            personTotals[ps.person] = (personTotals[ps.person] || 0) + share;
+          });
+        } else {
+          var key = it.person || "Unassigned";
+          personTotals[key] = (personTotals[key] || 0) + it.amount;
+        }
       });
     });
     var slices = Object.keys(personTotals).map(function(k){ return { label:k, value:personTotals[k] }; })
@@ -2982,20 +3069,38 @@ function handleAddTransaction() {
   var amtEl = document.getElementById("entryAmountInput");
   var noteEl = document.getElementById("entryNoteInput");
   var catEl = document.getElementById("entryCategoryInput");
-  var personEl = document.getElementById("entryPersonInput");
   var date = dateEl ? dateEl.value : todayStr();
   var amt = parseFloat(amtEl ? amtEl.value : "");
   if (isNaN(amt) || amt < 0 || !date) return;
   var note = noteEl ? noteEl.value.trim() : "";
   var category = catEl ? catEl.value : "";
-  var person = personEl ? personEl.value : "";
+
+  var person = "";
+  var personSplit = null;
+  var peopleForSave = state.settings.people||[];
+  var personSplitModeActive = peopleForSave.length >= 2 && state.txnPersonSplitMode === "split";
+  if (personSplitModeActive) {
+    var pctSelects = document.querySelectorAll(".split-person-pct");
+    var splitEntries = [];
+    var totalPct = 0;
+    pctSelects.forEach(function(s){
+      var pct = parseInt(s.value,10)||0;
+      totalPct += pct;
+      if (pct > 0) splitEntries.push({ person: s.dataset.person, pct: pct });
+    });
+    if (totalPct !== 100) { showToast("Split must add up to 100%"); return; }
+    personSplit = splitEntries;
+  } else {
+    var personEl = document.getElementById("entryPersonInput");
+    person = personEl ? personEl.value : "";
+  }
   var wasEditing = !!(state.editingItemId && state.editingOriginalDate);
 
   if (!wasEditing && state.txnSplitMode === "split") {
     var splitDaysEl = document.getElementById("splitDaysInput");
     var splitDays = parseInt(splitDaysEl ? splitDaysEl.value : "", 10);
     if (isNaN(splitDays) || splitDays < 2) return;
-    handleAddSplitTransaction(date, amt, category, note, splitDays, person);
+    handleAddSplitTransaction(date, amt, category, note, splitDays, person, personSplit);
     return;
   }
 
@@ -3010,7 +3115,7 @@ function handleAddTransaction() {
       if (remaining.length === 0) delete nextEntries[origDate];
       else nextEntries[origDate] = Object.assign({}, origDay, { items: remaining });
     }
-    var updatedItem = { id: state.editingItemId, amount: amt, note: note, category: category, person: person };
+    var updatedItem = { id: state.editingItemId, amount: amt, note: note, category: category, person: person, personSplit: personSplit };
     var destDay = nextEntries[date];
     var nextDest = destDay ? Object.assign({}, destDay, { items: destDay.items.concat([updatedItem]) }) : { allowance: carriedAllowance, items: [updatedItem] };
     nextEntries[date] = nextDest;
@@ -3019,7 +3124,7 @@ function handleAddTransaction() {
     state.showAddTxn = false;
   } else {
     var existing = nextEntries[date];
-    var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category, person: person };
+    var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category, person: person, personSplit: personSplit };
     nextEntries[date] = existing ? Object.assign({}, existing, { items: existing.items.concat([newItem]) }) : { allowance: dailyAllowance(), items: [newItem] };
     state.showAddTxn = false;
   }
@@ -3037,7 +3142,7 @@ function handleAddTransaction() {
    much is left / what's coming up" answerable at all. Per-day share is
    floor-rounded with the final day absorbing the leftover cents, so the days
    read evenly while the total stays exact. */
-function handleAddSplitTransaction(startDate, totalAmount, category, note, splitDays, person) {
+function handleAddSplitTransaction(startDate, totalAmount, category, note, splitDays, person, personSplit) {
   var perDayFloor = Math.floor((totalAmount/splitDays)*100)/100;
   var newRule = {
     id: Date.now()+"-"+Math.random().toString(36).slice(2,7),
@@ -3047,6 +3152,7 @@ function handleAddSplitTransaction(startDate, totalAmount, category, note, split
     category: category,
     note: note,
     person: person||"",
+    personSplit: personSplit||null,
     frequency: "daily",
     startDate: startDate,
     endDate: null,
@@ -3180,6 +3286,9 @@ function handleEditTxn(date, id) {
   state.showAddTxn = true;
   state.pendingDeleteKey = null;
   state.txnSplitMode = "single";
+  var editDay = state.entries[date];
+  var editItem = editDay ? editDay.items.find(function(i){ return i.id === id; }) : null;
+  state.txnPersonSplitMode = (editItem && editItem.personSplit && editItem.personSplit.length) ? "split" : "single";
   render();
   focusAmountInput();
 }
@@ -3293,6 +3402,10 @@ document.addEventListener("click", function(e) {
       state.txnSplitMode = el.dataset.mode;
       render();
       break;
+    case "set-txn-person-split-mode":
+      state.txnPersonSplitMode = el.dataset.mode;
+      render();
+      break;
     case "open-add-txn":
       state.editingItemId = null;
       state.editingOriginalDate = null;
@@ -3300,6 +3413,7 @@ document.addEventListener("click", function(e) {
       state.showAddTxn = true;
       state.pendingDeleteKey = null;
       state.txnSplitMode = "single";
+      state.txnPersonSplitMode = "single";
       render();
       focusAmountInput();
       break;
@@ -3308,6 +3422,7 @@ document.addEventListener("click", function(e) {
       state.editingItemId = null;
       state.editingOriginalDate = null;
       state.txnSplitMode = "single";
+      state.txnPersonSplitMode = "single";
       render();
       break;
     case "go-page":
@@ -3723,6 +3838,17 @@ document.addEventListener("input", function(e) {
 });
 
 document.addEventListener("change", function(e) {
+  if (e.target && e.target.classList && e.target.classList.contains("split-person-pct")) {
+    var pctSelects = document.querySelectorAll(".split-person-pct");
+    var totalPct = 0;
+    pctSelects.forEach(function(s){ totalPct += parseInt(s.value,10)||0; });
+    var totalEl = document.getElementById("splitPersonTotal");
+    if (totalEl) {
+      totalEl.textContent = totalPct + "%";
+      totalEl.style.color = totalPct===100 ? "var(--positive)" : (totalPct===0 ? "var(--text-muted)" : "var(--rust)");
+    }
+    return;
+  }
   if (e.target && e.target.dataset && e.target.dataset.role === "category-group-select") {
     var catG = e.target.dataset.cat;
     var newGroupVal = e.target.value;
