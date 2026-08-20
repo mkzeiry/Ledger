@@ -587,6 +587,7 @@ var state = {
   analysisReorderMode: false,
   analysisSelectedBucket: null,
   analysisCategoryFilter: "",
+  analysisPersonFilter: "",
   analysisSelectedGroup: null,
   basis: "budget",
   forecastCompareMode: "previous",
@@ -1816,12 +1817,7 @@ function renderTransactionsBody() {
   /* A person filter matches either the single-person field or, for a
      percentage split, anyone included in that split — being included at
      any share still means the transaction was at least partly for them. */
-  function itemMatchesPerson(it) {
-    if (!personFilter) return true;
-    if (personFilter === "__unassigned__") return !it.person && (!it.personSplit || !it.personSplit.length);
-    if (it.personSplit && it.personSplit.length) return it.personSplit.some(function(ps){ return ps.person===personFilter; });
-    return it.person === personFilter;
-  }
+  function itemMatchesPerson(it) { return itemMatchesPersonFilter(it, personFilter); }
   function itemMatchesFilters(it) {
     return (!categoryFilter || itemCat(it) === categoryFilter) && itemMatchesGroup(it) && itemMatchesPerson(it);
   }
@@ -2676,10 +2672,29 @@ function analysisGranularity(info) {
 /* Collapses periodStats rows into chart buckets at the chosen granularity.
    Monthly buckets sum both spend and allowance, so a bucket's own target stays
    correct even when months differ in length. */
-function buildAnalysisBuckets(rows, granularity, catFilter) {
-  function keep(it){ return !catFilter || (it.category || "Uncategorised") === catFilter; }
+/* Whether a transaction item counts as belonging to a given person filter
+   value — matches either the single-person field or, for a percentage
+   split, anyone included in it (even at a partial share). Shared by the
+   Transactions page filter and Analysis's person breakdown so the two
+   pages can't define "belongs to this person" differently. Accepts either
+   sentinel spelling for the "no one assigned" bucket, since Transactions'
+   dropdown uses "__unassigned__" while Analysis's pie slice is labelled
+   "Unassigned". */
+function itemMatchesPersonFilter(it, filterValue) {
+  if (!filterValue) return true;
+  if (filterValue === "__unassigned__" || filterValue === "Unassigned") {
+    return !it.person && (!it.personSplit || !it.personSplit.length);
+  }
+  if (it.personSplit && it.personSplit.length) return it.personSplit.some(function(ps){ return ps.person===filterValue; });
+  return it.person === filterValue;
+}
+
+function buildAnalysisBuckets(rows, granularity, catFilter, personFilter) {
+  function keep(it){
+    return (!catFilter || (it.category || "Uncategorised") === catFilter) && itemMatchesPersonFilter(it, personFilter);
+  }
   function spentOf(r){
-    if (!catFilter) return r.spent;
+    if (!catFilter && !personFilter) return r.spent;
     return (r.items||[]).reduce(function(t,it){ return keep(it) ? t+it.amount : t; }, 0);
   }
   if (granularity !== "month") {
@@ -2762,22 +2777,34 @@ function renderAnalysisBody(T) {
   }
 
   var catFilter = state.analysisCategoryFilter || "";
+  var personFilter = state.analysisPersonFilter || "";
   var selKey = state.analysisSelectedBucket;
-  var buckets = buildAnalysisBuckets(cs.rows, granularity, catFilter);
+  var buckets = buildAnalysisBuckets(cs.rows, granularity, catFilter, personFilter);
   function itemCatOf(it){ return it.category || "Uncategorised"; }
-  function keepItem(it){ return !catFilter || itemCatOf(it) === catFilter; }
-  /* Spend restricted to the active category filter — the whole page reads from
-     this so tapping a pie slice re-scopes every section at once. */
+  /* Three variants because the category and person sections each control
+     their OWN dimension and shouldn't filter themselves by it (the category
+     pie should show all categories WITHIN the current person filter, not
+     just the currently-selected category; symmetric for the person pie) —
+     while every other section (bar charts, day-of-week, biggest
+     transactions, summary) should respect both at once. */
+  function keepItemPerson(it){ return itemMatchesPersonFilter(it, personFilter); }
+  function keepItemCategoryOnly(it){ return !catFilter || itemCatOf(it) === catFilter; }
+  function keepItem(it){ return keepItemCategoryOnly(it) && keepItemPerson(it); }
+  /* Spend restricted to the active filters — the whole page reads from this
+     so tapping a pie slice (category or person) re-scopes every section at
+     once. */
   function filteredSpent(){
     return cs.rows.reduce(function(t,r){
       return t + (r.items||[]).reduce(function(u,it){ return keepItem(it) ? u+it.amount : u; }, 0);
     }, 0);
   }
 
-  if (catFilter) {
-    h += '<div class="row between" style="margin-bottom:12px; align-items:center;">';
-    h += '<span class="chip chip-accent">'+esc(catFilter)+'</span>';
-    h += '<button class="btn-plain" data-action="clear-analysis-category">Clear filter</button>';
+  if (catFilter || personFilter) {
+    h += '<div class="row gap2" style="margin-bottom:12px; align-items:center; flex-wrap:wrap;">';
+    if (catFilter) h += '<span class="chip chip-accent">'+esc(catFilter)+'</span>';
+    if (personFilter) h += '<span class="chip" style="background:'+(personFilter==="Unassigned"?"#8595B5":personColor(personFilter))+'; color:#fff; font-weight:600;">'+esc(personFilter)+'</span>';
+    if (catFilter) h += '<button class="btn-plain" data-action="clear-analysis-category">Clear category</button>';
+    if (personFilter) h += '<button class="btn-plain" data-action="clear-analysis-person">Clear person</button>';
     h += '</div>';
   }
 
@@ -2786,11 +2813,15 @@ function renderAnalysisBody(T) {
   sectionHtml.summary = function(){
     var s = '<div class="card card-pad" style="margin-bottom:16px;">';
     s += '<div class="stat-grid">';
-    if (catFilter) {
+    if (catFilter || personFilter) {
+      var filterLabelParts = [];
+      if (catFilter) filterLabelParts.push(catFilter);
+      if (personFilter) filterLabelParts.push(personFilter);
+      var filterLabel = filterLabelParts.join(" \u00b7 ");
       var catSpent = filteredSpent();
       var pctOfAll = cs.spent > 0 ? (catSpent/cs.spent*100) : 0;
       var txnCount = cs.rows.reduce(function(t,r){ return t + (r.items||[]).filter(keepItem).length; }, 0);
-      s += statBlock("Spent on "+catFilter, fmt(catSpent,0)+" AED", "var(--text)");
+      s += statBlock("Spent on "+filterLabel, fmt(catSpent,0)+" AED", "var(--text)");
       s += statBlock("Share of all spend", pctOfAll.toFixed(0)+"%", "var(--text)");
       s += statBlock("Avg per day", fmt(cs.elapsedDays>0?catSpent/cs.elapsedDays:0,0)+" AED", "var(--text)");
       s += statBlock("Transactions", String(txnCount), "var(--text)");
@@ -2855,20 +2886,22 @@ function renderAnalysisBody(T) {
     var refSpend = granularity === "month"
       ? (buckets.length ? buckets.reduce(function(t,b){ return t+b.allowance; },0)/buckets.length : null)
       : da;
-    if (catFilter) refSpend = null;
+    if (catFilter || personFilter) refSpend = null;
     var s = '<div class="card card-pad" style="margin-bottom:16px;">';
     s += '<div class="row between" style="margin-bottom:8px; align-items:baseline;">';
     s += '<span class="eyebrow">Spend per '+perLabel+'</span>';
     s += '<span class="muted caption">Tap a column</span></div>';
-    s += renderDailyBarChart(buckets, function(b){ return b.spent; }, function(b,v){ return (!catFilter && v>b.allowance) ? T.rust : T.positive; }, T, refSpend, selKey, "spend");
+    s += renderDailyBarChart(buckets, function(b){ return b.spent; }, function(b,v){ return (!catFilter && !personFilter && v>b.allowance) ? T.rust : T.positive; }, T, refSpend, selKey, "spend");
     s += bucketDetail("spend");
     s += '</div>';
     return s;
   };
 
   sectionHtml.dailySaving = function(){
-    /* Saving is a whole-day figure, so it can't be scoped to one category. */
-    if (catFilter) return "";
+    /* Saving is a whole-day, whole-household figure — the daily allowance
+       it's compared against isn't per-category or per-person, so it can't
+       be scoped to either filter. */
+    if (catFilter || personFilter) return "";
     var s = '<div class="card card-pad" style="margin-bottom:16px;">';
     s += '<div class="row between" style="margin-bottom:8px; align-items:baseline;">';
     s += '<span class="eyebrow">Saved per '+perLabel+'</span>';
@@ -2886,7 +2919,7 @@ function renderAnalysisBody(T) {
      wireBalanceChart) rather than a separate implementation, so drag-scrub
      and visual style can never drift apart between the two pages. */
   sectionHtml.cumulativeSaving = function(){
-    if (catFilter || !cs.rows.length) return "";
+    if (catFilter || personFilter || !cs.rows.length) return "";
     var acc = 0;
     var chartData = cs.rows.map(function(r){
       var delta = round2(r.allowance - r.spent);
@@ -2910,7 +2943,7 @@ function renderAnalysisBody(T) {
   };
 
   sectionHtml.forecastedSpend = function(){
-    if (catFilter || !cs.rows.length) return "";
+    if (catFilter || personFilter || !cs.rows.length) return "";
     var periodTarget = fullPeriodTarget(info.start, info.end);
     var periodWord = info.mode === "week" ? "week" : info.mode === "month" ? "month" : info.mode === "year" ? "year" : "period";
     var chartStart = effectiveRangeStart(info.start);
@@ -2920,9 +2953,10 @@ function renderAnalysisBody(T) {
   };
 
   sectionHtml.spendTrend = function(){
-    if (catFilter || periodMode === "custom") return "";
+    if (catFilter || personFilter || periodMode === "custom") return "";
     var N = 5;
     var bars = [];
+    var currentElapsedDays = null, currentPeriodDays = null;
     for (var trendOff = -(N-1); trendOff <= 0; trendOff++) {
       var pb = getPeriodBounds(periodMode, trendOff, currentWeeklyTarget(), da);
       var ps = periodStats(pb.startStr, pb.endStr);
@@ -2931,13 +2965,20 @@ function renderAnalysisBody(T) {
       var spentB = ps.spent;
       var projB = spentB;
       if (isCurBar) {
+        currentElapsedDays = ps.calendarElapsedDays;
+        currentPeriodDays = pb.days;
         var fcB = computeForecastNumbers(ps.rows, pb.days, pb.startStr);
         if (fcB && fcB.hasForecast) projB = fcB.projectedSpend;
       }
+      /* Red is reserved for money that has ACTUALLY already been spent past
+         budget — a settled fact. A still-open period that merely paces
+         toward going over gets amber ("trending over") instead, since a
+         forecast is an estimate and could still change; only a closed
+         period (or real spend-so-far, once it's genuinely over) earns red. */
       var status = "positive";
       if (targetB > 0) {
         if (isCurBar) {
-          if (projB > targetB*1.15) status = "rust";
+          if (spentB > targetB) status = "rust";
           else if (projB > targetB) status = "amber";
         } else {
           status = spentB > targetB ? "rust" : "positive";
@@ -2947,7 +2988,25 @@ function renderAnalysisBody(T) {
       bars.push({ label: lbl, spent: spentB, target: targetB, status: status });
     }
     var lastBar = bars[bars.length-1], prevBar = bars[bars.length-2];
-    var vsPrevPct = (prevBar && prevBar.spent>0) ? Math.round(((lastBar.spent-prevBar.spent)/prevBar.spent)*100) : null;
+    /* If the current period is still in progress, comparing its partial
+       total against a fully-closed previous period is comparing a few days
+       of spend to a whole period's worth — always looks artificially low.
+       Instead compare like-for-like: the previous period's spend through
+       that SAME number of elapsed days. A fully-closed lastBar (browsing a
+       past period) needs no such adjustment — two complete periods are
+       already comparable. */
+    var vsPrevPct = null, comparedSameSpan = false;
+    if (prevBar) {
+      var prevComparisonSpend = prevBar.spent;
+      if (currentElapsedDays != null && currentPeriodDays != null && currentElapsedDays > 0 && currentElapsedDays < currentPeriodDays) {
+        var pbPrevSpan = getPeriodBounds(periodMode, -1, currentWeeklyTarget(), da);
+        var prevSpanEnd = toStr(addDays(parseD(pbPrevSpan.startStr), currentElapsedDays-1));
+        if (prevSpanEnd > pbPrevSpan.endStr) prevSpanEnd = pbPrevSpan.endStr;
+        prevComparisonSpend = periodStats(pbPrevSpan.startStr, prevSpanEnd).spent;
+        comparedSameSpan = true;
+      }
+      vsPrevPct = prevComparisonSpend > 0 ? Math.round(((lastBar.spent-prevComparisonSpend)/prevComparisonSpend)*100) : null;
+    }
     var s = '<div class="card card-pad" style="margin-bottom:16px;">';
     s += '<div class="eyebrow" style="margin-bottom:10px;">Spend trend</div>';
     s += '<div class="row between" style="align-items:flex-start; margin-bottom:14px;">';
@@ -2963,6 +3022,7 @@ function renderAnalysisBody(T) {
     s += legendSwatch("var(--amber)", "Trending over");
     s += legendSwatch("var(--rust)", "Over budget");
     s += '</div>';
+    if (comparedSameSpan) s += '<div class="muted caption" style="margin-top:8px;">Compared through the same number of days as this '+periodMode+' so far.</div>';
     s += '</div>';
     return s;
   };
@@ -2971,6 +3031,7 @@ function renderAnalysisBody(T) {
     var catTotals = {};
     cs.rows.forEach(function(r){
       r.items.forEach(function(it){
+        if (!keepItemPerson(it)) return;
         var key = itemCatOf(it);
         catTotals[key] = (catTotals[key] || 0) + it.amount;
       });
@@ -3046,7 +3107,7 @@ function renderAnalysisBody(T) {
     var personTotals = {};
     cs.rows.forEach(function(r){
       (r.items||[]).forEach(function(it){
-        if (!keepItem(it)) return;
+        if (!keepItemCategoryOnly(it)) return;
         if (it.personSplit && it.personSplit.length) {
           it.personSplit.forEach(function(ps){
             var share = round2(it.amount * ps.pct / 100);
@@ -3069,16 +3130,19 @@ function renderAnalysisBody(T) {
       sl.color = sl.label === "Unassigned" ? "#8595B5" : personColor(sl.label);
     });
     var s = '<div class="card card-pad" style="margin-bottom:16px;">';
-    s += '<div class="eyebrow" style="margin-bottom:10px;">Spend by person</div>';
-    s += '<div style="display:flex; justify-content:center; margin-bottom:12px;">'+renderPieChart(slices, T, null, "All", total, "none")+'</div>';
+    s += '<div class="row between" style="margin-bottom:10px; align-items:baseline;">';
+    s += '<span class="eyebrow">Spend by person</span>';
+    s += '<span class="muted caption">'+(personFilter?"Tap to clear":"Tap to filter")+'</span></div>';
+    s += '<div style="display:flex; justify-content:center; margin-bottom:12px;">'+renderPieChart(slices, T, personFilter||null, "All", total, "filter-analysis-person", "person")+'</div>';
     slices.forEach(function(sl,i){
       var pct = total>0 ? (sl.value/total*100) : 0;
-      s += '<div class="row between" style="padding:8px 0;'+(i>0?"border-top:1px solid var(--sep);":"")+'">';
+      var isSel = personFilter === sl.label;
+      s += '<button data-action="filter-analysis-person" data-person="'+esc(sl.label)+'" class="row between" style="width:100%; text-align:left; background:none; border:none; padding:8px 0;'+(i>0?"border-top:1px solid var(--sep);":"")+(personFilter&&!isSel?"opacity:0.45;":"")+'">';
       s += '<span class="row" style="align-items:center; gap:9px; min-width:0;">'+(sl.label==="Unassigned"
         ? '<span style="width:11px;height:11px;border-radius:3px;flex-shrink:0;background:#8595B5;"></span><span class="subhead">Unassigned</span>'
         : personChip(sl.label))+'</span>';
       s += '<span class="row" style="align-items:baseline; gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px; text-align:right;">'+pct.toFixed(0)+'%</span></span>';
-      s += '</div>';
+      s += '</button>';
     });
     s += '</div>';
     return s;
@@ -3099,7 +3163,7 @@ function renderAnalysisBody(T) {
     s += '<div class="eyebrow" style="margin-bottom:12px;">Average spend by day of week</div>';
     dowLabels.forEach(function(lbl,i){
       var pct = maxDow>0 ? Math.round((dowAvg[i]/maxDow)*100) : 0;
-      var over = !catFilter && dowAvg[i] > da;
+      var over = !catFilter && !personFilter && dowAvg[i] > da;
       s += '<div class="row" style="align-items:center; gap:10px; margin-bottom:8px;">';
       s += '<span class="muted footnote" style="width:30px;">'+lbl+'</span>';
       s += '<div style="flex:1; background:var(--fill); border-radius:5px; height:9px; overflow:hidden;"><div style="width:'+pct+'%; height:100%; border-radius:5px; background:'+(over?"var(--rust)":"var(--positive)")+';"></div></div>';
@@ -3999,6 +4063,16 @@ document.addEventListener("click", function(e) {
       break;
     case "clear-analysis-category":
       state.analysisCategoryFilter = "";
+      state.analysisSelectedBucket = null;
+      render();
+      break;
+    case "filter-analysis-person":
+      state.analysisPersonFilter = (state.analysisPersonFilter === el.dataset.person) ? "" : el.dataset.person;
+      state.analysisSelectedBucket = null;
+      render();
+      break;
+    case "clear-analysis-person":
+      state.analysisPersonFilter = "";
       state.analysisSelectedBucket = null;
       render();
       break;
