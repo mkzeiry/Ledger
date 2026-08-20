@@ -2689,12 +2689,27 @@ function itemMatchesPersonFilter(it, filterValue) {
   return it.person === filterValue;
 }
 
-function buildAnalysisBuckets(rows, granularity, catFilter, personFilter) {
+/* Whether an item falls within the current category-level scope: a specific
+   leaf category filter wins if set (most specific); otherwise a drilled-into
+   group applies (browsing "Food & Drinks" without having picked one of its
+   categories yet still narrows to that group); otherwise unscoped. Shared by
+   every section that reads the page's "current category scope" — the bar
+   charts, day-of-week, biggest transactions, and the person breakdown's own
+   aggregation — so drilling into a group filters the whole page the same
+   way picking a specific category already does, not just the category
+   section's own pie. */
+function itemMatchesCategoryScope(it, catFilter, groupFilter) {
+  if (catFilter) return (it.category || "Uncategorised") === catFilter;
+  if (groupFilter) return categoryGroupOf(it.category) === groupFilter;
+  return true;
+}
+
+function buildAnalysisBuckets(rows, granularity, catFilter, personFilter, groupFilter) {
   function keep(it){
-    return (!catFilter || (it.category || "Uncategorised") === catFilter) && itemMatchesPersonFilter(it, personFilter);
+    return itemMatchesCategoryScope(it, catFilter, groupFilter) && itemMatchesPersonFilter(it, personFilter);
   }
   function spentOf(r){
-    if (!catFilter && !personFilter) return r.spent;
+    if (!catFilter && !personFilter && !groupFilter) return r.spent;
     return (r.items||[]).reduce(function(t,it){ return keep(it) ? t+it.amount : t; }, 0);
   }
   if (granularity !== "month") {
@@ -2778,17 +2793,21 @@ function renderAnalysisBody(T) {
 
   var catFilter = state.analysisCategoryFilter || "";
   var personFilter = state.analysisPersonFilter || "";
+  var groupFilter = state.analysisSelectedGroup || "";
   var selKey = state.analysisSelectedBucket;
-  var buckets = buildAnalysisBuckets(cs.rows, granularity, catFilter, personFilter);
+  var buckets = buildAnalysisBuckets(cs.rows, granularity, catFilter, personFilter, groupFilter);
   function itemCatOf(it){ return it.category || "Uncategorised"; }
   /* Three variants because the category and person sections each control
      their OWN dimension and shouldn't filter themselves by it (the category
      pie should show all categories WITHIN the current person filter, not
      just the currently-selected category; symmetric for the person pie) —
      while every other section (bar charts, day-of-week, biggest
-     transactions, summary) should respect both at once. */
+     transactions, summary) should respect both at once. Category scope
+     includes a drilled-into group, not just a specific leaf category, so
+     browsing "Food & Drinks" filters the rest of the page exactly like
+     picking "Restaurants" would, not just the category pie's own display. */
   function keepItemPerson(it){ return itemMatchesPersonFilter(it, personFilter); }
-  function keepItemCategoryOnly(it){ return !catFilter || itemCatOf(it) === catFilter; }
+  function keepItemCategoryOnly(it){ return itemMatchesCategoryScope(it, catFilter, groupFilter); }
   function keepItem(it){ return keepItemCategoryOnly(it) && keepItemPerson(it); }
   /* Spend restricted to the active filters — the whole page reads from this
      so tapping a pie slice (category or person) re-scopes every section at
@@ -2799,10 +2818,13 @@ function renderAnalysisBody(T) {
     }, 0);
   }
 
-  if (catFilter || personFilter) {
+  var showGroupChip = groupFilter && !catFilter;
+  if (catFilter || personFilter || showGroupChip) {
     h += '<div class="row gap2" style="margin-bottom:12px; align-items:center; flex-wrap:wrap;">';
+    if (showGroupChip) h += '<span class="chip chip-accent">'+esc(groupFilter)+'</span>';
     if (catFilter) h += '<span class="chip chip-accent">'+esc(catFilter)+'</span>';
     if (personFilter) h += '<span class="chip" style="background:'+(personFilter==="Unassigned"?"#8595B5":personColor(personFilter))+'; color:#fff; font-weight:600;">'+esc(personFilter)+'</span>';
+    if (showGroupChip) h += '<button class="btn-plain" data-action="clear-analysis-group">Clear group</button>';
     if (catFilter) h += '<button class="btn-plain" data-action="clear-analysis-category">Clear category</button>';
     if (personFilter) h += '<button class="btn-plain" data-action="clear-analysis-person">Clear person</button>';
     h += '</div>';
