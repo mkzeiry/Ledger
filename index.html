@@ -157,7 +157,7 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, categoryStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, categoryStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null };
 var DEFAULT_ANALYSIS_ORDER = ["summary","forecastedSpend","spendTrend","dailySpend","dailySaving","cumulativeSaving","category","person","dow","topTransactions"];
 var ANALYSIS_SECTION_LABELS = { summary:"Summary", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", dailySaving:"Saved per day", cumulativeSaving:"Cumulative saving", category:"Spend by category", person:"Spend by person", dow:"Average by day of week", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
@@ -212,6 +212,32 @@ function normalizePeople(people) {
   });
   return out;
 }
+function normalizePersonColors(colors, people) {
+  var out = {};
+  var valid = people || [];
+  Object.keys(colors||{}).forEach(function(name){
+    if (valid.indexOf(name) !== -1) out[name] = colors[name];
+  });
+  return out;
+}
+/* The label color for a person. An explicit choice always wins; otherwise a
+   stable hash of the name picks from the shared palette, so every person
+   gets a distinct, consistent color immediately without anyone having to
+   configure one first. Same approach as uncustomized categories. */
+function personColor(name) {
+  if (!name) return "#8595B5";
+  var custom = state.settings.personColors && state.settings.personColors[name];
+  if (custom) return custom;
+  var hash = 0;
+  for (var i=0;i<name.length;i++) hash = (hash*31 + name.charCodeAt(i)) >>> 0;
+  return PIE_COLORS[hash % PIE_COLORS.length];
+}
+/* Renders a person's name as a colored chip, matching how banking apps tag a
+   transaction. Used on transaction rows and in the person analysis list. */
+function personChip(name, sizeVariant) {
+  var small = sizeVariant === "small";
+  return '<span style="display:inline-flex; align-items:center; background:'+personColor(name)+'; color:#fff; font-weight:600; border-radius:'+(small?"5px":"6px")+'; padding:'+(small?"1px 6px":"2px 8px")+'; font-size:'+(small?"10px":"11px")+'; white-space:nowrap;">'+esc(name)+'</span>';
+}
 /* Renames a category or person everywhere it's referenced: the settings
    list itself, per-category style/group assignment (categories only), any
    recurring/split rule still generating future items, and every already-
@@ -260,6 +286,11 @@ function renameTag(kind, oldName, newName) {
     if (!isMerge && nextGroupOf[oldName]) nextGroupOf[newName] = nextGroupOf[oldName];
     delete nextGroupOf[oldName];
     patch.categoryGroupOf = nextGroupOf;
+  } else {
+    var nextPersonColors = Object.assign({}, state.settings.personColors||{});
+    if (!isMerge && nextPersonColors[oldName]) nextPersonColors[newName] = nextPersonColors[oldName];
+    delete nextPersonColors[oldName];
+    patch.personColors = nextPersonColors;
   }
   patch.recurringRules = (state.settings.recurringRules||[]).map(function(r){
     var changed = false;
@@ -556,11 +587,13 @@ var state = {
   incomeDraftMode: null,
   incomeDraftAmount: null,
   categoryStyleEditing: null,
+  groupStyleEditing: null,
   categoryRenameEditing: null,
   personRenameEditing: null,
   recurringLimitMode: "ongoing",
   txnSplitMode: "single",
   txnPersonSplitMode: "single",
+  txnCategoryGroup: null,
 };
 
 /* Rate history: records what the weekly target was over time, so past periods are
@@ -685,6 +718,7 @@ function loadInitial() {
   state.settings.categoryGroups = normalizeCategoryGroups(state.settings.categoryGroups);
   state.settings.categoryGroupOf = normalizeCategoryGroupOf(state.settings.categoryGroupOf, state.settings.categories, state.settings.categoryGroups);
   state.settings.people = normalizePeople(state.settings.people);
+  state.settings.personColors = normalizePersonColors(state.settings.personColors, state.settings.people);
   state.settings.recurringRules = normalizeRecurringRules(state.settings.recurringRules);
   if (runRecurringCatchUp()) {
     persistAll(state.settings, state.entries, "recurring payments");
@@ -998,6 +1032,7 @@ var ICONS = {
   eyeOff: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',
   pause: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>',
   play: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg>',
+  palette: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>',
   repeat: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>',
   repeatNav: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>',
 };
@@ -1433,14 +1468,39 @@ function renderSettingsModal() {
     h += '<div class="muted caption" style="margin:4px 0 10px;">Organize related categories under a broader group — e.g. Restaurants, Food & Dining, and Groceries under "Food & Drinks" — so Analysis can show either level.</div>';
     h += '<div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">';
     groupList.forEach(function(g,gi){
-      var memberCount = (state.settings.categories||[]).filter(function(c){ return categoryGroupOf(c)===g; }).length;
-      h += '<div class="row between" style="background:var(--raised); border:1px solid var(--hairline); border-radius:8px; padding:7px 8px 7px 12px;">';
+      var memberCats = (state.settings.categories||[]).filter(function(c){ return categoryGroupOf(c)===g; });
+      var memberCount = memberCats.length;
+      var isStylingGroup = state.groupStyleEditing === g;
+      h += '<div style="background:var(--raised); border:1px solid var(--hairline); border-radius:8px; overflow:hidden;">';
+      h += '<div class="row between" style="padding:7px 8px 7px 12px;">';
       h += '<div class="row gap2" style="align-items:baseline; min-width:0;"><span style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(g)+'</span><span class="muted caption">'+memberCount+' categor'+(memberCount===1?"y":"ies")+'</span></div>';
       h += '<div class="row gap2" style="flex-shrink:0;">';
+      h += '<button data-action="edit-group-style" data-group="'+esc(g)+'" style="background:none;border:none;padding:3px;color:'+(isStylingGroup?"var(--accent)":"var(--text-muted)")+';'+(memberCount===0?"opacity:0.35;":"")+'" '+(memberCount===0?"disabled":"")+' aria-label="Style all categories in this group">'+ICONS.palette+'</button>';
       h += '<button data-action="move-group" data-group="'+esc(g)+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(gi===0?"var(--hairline)":"var(--text-muted)")+';" '+(gi===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
       h += '<button data-action="move-group" data-group="'+esc(g)+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(gi===groupList.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(gi===groupList.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
       h += '<button data-action="remove-group" data-group="'+esc(g)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Remove">'+ICONS.trash+'</button>';
       h += '</div></div>';
+      if (isStylingGroup) {
+        /* Bulk styling: whatever's picked here is written to every category
+           in the group at once, overwriting their individual styles. The
+           preview swatch uses the first member's current color so the
+           starting point reflects reality rather than an arbitrary default. */
+        var seedStyle = categoryStyle(memberCats[0]);
+        h += '<div style="padding:4px 12px 14px;">';
+        h += '<div class="muted caption" style="margin-bottom:8px;">Apply an icon to all '+memberCount+' categor'+(memberCount===1?"y":"ies")+' in this group</div>';
+        h += '<div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">';
+        CAT_ICON_ORDER.forEach(function(iconKey){
+          h += '<button data-action="set-group-icon" data-group="'+esc(g)+'" data-icon="'+iconKey+'" style="width:36px; height:36px; border-radius:50%; background:'+seedStyle.color+'; border:2px solid transparent; display:flex; align-items:center; justify-content:center; padding:0;" aria-label="'+iconKey+'">'+CAT_ICON_SVGS[iconKey]+'</button>';
+        });
+        h += '</div>';
+        h += '<div class="muted caption" style="margin-bottom:8px;">Apply a color to all of them</div>';
+        h += '<div class="row gap2" style="align-items:center;">';
+        h += '<input id="groupColorInput" data-group="'+esc(g)+'" type="color" value="'+seedStyle.color+'" style="width:44px; height:36px; border:none; border-radius:8px; padding:0; background:none;" />';
+        h += '<span class="muted caption">Changes every category in the group</span>';
+        h += '</div>';
+        h += '</div>';
+      }
+      h += '</div>';
     });
     if (!groupList.length) h += '<span class="muted" style="font-size:12px;">No groups yet — categories stay flat until you add one.</span>';
     h += '</div>';
@@ -1523,7 +1583,10 @@ function renderSettingsModal() {
         h += '<button data-action="cancel-person-rename" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Cancel">'+ICONS.x+'</button>';
         h += '</div>';
       } else {
-        h += '<span style="font-size:13px;">'+esc(p)+'</span>';
+        h += '<div class="row gap2" style="align-items:center; min-width:0;">';
+        h += '<input class="person-color-input" data-person="'+esc(p)+'" type="color" value="'+personColor(p)+'" style="width:30px; height:26px; border:none; border-radius:6px; padding:0; background:none; flex-shrink:0;" aria-label="Label color for '+esc(p)+'" />';
+        h += personChip(p);
+        h += '</div>';
         h += '<div class="row gap2" style="flex-shrink:0;">';
         h += '<button data-action="edit-person-name" data-person="'+esc(p)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Rename">'+ICONS.pencil+'</button>';
         h += '<button data-action="move-person" data-person="'+esc(p)+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(pi===0?"var(--hairline)":"var(--text-muted)")+';" '+(pi===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
@@ -1565,13 +1628,41 @@ function renderAddTxnModal() {
   }
   h += '<input id="entryDateInput" type="date" class="field mono" style="margin-bottom:8px;" value="'+formDate+'" max="'+todayStr()+'" />';
   h += '<div style="position:relative; margin-bottom:8px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none;">AED</span>';
-  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="'+(splitMode==="split"&&!editingItem?"Total amount":"Amount")+'" value="'+(editingItem?editingItem.amount:"")+'" /></div>';
-  h += '<select id="entryCategoryInput" class="field" style="margin-bottom:8px;">';
-  h += '<option value="">No category</option>';
-  cats.forEach(function(c){
-    h += '<option value="'+esc(c)+'"'+(editingItem && editingItem.category===c?" selected":"")+'>'+esc(c)+'</option>';
-  });
-  h += '</select>';
+  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="'+(splitMode==="split"&&!editingItem?"Total amount":"Amount")+'" value="'+(state.entryAmountDraft != null ? esc(state.entryAmountDraft) : (editingItem?editingItem.amount:""))+'" /></div>';
+  var groupsForTxn = state.settings.categoryGroups||[];
+  if (groupsForTxn.length) {
+    /* Cascading picker: choosing a group narrows the category list to just
+       that group's members, so a long flat list never has to be scrolled.
+       "Ungrouped" is offered as its own bucket so categories that aren't in
+       any group are still reachable. The selected group defaults to whatever
+       the editing item's category belongs to, so editing opens on the right
+       list rather than resetting. */
+    var editCatGroup = editingItem && editingItem.category ? (categoryGroupOf(editingItem.category) || "__ungrouped__") : "";
+    var activeTxnGroup = state.txnCategoryGroup != null ? state.txnCategoryGroup : editCatGroup;
+    var ungroupedCats = cats.filter(function(c){ return !categoryGroupOf(c); });
+    h += '<select id="entryGroupInput" class="field" style="margin-bottom:8px;">';
+    h += '<option value=""'+(activeTxnGroup===""?" selected":"")+'>All groups</option>';
+    groupsForTxn.forEach(function(g){
+      h += '<option value="'+esc(g)+'"'+(activeTxnGroup===g?" selected":"")+'>'+esc(g)+'</option>';
+    });
+    if (ungroupedCats.length) h += '<option value="__ungrouped__"'+(activeTxnGroup==="__ungrouped__"?" selected":"")+'>Ungrouped</option>';
+    h += '</select>';
+    var visibleCats = !activeTxnGroup ? cats
+      : (activeTxnGroup === "__ungrouped__" ? ungroupedCats : cats.filter(function(c){ return categoryGroupOf(c)===activeTxnGroup; }));
+    h += '<select id="entryCategoryInput" class="field" style="margin-bottom:8px;">';
+    h += '<option value="">No category</option>';
+    visibleCats.forEach(function(c){
+      h += '<option value="'+esc(c)+'"'+(editingItem && editingItem.category===c?" selected":"")+'>'+esc(c)+'</option>';
+    });
+    h += '</select>';
+  } else {
+    h += '<select id="entryCategoryInput" class="field" style="margin-bottom:8px;">';
+    h += '<option value="">No category</option>';
+    cats.forEach(function(c){
+      h += '<option value="'+esc(c)+'"'+(editingItem && editingItem.category===c?" selected":"")+'>'+esc(c)+'</option>';
+    });
+    h += '</select>';
+  }
   var peopleForTxn = state.settings.people||[];
   if (peopleForTxn.length) {
     var personSplitMode = peopleForTxn.length >= 2 ? (state.txnPersonSplitMode||"single") : "single";
@@ -1620,7 +1711,7 @@ function renderAddTxnModal() {
       h += '</div></div>';
     }
   }
-  h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:12px;" placeholder="What was it for? (optional)" value="'+(editingItem?esc(editingItem.note||""):"")+'" />';
+  h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:12px;" placeholder="What was it for? (optional)" value="'+(state.entryNoteDraft != null ? esc(state.entryNoteDraft) : (editingItem?esc(editingItem.note||""):""))+'" />';
   if (!editingItem && splitMode === "split") {
     h += '<input id="splitDaysInput" type="number" inputmode="numeric" min="2" step="1" class="field" style="margin-bottom:8px;" placeholder="Number of days" />';
     h += '<div class="muted caption" style="margin-bottom:12px;">Spreads the total evenly starting from the date above, one share per day. Days still to come are logged as they arrive \u2014 track progress under Plans.</div>';
@@ -1780,14 +1871,16 @@ function renderTxnRow(date, it) {
       : '<span style="color:var(--text-muted); flex-shrink:0;" title="Recurring payment">'+ICONS.repeat+'</span>';
   }
   h += '<div style="font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:5px;">'+(it.category?esc(it.category):"Spent")+seqBadge+'</div>';
-  var subParts = [];
-  if (it.note) subParts.push(it.note);
+  if (it.note) h += '<div class="muted" style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(it.note)+'</div>';
+  var chipHtml = "";
   if (it.personSplit && it.personSplit.length) {
-    subParts.push(it.personSplit.map(function(ps){ return ps.person+" "+ps.pct+"%"; }).join(", "));
+    chipHtml = it.personSplit.map(function(ps){
+      return personChip(ps.person, "small")+'<span class="muted" style="font-size:10px; margin-left:3px;">'+ps.pct+'%</span>';
+    }).join('<span style="display:inline-block; width:6px;"></span>');
   } else if (it.person) {
-    subParts.push(it.person);
+    chipHtml = personChip(it.person, "small");
   }
-  if (subParts.length) h += '<div class="muted" style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(subParts.join(" · "))+'</div>';
+  if (chipHtml) h += '<div style="margin-top:3px; display:flex; align-items:center; flex-wrap:wrap; gap:2px;">'+chipHtml+'</div>';
   h += '</span></button>';
   h += '<div class="mono" style="font-size:13px; font-weight:600; color:var(--rust); flex-shrink:0;">−'+fmt(it.amount,2)+' AED</div>';
   h += '<button data-action="ask-delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);flex-shrink:0;" aria-label="Delete">'+ICONS.trash+'</button>';
@@ -1902,9 +1995,18 @@ var CAT_ICON_SVGS = {
   gift: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C9 2 12 7 12 7z"/></svg>',
   book: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
   plane: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>',
+  shirt: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2 12 5 9 2 3 5v6h3v11h12V11h3V5z"/></svg>',
+  cart: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.55L21 7H6"/></svg>',
+  cross: '<svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><path d="M10 2h4v8h8v4h-8v8h-4v-8H2v-4h8z"/></svg>',
+  leaf: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>',
+  music: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+  coffee: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z"/><path d="M6 1v3M10 1v3M14 1v3"/></svg>',
+  pill: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 20.5-7-7a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"/><path d="m8.5 8.5 7 7"/></svg>',
+  dumbbell: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M3 9v5M17.5 6.5v11M21 9v5M6.5 12h11"/></svg>',
+  ticket: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2a2 2 0 0 0 0 4v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a2 2 0 0 0 0-4z"/><path d="M13 5v14"/></svg>',
   tag: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 12.6 12.6 20.6a2 2 0 0 1-2.83 0L2.6 13.4a2 2 0 0 1 0-2.83l8-8A2 2 0 0 1 12 2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-.4 1.2Z"/><circle cx="16.5" cy="7.5" r="1"/></svg>',
 };
-var CAT_ICON_ORDER = ["tag","fork","basket","bag","house","car","bolt","heart","film","book","gift","plane"];
+var CAT_ICON_ORDER = ["tag","fork","coffee","basket","cart","bag","shirt","house","car","bolt","heart","cross","pill","dumbbell","leaf","film","music","ticket","book","gift","plane"];
 var CATEGORY_STYLES = {
   "Food & Dining": { icon:"fork", color:"#D4614A" },
   "Groceries": { icon:"basket", color:"#5EA05E" },
@@ -1939,7 +2041,7 @@ function renderPieChart(slices, T, selectedLabel, centerLabel, centerValue, tapA
     var frac = sl.value/total;
     var sweep = frac * Math.PI * 2;
     var end = angle + sweep;
-    var color = PIE_COLORS[i % PIE_COLORS.length];
+    var color = sl.color || PIE_COLORS[i % PIE_COLORS.length];
     var isSel = selectedLabel != null && sl.label === selectedLabel;
     var op = (selectedLabel != null && !isSel) ? ' opacity="0.3"' : '';
     var tap = (tapAction === "none") ? '' : (' class="chart-hit" data-action="'+(tapAction||"filter-analysis-category")+'" data-'+(tapDataKey||"cat")+'="'+esc(sl.label)+'"');
@@ -2834,14 +2936,21 @@ function renderAnalysisBody(T) {
       .sort(function(a,b){ return b.value - a.value; });
     var total = slices.reduce(function(t,x){ return t+x.value; }, 0);
     if (!slices.length) return "";
+    /* Each slice carries the person's own configured label color, so the pie,
+       the list below it, the transaction rows, and Settings all show the
+       same color for the same person. */
+    slices.forEach(function(sl){
+      sl.color = sl.label === "Unassigned" ? "#8595B5" : personColor(sl.label);
+    });
     var s = '<div class="card card-pad" style="margin-bottom:16px;">';
     s += '<div class="eyebrow" style="margin-bottom:10px;">Spend by person</div>';
     s += '<div style="display:flex; justify-content:center; margin-bottom:12px;">'+renderPieChart(slices, T, null, "All", total, "none")+'</div>';
     slices.forEach(function(sl,i){
       var pct = total>0 ? (sl.value/total*100) : 0;
-      var swatch = sl.label === "Unassigned" ? "var(--text-muted)" : PIE_COLORS[i % PIE_COLORS.length];
       s += '<div class="row between" style="padding:8px 0;'+(i>0?"border-top:1px solid var(--sep);":"")+'">';
-      s += '<span class="row" style="align-items:center; gap:9px; min-width:0;"><span style="width:11px;height:11px;border-radius:3px;flex-shrink:0;background:'+swatch+';"></span><span class="subhead">'+esc(sl.label)+'</span></span>';
+      s += '<span class="row" style="align-items:center; gap:9px; min-width:0;">'+(sl.label==="Unassigned"
+        ? '<span style="width:11px;height:11px;border-radius:3px;flex-shrink:0;background:#8595B5;"></span><span class="subhead">Unassigned</span>'
+        : personChip(sl.label))+'</span>';
       s += '<span class="row" style="align-items:baseline; gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px; text-align:right;">'+pct.toFixed(0)+'%</span></span>';
       s += '</div>';
     });
@@ -3286,6 +3395,9 @@ function handleEditTxn(date, id) {
   state.showAddTxn = true;
   state.pendingDeleteKey = null;
   state.txnSplitMode = "single";
+  state.txnCategoryGroup = null;
+  state.entryAmountDraft = null;
+  state.entryNoteDraft = null;
   var editDay = state.entries[date];
   var editItem = editDay ? editDay.items.find(function(i){ return i.id === id; }) : null;
   state.txnPersonSplitMode = (editItem && editItem.personSplit && editItem.personSplit.length) ? "split" : "single";
@@ -3346,6 +3458,7 @@ function handleRestore() {
     nextSettings.categoryGroups = normalizeCategoryGroups(nextSettings.categoryGroups);
     nextSettings.categoryGroupOf = normalizeCategoryGroupOf(nextSettings.categoryGroupOf, nextSettings.categories, nextSettings.categoryGroups);
     nextSettings.people = normalizePeople(nextSettings.people);
+    nextSettings.personColors = normalizePersonColors(nextSettings.personColors, nextSettings.people);
     nextSettings.recurringRules = normalizeRecurringRules(nextSettings.recurringRules);
     var nextEntries = migrateEntries(parsed.entries||{}, nextSettings.weeklyTarget/7);
     state.settings = nextSettings;
@@ -3414,6 +3527,9 @@ document.addEventListener("click", function(e) {
       state.pendingDeleteKey = null;
       state.txnSplitMode = "single";
       state.txnPersonSplitMode = "single";
+      state.txnCategoryGroup = null;
+      state.entryAmountDraft = null;
+      state.entryNoteDraft = null;
       render();
       focusAmountInput();
       break;
@@ -3423,6 +3539,9 @@ document.addEventListener("click", function(e) {
       state.editingOriginalDate = null;
       state.txnSplitMode = "single";
       state.txnPersonSplitMode = "single";
+      state.txnCategoryGroup = null;
+      state.entryAmountDraft = null;
+      state.entryNoteDraft = null;
       render();
       break;
     case "go-page":
@@ -3648,6 +3767,25 @@ document.addEventListener("click", function(e) {
       state.analysisSelectedGroup = null;
       render();
       break;
+    case "edit-group-style":
+      state.groupStyleEditing = (state.groupStyleEditing === el.dataset.group) ? null : el.dataset.group;
+      state.categoryStyleEditing = null;
+      state.categoryRenameEditing = null;
+      render();
+      break;
+    case "set-group-icon":
+      var groupI = el.dataset.group;
+      var iconI = el.dataset.icon;
+      var membersI = (state.settings.categories||[]).filter(function(c){ return categoryGroupOf(c)===groupI; });
+      var stylesGI = Object.assign({}, state.settings.categoryStyles||{});
+      membersI.forEach(function(c){
+        var cur = categoryStyle(c);
+        stylesGI[c] = { icon: iconI, color: cur.color };
+      });
+      persistAll(Object.assign({}, state.settings, { categoryStyles: stylesGI }), state.entries, "your settings");
+      showToast("Icon applied to "+membersI.length+" categor"+(membersI.length===1?"y":"ies"));
+      render();
+      break;
     case "edit-category-style":
       state.categoryStyleEditing = (state.categoryStyleEditing === el.dataset.cat) ? null : el.dataset.cat;
       state.categoryRenameEditing = null;
@@ -3838,6 +3976,18 @@ document.addEventListener("input", function(e) {
 });
 
 document.addEventListener("change", function(e) {
+  if (e.target && e.target.id === "entryGroupInput") {
+    /* render() rebuilds the sheet from scratch, which would wipe whatever's
+       already been typed into the amount/note fields — so stash them into
+       state first and let the re-render restore them. */
+    var amtPreserve = document.getElementById("entryAmountInput");
+    var notePreserve = document.getElementById("entryNoteInput");
+    state.entryAmountDraft = amtPreserve ? amtPreserve.value : "";
+    state.entryNoteDraft = notePreserve ? notePreserve.value : "";
+    state.txnCategoryGroup = e.target.value;
+    render();
+    return;
+  }
   if (e.target && e.target.classList && e.target.classList.contains("split-person-pct")) {
     var pctSelects = document.querySelectorAll(".split-person-pct");
     var totalPct = 0;
@@ -3864,6 +4014,33 @@ document.addEventListener("change", function(e) {
   if (e.target && e.target.id === "txnPeriodToInput") { state.txnPeriodTo = e.target.value; render(); }
   if (e.target && e.target.id === "analysisPeriodFromInput") { state.analysisPeriodFrom = e.target.value; render(); }
   if (e.target && e.target.id === "analysisPeriodToInput") { state.analysisPeriodTo = e.target.value; render(); }
+  if (e.target && e.target.id === "groupColorInput") {
+    var groupC = e.target.dataset.group;
+    var newGroupColor = e.target.value;
+    // Same deferred rationale as categoryColorInput below.
+    setTimeout(function() {
+      var membersC = (state.settings.categories||[]).filter(function(c){ return categoryGroupOf(c)===groupC; });
+      var stylesGC = Object.assign({}, state.settings.categoryStyles||{});
+      membersC.forEach(function(c){
+        var cur = categoryStyle(c);
+        stylesGC[c] = { icon: cur.icon, color: newGroupColor };
+      });
+      persistAll(Object.assign({}, state.settings, { categoryStyles: stylesGC }), state.entries, "your settings");
+      showToast("Color applied to "+membersC.length+" categor"+(membersC.length===1?"y":"ies"));
+      render();
+    }, 300);
+  }
+  if (e.target && e.target.classList && e.target.classList.contains("person-color-input")) {
+    var personC = e.target.dataset.person;
+    var newPersonColor = e.target.value;
+    // Same deferred rationale as categoryColorInput below.
+    setTimeout(function() {
+      var nextPersonColors = Object.assign({}, state.settings.personColors||{});
+      nextPersonColors[personC] = newPersonColor;
+      persistAll(Object.assign({}, state.settings, { personColors: nextPersonColors }), state.entries, "your settings");
+      render();
+    }, 300);
+  }
   if (e.target && e.target.id === "categoryColorInput") {
     var catC = e.target.dataset.cat;
     var newColorC = e.target.value;
