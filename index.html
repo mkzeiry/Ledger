@@ -1416,7 +1416,7 @@ function renderSettingsModal() {
     h += '<label class="eyebrow">Weekly budget target</label>';
     h += '<div style="position:relative; margin:6px 0 6px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
     h += '<input id="weeklyDraftInput" type="number" inputmode="decimal" class="field mono" style="padding-left:44px;" value="'+curWeekly+'" /></div>';
-    h += '<div class="muted" style="font-size:12px; margin-bottom:14px;">= '+fmt(curWeekly/7,2)+' AED per day. Choose how far this change should reach:</div>';
+    h += '<div class="muted" id="weeklyPerDayText" style="font-size:12px; margin-bottom:14px;">= '+fmt(curWeekly/7,2)+' AED per day. Choose how far this change should reach:</div>';
     h += '<button data-action="apply-budget" data-scope="future" class="btn-accent" style="width:100%; margin-bottom:8px;">This week onward</button>';
     h += '<div class="muted" style="font-size:11px; margin-bottom:12px;">From '+esc(shortLabel(wkBounds.startStr))+' forward. Earlier weeks keep their old rate — this is usually what you want.</div>';
     h += '<button data-action="apply-budget" data-scope="thisPeriod" class="btn-outline" style="width:100%; margin-bottom:8px;">This week only</button>';
@@ -4223,6 +4223,14 @@ document.addEventListener("click", function(e) {
    a color is picked, without waiting for Apply or a full re-render (which
    would rebuild the sheet mid-pick and could interrupt the native picker). */
 document.addEventListener("input", function(e) {
+  if (e.target && e.target.id === "weeklyDraftInput") {
+    var v = parseFloat(e.target.value);
+    var perDayEl = document.getElementById("weeklyPerDayText");
+    if (perDayEl) {
+      var perDay = (!isNaN(v) && v >= 0) ? v/7 : 0;
+      perDayEl.textContent = "= " + fmt(perDay, 2) + " AED per day. Choose how far this change should reach:";
+    }
+  }
   if (e.target && e.target.id === "customBgInput") {
     var tones = deriveDarkTones(e.target.value);
     var r = document.documentElement.style;
