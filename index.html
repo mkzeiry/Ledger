@@ -603,6 +603,8 @@ var state = {
   txnCategoryGroup: null,
   entrySplitDaysDraft: null,
   entryPersonSplitDraft: null,
+  entryCategoryDraft: null,
+  entryPersonDraft: null,
 };
 
 /* Rate history: records what the weekly target was over time, so past periods are
@@ -1697,6 +1699,23 @@ function renderAddTxnModal() {
   h += '<div style="position:relative; margin-bottom:8px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none;">AED</span>';
   h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="'+(splitMode==="split"&&!editingItem?"Total amount":"Amount")+'" value="'+(state.entryAmountDraft != null ? esc(state.entryAmountDraft) : (editingItem?editingItem.amount:""))+'" /></div>';
   var groupsForTxn = state.settings.categoryGroups||[];
+  var selectedCatForTxn = state.entryCategoryDraft != null ? state.entryCategoryDraft : (editingItem ? (editingItem.category||"") : "");
+  /* How many times each category has actually been logged, all-time — used
+     to rank categories within their group so the most relevant ones surface
+     first instead of whatever order they happen to sit in in Settings. */
+  var catUsageCounts = {};
+  Object.keys(state.entries).forEach(function(d){
+    (state.entries[d].items||[]).forEach(function(it){
+      if (it.category) catUsageCounts[it.category] = (catUsageCounts[it.category]||0) + 1;
+    });
+  });
+  function sortCatsByUsage(list) {
+    return list.slice().sort(function(a,b){
+      var diff = (catUsageCounts[b]||0) - (catUsageCounts[a]||0);
+      if (diff !== 0) return diff;
+      return list.indexOf(a) - list.indexOf(b); // stable tiebreak: original relative order
+    });
+  }
   if (groupsForTxn.length) {
     /* Cascading picker: choosing a group narrows the category list to just
        that group's members, so a long flat list never has to be scrolled.
@@ -1714,19 +1733,41 @@ function renderAddTxnModal() {
     });
     if (ungroupedCats.length) h += '<option value="__ungrouped__"'+(activeTxnGroup==="__ungrouped__"?" selected":"")+'>Ungrouped</option>';
     h += '</select>';
-    var visibleCats = !activeTxnGroup ? cats
-      : (activeTxnGroup === "__ungrouped__" ? ungroupedCats : cats.filter(function(c){ return categoryGroupOf(c)===activeTxnGroup; }));
     h += '<select id="entryCategoryInput" class="field" style="margin-bottom:8px;">';
     h += '<option value="">No category</option>';
-    visibleCats.forEach(function(c){
-      h += '<option value="'+esc(c)+'"'+(editingItem && editingItem.category===c?" selected":"")+'>'+esc(c)+'</option>';
-    });
+    if (!activeTxnGroup) {
+      /* "All groups": organize by group (in the user's own established group
+         order from Settings), most-used category first within each, then an
+         Ungrouped bucket at the end — instead of one flat, unsorted list. */
+      groupsForTxn.forEach(function(g){
+        var members = sortCatsByUsage(cats.filter(function(c){ return categoryGroupOf(c)===g; }));
+        if (!members.length) return;
+        h += '<optgroup label="'+esc(g)+'">';
+        members.forEach(function(c){
+          h += '<option value="'+esc(c)+'"'+(selectedCatForTxn===c?" selected":"")+'>'+esc(c)+'</option>';
+        });
+        h += '</optgroup>';
+      });
+      var sortedUngrouped = sortCatsByUsage(ungroupedCats);
+      if (sortedUngrouped.length) {
+        h += '<optgroup label="Ungrouped">';
+        sortedUngrouped.forEach(function(c){
+          h += '<option value="'+esc(c)+'"'+(selectedCatForTxn===c?" selected":"")+'>'+esc(c)+'</option>';
+        });
+        h += '</optgroup>';
+      }
+    } else {
+      var visibleCats = activeTxnGroup === "__ungrouped__" ? ungroupedCats : cats.filter(function(c){ return categoryGroupOf(c)===activeTxnGroup; });
+      sortCatsByUsage(visibleCats).forEach(function(c){
+        h += '<option value="'+esc(c)+'"'+(selectedCatForTxn===c?" selected":"")+'>'+esc(c)+'</option>';
+      });
+    }
     h += '</select>';
   } else {
     h += '<select id="entryCategoryInput" class="field" style="margin-bottom:8px;">';
     h += '<option value="">No category</option>';
-    cats.forEach(function(c){
-      h += '<option value="'+esc(c)+'"'+(editingItem && editingItem.category===c?" selected":"")+'>'+esc(c)+'</option>';
+    sortCatsByUsage(cats).forEach(function(c){
+      h += '<option value="'+esc(c)+'"'+(selectedCatForTxn===c?" selected":"")+'>'+esc(c)+'</option>';
     });
     h += '</select>';
   }
@@ -1740,7 +1781,7 @@ function renderAddTxnModal() {
       h += '</div>';
     }
     if (personSplitMode === "single") {
-      var preselectedPerson = editingItem ? (editingItem.person||"") : (state.settings.defaultPerson||"");
+      var preselectedPerson = state.entryPersonDraft != null ? state.entryPersonDraft : (editingItem ? (editingItem.person||"") : (state.settings.defaultPerson||""));
       h += '<select id="entryPersonInput" class="field" style="margin-bottom:8px;">';
       h += '<option value=""'+(preselectedPerson===""?" selected":"")+'>Who\u2019s this for? (optional)</option>';
       peopleForTxn.forEach(function(p){
@@ -3619,6 +3660,8 @@ function handleEditTxn(date, id) {
   state.entryNoteDraft = null;
   state.entrySplitDaysDraft = null;
   state.entryPersonSplitDraft = null;
+  state.entryCategoryDraft = null;
+  state.entryPersonDraft = null;
   var editDay = state.entries[date];
   var editItem = editDay ? editDay.items.find(function(i){ return i.id === id; }) : null;
   state.txnPersonSplitMode = (editItem && editItem.personSplit && editItem.personSplit.length) ? "split" : "single";
@@ -3654,9 +3697,13 @@ function preserveTxnFormDraft() {
   var amtEl = document.getElementById("entryAmountInput");
   var noteEl = document.getElementById("entryNoteInput");
   var daysEl = document.getElementById("splitDaysInput");
+  var catEl = document.getElementById("entryCategoryInput");
+  var personEl = document.getElementById("entryPersonInput");
   if (amtEl) state.entryAmountDraft = amtEl.value;
   if (noteEl) state.entryNoteDraft = noteEl.value;
   if (daysEl) state.entrySplitDaysDraft = daysEl.value;
+  if (catEl) state.entryCategoryDraft = catEl.value;
+  if (personEl) state.entryPersonDraft = personEl.value;
   var pctSelects = document.querySelectorAll(".split-person-pct");
   if (pctSelects.length) {
     var draft = {};
@@ -3778,6 +3825,8 @@ document.addEventListener("click", function(e) {
       state.entryNoteDraft = null;
       state.entrySplitDaysDraft = null;
       state.entryPersonSplitDraft = null;
+      state.entryCategoryDraft = null;
+      state.entryPersonDraft = null;
       render();
       focusAmountInput();
       break;
@@ -3792,6 +3841,8 @@ document.addEventListener("click", function(e) {
       state.entryNoteDraft = null;
       state.entrySplitDaysDraft = null;
       state.entryPersonSplitDraft = null;
+      state.entryCategoryDraft = null;
+      state.entryPersonDraft = null;
       render();
       break;
     case "go-page":
