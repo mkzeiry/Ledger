@@ -1929,7 +1929,7 @@ function renderTransactionsBody() {
   entryDates.forEach(function(d){
     if (!inPeriod(d)) return;
     state.entries[d].items.forEach(function(it){
-      if (itemMatchesFilters(it)) { filterCount++; filterSum += it.amount; }
+      if (itemMatchesFilters(it)) { filterCount++; filterSum += personScopedAmount(it, personFilter); }
     });
   });
 
@@ -2015,7 +2015,7 @@ function renderTransactionsBody() {
       var delta = dayRef - spent;
       var bal = balanceMap[date];
       var displayItems = anyItemFilterActive ? day.items.filter(itemMatchesFilters) : day.items;
-      var dayFilteredSpent = displayItems.reduce(function(s,it){ return s+it.amount; }, 0);
+      var dayFilteredSpent = displayItems.reduce(function(s,it){ return s+personScopedAmount(it, personFilter); }, 0);
       h += '<div style="padding:12px 16px;'+(i===0?"":"border-top:1px solid var(--hairline);")+'">';
       h += '<div class="row between">';
       h += '<div><div style="font-size:14px;">'+esc(dayLabel(date))+'</div>';
@@ -2792,13 +2792,29 @@ function itemMatchesCategoryScope(it, catFilter, groupFilter) {
   return true;
 }
 
+/* The amount to attribute to the current person-filter scope for a given
+   item. A person filter matching a split transaction only means that person
+   holds SOME share of it — every sum built on top of that boolean match was
+   adding the item's FULL amount regardless of share, so a 100 AED purchase
+   split 30/70 was counted as a full 100 AED for BOTH people, inflating any
+   person-filtered total by everyone else's share too. This returns the
+   correct prorated amount: the person's own share when the item is split,
+   the full amount for an unsplit item (nothing to prorate), and the full
+   amount when there's no active person filter at all (nothing to scope by). */
+function personScopedAmount(it, personFilter) {
+  if (!personFilter || !it.personSplit || !it.personSplit.length) return it.amount;
+  return it.personSplit
+    .filter(function(ps){ return ps.person === personFilter; })
+    .reduce(function(t,ps){ return t + round2(it.amount * ps.pct/100); }, 0);
+}
+
 function buildAnalysisBuckets(rows, granularity, catFilter, personFilter, groupFilter) {
   function keep(it){
     return itemMatchesCategoryScope(it, catFilter, groupFilter) && itemMatchesPersonFilter(it, personFilter);
   }
   function spentOf(r){
     if (!catFilter && !personFilter && !groupFilter) return r.spent;
-    return (r.items||[]).reduce(function(t,it){ return keep(it) ? t+it.amount : t; }, 0);
+    return (r.items||[]).reduce(function(t,it){ return keep(it) ? t+personScopedAmount(it, personFilter) : t; }, 0);
   }
   if (granularity !== "month") {
     return rows.map(function(r){
@@ -2902,7 +2918,7 @@ function renderAnalysisBody(T) {
      once. */
   function filteredSpent(){
     return cs.rows.reduce(function(t,r){
-      return t + (r.items||[]).reduce(function(u,it){ return keepItem(it) ? u+it.amount : u; }, 0);
+      return t + (r.items||[]).reduce(function(u,it){ return keepItem(it) ? u+personScopedAmount(it, personFilter) : u; }, 0);
     }, 0);
   }
 
@@ -2960,7 +2976,7 @@ function renderAnalysisBody(T) {
       (r.items||[]).forEach(function(it){ if (keepItem(it)) items.push({ date: r.date, it: it }); });
     });
     items.sort(function(x,y){ return y.it.amount - x.it.amount; });
-    var totalIn = items.reduce(function(t,x){ return t+x.it.amount; }, 0);
+    var totalIn = items.reduce(function(t,x){ return t+personScopedAmount(x.it, personFilter); }, 0);
     var refIn = b.allowance;
     var net = refIn - b.spent;
 
@@ -2979,7 +2995,7 @@ function renderAnalysisBody(T) {
         s += '<div style="flex:1; min-width:0;"><div class="subhead" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(x.it.note || x.it.category || "Spent")+'</div>';
         var sub = (b.dates.length > 1 ? dayLabel(x.date) : "") + ((b.dates.length > 1 && x.it.category) ? " · " : "") + (x.it.note && x.it.category ? x.it.category : (b.dates.length > 1 ? "" : (x.it.category||"")));
         s += '<div class="muted caption" style="margin-top:1px;">'+esc(sub)+'</div></div>';
-        s += '<div class="mono subhead" style="flex-shrink:0;">'+fmt(x.it.amount,2)+'</div>';
+        s += '<div class="mono subhead" style="flex-shrink:0;">'+fmt(personScopedAmount(x.it, personFilter),2)+'</div>';
         s += '</div>';
       });
       if (items.length > 1) {
@@ -3143,7 +3159,7 @@ function renderAnalysisBody(T) {
       r.items.forEach(function(it){
         if (!keepItemPerson(it)) return;
         var key = itemCatOf(it);
-        catTotals[key] = (catTotals[key] || 0) + it.amount;
+        catTotals[key] = (catTotals[key] || 0) + personScopedAmount(it, personFilter);
       });
     });
     if (!Object.keys(catTotals).length) return "";
@@ -3263,7 +3279,7 @@ function renderAnalysisBody(T) {
     cs.rows.forEach(function(r){
       var dow = parseD(r.date).getDay();
       var idx = dow===0?6:dow-1;
-      dowSums[idx] += (r.items||[]).reduce(function(t,it){ return keepItem(it) ? t+it.amount : t; }, 0);
+      dowSums[idx] += (r.items||[]).reduce(function(t,it){ return keepItem(it) ? t+personScopedAmount(it, personFilter) : t; }, 0);
       dowCounts[idx] += 1;
     });
     var dowLabels = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
@@ -3287,7 +3303,7 @@ function renderAnalysisBody(T) {
   sectionHtml.topTransactions = function(){
     var allItems = [];
     cs.rows.forEach(function(r){
-      r.items.forEach(function(it){ if (keepItem(it)) allItems.push({date:r.date, note:it.note, amount:it.amount, category:it.category}); });
+      r.items.forEach(function(it){ if (keepItem(it)) allItems.push({date:r.date, note:it.note, amount:personScopedAmount(it, personFilter), category:it.category}); });
     });
     allItems.sort(function(a,b){ return b.amount - a.amount; });
     var top5 = allItems.slice(0,5);
