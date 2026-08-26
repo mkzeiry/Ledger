@@ -1116,24 +1116,63 @@ function unlockBodyScroll() {
    native spectrum/slider picker gets real drag gestures instead of having
    them swallowed mid-slide (which was registering as an instant tap-select). */
 var touchLockCard = null, touchLockStartY = null, touchLockStartScrollTop = null;
+var sheetDragging = false, sheetDragAnchorY = null, sheetDragDelta = 0;
+var SHEET_DISMISS_THRESHOLD = 90;
+function closeCurrentModal() {
+  var backdrop = document.querySelector(".modal-backdrop");
+  if (backdrop) backdrop.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
 document.addEventListener("touchstart", function(e) {
   if (!bodyScrollLocked) return;
   var card = e.target.closest(".modal-card");
   touchLockCard = card || null;
   touchLockStartY = e.touches[0].clientY;
   touchLockStartScrollTop = card ? card.scrollTop : 0;
+  sheetDragging = false;
+  sheetDragAnchorY = null;
+  sheetDragDelta = 0;
+  if (touchLockCard) touchLockCard.style.transition = "";
 }, { passive: true });
 document.addEventListener("touchmove", function(e) {
   if (!bodyScrollLocked) return;
   if (e.target && (e.target.id === "entryNoteInput" || e.target.type === "color")) return;
   e.preventDefault();
   if (!touchLockCard || touchLockStartY == null) return;
-  var deltaY = touchLockStartY - e.touches[0].clientY;
-  var maxScroll = Math.max(0, touchLockCard.scrollHeight - touchLockCard.clientHeight);
-  touchLockCard.scrollTop = Math.max(0, Math.min(maxScroll, touchLockStartScrollTop + deltaY));
+  var curY = e.touches[0].clientY;
+  if (!sheetDragging) {
+    /* Checked against the LIVE scrollTop, not just the gesture's starting
+       value, so scrolling up to the top and continuing to pull down in one
+       unbroken motion still hands off into a sheet drag — not just a drag
+       that starts from an already-at-top position. */
+    if (curY > touchLockStartY && touchLockCard.scrollTop <= 0) {
+      sheetDragging = true;
+      sheetDragAnchorY = curY; // anchor here so the sheet doesn't jump to account for scrolling that already happened this gesture
+    } else {
+      var deltaY = touchLockStartY - curY;
+      var maxScroll = Math.max(0, touchLockCard.scrollHeight - touchLockCard.clientHeight);
+      touchLockCard.scrollTop = Math.max(0, Math.min(maxScroll, touchLockStartScrollTop + deltaY));
+      return;
+    }
+  }
+  sheetDragDelta = Math.max(0, curY - sheetDragAnchorY);
+  touchLockCard.style.transform = "translateY(" + sheetDragDelta + "px)";
+  var backdrop = touchLockCard.closest(".modal-backdrop");
+  if (backdrop) backdrop.style.background = "rgba(3,7,15," + Math.max(0.15, 0.6 - sheetDragDelta/400) + ")";
 }, { passive: false });
 document.addEventListener("touchend", function() {
+  if (sheetDragging && touchLockCard) {
+    if (sheetDragDelta > SHEET_DISMISS_THRESHOLD) {
+      closeCurrentModal();
+    } else {
+      var card = touchLockCard, backdrop = card.closest(".modal-backdrop");
+      card.style.transition = "transform 0.2s ease";
+      card.style.transform = "";
+      if (backdrop) { backdrop.style.transition = "background 0.2s ease"; backdrop.style.background = ""; }
+      setTimeout(function(){ card.style.transition = ""; if (backdrop) backdrop.style.transition = ""; }, 220);
+    }
+  }
   touchLockCard = null; touchLockStartY = null; touchLockStartScrollTop = null;
+  sheetDragging = false; sheetDragAnchorY = null; sheetDragDelta = 0;
 }, { passive: true });
 
 function render() {
