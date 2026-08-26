@@ -115,7 +115,7 @@
   .modal-card {
     width:100%; max-width:460px; max-height:88vh; max-height:min(88vh, calc(var(--vvh, 100dvh) - 24px)); overflow-y:auto; -webkit-overflow-scrolling: touch;
     background:var(--card); border:none; border-radius:16px 16px 0 0; padding:8px 20px 24px;
-    overscroll-behavior: contain;
+    overscroll-behavior: contain; transition: max-height 0.15s ease;
   }
   @media (min-width: 480px) { .modal-card { border-radius:16px; padding-top:20px; } }
   .grabber { width:36px; height:5px; border-radius:999px; background:var(--hairline); margin:0 auto 12px; }
@@ -157,7 +157,7 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 0, theme: "light", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, categoryStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, categoryStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null };
 var DEFAULT_ANALYSIS_ORDER = ["summary","forecastedSpend","spendTrend","dailySpend","dailySaving","cumulativeSaving","category","person","dow","topTransactions"];
 var ANALYSIS_SECTION_LABELS = { summary:"Summary", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", dailySaving:"Saved per day", cumulativeSaving:"Cumulative saving", category:"Spend by category", person:"Spend by person", dow:"Average by day of week", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
@@ -1765,14 +1765,15 @@ function renderAddTxnModal() {
     var editCatGroup = editingItem && editingItem.category ? (categoryGroupOf(editingItem.category) || "__ungrouped__") : "";
     var activeTxnGroup = state.txnCategoryGroup != null ? state.txnCategoryGroup : editCatGroup;
     var ungroupedCats = cats.filter(function(c){ return !categoryGroupOf(c); });
-    h += '<select id="entryGroupInput" class="field" style="margin-bottom:8px;">';
+    h += '<div class="row gap2" style="margin-bottom:8px;">';
+    h += '<select id="entryGroupInput" class="field" style="flex:1; min-width:0;">';
     h += '<option value=""'+(activeTxnGroup===""?" selected":"")+'>All groups</option>';
     groupsForTxn.forEach(function(g){
       h += '<option value="'+esc(g)+'"'+(activeTxnGroup===g?" selected":"")+'>'+esc(g)+'</option>';
     });
     if (ungroupedCats.length) h += '<option value="__ungrouped__"'+(activeTxnGroup==="__ungrouped__"?" selected":"")+'>Ungrouped</option>';
     h += '</select>';
-    h += '<select id="entryCategoryInput" class="field" style="margin-bottom:8px;">';
+    h += '<select id="entryCategoryInput" class="field" style="flex:1; min-width:0;">';
     h += '<option value="">No category</option>';
     if (!activeTxnGroup) {
       /* "All groups": organize by group (in the user's own established group
@@ -1802,6 +1803,7 @@ function renderAddTxnModal() {
       });
     }
     h += '</select>';
+    h += '</div>';
   } else {
     h += '<select id="entryCategoryInput" class="field" style="margin-bottom:8px;">';
     h += '<option value="">No category</option>';
@@ -4484,6 +4486,12 @@ window.addEventListener("orientationchange", updateVisualViewportOffset);
 setTimeout(updateVisualViewportOffset, 300);
 setTimeout(updateVisualViewportOffset, 1000);
 
+document.addEventListener("focusin", function(e) {
+  var t = e.target;
+  if (!t || !t.closest(".modal-card")) return;
+  if (t.tagName !== "INPUT" && t.tagName !== "SELECT" && t.tagName !== "TEXTAREA") return;
+  [50, 150, 300, 450].forEach(function(ms){ setTimeout(updateVisualViewportOffset, ms); });
+});
 loadInitial();
 render();
 </script>
