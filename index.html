@@ -18,9 +18,9 @@
     --text:#F2F5FA; --text-muted:#8A99B8; --accent:#E0B368; --accent-ink:#0C1322;
     --rust:#E0705A; --rust-wash: rgba(224,112,90,0.12); --positive:#5EBD8C;
     --tab-bg: rgba(21,30,51,0.82);
-    --f-display: 'Iowan Old Style', Georgia, 'Times New Roman', serif;
-    --f-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
-    --f-num: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+    --f-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --f-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --f-num: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   }
   * { box-sizing: border-box; }
   html, body { margin:0; padding:0; height:100%; overscroll-behavior-y: none; background: var(--bg); }
@@ -40,23 +40,25 @@
   .col { display: flex; flex-direction: column; }
   .gap2 { gap: 8px; }
 
-  /* Type scale — iOS text styles */
-  .lg-title { font-family: var(--f-display); font-size: 32px; line-height: 1.1; letter-spacing: -0.01em; }
-  .title2 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
-  .headline { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
-  .body { font-size: 17px; }
-  .subhead { font-size: 15px; }
-  .footnote { font-size: 13px; }
-  .caption { font-size: 12px; }
-  .display { font-family: var(--f-display); }
-  .mono { font-family: var(--f-num); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  /* Modern native-finance type scale — SF-style system typography */
+  .lg-title { font-family: var(--f-display); font-size: 36px; line-height: 1.02; font-weight: 760; letter-spacing: -0.045em; }
+  .title2 { font-family: var(--f-display); font-size: 23px; line-height: 1.12; font-weight: 720; letter-spacing: -0.035em; }
+  .headline { font-size: 17px; line-height: 1.25; font-weight: 650; letter-spacing: -0.018em; }
+  .body { font-size: 17px; letter-spacing: -0.008em; }
+  .subhead { font-size: 15px; line-height: 1.3; letter-spacing: -0.006em; }
+  .footnote { font-size: 13px; line-height: 1.35; letter-spacing: 0; }
+  .caption { font-size: 12px; line-height: 1.3; letter-spacing: 0.005em; }
+  .display { font-family: var(--f-display); font-weight: 720; letter-spacing: -0.03em; }
+  .brand-title { font-family: var(--f-display); font-size: 36px; line-height: 1; font-weight: 780; letter-spacing: -0.05em; }
+  .sheet-title { font-family: var(--f-display); font-size: 21px; line-height: 1.15; font-weight: 730; letter-spacing: -0.03em; }
+  .mono { font-family: var(--f-num); font-variant-numeric: tabular-nums; letter-spacing: -0.018em; }
   .muted { color: var(--text-muted); }
   /* Grouped-list section header */
   .eyebrow {
-    font-size: 13px; font-weight: 600; letter-spacing: 0.01em;
+    font-size: 13px; font-weight: 650; letter-spacing: -0.005em;
     color: var(--text-muted); text-transform: none;
   }
-  .eyebrow-caps { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 600; }
+  .eyebrow-caps { font-size: 11px; text-transform: uppercase; letter-spacing: 0.075em; color: var(--text-muted); font-weight: 700; }
 
   /* Inset grouped card — no border, fill carries the elevation like iOS */
   .card { background: var(--card); border: none; border-radius: 14px; }
@@ -80,20 +82,20 @@
 
   .field {
     -webkit-appearance:none; appearance:none; width:100%; box-sizing:border-box; display:block;
-    border-radius:10px; padding:11px 12px; background: var(--fill); border:none; font-size:16px;
+    border-radius:12px; padding:11px 12px; background: var(--fill); border:none; font-size:16px; font-weight:500; letter-spacing:-0.01em;
   }
   .field:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  .btn-accent { background: var(--accent); color: var(--accent-ink); font-weight:600; border:none; border-radius:12px; padding:13px 16px; font-size:16px; }
+  .btn-accent { background: var(--accent); color: var(--accent-ink); font-weight:700; letter-spacing:-0.015em; border:none; border-radius:13px; padding:13px 16px; font-size:16px; }
   .btn-accent:disabled { opacity:0.4; }
-  .btn-outline { background: var(--fill); border:none; color: var(--text); border-radius:12px; padding:12px 16px; font-size:16px; }
+  .btn-outline { background: var(--fill); border:none; color: var(--text); border-radius:13px; padding:12px 16px; font-size:16px; font-weight:600; letter-spacing:-0.012em; }
   .btn-rust { background: var(--rust); color:#fff; font-weight:600; border:none; border-radius:12px; padding:12px 16px; font-size:16px; }
   .btn-plain { background:none; border:none; color: var(--accent); font-size:16px; padding:0; }
 
   /* iOS segmented control */
   .seg { display:flex; background: var(--fill); border-radius: 10px; padding: 2px; gap: 2px; }
   .seg-btn {
-    flex:1; border:none; border-radius: 8px; padding: 7px 0; font-size: 14px; font-weight: 500;
+    flex:1; border:none; border-radius: 8px; padding: 7px 0; font-size: 14px; font-weight: 600; letter-spacing:-0.01em;
     background: transparent; color: var(--text-muted);
     transition: background .18s ease, color .18s ease;
   }
@@ -1424,7 +1426,7 @@ function render() {
 
   // header
   html += '<div class="row between" style="align-items:center; margin:8px 0 16px;">';
-  html += '<div class="lg-title display">The Ledger</div>';
+  html += '<div class="brand-title">The Ledger</div>';
   html += '<div class="row gap2">';
   html += '<button class="icon-btn press" data-action="toggle-theme" aria-label="Toggle theme">'+(state.settings.theme==="dark"?ICONS.sun:ICONS.moon)+'</button>';
   html += '<button class="icon-btn press" data-action="open-settings" aria-label="Settings">'+ICONS.settings+'</button>';
@@ -1464,7 +1466,7 @@ function render() {
     html += '<div class="modal-backdrop" data-action="close-backup">';
     html += '<div class="modal-card" data-action="noop">';
     html += '<div class="modal-sticky-header"><div class="grabber"></div>';
-    html += '<div class="row between">'+'<div class="display" style="font-size:18px;">Backup & restore</div><button data-action="close-backup" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
+    html += '<div class="row between">'+'<div class="sheet-title">Backup & restore</div><button data-action="close-backup" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
     html += '<div class="muted" style="font-size:12px; margin-bottom:8px; margin-top:14px;">Use this to move data to another device, or as a safety net.</div>';
     html += '<textarea readonly class="field mono" style="height:120px; font-size:11px; margin-bottom:8px; resize:none;" onfocus="this.select()">'+esc(backupText)+'</textarea>';
     html += '<button id="copyBackupBtn" data-action="copy-backup" class="btn-accent" style="width:100%; margin-bottom:20px;">Copy backup</button>';
@@ -1478,7 +1480,7 @@ function render() {
   if (state.showResetConfirm) {
     html += '<div class="modal-backdrop" data-action="close-reset" style="padding:0 24px;">';
     html += '<div class="modal-card" style="border-radius:16px;" data-action="noop">';
-    html += '<div class="display" style="font-size:18px; margin-bottom:8px;">Clear all entries?</div>';
+    html += '<div class="sheet-title" style="margin-bottom:8px;">Clear all entries?</div>';
     html += '<div class="muted" style="font-size:14px; margin-bottom:16px;">Every logged transaction is removed. Your weekly target and theme stay. This can\'t be undone.</div>';
     html += '<div class="row gap2">';
     html += '<button data-action="close-reset" class="btn-outline" style="flex:1;">Cancel</button>';
@@ -1770,7 +1772,7 @@ function renderSettingsModal() {
   var h = '<div class="modal-backdrop" data-action="close-settings">';
   h += '<div class="modal-card" data-action="noop">';
   h += '<div class="modal-sticky-header"><div class="grabber"></div>';
-  h += '<div class="row between">'+'<div class="display" style="font-size:18px;">Settings</div><button data-action="close-settings" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
+  h += '<div class="row between">'+'<div class="sheet-title">Settings</div><button data-action="close-settings" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
 
   h += '<div class="seg seg-wrap" style="margin-bottom:18px; margin-top:14px;">';
   tabs.forEach(function(t){
@@ -2069,7 +2071,7 @@ function renderAddTxnModal() {
   var h = '<div class="modal-backdrop" data-action="close-add-txn">';
   h += '<div class="modal-card" data-action="noop">';
   h += '<div class="modal-sticky-header"><div class="grabber"></div>';
-  h += '<div class="row between"><div class="display" style="font-size:18px;">'+(editingItem?"Edit transaction":"Add transaction")+'</div><button data-action="close-add-txn" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
+  h += '<div class="row between"><div class="sheet-title">'+(editingItem?"Edit transaction":"Add transaction")+'</div><button data-action="close-add-txn" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
 
   h += '<div class="seg" style="margin:14px 0 14px;">';
   h += '<button class="seg-btn" role="tab" aria-selected="'+(txnKind==="expense")+'" data-action="set-txn-kind" data-kind="expense">Expense</button>';
@@ -2079,7 +2081,7 @@ function renderAddTxnModal() {
   h += '<div class="eyebrow" style="margin-bottom:6px;">Amount</div>';
   h += '<div style="position:relative;margin-bottom:18px;">';
   h += '<span class="muted" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:16px;pointer-events:none;">AED</span>';
-  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding:14px 14px 14px 58px;font-size:30px;font-weight:700;border-radius:14px;" placeholder="0.00" value="'+esc(amountShown)+'" />';
+  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding:14px 14px 14px 58px;font-size:30px;font-weight:750;letter-spacing:-0.035em;border-radius:14px;" placeholder="0.00" value="'+esc(amountShown)+'" />';
   h += '</div>';
 
   /* Date is part of the primary entry flow: most entries default to Today,
