@@ -164,8 +164,8 @@
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, categoryStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null };
-var DEFAULT_ANALYSIS_ORDER = ["summary","cashFlow","forecastedSpend","spendTrend","dailySpend","dailySaving","cumulativeSaving","category","person","dow","topTransactions"];
-var ANALYSIS_SECTION_LABELS = { summary:"Summary", cashFlow:"Cash flow", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", dailySaving:"Saved per day", cumulativeSaving:"Cumulative saving", category:"Spend by category", person:"Spend by person", dow:"Average by day of week", topTransactions:"Biggest transactions" };
+var DEFAULT_ANALYSIS_ORDER = ["summary","cashFlow","forecastedSpend","spendTrend","dailySpend","category","person","dow","topTransactions"];
+var ANALYSIS_SECTION_LABELS = { summary:"Summary", cashFlow:"Cash flow", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", category:"Spend by category", person:"Spend by person", dow:"Average by day of week", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_ANALYSIS_ORDER.indexOf(id) !== -1; });
   DEFAULT_ANALYSIS_ORDER.forEach(function(id){ if (out.indexOf(id)===-1) out.push(id); });
@@ -540,11 +540,14 @@ function normalizeCategoryExcludeFromBudget(map, categories) {
    flows from periodStats, which reads this — so the exclusion propagates
    everywhere (headline saved, forecast, trend, calendar, "left to spend")
    without each of those needing to know the rule. */
-function sumSpentForBasis(e) {
+function sumBudgetSpent(e) {
   if (!e || !Array.isArray(e.items)) return 0;
-  if (state.basis === "income") return sumSpent(e);
-  return e.items.reduce(function(s,i){ return (isExpenseItem(i) && itemCountsTowardBudget(i)) ? s+i.amount : s; }, 0);
+  return e.items.reduce(function(s,i){
+    return (isExpenseItem(i) && itemCountsTowardBudget(i)) ? s + i.amount : s;
+  }, 0);
 }
+function sumSpentForBasis(e) { return sumBudgetSpent(e); }
+
 /* Total outgoings regardless of basis — used by the cash-flow view, which
    always wants the true full picture even while the budget basis is active. */
 function sumSpentAll(e) { return sumSpent(e); }
@@ -640,7 +643,7 @@ var state = {
   analysisCategoryFilter: "",
   analysisPersonFilter: "",
   analysisSelectedGroup: null,
-  basis: "budget",
+  basis: "budget", // legacy: UI no longer switches basis
   forecastCompareMode: "previous",
   incomeDraftMode: null,
   incomeDraftAmount: null,
@@ -710,11 +713,15 @@ function incomeForDate(ds) {
   if (!hist || !hist.length) {
     return { mode: state.settings.incomeMode || "monthly", amount: Number(state.settings.incomeAmount) || 0 };
   }
-  var cur = hist[0];
+  /* A history record only applies on/after its own start date. Starting with
+     hist[0] would make the first future-dated income leak backwards into all
+     earlier periods. If no record was active yet, income was not configured
+     for that date, so use zero rather than rewriting history. */
+  var cur = null;
   for (var i=0;i<hist.length;i++) {
     if (hist[i].from <= ds) cur = hist[i]; else break;
   }
-  return cur;
+  return cur || { mode: "monthly", amount: 0 };
 }
 function dailyIncomeForDate(ds) {
   var inc = incomeForDate(ds);
@@ -761,23 +768,12 @@ function normalizeIncomeHistory(hist) {
 /* The single number every savings calculation compares a day's spending
    against. Swapping the basis swaps this, and every downstream figure —
    headline saved, calendar deltas, charts, forecasts — follows automatically. */
-function referenceForDate(ds) {
-  return state.basis === "income" ? dailyIncomeForDate(ds) : allowanceForDate(ds);
-}
-function dailyReference() { return referenceForDate(todayStr()); }
-function basisWord() { return state.basis === "income" ? "income" : "budget"; }
-function basisWordCap() { return state.basis === "income" ? "Income" : "Budget"; }
-/* Runs fn() with the basis pinned to "budget" regardless of what's currently
-   selected, then restores it. Used for the one figure that should never bend
-   with the income view: "Left to spend today" is a real spending cap, and
-   letting it loosen just because you're looking at the income tab would be
-   an easy way to accidentally overspend against your own budget. */
-function withBudgetBasis(fn) {
-  var saved = state.basis;
-  state.basis = "budget";
-  try { return fn(); }
-  finally { state.basis = saved; }
-}
+function referenceForDate(ds) { return allowanceForDate(ds); }
+function dailyReference() { return allowanceForDate(todayStr()); }
+function basisWord() { return "budget"; }
+function basisWordCap() { return "Budget"; }
+function withBudgetBasis(fn) { return fn(); }
+
 
 
 /* ---------------- persistence ---------------- */
@@ -850,11 +846,18 @@ function fullPeriodTarget(startStr, endStr) {
    rent would inflate the daily pace AND get counted again as a future payment.
    Budget-excluded categories are skipped for the same reason: they're not
    part of the allowance being paced against, so they mustn't shape the pace. */
-function discretionarySpentInRows(rows) {
+function expenseCountsForScope(it, scope) {
+  if (!isExpenseItem(it)) return false;
+  return scope === "budget" ? itemCountsTowardBudget(it) : true;
+}
+function rowSpentForScope(r, scope) {
+  return (r.items||[]).reduce(function(s,it){ return expenseCountsForScope(it, scope) ? s+it.amount : s; }, 0);
+}
+function discretionarySpentInRows(rows, scope) {
   var sum = 0;
   (rows||[]).forEach(function(r){
     (r.items||[]).forEach(function(it){
-      if (isExpenseItem(it) && !it.recurringId && (state.basis === "income" || itemCountsTowardBudget(it))) sum += it.amount;
+      if (expenseCountsForScope(it, scope) && !it.recurringId) sum += it.amount;
     });
   });
   return sum;
@@ -864,11 +867,12 @@ function discretionarySpentInRows(rows) {
    `throughStr` — i.e. money already committed but not yet logged. Paused
    plans are excluded since they won't fire. Capped defensively like the
    catch-up loop so a daily plan over a long horizon can't spin. */
-function scheduledAmountInRange(afterStr, throughStr) {
+function scheduledAmountInRange(afterStr, throughStr, scope) {
   var rules = state.settings.recurringRules || [];
   var total = 0;
   rules.forEach(function(rule){
-    if (!rule.active) return;
+    if (!rule.active || rule.entryKind === "income") return;
+    if (scope === "budget" && categoryExcludedFromBudget(rule.category)) return;
     var n = rule.occurrencesLogged || 0;
     var guard = 0;
     while (guard < 500) {
@@ -889,16 +893,17 @@ function scheduledAmountInRange(afterStr, throughStr) {
    long-unused stretch (say, trackingStartDate set months before regular use
    began) shouldn't drag today's forecast toward a near-zero pace that no
    longer reflects anything real. */
-function overallAvgDailySpend() {
+function overallAvgDailySpend(scope) {
   var entryDatesAll = Object.keys(state.entries).sort();
-  var naturalAnchor = state.settings.trackingStartDate || (entryDatesAll.length ? entryDatesAll[0] : todayStr());
+  var firstEntry = entryDatesAll.length ? entryDatesAll[0] : todayStr();
+  var naturalAnchor = scope === "budget" ? (state.settings.trackingStartDate || firstEntry) : firstEntry;
   var yesterday = toStr(addDays(parseD(todayStr()), -1));
   if (naturalAnchor > yesterday) return null;
   var windowFloor = toStr(addDays(parseD(yesterday), -59));
   var anchor = naturalAnchor > windowFloor ? naturalAnchor : windowFloor;
-  var histStats = periodStats(anchor, yesterday);
+  var histStats = periodStatsOverall(anchor, yesterday);
   if (histStats.elapsedDays <= 0 || histStats.loggedCount <= 0) return null;
-  return discretionarySpentInRows(histStats.rows) / histStats.elapsedDays;
+  return discretionarySpentInRows(histStats.rows, scope || "overall") / histStats.elapsedDays;
 }
 
 /* The real start of a range once trackingStartDate clips it — e.g. a "This
@@ -917,49 +922,88 @@ function effectiveRangeStart(startStr) {
    week/month/year (handled correctly even when month lengths differ, unlike
    a naive "N days earlier"); a custom range has no calendar analog, so it
    falls back to the immediately preceding range of the same length. */
-function previousPeriodRows(mode, offset, startStr, endStr) {
+function previousPeriodRows(mode, offset, startStr, endStr, scope) {
+  var statsFn = scope === "budget" ? periodStatsBudget : periodStatsOverall;
   if (mode === "custom") {
     var lenDays = daysBetween(startStr, endStr) + 1;
     var prevEnd = toStr(addDays(parseD(startStr), -1));
     var prevStart = toStr(addDays(parseD(prevEnd), -(lenDays-1)));
-    return periodStats(prevStart, prevEnd).rows;
+    return statsFn(prevStart, prevEnd).rows;
   }
-  var per = getPeriodBounds(mode, (offset||0) - 1, currentWeeklyTarget(), dailyReference());
-  return periodStats(per.startStr, per.endStr).rows;
+  var per = getPeriodBounds(mode, (offset||0) - 1, currentWeeklyTarget(), dailyAllowance());
+  return statsFn(per.startStr, per.endStr).rows;
 }
 
-function periodStats(startStr, endStrRaw) {
+function periodStatsBudget(startStr, endStrRaw) {
   var endStr = minStr(endStrRaw, todayStr());
-  var opening = 0; // each period is self-contained: always starts fresh at 0
-
   var tsd = state.settings.trackingStartDate;
   var effectiveStart = (tsd && tsd > startStr) ? tsd : startStr;
-
   var rows = [];
   if (effectiveStart <= endStr) {
     var cur = parseD(effectiveStart);
     while (toStr(cur) <= endStr) {
       var ds = toStr(cur);
       var e = state.entries[ds];
-      rows.push({ date: ds, logged: !!e, items: e ? e.items : [], spent: e ? sumSpentForBasis(e) : 0, spentAll: e ? sumSpentAll(e) : 0, allowance: referenceForDate(ds) });
+      rows.push({
+        date: ds, logged: !!e, items: e ? e.items : [],
+        spent: e ? sumBudgetSpent(e) : 0,
+        spentAll: e ? sumSpentAll(e) : 0,
+        income: e ? sumIncome(e) : 0,
+        allowance: allowanceForDate(ds)
+      });
       cur = addDays(cur, 1);
     }
   }
-  var net = round2(rows.reduce(function(s,r){ return s+(r.allowance-r.spent); },0));
-  var closing = round2(opening+net);
+  var spent = rows.reduce(function(s,r){ return s+r.spent; },0);
+  var targetElapsed = rows.reduce(function(s,r){ return s+r.allowance; },0);
+  var net = round2(targetElapsed - spent);
   var calendarElapsedDays = (startStr <= endStr) ? (daysBetween(startStr, endStr) + 1) : 0;
-  return { opening:opening, net:net, closing:closing, rows:rows, elapsedDays: rows.length, calendarElapsedDays: calendarElapsedDays,
-    loggedCount: rows.filter(function(r){return r.logged;}).length, spent: rows.reduce(function(s,r){return s+r.spent;},0),
-    spentAll: rows.reduce(function(s,r){return s+r.spentAll;},0) };
+  return {
+    opening:0, net:net, closing:net, rows:rows, elapsedDays:rows.length,
+    calendarElapsedDays:calendarElapsedDays,
+    loggedCount:rows.filter(function(r){return r.logged;}).length,
+    spent:spent,
+    spentAll:rows.reduce(function(s,r){return s+r.spentAll;},0),
+    income:rows.reduce(function(s,r){return s+r.income;},0),
+    targetElapsed:targetElapsed
+  };
 }
+
+function periodStatsOverall(startStr, endStrRaw) {
+  var endStr = minStr(endStrRaw, todayStr());
+  var effectiveStart = startStr;
+  var rows = [];
+  if (effectiveStart <= endStr) {
+    var cur = parseD(effectiveStart);
+    while (toStr(cur) <= endStr) {
+      var ds = toStr(cur);
+      var e = state.entries[ds];
+      var spent = e ? sumSpentAll(e) : 0;
+      var income = e ? sumIncome(e) : 0;
+      rows.push({ date:ds, logged:!!e, items:e ? e.items : [], spent:spent, spentAll:spent, income:income, allowance:0 });
+      cur = addDays(cur, 1);
+    }
+  }
+  var totalSpent = rows.reduce(function(s,r){ return s+r.spent; },0);
+  var totalIncome = rows.reduce(function(s,r){ return s+r.income; },0);
+  var calendarElapsedDays = (startStr <= endStr) ? (daysBetween(startStr, endStr) + 1) : 0;
+  return {
+    opening:0, net:round2(totalIncome-totalSpent), closing:round2(totalIncome-totalSpent),
+    rows:rows, elapsedDays:rows.length, calendarElapsedDays:calendarElapsedDays,
+    loggedCount:rows.filter(function(r){return r.logged;}).length,
+    spent:totalSpent, spentAll:totalSpent, income:totalIncome, targetElapsed:0
+  };
+}
+
+/* Legacy internal callers that are inherently budget-oriented still use periodStats(). */
+function periodStats(startStr, endStrRaw) { return periodStatsBudget(startStr, endStrRaw); }
 
 /* Daily budget left for the CURRENT (live) instance of a given view type,
    treating today as a fresh, still-available day rather than one already
    partly spent. Returns null when there are no days left to plan for. */
 function computeDailyBudgetLeft(viewType, spentTodayVal) {
-  var da_ = dailyReference();
-  var per = getPeriodBounds(viewType, 0, currentWeeklyTarget(), da_);
-  var stats = periodStats(per.startStr, per.endStr);
+  var per = getPeriodBounds(viewType, 0, currentWeeklyTarget(), dailyAllowance());
+  var stats = periodStatsBudget(per.startStr, per.endStr);
   var daysLeftLocal = Math.max(0, per.days - stats.calendarElapsedDays);
   if (daysLeftLocal <= 0) return null;
   var planDaysLocal = daysLeftLocal + 1;
@@ -1326,7 +1370,7 @@ function render() {
     return;
   }
 
-  var da = dailyReference();
+  var da = dailyAllowance();
   var html = "";
   html += '<div class="wrap">';
 
@@ -1337,7 +1381,7 @@ function render() {
   html += '<button class="icon-btn press" data-action="toggle-theme" aria-label="Toggle theme">'+(state.settings.theme==="dark"?ICONS.sun:ICONS.moon)+'</button>';
   html += '<button class="icon-btn press" data-action="open-settings" aria-label="Settings">'+ICONS.settings+'</button>';
   html += '</div></div>';
-  html += '<div class="muted footnote" style="margin-bottom:16px;">'+fmt(da,0)+' AED a day'+(state.basis==="income"?" income":"")+' · weeks run Mon–Sun</div>';
+  html += '<div class="muted footnote" style="margin-bottom:16px;">'+fmt(da,0)+' AED/day budget · weeks run Mon–Sun</div>';
 
   // storage warning
   if (state.storageOK === false) {
@@ -1349,6 +1393,7 @@ function render() {
 
   if (state.page === "transactions") html += renderTransactionsBody();
   else if (state.page === "calendar") html += renderCalendarBody();
+  else if (state.page === "budget") html += renderBudgetBody(T);
   else if (state.page === "plans") html += renderPlansBody();
   else if (state.page === "analysis") html += renderAnalysisBody(T);
   else html += renderHomeBody(T, da);
@@ -1358,7 +1403,7 @@ function render() {
   }
 
   html += '</div>'; // end wrap
-  if (state.page === "home" || state.page === "transactions" || state.page === "calendar") html += renderFab();
+  if (state.page === "home" || state.page === "transactions" || state.page === "calendar" || state.page === "budget") html += renderFab();
   html += renderBottomNav();
 
   // modals
@@ -1405,165 +1450,149 @@ function render() {
   } else if (savedPageScrollY) {
     window.scrollTo(0, savedPageScrollY);
   }
-  if ((state.page === "home" || state.page === "analysis") && lastChartData) wireBalanceChart(lastChartData);
-  if ((state.page === "analysis" || state.page === "home") && lastForecastChartData) wireForecastChart(lastForecastChartData);
+  if ((state.page === "budget" || state.page === "analysis") && lastChartData) wireBalanceChart(lastChartData);
+  if ((state.page === "analysis" || state.page === "budget") && lastForecastChartData) wireForecastChart(lastForecastChartData);
 }
 
 function renderHomeBody(T, da) {
-  lastForecastChartData = null;
-  var period = getPeriodBounds(state.view, state.offset, state.settings.weeklyTarget, da);
-  var displayed = periodStats(period.startStr, period.endStr);
-
-  var isClosed = period.endStr < todayStr();
-  var isCurrent = state.offset === 0;
-  var daysLeft = Math.max(0, period.days - displayed.calendarElapsedDays);
-  var elapsedTarget = displayed.elapsedDays * da;
-
-  var chartData = displayed.rows.length ? (function(){
-    var acc = displayed.opening;
-    return displayed.rows.map(function(r){
-      var delta = round2(r.allowance-r.spent);
-      acc = round2(acc + delta);
-      return { label: shortLabel(r.date), date: r.date, balance: acc, delta: delta };
-    });
-  })() : [];
-
-  var netColor = displayed.net >= 0 ? "var(--positive)" : "var(--rust)";
-
-  var entryDates = Object.keys(state.entries).sort();
-  var cumAnchor = state.settings.trackingStartDate || (entryDates.length ? entryDates[0] : todayStr());
-  var cumulative = periodStats(cumAnchor, todayStr());
-  var cumColor = cumulative.net >= 0 ? "var(--positive)" : "var(--rust)";
-  var cumLabel = "Saved since " + parseD(cumAnchor).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
-  var todayEntryForCard = state.entries[todayStr()];
-  var spentToday = todayEntryForCard ? sumSpentForBasis(todayEntryForCard) : 0;
-  var spentTodayColor = spentToday > da ? "var(--rust)" : "var(--text)";
-  var todayAllowanceForCard = referenceForDate(todayStr());
-
-  /* Left to spend today: take the tightest of today's own rate, this week's
-     pace-adjusted daily left, and this month's — whichever is lowest wins,
-     so today's spending stays honest against both horizons at once. Always
-     computed against budget, never income — see withBudgetBasis above. */
-  var leftToday = withBudgetBasis(function(){
-    var todayBudgetAllowance = allowanceForDate(todayStr());
-    var weekDBL = computeDailyBudgetLeft("week", spentToday);
-    var monthDBL = computeDailyBudgetLeft("month", spentToday);
-    var capCandidates = [todayBudgetAllowance];
-    if (weekDBL) capCandidates.push(weekDBL.value);
-    if (monthDBL) capCandidates.push(monthDBL.value);
-    return Math.min.apply(null, capCandidates) - spentToday;
-  });
-  var leftTodayColor = leftToday < 0 ? "var(--rust)" : "var(--positive)";
-
-  /* Left to spend today (budget): the plain, uncapped daily rate minus what's
-     been spent today — unlike "Left to spend today" above, this ignores the
-     week/month pace horizons entirely, so it always reads today's own target. */
-  var leftTodayBudget = todayAllowanceForCard - spentToday;
-  var leftTodayBudgetColor = leftTodayBudget < 0 ? "var(--rust)" : "var(--positive)";
-
-  var h = "";
-
-  /* Basis toggle: budget = the spending cap you set yourself; income = money
-     actually earned, accrued day by day. Everything below reads from it. */
-  h += '<div class="seg" style="margin-bottom:14px;">';
-  [["budget","vs Budget"],["income","vs Income"]].forEach(function(opt){
-    var active = state.basis === opt[0];
-    h += '<button class="seg-btn" role="tab" aria-selected="'+active+'" data-action="set-basis" data-basis="'+opt[0]+'">'+opt[1]+'</button>';
-  });
-  h += '</div>';
-
-  if (state.basis === "income" && !incomeIsSet()) {
-    h += '<div class="card" style="padding:14px 16px; margin-bottom:12px; background:var(--rust-wash); border-color:var(--rust);">';
-    h += '<div style="font-size:13px; margin-bottom:8px;">Set your income to use this view.</div>';
-    h += '<button data-action="open-income-settings" class="btn-accent" style="width:100%;">Set income</button>';
-    h += '</div>';
-    return h;
-  }
-
-  h += '<div class="card" style="padding:14px 16px; margin-bottom:12px;">';
-  h += '<div class="row between"><span class="eyebrow" style="font-size:10px;">Left to spend today</span><span class="mono" style="font-size:16px; color:'+leftTodayColor+';">'+fmt(leftToday,0)+' AED</span></div>';
-  h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow" style="font-size:10px;">Left to spend today ('+basisWord()+')</span><span class="mono" style="font-size:16px; color:'+leftTodayBudgetColor+';">'+fmt(leftTodayBudget,0)+' AED</span></div>';
-  h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow" style="font-size:10px;">Spent today</span><span class="mono" style="font-size:16px; color:'+spentTodayColor+';">'+fmt(spentToday,0)+' AED</span></div>';
-  h += '<div class="row between" style="margin-top:10px;"><span class="eyebrow" style="font-size:10px;">'+esc(cumLabel)+'</span><span class="mono" style="font-size:16px; color:'+cumColor+';">'+(cumulative.net>=0?"+":"−")+fmt(Math.abs(cumulative.net),0)+' AED</span></div>';
-  h += '</div>';
-
-  h += '<div class="seg" style="margin-bottom:14px;">';
-  ["week","month","year"].forEach(function(v){
-    var active = state.view===v;
-    h += '<button class="seg-btn" role="tab" aria-selected="'+active+'" data-action="switch-view" data-view="'+v+'" style="text-transform:capitalize;">'+v+'</button>';
-  });
-  h += '</div>';
-
-  h += '<div class="card" style="margin-bottom:16px; overflow:hidden;">';
-  h += '<div class="row between" style="padding:12px; border-bottom:1px solid var(--hairline);">';
-  h += '<button data-action="nav-offset" data-delta="-1" class="icon-btn" style="border-radius:10px;" aria-label="Previous">'+ICONS.chevronLeft+'</button>';
-  h += '<div style="text-align:center;"><div style="font-size:14px; font-weight:500;">'+esc(period.title)+'</div>';
-  h += '<div class="eyebrow" style="margin-top:2px;">'+esc(period.sub)+(isClosed?" · closed":"")+' · '+basisWordCap()+' '+fmt(period.target,0)+' AED ('+fmt(da,0)+'/day)</div>';
-  if (isCurrent) {
-    h += '<div class="muted" style="font-size:11px; margin-top:4px;">'+(state.view==="week"?esc(weekdayLong(todayStr()))+" · ":"")+'Day '+displayed.calendarElapsedDays+' of '+period.days+' · '+daysLeft+' day'+(daysLeft===1?"":"s")+' left</div>';
-  }
-  h += '</div>';
-  h += '<button data-action="nav-offset" data-delta="1" class="icon-btn" style="border-radius:10px;'+(isCurrent?"opacity:0.3;pointer-events:none;":"")+'" aria-label="Next">'+ICONS.chevronRight+'</button>';
-  h += '</div>';
-
-  h += '<div style="padding:16px 20px 12px;">';
-  h += '<div class="eyebrow">'+(isClosed?"Saved this period":"Saved so far")+'</div>';
-  h += '<div class="mono" style="font-size:34px; margin-top:4px; color:'+netColor+';">'+(displayed.net>=0?"+":"−")+fmt(Math.abs(displayed.net),0)+' <span class="muted" style="font-size:17px;">AED</span></div>';
-  h += '<div class="muted" style="font-size:12px; margin-top:4px;">'+(displayed.elapsedDays===0 ? ("This "+state.view+" hasn't started yet") : (displayed.loggedCount+" of "+displayed.elapsedDays+" elapsed day"+(displayed.elapsedDays===1?"":"s")+" logged"))+'</div>';
-  h += '</div>';
-
-  var todayIncluded = displayed.rows.length > 0 && displayed.rows[displayed.rows.length-1].date === todayStr();
-  var todaySpent = todayIncluded ? displayed.rows[displayed.rows.length-1].spent : 0;
-  var pastDays = todayIncluded ? displayed.elapsedDays - 1 : displayed.elapsedDays;
-  var pastSpent = displayed.spent - todaySpent;
-  var avgSpentPerDay = pastDays > 0 ? (pastSpent/pastDays) : null;
-  var remainingBudget = period.target - displayed.spent;
-  var allowedText, allowedTone, planDaysShown;
-  if (daysLeft > 0) {
-    planDaysShown = daysLeft + 1; // today counts as a fresh, still-available day
-    var spentBeforeToday = displayed.spent - spentToday;
-    var remainingExclToday = period.target - spentBeforeToday;
-    var perDayLeft = remainingExclToday/planDaysShown;
-    allowedText = fmt(perDayLeft,0)+" AED";
-    allowedTone = perDayLeft < 0 ? "var(--rust)" : "var(--text)";
-  } else {
-    allowedText = isClosed ? "—" : "Last day";
-    allowedTone = "var(--text-muted)";
-  }
-  h += '<div class="stat-grid hairline-top" style="padding:12px 20px 16px;">';
-  h += statBlock("Spent so far", fmt(displayed.spent,0)+" AED", displayed.spent>elapsedTarget?"var(--rust)":"var(--text)");
-  h += statBlock(basisWordCap()+" remaining", (remainingBudget>=0?"":"−")+fmt(Math.abs(remainingBudget),0)+" AED", remainingBudget<0?"var(--rust)":"var(--text)");
-  h += statBlock("Avg daily spend", avgSpentPerDay===null ? "—" : (fmt(avgSpentPerDay,0)+" AED"), (avgSpentPerDay!==null && avgSpentPerDay>da)?"var(--rust)":"var(--text)");
-  h += statBlock("Daily "+basisWord()+" left"+(daysLeft>0?" ("+planDaysShown+"d)":""), allowedText, allowedTone);
-  h += '</div>';
-
   lastChartData = null;
-  if (chartData.length >= 1) {
-    h += '<div class="hairline-top" style="padding:12px 8px 12px;">';
-    h += '<div id="balanceChartWrap" style="position:relative;">';
-    h += '<div id="balanceChartTip" class="mono footnote" style="position:absolute; top:0; left:0; background:var(--fill); border-radius:8px; padding:4px 9px; max-width:250px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:2;"></div>';
-    h += renderChart(chartData, T);
-    h += '</div></div>';
-    lastChartData = chartData;
-  }
-  h += '</div>'; // end period card
+  lastForecastChartData = null;
+  var month = getPeriodBounds("month", 0, currentWeeklyTarget(), dailyAllowance());
+  var overall = periodStatsOverall(month.startStr, month.endStr);
+  var budget = periodStatsBudget(month.startStr, month.endStr);
+  var target = month.target;
+  var remaining = round2(target - budget.spent);
+  var savedSoFar = round2(budget.targetElapsed - budget.spent);
+  var daysRemaining = todayStr() <= month.endStr ? daysBetween(todayStr(), month.endStr)+1 : 0;
+  var safePerDay = daysRemaining > 0 ? remaining/daysRemaining : null;
+  var chartStart = month.startStr;
+  var chartDays = daysBetween(chartStart, month.endStr)+1;
+  var fc = overall.rows.length ? computeForecastNumbers(overall.rows, chartDays, chartStart, "overall") : null;
+  var projected = fc ? fc.projectedSpend : overall.spent;
+  var income = overall.income;
+  var cashNet = round2(income - overall.spent);
+  var progress = target > 0 ? Math.max(0, Math.min(100, (budget.spent/target)*100)) : 0;
 
-  /* Forecast: same card, same math, same chart as Analysis's Forecasted
-     Spend section — built by the one shared function so the two pages can
-     never show conflicting numbers or drift apart visually. */
-  if (isCurrent && chartData.length) {
-    var periodWordHome = state.view === "week" ? "week" : state.view === "month" ? "month" : "year";
-    var chartStartHome = effectiveRangeStart(period.startStr);
-    var chartDaysHome = daysBetween(chartStartHome, period.endStr) + 1;
-    var compareRowsHome = previousPeriodRows(state.view, state.offset, period.startStr, period.endStr);
-    h += buildForecastCard(displayed.rows, chartDaysHome, period.target, chartStartHome, T, basisWordCap(), periodWordHome, compareRowsHome);
+  var h = '';
+  h += '<div class="eyebrow" style="margin-bottom:8px;">This month</div>';
+  h += '<div class="card card-pad" style="margin-bottom:12px;">';
+  h += '<div class="muted caption">TOTAL SPENT</div>';
+  h += '<div class="mono" style="font-size:34px; font-weight:700; margin-top:3px;">'+fmt(overall.spent,0)+' <span class="muted" style="font-size:17px;">AED</span></div>';
+  h += '<div class="row between hairline-top" style="margin-top:14px; padding-top:12px;">';
+  h += '<span class="muted subhead">Projected month-end spend</span><span class="mono subhead" style="font-weight:600;">'+fmt(projected,0)+' AED</span></div>';
+  h += '<button data-action="go-page" data-page="analysis" class="btn-plain" style="margin-top:12px;">Open overall analysis →</button>';
+  h += '</div>';
+
+  h += '<div class="card card-pad" style="margin-bottom:12px;">';
+  h += '<div class="row between" style="align-items:baseline;"><div><div class="eyebrow">Budget</div><div class="muted caption" style="margin-top:2px;">Only categories that count toward budget</div></div>';
+  h += '<span class="mono subhead" style="font-weight:600;">'+fmt(budget.spent,0)+' / '+fmt(target,0)+' AED</span></div>';
+  h += '<div style="height:10px; background:var(--fill); border-radius:999px; overflow:hidden; margin:12px 0 10px;"><div style="height:100%; width:'+progress+'%; background:'+(budget.spent>target?'var(--rust)':'var(--accent)')+';"></div></div>';
+  h += '<div class="stat-grid">';
+  h += statBlock("Remaining", (remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED', remaining>=0?'var(--positive)':'var(--rust)');
+  h += statBlock("Saved so far", (savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED', savedSoFar>=0?'var(--positive)':'var(--rust)');
+  h += statBlock("Safe to spend/day", safePerDay==null?'—':fmt(safePerDay,0)+' AED', safePerDay!=null&&safePerDay<0?'var(--rust)':'var(--text)');
+  h += statBlock("Budget spent today", fmt(state.entries[todayStr()]?sumBudgetSpent(state.entries[todayStr()]):0,0)+' AED', 'var(--text)');
+  h += '</div>';
+  h += '<button data-action="go-page" data-page="budget" class="btn-plain" style="margin-top:12px;">Open budget →</button>';
+  h += '</div>';
+
+  h += '<div class="card card-pad" style="margin-bottom:16px;">';
+  h += '<div class="eyebrow">Cash flow</div>';
+  if (income > 0) {
+    h += '<div class="stat-grid" style="margin-top:10px;">';
+    h += statBlock("Income received", fmt(income,0)+' AED', 'var(--positive)');
+    h += statBlock("Expenses", fmt(overall.spent,0)+' AED', 'var(--rust)');
+    h += statBlock("Net cash flow", (cashNet>=0?'+':'−')+fmt(Math.abs(cashNet),0)+' AED', cashNet>=0?'var(--positive)':'var(--rust)');
+    h += statBlock("Expense transactions", String(overall.rows.reduce(function(t,r){ return t+(r.items||[]).filter(isExpenseItem).length; },0)), 'var(--text)');
+    h += '</div>';
+  } else {
+    h += '<div class="muted subhead" style="margin-top:8px;">Log salary or other money received as Income transactions to see cash flow here.</div>';
+  }
+  h += '</div>';
+
+  var recent = [];
+  Object.keys(state.entries).sort().reverse().some(function(d){
+    newestFirst(state.entries[d].items||[]).forEach(function(it){ if (recent.length<5) recent.push({date:d,it:it}); });
+    return recent.length>=5;
+  });
+  if (recent.length) {
+    h += '<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Recent transactions</span><button data-action="go-page" data-page="transactions" class="btn-plain" style="font-size:12px;">See all</button></div>';
+    recent.forEach(function(x,i){ h += '<div style="'+(i?'border-top:1px solid var(--sep);':'')+'">'+renderTxnRow(x.date,x.it)+'</div>'; });
+    h += '</div>';
+  }
+  return h;
+}
+
+function renderBudgetBody(T) {
+  lastForecastChartData = null;
+  lastChartData = null;
+  var da = dailyAllowance();
+  var period = getPeriodBounds(state.view, state.offset, currentWeeklyTarget(), da);
+  var stats = periodStatsBudget(period.startStr, period.endStr);
+  var isCurrent = state.offset === 0;
+  var isClosed = period.endStr < todayStr();
+  var target = period.target;
+  var remaining = round2(target - stats.spent);
+  var savedSoFar = round2(stats.targetElapsed - stats.spent);
+  var daysRemaining = isCurrent && todayStr() <= period.endStr ? daysBetween(todayStr(), period.endStr)+1 : 0;
+  var safePerDay = daysRemaining > 0 ? remaining/daysRemaining : null;
+  var spentToday = state.entries[todayStr()] ? sumBudgetSpent(state.entries[todayStr()]) : 0;
+  var progress = target>0 ? Math.max(0,Math.min(100,(stats.spent/target)*100)) : 0;
+  var h = '';
+  h += '<div class="row between" style="align-items:center; margin-bottom:10px;"><div><div class="eyebrow">Budget</div><div class="muted caption" style="margin-top:2px;">Only categories marked to count toward budget</div></div><button data-action="open-budget-settings" class="btn-outline" style="padding:6px 10px; font-size:12px;">Edit budget</button></div>';
+  h += '<div class="seg" style="margin-bottom:12px;">';
+  ["week","month","year"].forEach(function(v){ h += '<button class="seg-btn" role="tab" aria-selected="'+(state.view===v)+'" data-action="switch-view" data-view="'+v+'" style="text-transform:capitalize;">'+v+'</button>'; });
+  h += '</div>';
+  h += '<div class="row between card" style="padding:8px 10px; margin-bottom:12px;">';
+  h += '<button data-action="nav-offset" data-delta="-1" class="icon-btn" style="border-radius:10px;">'+ICONS.chevronLeft+'</button>';
+  h += '<div style="text-align:center;"><div class="subhead" style="font-weight:600;">'+esc(period.title)+'</div><div class="muted caption">'+esc(period.sub)+(isClosed?' · closed':'')+'</div></div>';
+  h += '<button data-action="nav-offset" data-delta="1" class="icon-btn" style="border-radius:10px;'+(isCurrent?'opacity:0.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';
+
+  h += '<div class="card card-pad" style="margin-bottom:16px;">';
+  h += '<div class="row between" style="align-items:baseline;"><div><div class="muted caption">BUDGET SPENT</div><div class="mono" style="font-size:30px; font-weight:700; margin-top:2px;">'+fmt(stats.spent,0)+' AED</div></div><div class="mono muted subhead">of '+fmt(target,0)+' AED</div></div>';
+  h += '<div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 14px;"><div style="height:100%;width:'+progress+'%;background:'+(stats.spent>target?'var(--rust)':'var(--accent)')+';"></div></div>';
+  h += '<div class="stat-grid">';
+  h += statBlock("Remaining", (remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED', remaining>=0?'var(--positive)':'var(--rust)');
+  h += statBlock(isClosed?'Saved this period':'Saved so far', (savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED', savedSoFar>=0?'var(--positive)':'var(--rust)');
+  h += statBlock("Spent today", isCurrent?fmt(spentToday,0)+' AED':'—', 'var(--text)');
+  h += statBlock("Safe to spend/day", safePerDay==null?'—':fmt(safePerDay,0)+' AED', safePerDay!=null&&safePerDay<0?'var(--rust)':'var(--text)');
+  h += '</div></div>';
+
+  if (stats.rows.length) {
+    var acc=0;
+    var savingData = stats.rows.map(function(r){ var d=round2(r.allowance-r.spent); acc=round2(acc+d); return {label:shortLabel(r.date),date:r.date,balance:acc,delta:d}; });
+    h += '<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Budget progress</span><span class="mono footnote" style="color:'+(acc>=0?'var(--positive)':'var(--rust)')+';font-weight:600;">'+(acc>=0?'+':'−')+fmt(Math.abs(acc),0)+' AED</span></div>';
+    h += '<div class="muted caption" style="margin-bottom:10px;">Cumulative amount ahead or behind your budget through each day.</div>';
+    h += '<div id="budgetSavingChartWrap" style="position:relative;"><div id="balanceChartTip" class="mono footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:8px;padding:4px 9px;max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;z-index:2;"></div>'+renderChart(savingData,T)+'</div></div>';
+    lastChartData=savingData;
+
+    var budgetBuckets = stats.rows.map(function(r){ return {key:r.date,label:shortLabel(r.date),title:dayLabel(r.date),date:r.date,dates:[r.date],spent:r.spent,allowance:r.allowance,days:1}; });
+    h += '<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow" style="margin-bottom:8px;">Saved per day</div>';
+    h += renderDailyBarChart(budgetBuckets,function(b){return b.allowance-b.spent;},function(b,v){return v>=0?T.positive:T.rust;},T,null,null,"budget-saved")+'</div>';
   }
 
+  if (isCurrent && stats.rows.length) {
+    var periodWord = state.view==='week'?'week':state.view==='month'?'month':'year';
+    var chartStart = effectiveRangeStart(period.startStr);
+    var chartDays = daysBetween(chartStart,period.endStr)+1;
+    var compareRows = previousPeriodRows(state.view,state.offset,period.startStr,period.endStr,'budget');
+    h += buildForecastCard(stats.rows,chartDays,target,chartStart,T,'Budget',periodWord,compareRows,'budget');
+  }
+
+  var catTotals={};
+  stats.rows.forEach(function(r){ (r.items||[]).forEach(function(it){ if (isExpenseItem(it)&&itemCountsTowardBudget(it)) { var k=it.category||'Uncategorised'; catTotals[k]=(catTotals[k]||0)+it.amount; } }); });
+  var slices=Object.keys(catTotals).map(function(k){return {label:k,value:catTotals[k]};}).sort(function(a,b){return b.value-a.value;});
+  if (slices.length) {
+    var total=slices.reduce(function(t,x){return t+x.value;},0);
+    h += '<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow" style="margin-bottom:10px;">Where the budget went</div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,null,'Budget',total,'none')+'</div>';
+    slices.forEach(function(sl,i){ var pct=total>0?sl.value/total*100:0; h += '<div class="row between" style="padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="subhead">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+pct.toFixed(0)+'%</span></span></div>'; });
+    h += '</div>';
+  }
   return h;
 }
 
 function renderSettingsModal() {
-  var tabs = [{id:"budget",label:"Budget"},{id:"income",label:"Income"},{id:"tracking",label:"Tracking"},{id:"categories",label:"Categories"},{id:"people",label:"People"},{id:"theme",label:"Theme"}];
+  var tabs = [{id:"budget",label:"Budget"},{id:"tracking",label:"Tracking"},{id:"categories",label:"Categories"},{id:"people",label:"People"},{id:"theme",label:"Theme"}];
   var h = '<div class="modal-backdrop" data-action="close-settings">';
   h += '<div class="modal-card" data-action="noop">';
   h += '<div class="modal-sticky-header"><div class="grabber"></div>';
@@ -1579,7 +1608,7 @@ function renderSettingsModal() {
   if (state.settingsTab === "budget") {
     var curWeekly = currentWeeklyTarget();
     var wkBounds = getPeriodBounds("week", 0, curWeekly, curWeekly/7);
-    h += '<label class="eyebrow">Weekly budget target</label>';
+    h += '<label class="eyebrow">Weekly budget target</label><div class="muted caption" style="margin-top:4px; margin-bottom:8px;">Only expenses in categories marked “Included” count against this budget.</div>';
     h += '<div style="position:relative; margin:6px 0 6px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
     h += '<input id="weeklyDraftInput" type="number" inputmode="decimal" class="field mono" style="padding-left:44px;" value="'+curWeekly+'" /></div>';
     h += '<div class="muted" id="weeklyPerDayText" style="font-size:12px; margin-bottom:14px;">= '+fmt(curWeekly/7,2)+' AED per day. Choose how far this change should reach:</div>';
@@ -1601,26 +1630,6 @@ function renderSettingsModal() {
     h += '<div class="muted" style="font-size:12px; margin:6px 0 10px;">Copy your data out, or paste it back in — also how you move data between devices or browsers.</div>';
     h += '<button data-action="open-backup" class="btn-outline" style="width:100%;">Open backup & restore</button>';
     h += '</div>';
-  }
-
-  if (state.settingsTab === "income") {
-    var curInc = incomeForDate(todayStr());
-    var curAmt = Number(curInc.amount) || 0;
-    var dim = daysInMonth(new Date());
-    var monthName = new Date().toLocaleDateString("en-GB",{month:"long"});
-    var mBounds = getPeriodBounds("month", 0, currentWeeklyTarget(), dailyReference());
-    h += '<label class="eyebrow">Monthly income</label>';
-    h += '<div style="position:relative; margin:6px 0 6px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
-    var shownAmt = (state.incomeDraftAmount != null) ? state.incomeDraftAmount : (curAmt || "");
-    h += '<input id="incomeDraftInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" value="'+esc(shownAmt)+'" /></div>';
-    /* Everything else derives from this one number, so show the derived
-       figures outright rather than making them guess the arithmetic. */
-    h += '<div class="muted" id="incomeDerivedText" style="font-size:12px; margin-bottom:6px;">'+incomeDerivedSummary(curAmt)+'</div>';
-    h += '<div class="muted" style="font-size:11px; margin-bottom:14px;">Enter what you actually earn in a month. The monthly figure is spread across that month\u2019s real length ('+dim+' days in '+esc(monthName)+'), so Week and Year views derive from it automatically \u2014 and Year counts only from your tracking start date, not the whole calendar year.</div>';
-    h += '<button data-action="apply-income" data-scope="future" class="btn-accent" style="width:100%; margin-bottom:8px;">From this month onward</button>';
-    h += '<div class="muted" style="font-size:11px; margin-bottom:12px;">From '+esc(shortLabel(mBounds.startStr))+' forward. Earlier months keep the income they were actually judged against — this is usually what you want.</div>';
-    h += '<button data-action="apply-income" data-scope="all" class="btn-outline" style="width:100%; margin-bottom:8px;">All periods, past and future</button>';
-    h += '<div class="muted" style="font-size:11px;">Rewrites your whole history to this figure. Use if you were just correcting the number.</div>';
   }
 
   if (state.settingsTab === "theme") {
@@ -2014,12 +2023,6 @@ function renderFab() {
 
 function renderTransactionsBody() {
   var entryDates = Object.keys(state.entries).sort();
-  var cumAnchor = state.settings.trackingStartDate || (entryDates.length ? entryDates[0] : todayStr());
-  var cs = periodStats(cumAnchor, todayStr());
-  var acc = 0;
-  var balanceMap = {};
-  cs.rows.forEach(function(r){ acc = round2(acc + (r.allowance-r.spent)); balanceMap[r.date] = acc; });
-
   var groupFilter = state.txnGroupFilter || "";
   var categoryFilter = state.txnCategoryFilter || "";
   var personFilter = state.txnPersonFilter || "";
@@ -2028,157 +2031,35 @@ function renderTransactionsBody() {
   var periodTo = state.txnPeriodTo || "";
   var info = getTxnPeriodInfo();
   function itemCat(it){ return it.category || "Uncategorised"; }
-  function inPeriod(d) { return d >= info.start && d <= info.end; }
-  function itemMatchesGroup(it) {
-    if (!groupFilter) return true;
-    if (groupFilter === "__ungrouped__") return !categoryGroupOf(it.category);
-    return categoryGroupOf(it.category) === groupFilter;
-  }
-  /* A person filter matches either the single-person field or, for a
-     percentage split, anyone included in that split — being included at
-     any share still means the transaction was at least partly for them. */
-  function itemMatchesPerson(it) { return itemMatchesPersonFilter(it, personFilter); }
-  function itemMatchesFilters(it) {
-    return (!categoryFilter || itemCat(it) === categoryFilter) && itemMatchesGroup(it) && itemMatchesPerson(it);
+  function inPeriod(d){ return d >= info.start && d <= info.end; }
+  function itemMatchesGroup(it){ if(!groupFilter)return true; if(groupFilter==="__ungrouped__")return !categoryGroupOf(it.category); return categoryGroupOf(it.category)===groupFilter; }
+  function itemMatchesPerson(it){ return itemMatchesPersonFilter(it,personFilter); }
+  function itemMatchesFilters(it){
+    if (isIncomeItem(it) && (categoryFilter || groupFilter)) return false;
+    return (!categoryFilter || itemCat(it)===categoryFilter) && itemMatchesGroup(it) && itemMatchesPerson(it);
   }
   var periodActive = periodMode !== "all";
   var anyItemFilterActive = !!categoryFilter || !!groupFilter || !!personFilter;
   var anyFilterActive = anyItemFilterActive || periodActive;
-
   var groupListForFilter = state.settings.categoryGroups||[];
-  var ungroupedCatsExist = (state.settings.categories||[]).some(function(c){ return !categoryGroupOf(c); });
-  /* Cascading, same pattern as the add-transaction modal: picking a group
-     narrows the category list to just its members, so a long flat list
-     never has to be scrolled just to filter down to one bucket. */
-  var filterOptions = !groupFilter
-    ? (state.settings.categories||[]).slice()
-    : (groupFilter === "__ungrouped__"
-        ? (state.settings.categories||[]).filter(function(c){ return !categoryGroupOf(c); })
-        : (state.settings.categories||[]).filter(function(c){ return categoryGroupOf(c)===groupFilter; }));
+  var ungroupedCatsExist = (state.settings.categories||[]).some(function(c){return !categoryGroupOf(c);});
+  var filterOptions = !groupFilter ? (state.settings.categories||[]).slice() : (groupFilter==="__ungrouped__" ? (state.settings.categories||[]).filter(function(c){return !categoryGroupOf(c);}) : (state.settings.categories||[]).filter(function(c){return categoryGroupOf(c)===groupFilter;}));
   if (!groupFilter || groupFilter === "__ungrouped__") filterOptions.push("Uncategorised");
+  var filterCount=0, filterExpense=0, filterIncome=0;
+  entryDates.forEach(function(d){ if(!inPeriod(d))return; (state.entries[d].items||[]).forEach(function(it){ if(itemMatchesFilters(it)){ filterCount++; if(isExpenseItem(it)) filterExpense += personScopedAmount(it,personFilter); else filterIncome += it.amount; } }); });
 
-  var filterCount = 0, filterSum = 0;
-  entryDates.forEach(function(d){
-    if (!inPeriod(d)) return;
-    state.entries[d].items.forEach(function(it){
-      if (itemMatchesFilters(it)) {
-        filterCount++;
-        if (isExpenseItem(it)) filterSum += personScopedAmount(it, personFilter);
-      }
-    });
-  });
-
-  var h = '<div class="card" style="overflow:hidden; margin-bottom:16px;">';
-  h += '<div class="eyebrow" style="padding:16px 16px 4px;">All transactions</div>';
-  h += '<div class="muted" style="font-size:11px; padding:0 16px 12px;">Balance is a running total — days between entries you didn\'t log still count, assumed fully saved.</div>';
-
-  if (groupListForFilter.length) {
-    h += '<div style="padding:0 16px 8px;"><select id="txnGroupFilterSelect" class="field" style="font-size:13px;">';
-    h += '<option value=""'+(groupFilter===""?" selected":"")+'>All groups</option>';
-    groupListForFilter.forEach(function(g){
-      h += '<option value="'+esc(g)+'"'+(groupFilter===g?" selected":"")+'>'+esc(g)+'</option>';
-    });
-    if (ungroupedCatsExist) h += '<option value="__ungrouped__"'+(groupFilter==="__ungrouped__"?" selected":"")+'>Ungrouped</option>';
-    h += '</select></div>';
-  }
-
-  h += '<div style="padding:0 16px 8px;"><select id="txnCategoryFilterSelect" class="field" style="font-size:13px;">';
-  h += '<option value=""'+(categoryFilter===""?" selected":"")+'>All categories</option>';
-  filterOptions.forEach(function(c){
-    h += '<option value="'+esc(c)+'"'+(categoryFilter===c?" selected":"")+'>'+esc(c)+'</option>';
-  });
-  h += '</select></div>';
-
-  var peopleListForFilter = state.settings.people||[];
-  if (peopleListForFilter.length) {
-    h += '<div style="padding:0 16px 8px;"><select id="txnPersonFilterSelect" class="field" style="font-size:13px;">';
-    h += '<option value=""'+(personFilter===""?" selected":"")+'>All people</option>';
-    peopleListForFilter.forEach(function(p){
-      h += '<option value="'+esc(p)+'"'+(personFilter===p?" selected":"")+'>'+esc(p)+'</option>';
-    });
-    h += '<option value="__unassigned__"'+(personFilter==="__unassigned__"?" selected":"")+'>Unassigned</option>';
-    h += '</select></div>';
-  }
-
-  h += '<div style="padding:0 16px 8px;"><div class="seg">';
-  [["all","All"],["week","Week"],["month","Month"],["year","Year"],["custom","Custom"]].forEach(function(opt){
-    var active = periodMode === opt[0];
-    h += '<button class="seg-btn" role="tab" aria-selected="'+active+'" data-action="set-txn-period" data-mode="'+opt[0]+'">'+opt[1]+'</button>';
-  });
-  h += '</div></div>';
-
-  if (periodMode === "custom") {
-    h += '<div class="row gap2" style="padding:0 16px 8px;">';
-    h += '<input id="txnPeriodFromInput" type="date" class="field mono" style="flex:1; font-size:13px;" value="'+esc(periodFrom)+'" max="'+todayStr()+'" />';
-    h += '<input id="txnPeriodToInput" type="date" class="field mono" style="flex:1; font-size:13px;" value="'+esc(periodTo)+'" max="'+todayStr()+'" />';
-    h += '</div>';
-  } else if (periodMode !== "all") {
-    h += '<div style="padding:0 16px 8px;"><div class="row between card" style="padding:8px 10px;">';
-    h += '<button data-action="txn-nav-offset" data-delta="-1" class="icon-btn" style="border-radius:10px;" aria-label="Previous">'+ICONS.chevronLeft+'</button>';
-    h += '<div style="text-align:center; min-width:0;"><div style="font-size:13px; font-weight:500;">'+esc(info.title)+'</div>';
-    h += '<div class="eyebrow" style="margin-top:2px;">'+esc(info.sub)+'</div></div>';
-    h += '<button data-action="txn-nav-offset" data-delta="1" class="icon-btn" style="border-radius:10px;'+(info.isCurrent?"opacity:0.3;pointer-events:none;":"")+'" aria-label="Next">'+ICONS.chevronRight+'</button>';
-    h += '</div></div>';
-  }
-
-  if (anyFilterActive) {
-    var descParts = [];
-    if (groupFilter) descParts.push("in "+(groupFilter==="__ungrouped__"?"Ungrouped":groupFilter));
-    if (categoryFilter) descParts.push("in "+categoryFilter);
-    if (personFilter) descParts.push("for "+(personFilter==="__unassigned__"?"Unassigned":personFilter));
-    if (periodMode === "week") descParts.push("week of "+shortLabel(info.start));
-    if (periodMode === "month") descParts.push(parseD(info.start).toLocaleDateString("en-GB",{month:"long",year:"numeric"}));
-    if (periodMode === "year") descParts.push(info.title);
-    if (periodMode === "custom") descParts.push(shortLabel(info.start)+" – "+shortLabel(info.end));
-    h += '<div class="muted" style="font-size:11px; padding:0 16px 12px;">'+filterCount+' transaction'+(filterCount===1?"":"s")+' · '+fmt(filterSum,2)+' AED total'+(descParts.length?" "+esc(descParts.join(", ")):"")+'</div>';
-  }
-
-  var datesDesc = entryDates.slice().reverse();
-  var dates = datesDesc.filter(function(d){
-    if (!inPeriod(d)) return false;
-    if (anyItemFilterActive) return state.entries[d].items.some(itemMatchesFilters);
-    return true;
-  });
-
-  if (dates.length === 0) {
-    h += '<div class="muted" style="padding:0 16px 20px; font-size:14px;">'+(anyFilterActive ? "No matching transactions." : "Nothing logged yet.")+'</div>';
-  } else {
-    dates.forEach(function(date, i){
-      var day = state.entries[date];
-      var spent = sumSpentForBasis(day);
-      var dayRef = referenceForDate(date);
-      var delta = dayRef - spent;
-      var bal = balanceMap[date];
-      var displayItems = anyItemFilterActive ? day.items.filter(itemMatchesFilters) : day.items;
-      var dayFilteredSpent = displayItems.reduce(function(s,it){ return isExpenseItem(it) ? s+personScopedAmount(it, personFilter) : s; }, 0);
-      h += '<div style="padding:12px 16px;'+(i===0?"":"border-top:1px solid var(--hairline);")+'">';
-      h += '<div class="row between">';
-      h += '<div><div style="font-size:14px;">'+esc(dayLabel(date))+'</div>';
-      h += '<div class="mono muted" style="font-size:11px; margin-top:2px;">'+day.items.length+' txn'+(day.items.length===1?"":"s")+' · spent '+fmt(spent,2)+' of '+fmt(dayRef,2)+(anyItemFilterActive?' · '+displayItems.length+' match'+(displayItems.length===1?"":"es"):"")+'</div></div>';
-      if (anyItemFilterActive) {
-        h += '<div style="text-align:right;"><div class="mono" style="font-size:12px; color:var(--rust);">−'+fmt(dayFilteredSpent,2)+'</div>';
-        h += '<div class="mono muted" style="font-size:10px;">filtered</div></div>';
-      } else {
-        h += '<div style="text-align:right;"><div class="mono" style="font-size:12px; color:'+(delta>=0?"var(--positive)":"var(--rust)")+';">'+(delta>=0?"+":"−")+fmt(Math.abs(delta),2)+'</div>';
-        h += '<div class="mono muted" style="font-size:10px;">bal '+fmt(bal,0)+'</div></div>';
-      }
-      h += '</div>';
-      h += '<div style="margin-top:4px;">';
-      newestFirst(displayItems).forEach(function(it){
-        h += renderTxnRow(date, it);
-      });
-      h += '</div></div>';
-      if (!anyFilterActive && i < dates.length - 1) {
-        var gapDays = daysBetween(dates[i+1], date) - 1;
-        if (gapDays > 0) {
-          var gapAmount = round2(gapDays * dailyReference());
-          h += '<div style="padding:6px 16px; text-align:center; font-size:10px; color:var(--text-muted); background:var(--raised); border-top:1px solid var(--hairline); border-bottom:1px solid var(--hairline);">'+gapDays+' unlogged day'+(gapDays===1?"":"s")+' in between · assumed +'+fmt(gapAmount,0)+' AED saved</div>';
-        }
-      }
-    });
-  }
-  h += '</div>';
-  h += '<div style="text-align:center; margin-bottom:16px;"><button data-action="open-reset" style="background:none;border:none;padding:0;color:var(--text-muted);font-size:11px;">Clear all entries</button></div>';
+  var h='<div class="card" style="overflow:hidden;margin-bottom:16px;">';
+  h+='<div class="row between" style="padding:16px 16px 4px;"><div><div class="eyebrow">All transactions</div><div class="muted caption" style="margin-top:2px;">Every expense and income entry, regardless of budget settings.</div></div><button data-action="go-page" data-page="calendar" class="btn-outline row gap2" style="padding:6px 9px;font-size:12px;align-items:center;">'+ICONS.calendar+' Calendar</button></div>';
+  if(groupListForFilter.length){ h+='<div style="padding:8px 16px 0;"><select id="txnGroupFilterSelect" class="field" style="font-size:13px;"><option value="">All groups</option>'; groupListForFilter.forEach(function(g){h+='<option value="'+esc(g)+'"'+(groupFilter===g?' selected':'')+'>'+esc(g)+'</option>';}); if(ungroupedCatsExist)h+='<option value="__ungrouped__"'+(groupFilter==='__ungrouped__'?' selected':'')+'>Ungrouped</option>'; h+='</select></div>'; }
+  h+='<div style="padding:8px 16px 0;"><select id="txnCategoryFilterSelect" class="field" style="font-size:13px;"><option value="">All categories</option>'; filterOptions.forEach(function(c){h+='<option value="'+esc(c)+'"'+(categoryFilter===c?' selected':'')+'>'+esc(c)+'</option>';}); h+='</select></div>';
+  var people=state.settings.people||[]; if(people.length){h+='<div style="padding:8px 16px 0;"><select id="txnPersonFilterSelect" class="field" style="font-size:13px;"><option value="">All people</option>';people.forEach(function(p){h+='<option value="'+esc(p)+'"'+(personFilter===p?' selected':'')+'>'+esc(p)+'</option>';});h+='<option value="__unassigned__"'+(personFilter==='__unassigned__'?' selected':'')+'>Unassigned</option></select></div>';}
+  h+='<div style="padding:8px 16px;"><div class="seg">'; [["all","All"],["week","Week"],["month","Month"],["year","Year"],["custom","Custom"]].forEach(function(opt){h+='<button class="seg-btn" role="tab" aria-selected="'+(periodMode===opt[0])+'" data-action="set-txn-period" data-mode="'+opt[0]+'">'+opt[1]+'</button>';}); h+='</div></div>';
+  if(periodMode==='custom'){h+='<div class="row gap2" style="padding:0 16px 8px;"><input id="txnPeriodFromInput" type="date" class="field mono" style="flex:1;font-size:13px;" value="'+esc(periodFrom)+'" max="'+todayStr()+'"/><input id="txnPeriodToInput" type="date" class="field mono" style="flex:1;font-size:13px;" value="'+esc(periodTo)+'" max="'+todayStr()+'"/></div>';} else if(periodMode!=='all'){h+='<div style="padding:0 16px 8px;"><div class="row between card" style="padding:8px 10px;"><button data-action="txn-nav-offset" data-delta="-1" class="icon-btn">'+ICONS.chevronLeft+'</button><div style="text-align:center;"><div class="subhead">'+esc(info.title)+'</div><div class="muted caption">'+esc(info.sub)+'</div></div><button data-action="txn-nav-offset" data-delta="1" class="icon-btn" style="'+(info.isCurrent?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div></div>';}
+  if(anyFilterActive) h+='<div class="muted caption" style="padding:0 16px 12px;">'+filterCount+' transaction'+(filterCount===1?'':'s')+' · '+fmt(filterExpense,2)+' AED expenses'+(filterIncome>0?' · '+fmt(filterIncome,2)+' AED income':'')+'</div>';
+  var dates=entryDates.slice().reverse().filter(function(d){if(!inPeriod(d))return false;return anyItemFilterActive?(state.entries[d].items||[]).some(itemMatchesFilters):true;});
+  if(!dates.length) h+='<div class="muted subhead" style="padding:0 16px 20px;">'+(anyFilterActive?'No matching transactions.':'Nothing logged yet.')+'</div>';
+  else dates.forEach(function(date,i){var day=state.entries[date];var displayItems=anyItemFilterActive?day.items.filter(itemMatchesFilters):day.items;var dayExpense=displayItems.reduce(function(s,it){return isExpenseItem(it)?s+personScopedAmount(it,personFilter):s;},0);var dayIncome=displayItems.reduce(function(s,it){return isIncomeItem(it)?s+it.amount:s;},0);var net=dayIncome-dayExpense;h+='<div style="padding:12px 16px;'+(i?'border-top:1px solid var(--hairline);':'')+'"><div class="row between"><div><div class="subhead">'+esc(dayLabel(date))+'</div><div class="muted caption" style="margin-top:2px;">'+displayItems.length+' txn'+(displayItems.length===1?'':'s')+' · '+fmt(dayExpense,2)+' AED spent'+(dayIncome>0?' · '+fmt(dayIncome,2)+' income':'')+'</div></div><div class="mono subhead" style="color:'+(net>=0?'var(--positive)':'var(--rust)')+';">'+(net>=0?'+':'−')+fmt(Math.abs(net),2)+'</div></div><div style="margin-top:4px;">';newestFirst(displayItems).forEach(function(it){h+=renderTxnRow(date,it);});h+='</div></div>';});
+  h+='</div><div style="text-align:center;margin-bottom:16px;"><button data-action="open-reset" style="background:none;border:none;padding:0;color:var(--text-muted);font-size:11px;">Clear all entries</button></div>';
   return h;
 }
 
@@ -2228,91 +2109,15 @@ function renderTxnRow(date, it) {
 }
 
 function renderCalendarBody() {
-  var base = addMonths(startOfMonth(new Date()), state.calendarOffset);
-  var monthStartStr = toStr(base);
-  var monthEndStr = toStr(endOfMonth(base));
-  var title = base.toLocaleDateString("en-GB",{month:"long",year:"numeric"});
-  var da = dailyReference();
-  var today = todayStr();
-  var tsd = state.settings.trackingStartDate;
-
-  var h = "";
-  h += '<div class="card" style="padding:14px; margin-bottom:12px;">';
-  h += '<div class="row between" style="margin-bottom:12px;">';
-  h += '<button data-action="cal-nav" data-delta="-1" class="icon-btn" style="border-radius:10px;" aria-label="Previous month">'+ICONS.chevronLeft+'</button>';
-  h += '<div style="font-size:15px; font-weight:500;">'+esc(title)+'</div>';
-  h += '<button data-action="cal-nav" data-delta="1" class="icon-btn" style="border-radius:10px;'+(state.calendarOffset>=0?"opacity:0.3;pointer-events:none;":"")+'" aria-label="Next month">'+ICONS.chevronRight+'</button>';
-  h += '</div>';
-
-  h += '<div style="display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:6px;">';
-  ["Mo","Tu","We","Th","Fr","Sa","Su"].forEach(function(lbl){ h += '<div class="muted" style="text-align:center; font-size:10px;">'+lbl+'</div>'; });
-  h += '</div>';
-
-  var firstDow = base.getDay();
-  var leadingBlanks = firstDow===0 ? 6 : firstDow-1;
-  h += '<div style="display:grid; grid-template-columns:repeat(7,1fr); gap:4px;">';
-  for (var i=0;i<leadingBlanks;i++) h += '<div></div>';
-
-  var cur = parseD(monthStartStr);
-  while (toStr(cur) <= monthEndStr) {
-    var ds = toStr(cur);
-    var e = state.entries[ds];
-    var logged = !!e;
-    var spent = logged ? sumSpentForBasis(e) : 0;
-    var allowance = referenceForDate(ds);
-    var isFuture = ds > today;
-    var isPreTracking = tsd && ds < tsd;
-    var isToday = ds === today;
-    var isSelected = state.calendarSelectedDate === ds;
-
-    var bg, fg;
-    if (isFuture) { bg = "transparent"; fg = "var(--text-muted)"; }
-    else if (isPreTracking) { bg = "var(--raised)"; fg = "var(--text-muted)"; }
-    else if (!logged) { bg = "rgba(224,179,104,0.14)"; fg = "var(--text)"; }
-    else if (spent <= allowance) { bg = "var(--positive-wash)"; fg = "var(--text)"; }
-    else { bg = "var(--rust-wash)"; fg = "var(--rust)"; }
-
-    var isTracked = !isFuture && !isPreTracking;
-    var border = isToday ? "2px solid var(--accent)" : (isSelected ? "2px solid var(--text)" : "1px solid transparent");
-    h += '<button data-action="cal-select" data-date="'+ds+'" style="min-height:64px; border-radius:9px; border:'+border+'; background:'+bg+'; color:'+fg+'; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:4px 1px; min-width:0; gap:3px;">';
-    h += '<span style="font-size:14px; font-weight:500;">'+cur.getDate()+'</span>';
-    var spentText = logged ? fmt(spent,0) : (isTracked ? "0" : "\u00A0");
-    h += '<span class="mono" style="font-size:10px; line-height:1;">'+spentText+'</span>';
-    var dayDelta = allowance - spent;
-    var deltaText = "\u00A0", deltaClr = fg;
-    if (isTracked) {
-      deltaClr = dayDelta >= 0 ? "var(--positive)" : "var(--rust)";
-      deltaText = (dayDelta>=0?"+":"−")+fmt(Math.abs(dayDelta),0);
-    }
-    h += '<span class="mono" style="font-size:10px; line-height:1; color:'+deltaClr+';">'+deltaText+'</span>';
-    h += '</button>';
-    cur = addDays(cur,1);
-  }
-  h += '</div>';
-  h += '</div>'; // end grid card
-
-  h += '<div class="row" style="gap:14px; margin-bottom:16px; flex-wrap:wrap;">';
-  h += legendSwatch("var(--positive-wash)", "Under budget");
-  h += legendSwatch("var(--rust-wash)", "Over budget", "var(--rust)");
-  h += legendSwatch("rgba(224,179,104,0.14)", "Not logged");
-  h += legendSwatch("var(--raised)", "Before tracking");
-  h += '</div>';
-
-  if (state.calendarSelectedDate) {
-    var sd = state.calendarSelectedDate;
-    var sday = state.entries[sd];
-    h += '<div class="card" style="padding:16px;">';
-    h += '<div class="eyebrow" style="margin-bottom:8px;">'+esc(dayLabel(sd))+'</div>';
-    if (sday && sday.items.length) {
-      newestFirst(sday.items).forEach(function(it){
-        h += renderTxnRow(sd, it);
-      });
-    } else {
-      h += '<div class="muted" style="font-size:13px;">Nothing logged this day.</div>';
-    }
-    h += '</div>';
-  }
-
+  var base=addMonths(startOfMonth(new Date()),state.calendarOffset), monthStartStr=toStr(base), monthEndStr=toStr(endOfMonth(base));
+  var title=base.toLocaleDateString("en-GB",{month:"long",year:"numeric"}), today=todayStr();
+  var h='<div class="row between" style="margin-bottom:10px;"><div><div class="eyebrow">Calendar</div><div class="muted caption">Daily total expenses and income</div></div><button data-action="go-page" data-page="transactions" class="btn-outline" style="padding:6px 10px;font-size:12px;">Back to Txns</button></div>';
+  h+='<div class="card" style="padding:14px;margin-bottom:12px;"><div class="row between" style="margin-bottom:12px;"><button data-action="cal-nav" data-delta="-1" class="icon-btn">'+ICONS.chevronLeft+'</button><div class="subhead" style="font-weight:600;">'+esc(title)+'</div><button data-action="cal-nav" data-delta="1" class="icon-btn" style="'+(state.calendarOffset>=0?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;">';["Mo","Tu","We","Th","Fr","Sa","Su"].forEach(function(x){h+='<div class="muted" style="text-align:center;font-size:10px;">'+x+'</div>';});h+='</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">';
+  var firstDow=base.getDay(), blanks=firstDow===0?6:firstDow-1;for(var i=0;i<blanks;i++)h+='<div></div>';var cur=parseD(monthStartStr);
+  while(toStr(cur)<=monthEndStr){var ds=toStr(cur),e=state.entries[ds],spent=e?sumSpent(e):0,income=e?sumIncome(e):0,isFuture=ds>today,isToday=ds===today,isSelected=state.calendarSelectedDate===ds;var bg=e?(spent>0?'var(--rust-wash)':'var(--positive-wash)'):'var(--raised)';if(isFuture&&!e)bg='transparent';var border=isToday?'2px solid var(--accent)':(isSelected?'2px solid var(--text)':'1px solid transparent');h+='<button data-action="cal-select" data-date="'+ds+'" style="min-height:64px;border-radius:9px;border:'+border+';background:'+bg+';display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 1px;gap:3px;"><span style="font-size:14px;font-weight:500;">'+cur.getDate()+'</span><span class="mono" style="font-size:10px;">'+(e?fmt(spent,0):' ')+'</span><span class="mono" style="font-size:9px;color:var(--positive);">'+(income>0?'+'+fmt(income,0):' ')+'</span></button>';cur=addDays(cur,1);}
+  h+='</div></div><div class="row" style="gap:14px;margin-bottom:16px;flex-wrap:wrap;">'+legendSwatch('var(--rust-wash)','Expense day')+legendSwatch('var(--positive-wash)','Income only')+legendSwatch('var(--raised)','No transactions')+'</div>';
+  if(state.calendarSelectedDate){var sd=state.calendarSelectedDate,sday=state.entries[sd];h+='<div class="card card-pad"><div class="eyebrow" style="margin-bottom:8px;">'+esc(dayLabel(sd))+'</div>';if(sday&&sday.items.length)newestFirst(sday.items).forEach(function(it){h+=renderTxnRow(sd,it);});else h+='<div class="muted subhead">Nothing logged this day.</div>';h+='</div>';}
   return h;
 }
 
@@ -2556,15 +2361,11 @@ function forecastChartGeom(rows, totalDays, target, projectedSpend, compareValue
   var actualVals = []; var acc = 0;
   rows.forEach(function(r){ acc += r.spent; actualVals.push(acc); });
   var compareMax = (compareValues && compareValues.length) ? Math.max.apply(null, compareValues) : 0;
-  var maxY = Math.max(target, projectedSpend, actualVals.length ? Math.max.apply(null, actualVals) : 0, compareMax, 1);
+  var targetVal = target == null ? 0 : target;
+  var maxY = Math.max(targetVal, projectedSpend, actualVals.length ? Math.max.apply(null, actualVals) : 0, compareMax, 1);
   function yAt(v){ return padT + plotH - (v/maxY)*plotH; }
   var lastIdx = actualVals.length - 1;
   var lastVal = actualVals.length ? actualVals[actualVals.length-1] : 0;
-  /* knownIdx/knownVal mark the last FULLY COMPLETE day — where the dotted
-     projection actually starts from, since today (if it's the last row)
-     isn't complete yet and shouldn't be treated as a settled point. On a
-     period's first day there is no complete day yet, so this anchors to
-     the very start of the chart at 0. */
   var pd = pastDays || 0;
   var knownIdx = pd > 0 ? pd - 1 : 0;
   var knownVal = pd > 0 ? actualVals[pd-1] : 0;
@@ -2572,6 +2373,7 @@ function forecastChartGeom(rows, totalDays, target, projectedSpend, compareValue
            n:n, xAt:xAt, yAt:yAt, maxY:maxY, actualVals:actualVals, lastIdx:lastIdx, lastVal:lastVal,
            knownIdx:knownIdx, knownVal:knownVal };
 }
+
 /* Cumulative value at any index along the chart, actual portion or
    interpolated along the straight projected segment beyond it — lets the
    scrub tooltip report a sensible number no matter where on the axis the
@@ -2592,53 +2394,35 @@ function forecastValueAt(g, idx, projectedSpend) {
    same picture. */
 function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel, compareValues, pastDays, hasForecast) {
   var g = forecastChartGeom(rows, totalDays, target, projectedSpend, compareValues, pastDays);
-  var w=g.w, h=g.h, padL=g.padL, padR=g.padR, padT=g.padT, padB=g.padB, plotW=g.plotW, plotH=g.plotH, n=g.n;
-  var xAt=g.xAt, yAt=g.yAt, maxY=g.maxY, actualVals=g.actualVals, lastIdx=g.lastIdx, lastVal=g.lastVal;
-
+  var w=g.w, h=g.h, padL=g.padL, padR=g.padR, padT=g.padT, padB=g.padB, n=g.n;
+  var xAt=g.xAt, yAt=g.yAt, maxY=g.maxY, actualVals=g.actualVals, lastIdx=g.lastIdx;
   var actualPts = actualVals.map(function(v,i){ return [xAt(i), yAt(v)]; });
   var curveD = actualPts.length >= 2 ? smoothPathD(actualPts) : (actualPts.length===1 ? ("M "+actualPts[0][0]+","+actualPts[0][1]) : "");
   var areaD = curveD ? (curveD+" L "+xAt(Math.max(0,lastIdx))+","+yAt(0)+" L "+xAt(0)+","+yAt(0)+" Z") : "";
-
-  var forecastD = "";
-  var todayMarker = "";
+  var forecastD = "", todayMarker = "";
   var daysToEstimateLocal = totalDays - (pastDays||0);
   if (rows.length > 0 && daysToEstimateLocal > 0) {
-    /* The dotted projection starts from the last FULLY COMPLETE day, not
-       today — today is one of the days being estimated, since it isn't
-       over yet, so its actual-so-far number shouldn't be mistaken for its
-       final one. That's why the dotted line visibly diverges from the
-       solid "actual" curve one step before "Today" rather than exactly at
-       it — the gap between them at Today's x-position is precisely the
-       difference between what's really happened today and what the pace
-       expects for the day as a whole. */
     if (hasForecast) forecastD = 'M '+xAt(g.knownIdx)+','+yAt(g.knownVal)+' L '+xAt(n-1)+','+yAt(projectedSpend);
     todayMarker = '<line x1="'+xAt(lastIdx)+'" x2="'+xAt(lastIdx)+'" y1="'+padT+'" y2="'+(h-padB)+'" stroke="'+T.hairline+'" stroke-dasharray="2,2"/>'
       + '<text x="'+xAt(lastIdx)+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="middle">Today</text>';
   }
-
-  /* Compare line: a secondary, visually-muted reference curve (previous
-     period's actual pace, or a flat "average pace" line) drawn UNDER the
-     real actual/projected lines so it reads as background context rather
-     than competing with the primary data. */
   var compareD = "";
   if (compareValues && compareValues.length >= 2) {
-    var comparePts = compareValues.map(function(v,i){ return [xAt(i), yAt(v)]; });
-    compareD = smoothPathD(comparePts);
-  } else if (compareValues && compareValues.length === 1) {
-    compareD = "M "+xAt(0)+","+yAt(compareValues[0]);
-  }
-
-  var budgetY = yAt(target);
+    compareD = smoothPathD(compareValues.map(function(v,i){ return [xAt(i), yAt(v)]; }));
+  } else if (compareValues && compareValues.length === 1) compareD = "M "+xAt(0)+","+yAt(compareValues[0]);
   var ticksSet = {}; [0, Math.round(maxY/2), Math.round(maxY)].forEach(function(t){ ticksSet[t]=true; });
   var tickSvg = Object.keys(ticksSet).map(Number).map(function(t){
     return '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+yAt(t)+'" y2="'+yAt(t)+'" stroke="'+T.sep+'" stroke-dasharray="2,2"/>'
       + '<text x="2" y="'+(yAt(t)+3)+'" font-size="9" fill="'+T.textMuted+'">'+fmt(t,0)+'</text>';
   }).join("");
-
+  var targetSvg = "";
+  if (target != null) {
+    var budgetY = yAt(target);
+    targetSvg = '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+budgetY+'" y2="'+budgetY+'" stroke="'+T.text+'" stroke-width="1.5" stroke-dasharray="4,3"/>'
+      + '<text x="'+padL+'" y="'+(budgetY-5)+'" font-size="9" font-weight="600" fill="'+T.text+'">'+esc(refLabel||"Budget")+' – '+fmt(target,0)+' AED</text>';
+  }
   return '<svg id="forecastChartSvg" viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'">'
-    + tickSvg
-    + '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+budgetY+'" y2="'+budgetY+'" stroke="'+T.text+'" stroke-width="1.5" stroke-dasharray="4,3"/>'
-    + '<text x="'+padL+'" y="'+(budgetY-5)+'" font-size="9" font-weight="600" fill="'+T.text+'">'+esc(refLabel||"Budget")+' – '+fmt(target,0)+' AED</text>'
+    + tickSvg + targetSvg
     + (compareD ? '<path d="'+compareD+'" fill="none" stroke="'+T.textMuted+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="5,4"/>' : "")
     + (areaD ? '<path d="'+areaD+'" fill="'+T.positive+'" fill-opacity="0.16" stroke="none"/>' : "")
     + (curveD ? '<path d="'+curveD+'" fill="none" stroke="'+T.positive+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' : "")
@@ -2714,36 +2498,37 @@ function wireForecastChart(data) {
    final number, so a period's first day (no completed local days yet) is
    projected purely from historical pace rather than a raw, unblended,
    small-sample average of whatever's happened so far this period. */
-function computeForecastNumbers(rows, totalDays, periodStart) {
+function computeForecastNumbers(rows, totalDays, periodStart, scope) {
   if (!rows.length) return null;
+  scope = scope || "overall";
   var today = todayStr();
   var todayIncluded = rows[rows.length-1].date === today;
   var todayRow = todayIncluded ? rows[rows.length-1] : null;
   var pastRows = todayIncluded ? rows.slice(0, rows.length-1) : rows.slice();
   var pastDays = pastRows.length;
-  var pastSpent = pastRows.reduce(function(s,r){ return s+r.spent; }, 0);
-  var pastDiscretionary = discretionarySpentInRows(pastRows);
-  var todayScheduledSpent = todayRow ? (todayRow.items||[]).reduce(function(s,it){ return (isExpenseItem(it) && it.recurringId && (state.basis === "income" || itemCountsTowardBudget(it))) ? s+it.amount : s; }, 0) : 0;
-  var actualSpentSoFar = pastSpent + (todayRow ? todayRow.spent : 0);
+  var pastSpent = pastRows.reduce(function(s,r){ return s+rowSpentForScope(r,scope); }, 0);
+  var pastDiscretionary = discretionarySpentInRows(pastRows, scope);
+  var todayScheduledSpent = todayRow ? (todayRow.items||[]).reduce(function(s,it){
+    return (expenseCountsForScope(it,scope) && it.recurringId) ? s+it.amount : s;
+  }, 0) : 0;
+  var actualSpentSoFar = pastSpent + (todayRow ? rowSpentForScope(todayRow,scope) : 0);
   var knownSpent = pastSpent + todayScheduledSpent;
-  var historicalAvg = overallAvgDailySpend();
+  var historicalAvg = overallAvgDailySpend(scope);
   var BLEND_K = historicalAvg !== null ? 3 : 0;
   var blendDenom = pastDays + BLEND_K;
   var avgSpentPerDay = blendDenom > 0 ? ((pastDiscretionary + (historicalAvg !== null ? historicalAvg*BLEND_K : 0)) / blendDenom) : null;
   var stillBlending = historicalAvg !== null && pastDays < BLEND_K;
   var daysToEstimate = Math.max(0, totalDays - pastDays);
   var periodEnd = toStr(addDays(parseD(periodStart), totalDays-1));
-  var scheduledUpcoming = daysToEstimate > 0 ? scheduledAmountInRange(toStr(addDays(parseD(today), -1)), periodEnd) : 0;
+  var scheduledUpcoming = daysToEstimate > 0 ? scheduledAmountInRange(toStr(addDays(parseD(today), -1)), periodEnd, scope) : 0;
   var hasForecast = daysToEstimate > 0 && (avgSpentPerDay !== null || scheduledUpcoming > 0);
-  var projectedSpend = hasForecast
-    ? (knownSpent + (avgSpentPerDay || 0) * daysToEstimate + scheduledUpcoming)
-    : actualSpentSoFar;
+  var projectedSpend = hasForecast ? (knownSpent + (avgSpentPerDay || 0) * daysToEstimate + scheduledUpcoming) : actualSpentSoFar;
   return {
-    todayIncluded: todayIncluded, pastDays: pastDays, pastSpent: pastSpent,
-    pastDiscretionary: pastDiscretionary, actualSpentSoFar: actualSpentSoFar,
-    knownSpent: knownSpent, avgSpentPerDay: avgSpentPerDay, stillBlending: stillBlending,
-    daysToEstimate: daysToEstimate, scheduledUpcoming: scheduledUpcoming,
-    hasForecast: hasForecast, projectedSpend: projectedSpend
+    todayIncluded:todayIncluded, pastDays:pastDays, pastSpent:pastSpent,
+    pastDiscretionary:pastDiscretionary, actualSpentSoFar:actualSpentSoFar,
+    knownSpent:knownSpent, avgSpentPerDay:avgSpentPerDay, stillBlending:stillBlending,
+    daysToEstimate:daysToEstimate, scheduledUpcoming:scheduledUpcoming,
+    hasForecast:hasForecast, projectedSpend:projectedSpend
   };
 }
 
@@ -2756,78 +2541,67 @@ function computeForecastNumbers(rows, totalDays, periodStart) {
    and once local days reach K the historical average barely matters anymore.
    This avoids both a flat, useless day-1 projection AND an abrupt full
    switchover the moment a single local day exists. */
-function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, periodWord, compareRows) {
+function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, periodWord, compareRows, scope) {
   if (!rows.length) return "";
-  var fc = computeForecastNumbers(rows, totalDays, periodStart);
+  scope = scope || "overall";
+  /* Normalize row.spent to the requested scope so chart geometry and compare
+     curves always represent the same definition of spend. */
+  var scopedRows = rows.map(function(r){ return Object.assign({}, r, { spent: rowSpentForScope(r, scope) }); });
+  var scopedCompareRows = (compareRows||[]).map(function(r){ return Object.assign({}, r, { spent: rowSpentForScope(r, scope) }); });
+  var fc = computeForecastNumbers(rows, totalDays, periodStart, scope);
   var todayIncluded = fc.todayIncluded, pastDays = fc.pastDays, pastDiscretionary = fc.pastDiscretionary,
       avgSpentPerDay = fc.avgSpentPerDay, stillBlending = fc.stillBlending, daysToEstimate = fc.daysToEstimate,
       scheduledUpcoming = fc.scheduledUpcoming, hasForecast = fc.hasForecast, projectedSpend = fc.projectedSpend;
-  var projectedSaved = target - projectedSpend;
-  var favorable = projectedSaved >= 0;
-  var vsBudgetPct = target > 0 ? Math.round(((projectedSpend-target)/target)*100) : 0;
-
-  /* Compare line: an optional second curve on the chart, toggled between
-     the previous period's actual day-by-day pace and a flat "average pace"
-     reference. "Average" reuses avgSpentPerDay as-is — the exact same pace
-     already driving the projection above — so the reference line and the
-     dotted projection can never imply two different averages. Indexed by
-     day-offset (not calendar date) so it lines up with the current period's
-     x-axis regardless of the two periods' actual dates. */
+  var hasTarget = target != null;
+  var projectedSaved = hasTarget ? target - projectedSpend : null;
+  var favorable = hasTarget ? projectedSaved >= 0 : true;
+  var vsBudgetPct = hasTarget && target > 0 ? Math.round(((projectedSpend-target)/target)*100) : null;
   var compareMode = state.forecastCompareMode === "average" ? "average" : "previous";
   var compareLabel = compareMode === "average" ? "Average pace" : (periodWord === "period" ? "Previous period" : ("Last "+periodWord));
-  var compareValues = null;
-  var compareUnavailableNote = null;
+  var compareValues = null, compareUnavailableNote = null;
   if (compareMode === "previous") {
-    if (compareRows && compareRows.length) {
+    if (scopedCompareRows.length) {
       var cAcc = 0;
-      compareValues = compareRows.slice(0, totalDays).map(function(r){ cAcc += r.spent; return cAcc; });
-    } else {
-      compareUnavailableNote = "No " + compareLabel.toLowerCase() + " logged yet to compare against.";
-    }
+      compareValues = scopedCompareRows.slice(0,totalDays).map(function(r){ cAcc += r.spent; return cAcc; });
+    } else compareUnavailableNote = "No " + compareLabel.toLowerCase() + " logged yet to compare against.";
   } else if (avgSpentPerDay !== null) {
     compareValues = [];
-    for (var ci=0; ci<totalDays; ci++) compareValues.push(avgSpentPerDay * ci);
-  } else {
-    compareUnavailableNote = "Not enough history yet to show an average pace.";
-  }
+    for (var ci=0; ci<totalDays; ci++) compareValues.push(avgSpentPerDay * (ci+1));
+  } else compareUnavailableNote = "Not enough history yet to show an average pace.";
 
   var s = '<div class="card card-pad" style="margin-bottom:16px;">';
-  s += '<div class="eyebrow" style="margin-bottom:10px;">Forecasted spend</div>';
+  s += '<div class="eyebrow" style="margin-bottom:10px;">Forecasted '+(scope==="budget"?"budget spend":"total spend")+'</div>';
   s += '<div class="row between" style="align-items:flex-start; margin-bottom:14px;">';
   s += '<div><div class="muted caption">THIS '+esc(periodWord.toUpperCase())+'</div><div class="mono" style="font-size:22px; font-weight:700; margin-top:2px;">'+fmt(projectedSpend,0)+' AED</div></div>';
-  s += '<div style="text-align:right;"><div class="muted caption">VS '+esc(refLabel.toUpperCase())+'</div>';
-  s += '<div class="chip" style="margin-top:4px; background:'+(favorable?"var(--positive)":"var(--rust)")+'; color:#fff; font-weight:700;">'+(vsBudgetPct>=0?"+":"")+vsBudgetPct+'%</div>';
-  s += '<div class="mono footnote" style="margin-top:4px; color:'+(favorable?"var(--positive)":"var(--rust)")+';">'+(projectedSaved>=0?"+":"−")+fmt(Math.abs(projectedSaved),0)+' AED</div>';
-  s += '</div></div>';
+  if (hasTarget) {
+    s += '<div style="text-align:right;"><div class="muted caption">VS '+esc((refLabel||"Budget").toUpperCase())+'</div>';
+    s += '<div class="chip" style="margin-top:4px; background:'+(favorable?'var(--positive)':'var(--rust)')+'; color:#fff; font-weight:700;">'+(vsBudgetPct>=0?'+':'')+vsBudgetPct+'%</div>';
+    s += '<div class="mono footnote" style="margin-top:4px; color:'+(favorable?'var(--positive)':'var(--rust)')+';">'+(projectedSaved>=0?'+':'−')+fmt(Math.abs(projectedSaved),0)+' AED</div></div>';
+  }
+  s += '</div>';
   s += '<div class="seg" style="margin-bottom:12px;">';
   [["previous", periodWord === "period" ? "vs Previous period" : ("vs Last "+periodWord)], ["average","vs Average pace"]].forEach(function(opt){
-    var active = compareMode === opt[0];
-    s += '<button class="seg-btn" role="tab" aria-selected="'+active+'" data-action="set-forecast-compare" data-mode="'+opt[0]+'">'+opt[1]+'</button>';
+    s += '<button class="seg-btn" role="tab" aria-selected="'+(compareMode===opt[0])+'" data-action="set-forecast-compare" data-mode="'+opt[0]+'">'+opt[1]+'</button>';
   });
   s += '</div>';
   s += '<div id="forecastChartWrap" style="position:relative;">';
   s += '<div id="forecastChartTip" class="mono footnote" style="position:absolute; top:0; left:0; background:var(--fill); border-radius:8px; padding:4px 9px; max-width:250px; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:2;"></div>';
-  s += renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel, compareValues, pastDays, hasForecast);
+  s += renderForecastChart(scopedRows, totalDays, target, projectedSpend, T, refLabel, compareValues, pastDays, hasForecast);
   s += '</div>';
   if (compareValues) {
-    s += '<div class="row gap2" style="margin-top:10px; flex-wrap:wrap;">';
-    s += legendSwatch(T.positive, "Actual");
-    s += legendSwatch(T.accent, "Projected");
-    s += legendSwatch(T.textMuted, compareLabel);
-    s += '</div>';
+    s += '<div class="row gap2" style="margin-top:10px; flex-wrap:wrap;">'+legendSwatch(T.positive,"Actual")+legendSwatch(T.accent,"Projected")+legendSwatch(T.textMuted,compareLabel)+'</div>';
   }
   var notes = [];
   if (compareUnavailableNote) notes.push(compareUnavailableNote);
-  if (!hasForecast) {
-    notes.push(daysToEstimate<=0 ? "Period is complete — nothing left to forecast." : "Log a few days to start forecasting.");
-  } else {
-    if (todayIncluded) notes.push("Today isn't finished yet, so it's estimated from your pace rather than today's spend so far.");
-    if (scheduledUpcoming > 0) notes.push("Includes "+fmt(scheduledUpcoming,0)+" AED of scheduled payments still to come.");
-    if (stillBlending) notes.push(pastDiscretionary>0 ? "Day-to-day pace is blended with your overall average for now." : "No day-to-day spending logged yet this "+periodWord+" — pace blended from your overall average.");
+  if (!hasForecast) notes.push(daysToEstimate<=0 ? "Period is complete — nothing left to forecast." : "Log a few days to start forecasting.");
+  else {
+    if (todayIncluded) notes.push("Today isn't finished yet, so it is estimated from your pace rather than today's spend so far.");
+    if (scheduledUpcoming > 0) notes.push("Includes "+fmt(scheduledUpcoming,0)+" AED of scheduled expenses still to come.");
+    if (stillBlending) notes.push(pastDiscretionary>0 ? "Day-to-day pace is blended with your recent average for now." : "No day-to-day spending logged yet this "+periodWord+" — pace blended from your recent average.");
   }
   notes.forEach(function(n){ s += '<div class="muted caption" style="margin-top:8px;">'+esc(n)+'</div>'; });
   s += '</div>';
-  lastForecastChartData = { rows: rows, totalDays: totalDays, target: target, projectedSpend: projectedSpend, start: periodStart, compareValues: compareValues, compareLabel: compareLabel, pastDays: pastDays };
+  lastForecastChartData = { rows:scopedRows, totalDays:totalDays, target:target, projectedSpend:projectedSpend, start:periodStart, compareValues:compareValues, compareLabel:compareLabel, pastDays:pastDays };
   return s;
 }
 
@@ -2838,28 +2612,12 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
    forecast to run well over). One dashed line marks the most recent period's
    budget, since target can drift over time via rate changes. */
 function renderTrendBarChart(items, refTarget, T, refLabel) {
-  var w=340, h=150, padL=34, padR=8, padT=22, padB=20;
-  var plotW=w-padL-padR, plotH=h-padT-padB;
-  var maxVal = Math.max.apply(null, items.map(function(i){ return i.spent; }).concat([refTarget, 1]));
-  var n = items.length;
-  var slot = plotW/n;
-  var barW = Math.min(30, slot*0.6);
-  function y(v){ return padT + plotH - (Math.min(v,maxVal)/maxVal)*plotH; }
-  var colorFor = { positive: T.positive, amber: T.amber, rust: T.rust };
-  var bars = items.map(function(it,i){
-    var cx = padL + slot*i + slot/2;
-    var topY = y(it.spent);
-    var barH = Math.max(0, plotH - (topY-padT));
-    var labelSvg = it.spent > 0 ? '<text x="'+cx+'" y="'+Math.max(9,topY-4)+'" font-size="8" fill="'+T.textMuted+'" text-anchor="middle">'+fmt(Math.round(it.spent),0)+'</text>' : '';
-    return '<rect x="'+(cx-barW/2)+'" y="'+topY+'" width="'+barW+'" height="'+barH+'" fill="'+(colorFor[it.status]||T.positive)+'" rx="3"/>'
-      + labelSvg
-      + '<text x="'+cx+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="middle">'+esc(it.label)+'</text>';
-  }).join("");
-  var refY = y(refTarget);
-  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'">'
-    + '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+refY+'" y2="'+refY+'" stroke="'+T.text+'" stroke-width="1.5" stroke-dasharray="4,3"/>'
-    + '<text x="'+padL+'" y="'+(refY-5)+'" font-size="9" font-weight="600" fill="'+T.text+'">'+esc(refLabel||"Budget")+'</text>'
-    + bars + '</svg>';
+  var w=340,h=150,padL=34,padR=8,padT=22,padB=20,plotW=w-padL-padR,plotH=h-padT-padB;
+  var maxVal=Math.max.apply(null,items.map(function(i){return i.spent;}).concat([refTarget==null?0:refTarget,1]));
+  var n=items.length,slot=plotW/n,barW=Math.min(30,slot*.6);function y(v){return padT+plotH-(Math.min(v,maxVal)/maxVal)*plotH;}
+  var bars=items.map(function(it,i){var cx=padL+slot*i+slot/2,topY=y(it.spent),barH=Math.max(0,plotH-(topY-padT));var color=it.status==='rust'?T.rust:it.status==='amber'?T.amber:it.status==='positive'?T.positive:T.accent;return '<rect x="'+(cx-barW/2)+'" y="'+topY+'" width="'+barW+'" height="'+barH+'" fill="'+color+'" rx="3"/><text x="'+cx+'" y="'+Math.max(9,topY-4)+'" font-size="8" fill="'+T.textMuted+'" text-anchor="middle">'+fmt(Math.round(it.spent),0)+'</text><text x="'+cx+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="middle">'+esc(it.label)+'</text>';}).join('');
+  var ref='';if(refTarget!=null){var ry=y(refTarget);ref='<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+ry+'" y2="'+ry+'" stroke="'+T.text+'" stroke-width="1.5" stroke-dasharray="4,3"/><text x="'+padL+'" y="'+(ry-5)+'" font-size="9" font-weight="600" fill="'+T.text+'">'+esc(refLabel||'Budget')+'</text>';}
+  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'">'+ref+bars+'</svg>';
 }
 
 /* Resolves the Analysis page's selected period. week/month/year are navigable
@@ -2873,7 +2631,7 @@ function getTxnPeriodInfo() {
   var mode = state.txnPeriodMode || "all";
   var off = state.txnOffset || 0;
   var entryDatesAll = Object.keys(state.entries).sort();
-  var naturalStart = state.settings.trackingStartDate || (entryDatesAll.length ? entryDatesAll[0] : today);
+  var naturalStart = entryDatesAll.length ? entryDatesAll[0] : today;
   if (mode === "all") {
     /* "All time" must mean all of it: if any logged entry falls after today
        (e.g. a recurring/split plan that caught up while the device clock was
@@ -2893,7 +2651,7 @@ function getTxnPeriodInfo() {
     if (from > to) { var swap = from; from = to; to = swap; }
     return { start: from, end: to, title: shortLabel(from)+" – "+shortLabel(to), sub: "Custom range", isCurrent: true, mode: mode };
   }
-  var per = getPeriodBounds(mode, off, currentWeeklyTarget(), dailyReference());
+  var per = getPeriodBounds(mode, off, currentWeeklyTarget(), dailyAllowance());
   return { start: per.startStr, end: per.endStr, title: per.title, sub: per.sub, isCurrent: off === 0, mode: mode };
 }
 
@@ -2903,13 +2661,13 @@ function getAnalysisPeriodInfo() {
   var off = state.analysisOffset || 0;
   if (mode === "custom") {
     var entryDatesAll = Object.keys(state.entries).sort();
-    var fallbackStart = state.settings.trackingStartDate || (entryDatesAll.length ? entryDatesAll[0] : today);
+    var fallbackStart = entryDatesAll.length ? entryDatesAll[0] : today;
     var from = state.analysisPeriodFrom || fallbackStart;
     var to = state.analysisPeriodTo || today;
     if (from > to) { var swap = from; from = to; to = swap; }
     return { start: from, end: to, title: shortLabel(from)+" – "+shortLabel(to), sub: "Custom range", isCurrent: true, mode: mode, days: daysBetween(from,to)+1 };
   }
-  var per = getPeriodBounds(mode, off, currentWeeklyTarget(), dailyReference());
+  var per = getPeriodBounds(mode, off, currentWeeklyTarget(), dailyAllowance());
   return { start: per.startStr, end: per.endStr, title: per.title, sub: per.sub, isCurrent: off === 0, mode: mode, days: per.days };
 }
 
@@ -2952,9 +2710,15 @@ function itemMatchesPersonFilter(it, filterValue) {
    section's own pie. */
 function itemMatchesCategoryScope(it, catFilter, groupFilter) {
   if (catFilter) return (it.category || "Uncategorised") === catFilter;
+  if (groupFilter === "Ungrouped") return !categoryGroupOf(it.category);
   if (groupFilter) return categoryGroupOf(it.category) === groupFilter;
   return true;
 }
+
+/* One definition of an expense that belongs in Analysis for the active basis.
+   Budget mode excludes categories explicitly marked outside the budget; income
+   mode is cash-flow oriented and therefore includes every real expense. */
+function itemCountsForAnalysis(it) { return isExpenseItem(it); }
 
 /* The amount to attribute to the current person-filter scope for a given
    item. A person filter matching a split transaction only means that person
@@ -2974,7 +2738,7 @@ function personScopedAmount(it, personFilter) {
 
 function buildAnalysisBuckets(rows, granularity, catFilter, personFilter, groupFilter) {
   function keep(it){
-    return isExpenseItem(it) && (state.basis === "income" || itemCountsTowardBudget(it)) && itemMatchesCategoryScope(it, catFilter, groupFilter) && itemMatchesPersonFilter(it, personFilter);
+    return itemCountsForAnalysis(it) && itemMatchesCategoryScope(it, catFilter, groupFilter) && itemMatchesPersonFilter(it, personFilter);
   }
   function spentOf(r){
     if (!catFilter && !personFilter && !groupFilter) return r.spent;
@@ -3005,581 +2769,29 @@ function buildAnalysisBuckets(rows, granularity, catFilter, personFilter, groupF
 
 
 function renderAnalysisBody(T) {
-  lastForecastChartData = null;
-  lastChartData = null;
-  var da = dailyReference();
-  var today = todayStr();
-  var periodMode = state.analysisPeriodMode || "month";
-  var periodFrom = state.analysisPeriodFrom || "";
-  var periodTo = state.analysisPeriodTo || "";
-  var info = getAnalysisPeriodInfo();
-  var cs = periodStats(info.start, info.end);
-  var granularity = analysisGranularity(info);
-  var perLabel = granularity === "month" ? "month" : "day";
-
-  var h = "";
-  h += '<div class="row between" style="align-items:center; margin-bottom:10px;">';
-  h += '<div class="eyebrow">Analysis</div>';
-  h += '<button data-action="toggle-analysis-reorder" class="btn-outline row gap2" style="padding:5px 10px; font-size:12px; align-items:center;">'+(state.analysisReorderMode?ICONS.check+" Done":ICONS.pencil+" Reorder")+'</button>';
-  h += '</div>';
-
-  h += '<div class="seg" style="margin-bottom:10px;">';
-  [["budget","vs Budget"],["income","vs Income"]].forEach(function(opt){
-    var activeB = state.basis === opt[0];
-    h += '<button class="seg-btn" role="tab" aria-selected="'+activeB+'" data-action="set-basis" data-basis="'+opt[0]+'">'+opt[1]+'</button>';
-  });
-  h += '</div>';
-
-  if (state.basis === "income" && !incomeIsSet()) {
-    h += '<div class="card" style="padding:14px 16px; margin-bottom:12px; background:var(--rust-wash); border-color:var(--rust);">';
-    h += '<div style="font-size:13px; margin-bottom:8px;">Set your income to use this view.</div>';
-    h += '<button data-action="open-income-settings" class="btn-accent" style="width:100%;">Set income</button>';
-    h += '</div>';
-    return h;
-  }
-
-  h += '<div class="seg" style="margin-bottom:12px;">';
-  [["week","Week"],["month","Month"],["year","Year"],["custom","Custom"]].forEach(function(opt){
-    var active = periodMode === opt[0];
-    h += '<button class="seg-btn" role="tab" aria-selected="'+active+'" data-action="set-analysis-period" data-mode="'+opt[0]+'">'+opt[1]+'</button>';
-  });
-  h += '</div>';
-
-  if (periodMode === "custom") {
-    h += '<div class="row gap2" style="margin-bottom:12px;">';
-    h += '<input id="analysisPeriodFromInput" type="date" class="field mono" style="flex:1; font-size:13px;" value="'+esc(periodFrom)+'" max="'+today+'" />';
-    h += '<input id="analysisPeriodToInput" type="date" class="field mono" style="flex:1; font-size:13px;" value="'+esc(periodTo)+'" max="'+today+'" />';
-    h += '</div>';
-  } else {
-    h += '<div class="row between card" style="padding:8px 10px; margin-bottom:12px;">';
-    h += '<button data-action="analysis-nav-offset" data-delta="-1" class="icon-btn" style="border-radius:10px;" aria-label="Previous">'+ICONS.chevronLeft+'</button>';
-    h += '<div style="text-align:center; min-width:0;"><div style="font-size:13px; font-weight:500;">'+esc(info.title)+'</div>';
-    h += '<div class="eyebrow" style="margin-top:2px;">'+esc(info.sub)+'</div></div>';
-    h += '<button data-action="analysis-nav-offset" data-delta="1" class="icon-btn" style="border-radius:10px;'+(info.isCurrent?"opacity:0.3;pointer-events:none;":"")+'" aria-label="Next">'+ICONS.chevronRight+'</button>';
-    h += '</div>';
-  }
-
-  var catFilter = state.analysisCategoryFilter || "";
-  var personFilter = state.analysisPersonFilter || "";
-  var groupFilter = state.analysisSelectedGroup || "";
-  var selKey = state.analysisSelectedBucket;
-  var buckets = buildAnalysisBuckets(cs.rows, granularity, catFilter, personFilter, groupFilter);
-  function itemCatOf(it){ return it.category || "Uncategorised"; }
-  /* Three variants because the category and person sections each control
-     their OWN dimension and shouldn't filter themselves by it (the category
-     pie should show all categories WITHIN the current person filter, not
-     just the currently-selected category; symmetric for the person pie) —
-     while every other section (bar charts, day-of-week, biggest
-     transactions, summary) should respect both at once. Category scope
-     includes a drilled-into group, not just a specific leaf category, so
-     browsing "Food & Drinks" filters the rest of the page exactly like
-     picking "Restaurants" would, not just the category pie's own display. */
-  /* Whether an item counts under the CURRENT basis: on Income basis
-     everything counts (cash flow cares about every dirham out), on Budget
-     basis a category marked excluded (rent, a mortgage) doesn't — mirrors
-     sumSpentForBasis's own rule, which is why the two must agree: without
-     this, "Total spent" (built from sumSpentForBasis via periodStats) could
-     show a smaller figure than the category breakdown sitting right below
-     it, which built its own total by summing every item unconditionally. */
-  function itemCountsForBasis(it){ return state.basis === "income" || itemCountsTowardBudget(it); }
-  function keepItemPerson(it){ return isExpenseItem(it) && itemCountsForBasis(it) && itemMatchesPersonFilter(it, personFilter); }
-  function keepItemCategoryOnly(it){ return isExpenseItem(it) && itemCountsForBasis(it) && itemMatchesCategoryScope(it, catFilter, groupFilter); }
-  function keepItem(it){ return keepItemCategoryOnly(it) && keepItemPerson(it); }
-  /* Spend restricted to the active filters — the whole page reads from this
-     so tapping a pie slice (category or person) re-scopes every section at
-     once. */
-  function filteredSpent(){
-    return cs.rows.reduce(function(t,r){
-      return t + (r.items||[]).reduce(function(u,it){ return keepItem(it) ? u+personScopedAmount(it, personFilter) : u; }, 0);
-    }, 0);
-  }
-
-  var showGroupChip = groupFilter && !catFilter;
-  if (catFilter || personFilter || showGroupChip) {
-    h += '<div class="row gap2" style="margin-bottom:12px; align-items:center; flex-wrap:wrap;">';
-    if (showGroupChip) h += '<span class="chip chip-accent">'+esc(groupFilter)+'</span>';
-    if (catFilter) h += '<span class="chip chip-accent">'+esc(catFilter)+'</span>';
-    if (personFilter) h += '<span class="chip" style="background:'+(personFilter==="Unassigned"?"#8595B5":personColor(personFilter))+'; color:#fff; font-weight:600;">'+esc(personFilter)+'</span>';
-    if (showGroupChip) h += '<button class="btn-plain" data-action="clear-analysis-group">Clear group</button>';
-    if (catFilter) h += '<button class="btn-plain" data-action="clear-analysis-category">Clear category</button>';
-    if (personFilter) h += '<button class="btn-plain" data-action="clear-analysis-person">Clear person</button>';
-    h += '</div>';
-  }
-
-  var sectionHtml = {};
-
-  sectionHtml.summary = function(){
-    var s = '<div class="card card-pad" style="margin-bottom:16px;">';
-    s += '<div class="stat-grid">';
-    if (catFilter || personFilter) {
-      var filterLabelParts = [];
-      if (catFilter) filterLabelParts.push(catFilter);
-      if (personFilter) filterLabelParts.push(personFilter);
-      var filterLabel = filterLabelParts.join(" \u00b7 ");
-      var catSpent = filteredSpent();
-      var pctOfAll = cs.spent > 0 ? (catSpent/cs.spent*100) : 0;
-      var txnCount = cs.rows.reduce(function(t,r){ return t + (r.items||[]).filter(keepItem).length; }, 0);
-      s += statBlock("Spent on "+filterLabel, fmt(catSpent,0)+" AED", "var(--text)");
-      s += statBlock("Share of all spend", pctOfAll.toFixed(0)+"%", "var(--text)");
-      s += statBlock("Avg per day", fmt(cs.elapsedDays>0?catSpent/cs.elapsedDays:0,0)+" AED", "var(--text)");
-      s += statBlock("Transactions", String(txnCount), "var(--text)");
-    } else {
-      s += statBlock("Total spent", fmt(cs.spent,0)+" AED", "var(--text)");
-      s += statBlock("Total saved", (cs.net>=0?"+":"−")+fmt(Math.abs(cs.net),0)+" AED", cs.net>=0?"var(--positive)":"var(--rust)");
-      s += statBlock("Avg daily spend", fmt(cs.elapsedDays>0?cs.spent/cs.elapsedDays:0,0)+" AED", (cs.elapsedDays>0 && cs.spent/cs.elapsedDays>da)?"var(--rust)":"var(--text)");
-      s += statBlock("Days tracked", String(cs.elapsedDays), "var(--text)");
-    }
-    s += '</div></div>';
-    return s;
-  };
-
-  /* Drill-down panel shown under a chart when one of its columns is tapped. */
-  function bucketDetail(chartId) {
-    if (selKey == null) return "";
-    var prefix = chartId+"|";
-    if (selKey.indexOf(prefix) !== 0) return "";
-    var wantKey = selKey.slice(prefix.length);
-    var b = null;
-    for (var i=0;i<buckets.length;i++) if (buckets[i].key === wantKey) { b = buckets[i]; break; }
-    if (!b) return "";
-    var rowsIn = cs.rows.filter(function(r){ return b.dates.indexOf(r.date) !== -1; });
-    var items = [];
-    rowsIn.forEach(function(r){
-      (r.items||[]).forEach(function(it){ if (keepItem(it)) items.push({ date: r.date, it: it }); });
-    });
-    items.sort(function(x,y){ return y.it.amount - x.it.amount; });
-    var totalIn = items.reduce(function(t,x){ return t+personScopedAmount(x.it, personFilter); }, 0);
-    var refIn = b.allowance;
-    var net = refIn - b.spent;
-
-    var s = '<div class="bucket-detail hairline-top" style="margin-top:12px; padding-top:12px;">';
-    s += '<div class="row between" style="align-items:flex-start; margin-bottom:10px;">';
-    s += '<div><div class="headline">'+esc(b.title)+'</div>';
-    s += '<div class="muted footnote" style="margin-top:2px;">Spent '+fmt(b.spent,0)+' of '+fmt(refIn,0)+' AED · <span style="color:'+(net>=0?"var(--positive)":"var(--rust)")+';">'+(net>=0?"+":"−")+fmt(Math.abs(net),0)+'</span></div></div>';
-    s += '<button class="icon-btn press" data-action="clear-bucket" aria-label="Close">'+ICONS.x+'</button>';
-    s += '</div>';
-    if (!items.length) {
-      s += '<div class="muted subhead">'+(catFilter ? "Nothing in "+esc(catFilter)+" here." : "Nothing logged — full allowance saved.")+'</div>';
-    } else {
-      items.forEach(function(x,i){
-        s += '<div class="row" style="align-items:center; gap:10px; padding:8px 0;'+(i>0?"border-top:1px solid var(--sep);":"")+'">';
-        s += catIconCircle(x.it.category);
-        s += '<div style="flex:1; min-width:0;"><div class="subhead" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(x.it.note || x.it.category || "Spent")+'</div>';
-        var sub = (b.dates.length > 1 ? dayLabel(x.date) : "") + ((b.dates.length > 1 && x.it.category) ? " · " : "") + (x.it.note && x.it.category ? x.it.category : (b.dates.length > 1 ? "" : (x.it.category||"")));
-        s += '<div class="muted caption" style="margin-top:1px;">'+esc(sub)+'</div></div>';
-        s += '<div class="mono subhead" style="flex-shrink:0;">'+fmt(personScopedAmount(x.it, personFilter),2)+'</div>';
-        s += '</div>';
-      });
-      if (items.length > 1) {
-        s += '<div class="row between hairline-top" style="padding-top:8px; margin-top:4px;">';
-        s += '<span class="muted footnote">'+items.length+' transactions</span>';
-        s += '<span class="mono footnote">'+fmt(totalIn,2)+' AED</span></div>';
-      }
-    }
-    s += '</div>';
-    return s;
-  }
-
-  sectionHtml.dailySpend = function(){
-    var refSpend = granularity === "month"
-      ? (buckets.length ? buckets.reduce(function(t,b){ return t+b.allowance; },0)/buckets.length : null)
-      : da;
-    if (catFilter || personFilter) refSpend = null;
-    var s = '<div class="card card-pad" style="margin-bottom:16px;">';
-    s += '<div class="row between" style="margin-bottom:8px; align-items:baseline;">';
-    s += '<span class="eyebrow">Spend per '+perLabel+'</span>';
-    s += '<span class="muted caption">Tap a column</span></div>';
-    s += renderDailyBarChart(buckets, function(b){ return b.spent; }, function(b,v){ return (!catFilter && !personFilter && v>b.allowance) ? T.rust : T.positive; }, T, refSpend, selKey, "spend");
-    s += bucketDetail("spend");
-    s += '</div>';
-    return s;
-  };
-
-  sectionHtml.dailySaving = function(){
-    /* Saving is a whole-day, whole-household figure — the daily allowance
-       it's compared against isn't per-category or per-person, so it can't
-       be scoped to either filter. */
-    if (catFilter || personFilter) return "";
-    var s = '<div class="card card-pad" style="margin-bottom:16px;">';
-    s += '<div class="row between" style="margin-bottom:8px; align-items:baseline;">';
-    s += '<span class="eyebrow">Saved per '+perLabel+'</span>';
-    s += '<span class="muted caption">Tap a column</span></div>';
-    s += renderDailyBarChart(buckets, function(b){ return b.allowance - b.spent; }, function(b,v){ return v>=0 ? T.positive : T.rust; }, T, null, selKey, "saved");
-    s += bucketDetail("saved");
-    s += '</div>';
-    return s;
-  };
-
-  /* Running balance from the period's start through today (or the period's
-     end if it's already closed) — the same cumulative curve Home shows for
-     the current week, but available for whichever period Analysis is
-     browsing. Reuses Home's own chart component (renderChart/
-     wireBalanceChart) rather than a separate implementation, so drag-scrub
-     and visual style can never drift apart between the two pages. */
-  sectionHtml.cumulativeSaving = function(){
-    if (catFilter || personFilter || !cs.rows.length) return "";
-    var acc = 0;
-    var chartData = cs.rows.map(function(r){
-      var delta = round2(r.allowance - r.spent);
-      acc = round2(acc + delta);
-      return { label: shortLabel(r.date), date: r.date, balance: acc, delta: delta };
-    });
-    var lastRowDate = cs.rows[cs.rows.length-1].date;
-    var netColor = acc >= 0 ? "var(--positive)" : "var(--rust)";
-    var s = '<div class="card card-pad" style="margin-bottom:16px;">';
-    s += '<div class="row between" style="margin-bottom:2px; align-items:baseline;">';
-    s += '<span class="eyebrow">Cumulative saving</span>';
-    s += '<span class="mono footnote" style="color:'+netColor+'; font-weight:600;">'+(acc>=0?"+":"−")+fmt(Math.abs(acc),0)+' AED</span>';
-    s += '</div>';
-    s += '<div class="muted caption" style="margin-bottom:10px;">Running total from '+esc(shortLabel(info.start))+' through '+(lastRowDate===today?"today":esc(shortLabel(lastRowDate)))+'.</div>';
-    s += '<div id="analysisSavingChartWrap" style="position:relative;">';
-    s += '<div id="balanceChartTip" class="mono footnote" style="position:absolute; top:0; left:0; background:var(--fill); border-radius:8px; padding:4px 9px; max-width:250px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:2;"></div>';
-    s += renderChart(chartData, T);
-    s += '</div></div>';
-    lastChartData = chartData;
-    return s;
-  };
-
-  /* Cash flow answers a different question from the rest of the page: not
-     "am I pacing against my allowance" but "did more money come in than went
-     out". So it counts EVERY expense — including categories deliberately
-     excluded from the budget, which are usually the big fixed ones (rent, a
-     mortgage) that matter most to this question. Income-basis only, since
-     without an income figure there's nothing to compare against. */
-  sectionHtml.cashFlow = function(){
-    if (state.basis !== "income") return "";
-    /* Income is whatever you've actually logged as income transactions
-       within this period — a recurring salary rule, plus any one-off
-       bonuses or gifts added by hand — not a derived rate. Hides entirely
-       when nothing's been logged yet, rather than showing a misleading
-       "0 income" for a period you simply haven't gotten to. */
-    var incomeTotal = cs.rows.reduce(function(t,r){
-      return t + (r.items||[]).reduce(function(u,it){ return isIncomeItem(it) ? u+it.amount : u; }, 0);
-    }, 0);
-    if (incomeTotal <= 0) return "";
-    var expensesTotal = cs.spentAll;
-    var netFlow = incomeTotal - expensesTotal;
-    var maxSide = Math.max(incomeTotal, expensesTotal, 1);
-    var incomePct = Math.round((incomeTotal/maxSide)*100);
-    var expensePct = Math.round((expensesTotal/maxSide)*100);
-    var positive = netFlow >= 0;
-    /* Computed directly rather than as (spentAll - spent): under the income
-       basis those two are equal by design, since income counts everything,
-       so a subtraction would always come out to zero here. */
-    var excludedTotal = cs.rows.reduce(function(t,r){
-      return t + (r.items||[]).reduce(function(u,it){ return categoryExcludedFromBudget(it.category) ? u+it.amount : u; }, 0);
-    }, 0);
-    var periodLabelUpper = periodMode === "week" ? "THIS WEEK"
-      : periodMode === "month" ? "THIS MONTH"
-      : periodMode === "year" ? "THIS YEAR"
-      : "THIS PERIOD";
-    if (info.offset && info.offset !== 0) periodLabelUpper = String(info.title||"").toUpperCase();
-
-    var s = '<div class="card card-pad" style="margin-bottom:16px;">';
-    s += '<div class="eyebrow" style="margin-bottom:2px;">Cash flow</div>';
-    s += '<div class="muted caption" style="margin-bottom:12px;">Am I spending less than I make?</div>';
-    s += '<div class="hairline-top" style="padding-top:12px;">';
-    s += '<div class="muted caption">'+esc(periodLabelUpper)+'</div>';
-    s += '<div class="mono" style="font-size:26px; font-weight:700; margin-top:2px; color:'+(positive?"var(--positive)":"var(--rust)")+';">'+(positive?"":"\u2212")+fmt(Math.abs(netFlow),2)+' <span class="muted" style="font-size:15px;">AED</span></div>';
-    s += '<div class="muted caption" style="margin-top:2px;">'+(positive?"left over after everything":"more spent than earned")+'</div>';
-    s += '</div>';
-
-    s += '<div style="margin-top:16px;">';
-    s += '<div class="row between" style="align-items:baseline; margin-bottom:6px;"><span class="subhead" style="font-weight:600;">Income</span><span class="mono subhead" style="font-weight:600;">'+fmt(incomeTotal,2)+' AED</span></div>';
-    s += '<div style="background:var(--fill); border-radius:6px; height:14px; overflow:hidden; margin-bottom:16px;"><div style="width:'+incomePct+'%; height:100%; border-radius:6px; background:var(--positive);"></div></div>';
-    s += '<div class="row between" style="align-items:baseline; margin-bottom:6px;"><span class="subhead" style="font-weight:600;">Expenses</span><span class="mono subhead" style="font-weight:600;">'+fmt(expensesTotal,2)+' AED</span></div>';
-    s += '<div style="background:var(--fill); border-radius:6px; height:14px; overflow:hidden;"><div style="width:'+expensePct+'%; height:100%; border-radius:6px; background:var(--rust);"></div></div>';
-    s += '</div>';
-
-    if (excludedTotal > 0) {
-      s += '<div class="muted caption hairline-top" style="margin-top:14px; padding-top:10px;">Includes '+fmt(excludedTotal,0)+' AED from categories kept outside the budget.</div>';
-    }
-    s += '</div>';
-    return s;
-  };
-
-  sectionHtml.forecastedSpend = function(){
-    if (catFilter || personFilter || !cs.rows.length) return "";
-    var periodTarget = fullPeriodTarget(info.start, info.end);
-    var periodWord = info.mode === "week" ? "week" : info.mode === "month" ? "month" : info.mode === "year" ? "year" : "period";
-    var chartStart = effectiveRangeStart(info.start);
-    var chartDays = daysBetween(chartStart, info.end) + 1;
-    var compareRowsA = previousPeriodRows(info.mode, state.analysisOffset, info.start, info.end);
-    return buildForecastCard(cs.rows, chartDays, periodTarget, chartStart, T, basisWordCap(), periodWord, compareRowsA);
-  };
-
-  sectionHtml.spendTrend = function(){
-    if (catFilter || personFilter || periodMode === "custom") return "";
-    var N = 5;
-    var bars = [];
-    var currentElapsedDays = null, currentPeriodDays = null;
-    for (var trendOff = -(N-1); trendOff <= 0; trendOff++) {
-      var pb = getPeriodBounds(periodMode, trendOff, currentWeeklyTarget(), da);
-      var ps = periodStats(pb.startStr, pb.endStr);
-      var isCurBar = trendOff === 0;
-      var targetB = pb.target;
-      var spentB = ps.spent;
-      var projB = spentB;
-      if (isCurBar) {
-        currentElapsedDays = ps.calendarElapsedDays;
-        currentPeriodDays = pb.days;
-        var fcB = computeForecastNumbers(ps.rows, pb.days, pb.startStr);
-        if (fcB && fcB.hasForecast) projB = fcB.projectedSpend;
-      }
-      /* Red is reserved for money that has ACTUALLY already been spent past
-         budget — a settled fact. A still-open period that merely paces
-         toward going over gets amber ("trending over") instead, since a
-         forecast is an estimate and could still change; only a closed
-         period (or real spend-so-far, once it's genuinely over) earns red. */
-      var status = "positive";
-      if (targetB > 0) {
-        if (isCurBar) {
-          if (spentB > targetB) status = "rust";
-          else if (projB > targetB) status = "amber";
-        } else {
-          status = spentB > targetB ? "rust" : "positive";
-        }
-      }
-      var lbl = periodMode === "week" ? shortLabel(pb.startStr) : periodMode === "year" ? pb.title : parseD(pb.startStr).toLocaleDateString("en-GB",{month:"short"});
-      bars.push({ label: lbl, spent: spentB, target: targetB, status: status });
-    }
-    var lastBar = bars[bars.length-1], prevBar = bars[bars.length-2];
-    /* If the current period is still in progress, comparing its partial
-       total against a fully-closed previous period is comparing a few days
-       of spend to a whole period's worth — always looks artificially low.
-       Instead compare like-for-like: the previous period's spend through
-       that SAME number of elapsed days. A fully-closed lastBar (browsing a
-       past period) needs no such adjustment — two complete periods are
-       already comparable. */
-    var vsPrevPct = null, comparedSameSpan = false;
-    if (prevBar) {
-      var prevComparisonSpend = prevBar.spent;
-      if (currentElapsedDays != null && currentPeriodDays != null && currentElapsedDays > 0 && currentElapsedDays < currentPeriodDays) {
-        var pbPrevSpan = getPeriodBounds(periodMode, -1, currentWeeklyTarget(), da);
-        var prevSpanEnd = toStr(addDays(parseD(pbPrevSpan.startStr), currentElapsedDays-1));
-        if (prevSpanEnd > pbPrevSpan.endStr) prevSpanEnd = pbPrevSpan.endStr;
-        prevComparisonSpend = periodStats(pbPrevSpan.startStr, prevSpanEnd).spent;
-        comparedSameSpan = true;
-      }
-      vsPrevPct = prevComparisonSpend > 0 ? Math.round(((lastBar.spent-prevComparisonSpend)/prevComparisonSpend)*100) : null;
-    }
-    var s = '<div class="card card-pad" style="margin-bottom:16px;">';
-    s += '<div class="eyebrow" style="margin-bottom:10px;">Spend trend</div>';
-    s += '<div class="row between" style="align-items:flex-start; margin-bottom:14px;">';
-    s += '<div><div class="muted caption">THIS '+esc(periodMode.toUpperCase())+'</div><div class="mono" style="font-size:22px; font-weight:700; margin-top:2px;">'+fmt(lastBar.spent,0)+' AED</div></div>';
-    s += '<div style="text-align:right;"><div class="muted caption">VS PREVIOUS PERIOD</div>';
-    s += vsPrevPct===null
-      ? '<div class="chip" style="margin-top:4px; background:var(--fill); color:var(--text-muted);">---</div>'
-      : '<div class="chip" style="margin-top:4px; background:'+(vsPrevPct<=0?"var(--positive)":"var(--rust)")+'; color:#fff; font-weight:700;">'+(vsPrevPct>=0?"+":"")+vsPrevPct+'%</div>';
-    s += '</div></div>';
-    s += renderTrendBarChart(bars, lastBar.target, T, basisWordCap());
-    s += '<div class="row gap2" style="margin-top:10px; flex-wrap:wrap;">';
-    s += legendSwatch("var(--positive)", "On track");
-    s += legendSwatch("var(--amber)", "Trending over");
-    s += legendSwatch("var(--rust)", "Over budget");
-    s += '</div>';
-    if (comparedSameSpan) s += '<div class="muted caption" style="margin-top:8px;">Compared through the same number of days as this '+periodMode+' so far.</div>';
-    s += '</div>';
-    return s;
-  };
-
-  sectionHtml.category = function(){
-    var catTotals = {};
-    cs.rows.forEach(function(r){
-      r.items.forEach(function(it){
-        if (!keepItemPerson(it)) return;
-        var key = itemCatOf(it);
-        catTotals[key] = (catTotals[key] || 0) + personScopedAmount(it, personFilter);
-      });
-    });
-    if (!Object.keys(catTotals).length) return "";
-
-    var groupList = state.settings.categoryGroups||[];
-    var selectedGroup = state.analysisSelectedGroup;
-    var showingGroups = groupList.length > 0 && !selectedGroup && !catFilter;
-
-    var s = '<div class="card card-pad" style="margin-bottom:16px;">';
-
-    if (showingGroups) {
-      var groupTotals = {};
-      Object.keys(catTotals).forEach(function(catName){
-        var g = categoryGroupOf(catName) || "Ungrouped";
-        groupTotals[g] = (groupTotals[g]||0) + catTotals[catName];
-      });
-      var groupSlices = Object.keys(groupTotals).map(function(g){ return { label:g, value:groupTotals[g] }; })
-        .sort(function(a,b){ return b.value - a.value; });
-      var groupTotal = groupSlices.reduce(function(t,x){ return t+x.value; }, 0);
-      s += '<div class="row between" style="margin-bottom:10px; align-items:baseline;">';
-      s += '<span class="eyebrow">Spend by category</span>';
-      s += '<span class="muted caption">Tap to drill in</span></div>';
-      s += '<div style="display:flex; justify-content:center; margin-bottom:12px;">'+renderPieChart(groupSlices, T, null, "All", groupTotal, "drill-analysis-group", "group")+'</div>';
-      groupSlices.forEach(function(sl,i){
-        var pct = groupTotal>0 ? (sl.value/groupTotal*100) : 0;
-        var swatch = sl.label === "Ungrouped" ? "var(--text-muted)" : PIE_COLORS[i % PIE_COLORS.length];
-        s += '<button data-action="drill-analysis-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%; text-align:left; background:none; border:none; padding:8px 0;'+(i>0?"border-top:1px solid var(--sep);":"")+'">';
-        s += '<span class="row" style="align-items:center; gap:9px; min-width:0;"><span style="width:11px;height:11px;border-radius:3px;flex-shrink:0;background:'+swatch+';"></span><span class="subhead">'+esc(sl.label)+'</span></span>';
-        s += '<span class="row" style="align-items:baseline; gap:8px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:32px; text-align:right;">'+pct.toFixed(0)+'%</span><span class="muted" style="display:flex;">'+ICONS.chevronRight+'</span></span>';
-        s += '</button>';
-      });
-    } else {
-      var visibleCatNames = selectedGroup
-        ? Object.keys(catTotals).filter(function(c){ return (categoryGroupOf(c)||"Ungrouped") === selectedGroup; })
-        : Object.keys(catTotals);
-      var catSlices = visibleCatNames.map(function(k){ return { label:k, value:catTotals[k] }; })
-        .sort(function(a,b){ return b.value - a.value; });
-      var catTotal = catSlices.reduce(function(t,x){ return t+x.value; }, 0);
-      s += '<div class="row between" style="margin-bottom:10px; align-items:baseline;">';
-      if (selectedGroup) {
-        s += '<button data-action="clear-analysis-group" class="row gap2" style="background:none;border:none;padding:0;align-items:center;">'+ICONS.chevronLeft+'<span class="eyebrow">'+esc(selectedGroup)+'</span></button>';
-      } else {
-        s += '<span class="eyebrow">Spend by category</span>';
-      }
-      s += '<span class="muted caption">'+(catFilter?"Tap to clear":"Tap to filter")+'</span></div>';
-      if (!catSlices.length) {
-        s += '<div class="muted subhead">Nothing in '+esc(selectedGroup||"")+' this period.</div>';
-      } else {
-        s += '<div style="display:flex; justify-content:center; margin-bottom:12px;">'+renderPieChart(catSlices, T, catFilter||null, "All", catTotal)+'</div>';
-        catSlices.forEach(function(sl,i){
-          var pct = catTotal>0 ? (sl.value/catTotal*100) : 0;
-          var isSel = catFilter === sl.label;
-          s += '<button data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%; text-align:left; background:none; border:none; padding:8px 0;'+(i>0?"border-top:1px solid var(--sep);":"")+(catFilter&&!isSel?"opacity:0.45;":"")+'">';
-          s += '<span class="row" style="align-items:center; gap:9px; min-width:0;"><span style="width:11px;height:11px;border-radius:3px;flex-shrink:0;background:'+PIE_COLORS[i % PIE_COLORS.length]+';"></span><span class="subhead"'+(isSel?' style="font-weight:600;"':'')+'>'+esc(sl.label)+'</span></span>';
-          s += '<span class="row" style="align-items:baseline; gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px; text-align:right;">'+pct.toFixed(0)+'%</span></span>';
-          s += '</button>';
-        });
-      }
-    }
-    s += '</div>';
-    return s;
-  };
-
-  /* Read-only for now — no tap-to-filter interaction, since combining a
-     person filter with the existing category filter would need real thought
-     about how the two should interact. Hidden entirely if no people have
-     been configured, so nobody sees an empty "Unassigned: 100%" chart just
-     for using the app without this feature. */
-  sectionHtml.person = function(){
-    if (!(state.settings.people||[]).length) return "";
-    var personTotals = {};
-    cs.rows.forEach(function(r){
-      (r.items||[]).forEach(function(it){
-        if (!keepItemCategoryOnly(it)) return;
-        if (it.personSplit && it.personSplit.length) {
-          it.personSplit.forEach(function(ps){
-            var share = round2(it.amount * ps.pct / 100);
-            personTotals[ps.person] = (personTotals[ps.person] || 0) + share;
-          });
-        } else {
-          var key = it.person || "Unassigned";
-          personTotals[key] = (personTotals[key] || 0) + it.amount;
-        }
-      });
-    });
-    var slices = Object.keys(personTotals).map(function(k){ return { label:k, value:personTotals[k] }; })
-      .sort(function(a,b){ return b.value - a.value; });
-    var total = slices.reduce(function(t,x){ return t+x.value; }, 0);
-    if (!slices.length) return "";
-    /* Each slice carries the person's own configured label color, so the pie,
-       the list below it, the transaction rows, and Settings all show the
-       same color for the same person. */
-    slices.forEach(function(sl){
-      sl.color = sl.label === "Unassigned" ? "#8595B5" : personColor(sl.label);
-    });
-    var s = '<div class="card card-pad" style="margin-bottom:16px;">';
-    s += '<div class="row between" style="margin-bottom:10px; align-items:baseline;">';
-    s += '<span class="eyebrow">Spend by person</span>';
-    s += '<span class="muted caption">'+(personFilter?"Tap to clear":"Tap to filter")+'</span></div>';
-    s += '<div style="display:flex; justify-content:center; margin-bottom:12px;">'+renderPieChart(slices, T, personFilter||null, "All", total, "filter-analysis-person", "person")+'</div>';
-    slices.forEach(function(sl,i){
-      var pct = total>0 ? (sl.value/total*100) : 0;
-      var isSel = personFilter === sl.label;
-      s += '<button data-action="filter-analysis-person" data-person="'+esc(sl.label)+'" class="row between" style="width:100%; text-align:left; background:none; border:none; padding:8px 0;'+(i>0?"border-top:1px solid var(--sep);":"")+(personFilter&&!isSel?"opacity:0.45;":"")+'">';
-      s += '<span class="row" style="align-items:center; gap:9px; min-width:0;">'+(sl.label==="Unassigned"
-        ? '<span style="width:11px;height:11px;border-radius:3px;flex-shrink:0;background:#8595B5;"></span><span class="subhead">Unassigned</span>'
-        : personChip(sl.label))+'</span>';
-      s += '<span class="row" style="align-items:baseline; gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px; text-align:right;">'+pct.toFixed(0)+'%</span></span>';
-      s += '</button>';
-    });
-    s += '</div>';
-    return s;
-  };
-
-  sectionHtml.dow = function(){
-    var dowSums = [0,0,0,0,0,0,0], dowCounts = [0,0,0,0,0,0,0];
-    cs.rows.forEach(function(r){
-      var dow = parseD(r.date).getDay();
-      var idx = dow===0?6:dow-1;
-      dowSums[idx] += (r.items||[]).reduce(function(t,it){ return keepItem(it) ? t+personScopedAmount(it, personFilter) : t; }, 0);
-      dowCounts[idx] += 1;
-    });
-    var dowLabels = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-    var dowAvg = dowSums.map(function(s2,i){ return dowCounts[i]>0 ? s2/dowCounts[i] : 0; });
-    var maxDow = Math.max.apply(null, dowAvg.concat([1]));
-    var s = '<div class="card card-pad" style="margin-bottom:16px;">';
-    s += '<div class="eyebrow" style="margin-bottom:12px;">Average spend by day of week</div>';
-    dowLabels.forEach(function(lbl,i){
-      var pct = maxDow>0 ? Math.round((dowAvg[i]/maxDow)*100) : 0;
-      var over = !catFilter && !personFilter && dowAvg[i] > da;
-      s += '<div class="row" style="align-items:center; gap:10px; margin-bottom:8px;">';
-      s += '<span class="muted footnote" style="width:30px;">'+lbl+'</span>';
-      s += '<div style="flex:1; background:var(--fill); border-radius:5px; height:9px; overflow:hidden;"><div style="width:'+pct+'%; height:100%; border-radius:5px; background:'+(over?"var(--rust)":"var(--positive)")+';"></div></div>';
-      s += '<span class="mono muted footnote" style="width:44px; text-align:right;">'+fmt(dowAvg[i],0)+'</span>';
-      s += '</div>';
-    });
-    s += '</div>';
-    return s;
-  };
-
-  sectionHtml.topTransactions = function(){
-    var allItems = [];
-    cs.rows.forEach(function(r){
-      r.items.forEach(function(it){ if (keepItem(it)) allItems.push({date:r.date, note:it.note, amount:personScopedAmount(it, personFilter), category:it.category}); });
-    });
-    allItems.sort(function(a,b){ return b.amount - a.amount; });
-    var top5 = allItems.slice(0,5);
-    var s = '<div class="card card-pad" style="margin-bottom:16px;">';
-    s += '<div class="eyebrow" style="margin-bottom:10px;">Biggest transactions</div>';
-    if (top5.length === 0) {
-      s += '<div class="muted subhead">Nothing logged in this period.</div>';
-    } else {
-      top5.forEach(function(it,i){
-        var titleText = it.note ? it.note : (it.category ? it.category : "Spent");
-        var subtitleText = dayLabel(it.date) + (it.note && it.category ? " · "+it.category : "");
-        s += '<div class="row" style="align-items:center; gap:10px; padding:8px 0;'+(i>0?"border-top:1px solid var(--sep);":"")+'">';
-        s += catIconCircle(it.category);
-        s += '<div style="flex:1; min-width:0;"><div class="subhead" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(titleText)+'</div><div class="muted caption" style="margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(subtitleText)+'</div></div>';
-        s += '<div class="mono subhead" style="flex-shrink:0;">'+fmt(it.amount,2)+' AED</div>';
-        s += '</div>';
-      });
-    }
-    s += '</div>';
-    return s;
-  };
-
-  var order = normalizeAnalysisOrder(state.settings.analysisSectionOrder);
-  var hiddenSet = normalizeHiddenSections(state.settings.analysisHiddenSections);
-  order.forEach(function(id, idx){
-    var isHidden = hiddenSet.indexOf(id) !== -1;
-    if (!state.analysisReorderMode) {
-      if (isHidden) return;
-      var content = sectionHtml[id] ? sectionHtml[id]() : "";
-      if (!content) return;
-      h += content;
-      return;
-    }
-    h += '<div class="row between" style="padding:0 2px 6px; align-items:center;'+(isHidden?"opacity:0.55;":"")+'">';
-    h += '<span class="muted" style="font-size:11px;">'+esc(ANALYSIS_SECTION_LABELS[id]||id)+(isHidden?" · hidden":"")+'</span>';
-    h += '<div class="row gap2">';
-    h += '<button data-action="toggle-analysis-hidden" data-section="'+id+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="'+(isHidden?"Show":"Hide")+' section">'+(isHidden?ICONS.eyeOff:ICONS.eye)+'</button>';
-    h += '<button data-action="move-analysis-section" data-section="'+id+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(idx===0?"var(--hairline)":"var(--text-muted)")+';" '+(idx===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
-    h += '<button data-action="move-analysis-section" data-section="'+id+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(idx===order.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(idx===order.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
-    h += '</div></div>';
-    if (!isHidden) {
-      var contentR = sectionHtml[id] ? sectionHtml[id]() : "";
-      h += contentR;
-    }
-  });
-
+  lastForecastChartData=null;lastChartData=null;
+  var today=todayStr(),periodMode=state.analysisPeriodMode||"month",periodFrom=state.analysisPeriodFrom||"",periodTo=state.analysisPeriodTo||"";
+  var info=getAnalysisPeriodInfo(),cs=periodStatsOverall(info.start,info.end),granularity=analysisGranularity(info),perLabel=granularity==="month"?"month":"day";
+  var h='<div class="row between" style="align-items:center;margin-bottom:10px;"><div><div class="eyebrow">Overall analysis</div><div class="muted caption" style="margin-top:2px;">All expenses — budget exclusions do not apply here.</div></div><button data-action="toggle-analysis-reorder" class="btn-outline row gap2" style="padding:5px 10px;font-size:12px;align-items:center;">'+(state.analysisReorderMode?ICONS.check+' Done':ICONS.pencil+' Reorder')+'</button></div>';
+  h+='<div class="seg" style="margin-bottom:12px;">';[["week","Week"],["month","Month"],["year","Year"],["custom","Custom"]].forEach(function(opt){h+='<button class="seg-btn" role="tab" aria-selected="'+(periodMode===opt[0])+'" data-action="set-analysis-period" data-mode="'+opt[0]+'">'+opt[1]+'</button>';});h+='</div>';
+  if(periodMode==='custom'){h+='<div class="row gap2" style="margin-bottom:12px;"><input id="analysisPeriodFromInput" type="date" class="field mono" style="flex:1;font-size:13px;" value="'+esc(periodFrom)+'" max="'+today+'"/><input id="analysisPeriodToInput" type="date" class="field mono" style="flex:1;font-size:13px;" value="'+esc(periodTo)+'" max="'+today+'"/></div>';}else{h+='<div class="row between card" style="padding:8px 10px;margin-bottom:12px;"><button data-action="analysis-nav-offset" data-delta="-1" class="icon-btn">'+ICONS.chevronLeft+'</button><div style="text-align:center;"><div class="subhead">'+esc(info.title)+'</div><div class="muted caption">'+esc(info.sub)+'</div></div><button data-action="analysis-nav-offset" data-delta="1" class="icon-btn" style="'+(info.isCurrent?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';}
+  var catFilter=state.analysisCategoryFilter||"",personFilter=state.analysisPersonFilter||"",groupFilter=state.analysisSelectedGroup||"",selKey=state.analysisSelectedBucket;
+  var buckets=buildAnalysisBuckets(cs.rows,granularity,catFilter,personFilter,groupFilter);function itemCatOf(it){return it.category||'Uncategorised';}
+  function keepItemPerson(it){return isExpenseItem(it)&&itemMatchesPersonFilter(it,personFilter);}function keepItemCategoryOnly(it){return isExpenseItem(it)&&itemMatchesCategoryScope(it,catFilter,groupFilter);}function keepItem(it){return keepItemCategoryOnly(it)&&keepItemPerson(it);}function filteredSpent(){return cs.rows.reduce(function(t,r){return t+(r.items||[]).reduce(function(u,it){return keepItem(it)?u+personScopedAmount(it,personFilter):u;},0);},0);}
+  var showGroupChip=groupFilter&&!catFilter;if(catFilter||personFilter||showGroupChip){h+='<div class="row gap2" style="margin-bottom:12px;align-items:center;flex-wrap:wrap;">';if(showGroupChip)h+='<span class="chip chip-accent">'+esc(groupFilter)+'</span>';if(catFilter)h+='<span class="chip chip-accent">'+esc(catFilter)+'</span>';if(personFilter)h+='<span class="chip" style="background:'+(personFilter==='Unassigned'?'#8595B5':personColor(personFilter))+';color:#fff;font-weight:600;">'+esc(personFilter)+'</span>';if(showGroupChip)h+='<button class="btn-plain" data-action="clear-analysis-group">Clear group</button>';if(catFilter)h+='<button class="btn-plain" data-action="clear-analysis-category">Clear category</button>';if(personFilter)h+='<button class="btn-plain" data-action="clear-analysis-person">Clear person</button>';h+='</div>';}
+  var sectionHtml={};
+  sectionHtml.summary=function(){var s='<div class="card card-pad" style="margin-bottom:16px;"><div class="stat-grid">';if(catFilter||personFilter){var label=[catFilter,personFilter].filter(Boolean).join(' · '),v=filteredSpent(),pct=cs.spent>0?v/cs.spent*100:0,count=cs.rows.reduce(function(t,r){return t+(r.items||[]).filter(keepItem).length;},0);s+=statBlock('Spent on '+label,fmt(v,0)+' AED','var(--text)')+statBlock('Share of all spend',pct.toFixed(0)+'%','var(--text)')+statBlock('Avg per day',fmt(cs.elapsedDays?v/cs.elapsedDays:0,0)+' AED','var(--text)')+statBlock('Transactions',String(count),'var(--text)');}else{var expCount=cs.rows.reduce(function(t,r){return t+(r.items||[]).filter(isExpenseItem).length;},0);s+=statBlock('Total spent',fmt(cs.spent,0)+' AED','var(--text)')+statBlock('Avg daily spend',fmt(cs.elapsedDays?cs.spent/cs.elapsedDays:0,0)+' AED','var(--text)')+statBlock('Expense transactions',String(expCount),'var(--text)')+statBlock('Income received',fmt(cs.income,0)+' AED',cs.income>0?'var(--positive)':'var(--text-muted)');}return s+'</div></div>';};
+  function bucketDetail(chartId){if(selKey==null)return'';var prefix=chartId+'|';if(selKey.indexOf(prefix)!==0)return'';var key=selKey.slice(prefix.length),b=buckets.find(function(x){return x.key===key;});if(!b)return'';var items=[];cs.rows.filter(function(r){return b.dates.indexOf(r.date)!==-1;}).forEach(function(r){(r.items||[]).forEach(function(it){if(keepItem(it))items.push({date:r.date,it:it});});});items.sort(function(a,b2){return personScopedAmount(b2.it,personFilter)-personScopedAmount(a.it,personFilter);});var total=items.reduce(function(t,x){return t+personScopedAmount(x.it,personFilter);},0);var s='<div class="bucket-detail hairline-top" style="margin-top:12px;padding-top:12px;"><div class="row between" style="margin-bottom:10px;"><div><div class="headline">'+esc(b.title)+'</div><div class="muted footnote">'+fmt(total,0)+' AED spent · '+items.length+' transaction'+(items.length===1?'':'s')+'</div></div><button class="icon-btn" data-action="clear-bucket">'+ICONS.x+'</button></div>';items.forEach(function(x,i){s+='<div class="row" style="align-items:center;gap:10px;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'">'+catIconCircle(x.it.category)+'<div style="flex:1;min-width:0;"><div class="subhead">'+esc(x.it.note||x.it.category||'Spent')+'</div><div class="muted caption">'+esc((b.dates.length>1?dayLabel(x.date):'')+(x.it.category?' · '+x.it.category:''))+'</div></div><div class="mono subhead">'+fmt(personScopedAmount(x.it,personFilter),2)+'</div></div>';});return s+'</div>';}
+  sectionHtml.dailySpend=function(){var s='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:8px;"><span class="eyebrow">Spend per '+perLabel+'</span><span class="muted caption">Tap a column</span></div>'+renderDailyBarChart(buckets,function(b){return b.spent;},function(){return T.accent;},T,null,selKey,'spend')+bucketDetail('spend')+'</div>';return s;};
+  sectionHtml.dailySaving=function(){return'';};sectionHtml.cumulativeSaving=function(){return'';};
+  sectionHtml.cashFlow=function(){if(catFilter||personFilter||groupFilter||cs.income<=0)return'';var net=cs.income-cs.spent,max=Math.max(cs.income,cs.spent,1),ip=Math.round(cs.income/max*100),ep=Math.round(cs.spent/max*100);var s='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow">Cash flow</div><div class="muted caption" style="margin:2px 0 12px;">Actual income transactions versus all expenses.</div><div class="mono" style="font-size:26px;font-weight:700;color:'+(net>=0?'var(--positive)':'var(--rust)')+';">'+(net>=0?'+':'−')+fmt(Math.abs(net),0)+' AED</div><div style="margin-top:16px;"><div class="row between"><span class="subhead">Income</span><span class="mono subhead">'+fmt(cs.income,0)+'</span></div><div style="background:var(--fill);height:12px;border-radius:6px;overflow:hidden;margin:6px 0 14px;"><div style="height:100%;width:'+ip+'%;background:var(--positive);"></div></div><div class="row between"><span class="subhead">Expenses</span><span class="mono subhead">'+fmt(cs.spent,0)+'</span></div><div style="background:var(--fill);height:12px;border-radius:6px;overflow:hidden;margin-top:6px;"><div style="height:100%;width:'+ep+'%;background:var(--rust);"></div></div></div></div>';return s;};
+  sectionHtml.forecastedSpend=function(){if(catFilter||personFilter||!cs.rows.length)return'';var word=info.mode==='week'?'week':info.mode==='month'?'month':info.mode==='year'?'year':'period',start=info.start,days=daysBetween(start,info.end)+1,prev=previousPeriodRows(info.mode,state.analysisOffset,info.start,info.end,'overall');return buildForecastCard(cs.rows,days,null,start,T,'',word,prev,'overall');};
+  sectionHtml.spendTrend=function(){if(catFilter||personFilter||periodMode==='custom')return'';var N=5,bars=[];for(var off=-(N-1);off<=0;off++){var pb=getPeriodBounds(periodMode,off,currentWeeklyTarget(),dailyAllowance()),ps=periodStatsOverall(pb.startStr,pb.endStr),lbl=periodMode==='week'?shortLabel(pb.startStr):periodMode==='year'?pb.title:parseD(pb.startStr).toLocaleDateString('en-GB',{month:'short'});bars.push({label:lbl,spent:ps.spent});}var cur=bars[bars.length-1],prev=bars[bars.length-2],pct=prev&&prev.spent>0?Math.round((cur.spent-prev.spent)/prev.spent*100):null;var s='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow" style="margin-bottom:10px;">Spend trend</div><div class="row between" style="align-items:flex-start;margin-bottom:14px;"><div><div class="muted caption">CURRENT</div><div class="mono" style="font-size:22px;font-weight:700;">'+fmt(cur.spent,0)+' AED</div></div><div style="text-align:right;"><div class="muted caption">VS PREVIOUS</div><div class="chip" style="margin-top:4px;background:var(--fill);">'+(pct==null?'—':((pct>=0?'+':'')+pct+'%'))+'</div></div></div>'+renderTrendBarChart(bars,null,T,'')+'</div>';return s;};
+  sectionHtml.category=function(){var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemPerson(it))return;var k=itemCatOf(it);totals[k]=(totals[k]||0)+personScopedAmount(it,personFilter);});});if(!Object.keys(totals).length)return'';var groups=state.settings.categoryGroups||[],selected=state.analysisSelectedGroup,showGroups=groups.length>0&&!selected&&!catFilter,s='<div class="card card-pad" style="margin-bottom:16px;">';if(showGroups){var gt={};Object.keys(totals).forEach(function(c){var g=categoryGroupOf(c)||'Ungrouped';gt[g]=(gt[g]||0)+totals[c];});var gs=Object.keys(gt).map(function(g){return{label:g,value:gt[g]};}).sort(function(a,b){return b.value-a.value;}),gTotal=gs.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by category</span><span class="muted caption">Tap to drill in</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(gs,T,null,'All',gTotal,'drill-analysis-group','group')+'</div>';gs.forEach(function(sl,i){var p=gTotal?sl.value/gTotal*100:0;s+='<button data-action="drill-analysis-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="subhead">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span>'+ICONS.chevronRight+'</span></button>';});}else{var names=selected?Object.keys(totals).filter(function(c){return(categoryGroupOf(c)||'Ungrouped')===selected;}):Object.keys(totals),slices=names.map(function(k){return{label:k,value:totals[k]};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;">'+(selected?'<button data-action="clear-analysis-group" class="btn-plain">← '+esc(selected)+'</button>':'<span class="eyebrow">Spend by category</span>')+'<span class="muted caption">'+(catFilter?'Tap to clear':'Tap to filter')+'</span></div>';if(slices.length)s+='<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,catFilter||null,'All',total)+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=catFilter===sl.label;s+='<button data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(catFilter&&!isSel?'opacity:.45;':'')+'"><span class="subhead" style="'+(isSel?'font-weight:600;':'')+'">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});}return s+'</div>';};
+  sectionHtml.person=function(){if(!(state.settings.people||[]).length)return'';var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemCategoryOnly(it))return;if(it.personSplit&&it.personSplit.length)it.personSplit.forEach(function(ps){totals[ps.person]=(totals[ps.person]||0)+round2(it.amount*ps.pct/100);});else{var k=it.person||'Unassigned';totals[k]=(totals[k]||0)+it.amount;}});});var slices=Object.keys(totals).map(function(k){return{label:k,value:totals[k]};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);if(!slices.length)return'';slices.forEach(function(sl){sl.color=sl.label==='Unassigned'?'#8595B5':personColor(sl.label);});var s='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by person</span><span class="muted caption">'+(personFilter?'Tap to clear':'Tap to filter')+'</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,personFilter||null,'All',total,'filter-analysis-person','person')+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=personFilter===sl.label;s+='<button data-action="filter-analysis-person" data-person="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(personFilter&&!isSel?'opacity:.45;':'')+'"><span>'+ (sl.label==='Unassigned'?'<span class="subhead">Unassigned</span>':personChip(sl.label))+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});return s+'</div>';};
+  sectionHtml.dow=function(){var sums=[0,0,0,0,0,0,0],counts=[0,0,0,0,0,0,0];cs.rows.forEach(function(r){var d=parseD(r.date).getDay(),idx=d===0?6:d-1;sums[idx]+=(r.items||[]).reduce(function(t,it){return keepItem(it)?t+personScopedAmount(it,personFilter):t;},0);counts[idx]++;});var labels=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],avg=sums.map(function(x,i){return counts[i]?x/counts[i]:0;}),max=Math.max.apply(null,avg.concat([1])),s='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow" style="margin-bottom:12px;">Average spend by day of week</div>';labels.forEach(function(l,i){var p=Math.round(avg[i]/max*100);s+='<div class="row" style="gap:10px;margin-bottom:8px;"><span class="muted footnote" style="width:30px;">'+l+'</span><div style="flex:1;background:var(--fill);border-radius:5px;height:9px;overflow:hidden;"><div style="width:'+p+'%;height:100%;background:var(--accent);"></div></div><span class="mono muted footnote" style="width:44px;text-align:right;">'+fmt(avg[i],0)+'</span></div>';});return s+'</div>';};
+  sectionHtml.topTransactions=function(){var all=[];cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(keepItem(it))all.push({date:r.date,it:it,amount:personScopedAmount(it,personFilter)});});});all.sort(function(a,b){return b.amount-a.amount;});var top=all.slice(0,5),s='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow" style="margin-bottom:10px;">Biggest transactions</div>';if(!top.length)s+='<div class="muted subhead">Nothing logged in this period.</div>';else top.forEach(function(x,i){s+='<div class="row" style="gap:10px;align-items:center;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'">'+catIconCircle(x.it.category)+'<div style="flex:1;min-width:0;"><div class="subhead">'+esc(x.it.note||x.it.category||'Spent')+'</div><div class="muted caption">'+esc(dayLabel(x.date)+(x.it.category?' · '+x.it.category:''))+'</div></div><div class="mono subhead">'+fmt(x.amount,2)+' AED</div></div>';});return s+'</div>';};
+  var order=normalizeAnalysisOrder(state.settings.analysisSectionOrder),hidden=normalizeHiddenSections(state.settings.analysisHiddenSections);order.forEach(function(id,idx){var isHidden=hidden.indexOf(id)!==-1;if(!state.analysisReorderMode){if(isHidden)return;var c=sectionHtml[id]?sectionHtml[id]():'';if(c)h+=c;return;}h+='<div class="row between" style="padding:0 2px 6px;'+(isHidden?'opacity:.55;':'')+'"><span class="muted caption">'+esc(ANALYSIS_SECTION_LABELS[id]||id)+(isHidden?' · hidden':'')+'</span><div class="row gap2"><button data-action="toggle-analysis-hidden" data-section="'+id+'" style="background:none;border:none;color:var(--text-muted);">'+(isHidden?ICONS.eyeOff:ICONS.eye)+'</button><button data-action="move-analysis-section" data-section="'+id+'" data-dir="-1" style="background:none;border:none;color:var(--text-muted);" '+(idx===0?'disabled':'')+'>'+ICONS.chevronUp+'</button><button data-action="move-analysis-section" data-section="'+id+'" data-dir="1" style="background:none;border:none;color:var(--text-muted);" '+(idx===order.length-1?'disabled':'')+'>'+ICONS.chevronDown+'</button></div></div>';if(!isHidden&&sectionHtml[id])h+=sectionHtml[id]();});
   return h;
 }
 
@@ -3712,17 +2924,13 @@ function renderBottomNav() {
   var tabs = [
     {id:"home", label:"Home", icon:ICONS.home},
     {id:"transactions", label:"Txns", icon:ICONS.list},
-    {id:"calendar", label:"Calendar", icon:ICONS.calendar},
+    {id:"budget", label:"Budget", icon:ICONS.chart},
     {id:"plans", label:"Plans", icon:ICONS.repeatNav},
-    {id:"analysis", label:"Analysis", icon:ICONS.chart},
+    {id:"analysis", label:"Analysis", icon:ICONS.chart}
   ];
-  var h = '<div class="tabbar">';
-  tabs.forEach(function(t){
-    var active = state.page===t.id;
-    h += '<button data-action="go-page" data-page="'+t.id+'" aria-current="'+(active?"page":"false")+'" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:none; padding:2px 0; color:'+(active?"var(--accent)":"var(--text-muted)")+';">'+t.icon+'<span style="font-size:10px; font-weight:'+(active?600:500)+'; letter-spacing:-0.01em;">'+t.label+'</span></button>';
-  });
-  h += '</div>';
-  return h;
+  var h='<div class="tabbar">';
+  tabs.forEach(function(t){var active=state.page===t.id;h+='<button data-action="go-page" data-page="'+t.id+'" aria-current="'+(active?'page':'false')+'" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;padding:2px 0;color:'+(active?'var(--accent)':'var(--text-muted)')+';">'+t.icon+'<span style="font-size:10px;font-weight:'+(active?600:500)+';">'+t.label+'</span></button>';});
+  return h+'</div>';
 }
 
 function statBlock(label, value, color) {
@@ -3782,15 +2990,16 @@ function handleAddTransaction() {
   if (wasEditing) {
     var origDate = state.editingOriginalDate;
     var origDay = nextEntries[origDate];
-    var carriedAllowance = origDay ? origDay.allowance : dailyAllowance();
     if (origDay) {
       var remaining = origDay.items.filter(function(i){ return i.id !== state.editingItemId; });
       if (remaining.length === 0) delete nextEntries[origDate];
       else nextEntries[origDate] = Object.assign({}, origDay, { items: remaining });
     }
-    var updatedItem = { id: state.editingItemId, amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind };
+    /* Preserve recurringId/seq metadata when editing an occurrence so deleting
+       its plan later can still find and remove that occurrence. */
+    var updatedItem = Object.assign({}, origItemForKind || {}, { id: state.editingItemId, amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind });
     var destDay = nextEntries[date];
-    var nextDest = destDay ? Object.assign({}, destDay, { items: destDay.items.concat([updatedItem]) }) : { allowance: carriedAllowance, items: [updatedItem] };
+    var nextDest = destDay ? Object.assign({}, destDay, { items: destDay.items.concat([updatedItem]) }) : { allowance: allowanceForDate(date), items: [updatedItem] };
     nextEntries[date] = nextDest;
     state.editingItemId = null;
     state.editingOriginalDate = null;
@@ -3798,7 +3007,7 @@ function handleAddTransaction() {
   } else {
     var existing = nextEntries[date];
     var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind };
-    nextEntries[date] = existing ? Object.assign({}, existing, { items: existing.items.concat([newItem]) }) : { allowance: dailyAllowance(), items: [newItem] };
+    nextEntries[date] = existing ? Object.assign({}, existing, { items: existing.items.concat([newItem]) }) : { allowance: allowanceForDate(date), items: [newItem] };
     state.showAddTxn = false;
   }
 
@@ -3860,6 +3069,16 @@ function handleApplyIncome(scope) {
     hist = [{ from: "1900-01-01", mode: mode, amount: v }];
     label = "Income applied to all periods";
   } else {
+    /* On the first forward-only change, preserve whatever income was configured
+       before this month as a baseline. Without this, the new record becomes
+       hist[0] and can be mistaken for historical income by older app versions. */
+    if (!hist.length) {
+      hist.push({
+        from: "1900-01-01",
+        mode: state.settings.incomeMode || "monthly",
+        amount: Number(state.settings.incomeAmount) || 0
+      });
+    }
     hist.push({ from: monthStart, mode: mode, amount: v });
     label = "Income applied from this month onward";
   }
@@ -4062,12 +3281,44 @@ function handleCopyBackup() {
   }
 }
 
+function validateBackupEntries(entries) {
+  if (!entries || typeof entries !== "object" || Array.isArray(entries)) return false;
+  var dates = Object.keys(entries);
+  for (var d=0; d<dates.length; d++) {
+    var ds = dates[d];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ds)) return false;
+    var day = entries[ds];
+    if (!day || typeof day !== "object" || Array.isArray(day)) return false;
+    /* Legacy backups stored one numeric `spent` value instead of item rows. */
+    if (!Array.isArray(day.items)) {
+      if (typeof day.spent !== "number" || !isFinite(day.spent) || day.spent < 0) return false;
+      continue;
+    }
+    for (var i=0; i<day.items.length; i++) {
+      var it = day.items[i];
+      if (!it || typeof it !== "object" || Array.isArray(it)) return false;
+      if (typeof it.amount !== "number" || !isFinite(it.amount) || it.amount < 0) return false;
+      if (it.personSplit != null) {
+        if (!Array.isArray(it.personSplit)) return false;
+        var pctTotal = 0;
+        for (var j=0; j<it.personSplit.length; j++) {
+          var ps = it.personSplit[j];
+          if (!ps || typeof ps.person !== "string" || typeof ps.pct !== "number" || !isFinite(ps.pct) || ps.pct < 0 || ps.pct > 100) return false;
+          pctTotal += ps.pct;
+        }
+        if (it.personSplit.length && Math.abs(pctTotal - 100) > 0.001) return false;
+      }
+    }
+  }
+  return true;
+}
+
 function handleRestore() {
   var el = document.getElementById("restoreInput");
   var raw = el ? el.value : "";
   try {
     var parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || typeof parsed.entries !== "object") throw new Error("bad shape");
+    if (!parsed || typeof parsed !== "object" || !validateBackupEntries(parsed.entries)) throw new Error("bad shape");
     var nextSettings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings||{});
     nextSettings.analysisSectionOrder = normalizeAnalysisOrder(nextSettings.analysisSectionOrder);
     nextSettings.analysisHiddenSections = normalizeHiddenSections(nextSettings.analysisHiddenSections);
@@ -4102,6 +3353,7 @@ document.addEventListener("click", function(e) {
     case "open-backup": state.showBackup = true; render(); break;
     case "close-backup": state.showBackup = false; state.restoreError = null; render(); break;
     case "open-settings": state.showSettings = true; render(); break;
+    case "open-budget-settings": state.settingsTab = "budget"; state.showSettings = true; render(); break;
     case "close-settings": state.showSettings = false; render(); break;
     case "open-reset": state.showResetConfirm = true; render(); break;
     case "close-reset": state.showResetConfirm = false; render(); break;
@@ -4568,7 +3820,6 @@ document.addEventListener("click", function(e) {
       render();
       break;
     case "set-basis":
-      state.basis = el.dataset.basis;
       state.analysisSelectedBucket = null;
       render();
       break;
