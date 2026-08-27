@@ -1205,6 +1205,10 @@ var bodyScrollLocked = false;
 var lastChartData = null;
 /* Same idea as lastChartData, for the Analysis page's Forecast chart. */
 var lastForecastChartData = null;
+/* Interactive chart payloads used to wire hover/touch tooltips after render(). */
+var lastCashBalanceChartData = null;
+var lastBudgetTrendChartData = null;
+var lastOverallTrendChartData = null;
 var lockedScrollY = 0;
 function lockBodyScroll() {
   if (bodyScrollLocked) return;
@@ -1454,6 +1458,9 @@ function render() {
   }
   if ((state.page === "budget" || state.page === "analysis") && lastChartData) wireBalanceChart(lastChartData);
   if ((state.page === "analysis" || state.page === "budget") && lastForecastChartData) wireForecastChart(lastForecastChartData);
+  if (state.page === "analysis" && lastCashBalanceChartData) wireCashBalanceChart(lastCashBalanceChartData);
+  if (state.page === "budget" && lastBudgetTrendChartData) wirePeriodTrendChart("budget", lastBudgetTrendChartData);
+  if (state.page === "analysis" && lastOverallTrendChartData) wirePeriodTrendChart("overall", lastOverallTrendChartData);
 }
 
 
@@ -1582,6 +1589,7 @@ function renderHomeBody(T, da) {
 function renderBudgetBody(T) {
   lastForecastChartData = null;
   lastChartData = null;
+  lastBudgetTrendChartData = null;
   var da = dailyAllowance();
   var period = getPeriodBounds(state.view, state.offset, currentWeeklyTarget(), da);
   var stats = periodStatsBudget(period.startStr, period.endStr);
@@ -2781,7 +2789,11 @@ function renderBudgetTrendChart(items, T) {
   });
   var budgetLine='<polyline points="'+targetPts.join(' ')+'" fill="none" stroke="'+T.text+'" stroke-width="2" stroke-dasharray="4,3"/>';
   if(items.length){ var firstX=padL+slot/2, firstY=y(items[0].target||0); budgetLine+='<text x="'+Math.max(padL,firstX-barW/2)+'" y="'+Math.max(10,firstY-5)+'" font-size="8" font-weight="600" fill="'+T.text+'">Budget</text>'; }
-  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'">'+grid+budgetLine+bars+'</svg>';
+  lastBudgetTrendChartData={items:items,w:w,h:h,padL:padL,padR:padR,padT:padT,padB:padB,slot:slot};
+  return '<svg id="budgetTrendChartSvg" viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="none">'+grid+budgetLine+bars
+    +'<line id="budgetTrendCrosshair" x1="0" x2="0" y1="'+padT+'" y2="'+(h-padB)+'" stroke="'+T.text+'" stroke-width="1" stroke-dasharray="2,2" opacity="0"/>'
+    +'<rect id="budgetTrendChartHit" x="0" y="0" width="'+w+'" height="'+h+'" fill="transparent" style="touch-action:none;"/>'
+    +'</svg>';
 }
 
 function renderOverallTrendChart(items, T) {
@@ -2793,7 +2805,11 @@ function renderOverallTrendChart(items, T) {
   var grid='';[0,.5,1].forEach(function(fr){var v=maxVal*fr,yy=y(v);grid+='<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+yy+'" y2="'+yy+'" stroke="'+T.hairline+'" stroke-width="1" stroke-dasharray="3,3"/><text x="'+(padL-5)+'" y="'+(yy+3)+'" font-size="8" fill="'+T.textMuted+'" text-anchor="end">'+tick(v)+'</text>';});
   var n=items.length,slot=plotW/n,barW=Math.min(38,slot*.62),bars='';
   items.forEach(function(it,i){var cx=padL+slot*i+slot/2,baseY=padT+plotH,total=Math.max(it.actual||0,it.displayTotal||0),totalY=y(total),actualY=y(it.actual||0);if(it.current&&total>(it.actual||0)){bars+='<rect x="'+(cx-barW/2)+'" y="'+totalY+'" width="'+barW+'" height="'+Math.max(0,baseY-totalY)+'" fill="'+T.accent+'" opacity="0.28" rx="5"/><rect x="'+(cx-barW/2)+'" y="'+actualY+'" width="'+barW+'" height="'+Math.max(0,baseY-actualY)+'" fill="'+T.accent+'" rx="5"/>';}else{bars+='<rect x="'+(cx-barW/2)+'" y="'+totalY+'" width="'+barW+'" height="'+Math.max(0,baseY-totalY)+'" fill="'+T.accent+'" opacity="'+(it.current?'1':'0.68')+'" rx="5"/>';}bars+='<text x="'+cx+'" y="'+(h-11)+'" font-size="8" fill="'+T.textMuted+'" text-anchor="middle">'+esc(it.label)+'</text>';});
-  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'">'+grid+bars+'</svg>';
+  lastOverallTrendChartData={items:items,w:w,h:h,padL:padL,padR:padR,padT:padT,padB:padB,slot:slot};
+  return '<svg id="overallTrendChartSvg" viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="none">'+grid+bars
+    +'<line id="overallTrendCrosshair" x1="0" x2="0" y1="'+padT+'" y2="'+(h-padB)+'" stroke="'+T.text+'" stroke-width="1" stroke-dasharray="2,2" opacity="0"/>'
+    +'<rect id="overallTrendChartHit" x="0" y="0" width="'+w+'" height="'+h+'" fill="transparent" style="touch-action:none;"/>'
+    +'</svg>';
 }
 
 function trendPeriodLabel(per, mode) {
@@ -2822,7 +2838,7 @@ function buildBudgetTrendCard(view, baseOffset, T) {
   s+='<div class="row between" style="margin-top:10px;"><span class="muted subhead">'+(cur.current?'Projected close':'Closed at')+'</span><span class="mono subhead" style="font-weight:600;">'+fmt(cur.displayTotal,0)+' AED</span></div>';
   s+='<div class="row between" style="margin-top:6px;"><span class="muted subhead">Budget</span><span class="mono subhead">'+fmt(cur.target,0)+' AED</span></div>';
   s+='<div class="row between" style="margin-top:6px;"><span class="muted subhead">'+(diff>=0?'Projected saving':'Projected over')+'</span><span class="mono subhead" style="font-weight:600;color:'+(diff>=0?'var(--positive)':'var(--rust)')+';">'+fmt(Math.abs(diff),0)+' AED</span></div>';
-  s+='<div style="margin-top:10px;">'+renderBudgetTrendChart(items,T)+'</div>';
+  s+='<div id="budgetTrendChartWrap" style="position:relative;margin-top:10px;"><div id="budgetTrendChartTip" class="footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:9px;padding:6px 9px;max-width:260px;opacity:0;pointer-events:none;z-index:3;box-shadow:0 3px 10px rgba(0,0,0,.2);"></div>'+renderBudgetTrendChart(items,T)+'</div>';
   s+='<div class="row" style="gap:12px;justify-content:center;flex-wrap:wrap;margin-top:4px;"><span class="caption" style="color:var(--positive);">● On track</span><span class="caption" style="color:var(--amber);">● Trending over</span><span class="caption" style="color:var(--rust);">● Over budget</span></div></div>';
   return s;
 }
@@ -2840,9 +2856,10 @@ function renderCashBalanceLineChart(rows, info, T) {
   var totalDays=Math.max(1, daysBetween(info.start, info.end)+1);
   var acc=0, pts=[];
   rows.forEach(function(r){
-    acc=round2(acc + (Number(r.income)||0) - (Number(r.spent)||0));
+    var dayNet=round2((Number(r.income)||0)-(Number(r.spent)||0));
+    acc=round2(acc + dayNet);
     var dayIndex=Math.max(0, daysBetween(info.start, r.date));
-    pts.push({date:r.date,label:shortLabel(r.date),balance:acc,idx:dayIndex});
+    pts.push({date:r.date,label:shortLabel(r.date),balance:acc,dayNet:dayNet,idx:dayIndex});
   });
   if (!pts.length) return "";
   var vals=pts.map(function(p){return p.balance;}).concat([0]);
@@ -2879,7 +2896,12 @@ function renderCashBalanceLineChart(rows, info, T) {
     var ti=daysBetween(info.start,todayStr()),tx=xIdx(ti);
     todayMark='<line x1="'+tx+'" x2="'+tx+'" y1="'+padT+'" y2="'+(h-padB)+'" stroke="'+T.hairline+'" stroke-dasharray="2,3"/><text x="'+tx+'" y="'+(padT+9)+'" font-size="8" fill="'+T.textMuted+'" text-anchor="middle">Today</text>';
   }
-  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="none">'+grid+todayMark+line+axis+'</svg>';
+  lastCashBalanceChartData={points:pts,w:w,h:h,padL:padL,padR:padR,padT:padT,padB:padB,plotW:plotW,plotH:plotH,totalDays:totalDays,min:min,max:max,lineColor:lineColor};
+  return '<svg id="cashBalanceChartSvg" viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="none">'+grid+todayMark+line+axis
+    +'<line id="cashBalanceCrosshair" x1="0" x2="0" y1="'+padT+'" y2="'+(h-padB)+'" stroke="'+T.text+'" stroke-width="1" stroke-dasharray="2,2" opacity="0"/>'
+    +'<circle id="cashBalanceDot" r="4.5" fill="'+lineColor+'" stroke="'+T.bg+'" stroke-width="2" opacity="0"/>'
+    +'<rect id="cashBalanceChartHit" x="0" y="0" width="'+w+'" height="'+h+'" fill="transparent" style="touch-action:none;"/>'
+    +'</svg>';
 }
 
 function buildCashBalanceCard(info, cs, T) {
@@ -2887,7 +2909,7 @@ function buildCashBalanceCard(info, cs, T) {
   var balance=round2(cs.income-cs.spent);
   var s='<div class="card card-pad" style="margin-bottom:16px;">';
   s+='<div class="row between" style="align-items:flex-end;"><div><div class="eyebrow">Cash balance</div><div class="mono" style="font-size:28px;font-weight:700;margin-top:4px;color:'+(balance>=0?'var(--positive)':'var(--rust)')+';">'+(balance<0?'−':'')+fmt(Math.abs(balance),0)+' AED</div></div><div style="text-align:right;"><div class="muted caption">INCOME − EXPENSES</div><div class="mono subhead">'+fmt(cs.income,0)+' − '+fmt(cs.spent,0)+'</div></div></div>';
-  s+='<div style="margin-top:10px;">'+renderCashBalanceLineChart(cs.rows,info,T)+'</div>';
+  s+='<div id="cashBalanceChartWrap" style="position:relative;margin-top:10px;"><div id="cashBalanceChartTip" class="footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:9px;padding:6px 9px;white-space:nowrap;opacity:0;pointer-events:none;z-index:3;box-shadow:0 3px 10px rgba(0,0,0,.2);"></div>'+renderCashBalanceLineChart(cs.rows,info,T)+'</div>';
   s+='<div class="muted caption" style="margin-top:4px;">Running net cash flow from the start of this period.</div></div>';
   return s;
 }
@@ -2903,8 +2925,67 @@ function buildOverallTrendCard(info, cs, T) {
   var cur=items[items.length-1],prevRows=previousPeriodRows(info.mode,state.analysisOffset,info.start,info.end,'overall'),sameDays=Math.min(cs.elapsedDays,prevRows.length),prevSame=prevRows.slice(0,sameDays).reduce(function(t,r){return t+r.spent;},0),pct=prevSame>0?Math.round((cs.spent-prevSame)/prevSame*100):null;
   var s='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow">Spend trend</div><div class="row between" style="align-items:flex-end;margin-top:6px;"><div><div class="muted caption">SPENT</div><div class="mono" style="font-size:28px;font-weight:700;">'+fmt(cur.actual,0)+' AED</div></div><div style="text-align:right;"><div class="muted caption">VS PREVIOUS</div><div class="mono subhead" style="font-weight:600;">'+(pct==null?'—':((pct>0?'+':'')+pct+'%'))+'</div></div></div>';
   if(cur.current&&cur.displayTotal!==cur.actual)s+='<div class="row between hairline-top" style="margin-top:12px;padding-top:10px;"><span class="muted subhead">Projected close</span><span class="mono subhead" style="font-weight:600;">'+fmt(cur.displayTotal,0)+' AED</span></div>';
-  s+='<div style="margin-top:8px;">'+renderOverallTrendChart(items,T)+'</div><div class="muted caption" style="text-align:center;margin-top:2px;">Lighter part of the current bar is forecast.</div></div>';
+  s+='<div id="overallTrendChartWrap" style="position:relative;margin-top:8px;"><div id="overallTrendChartTip" class="footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:9px;padding:6px 9px;max-width:240px;opacity:0;pointer-events:none;z-index:3;box-shadow:0 3px 10px rgba(0,0,0,.2);"></div>'+renderOverallTrendChart(items,T)+'</div><div class="muted caption" style="text-align:center;margin-top:2px;">Lighter part of the current bar is forecast.</div></div>';
   return s;
+}
+
+
+/* Hover/touch scrub for the Analysis cash-balance line. Desktop users can
+   simply hover; on touch screens a tap or drag selects the nearest day. */
+function wireCashBalanceChart(data) {
+  var svg=document.getElementById('cashBalanceChartSvg'),hit=document.getElementById('cashBalanceChartHit'),cross=document.getElementById('cashBalanceCrosshair'),dot=document.getElementById('cashBalanceDot'),tip=document.getElementById('cashBalanceChartTip');
+  if(!svg||!hit||!cross||!dot||!tip||!data||!data.points||!data.points.length)return;
+  function xFor(p){return data.padL+(data.totalDays<=1?data.plotW/2:(p.idx/(data.totalDays-1))*data.plotW);}
+  function yFor(v){return data.padT+data.plotH-((v-data.min)/(data.max-data.min))*data.plotH;}
+  function nearest(clientX){
+    var r=svg.getBoundingClientRect(); if(!r.width)return 0;
+    var frac=Math.max(0,Math.min(1,(clientX-r.left)/r.width)),vbX=frac*data.w,best=0,bestD=Infinity;
+    data.points.forEach(function(p,i){var d=Math.abs(xFor(p)-vbX);if(d<bestD){bestD=d;best=i;}}); return best;
+  }
+  function show(i){
+    var p=data.points[i],x=xFor(p),y=yFor(p.balance),date=parseD(p.date).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'});
+    cross.setAttribute('x1',x);cross.setAttribute('x2',x);cross.setAttribute('opacity','1');
+    dot.setAttribute('cx',x);dot.setAttribute('cy',y);dot.setAttribute('opacity','1');
+    tip.innerHTML='<span class="mono" style="font-weight:700;">'+(p.balance<0?'−':'')+fmt(Math.abs(p.balance),2)+' AED</span><span class="muted"> · '+esc(date)+'</span>';
+    positionChartTooltip(tip,svg,x,data.w);tip.style.opacity='1';
+  }
+  function hide(){cross.setAttribute('opacity','0');dot.setAttribute('opacity','0');tip.style.opacity='0';}
+  function move(x){show(nearest(x));}
+  hit.addEventListener('mousemove',function(e){move(e.clientX);});
+  hit.addEventListener('mouseenter',function(e){move(e.clientX);});
+  hit.addEventListener('mouseleave',hide);
+  hit.addEventListener('touchstart',function(e){move(e.touches[0].clientX);},{passive:true});
+  hit.addEventListener('touchmove',function(e){move(e.touches[0].clientX);e.preventDefault();},{passive:false});
+  hit.addEventListener('touchcancel',hide);
+}
+
+/* Shared hover/touch interaction for the Budget and Overall spend-trend bars.
+   A vertical guide selects the nearest period and the tooltip reports the
+   values that matter for that chart. */
+function wirePeriodTrendChart(kind,data){
+  var prefix=kind==='budget'?'budgetTrend':'overallTrend';
+  var svg=document.getElementById(prefix+'ChartSvg'),hit=document.getElementById(prefix+'ChartHit'),cross=document.getElementById(prefix+'Crosshair'),tip=document.getElementById(prefix+'ChartTip');
+  if(!svg||!hit||!cross||!tip||!data||!data.items||!data.items.length)return;
+  function cx(i){return data.padL+data.slot*i+data.slot/2;}
+  function indexAt(clientX){var r=svg.getBoundingClientRect();if(!r.width)return 0;var frac=Math.max(0,Math.min(1,(clientX-r.left)/r.width)),vbX=frac*data.w,idx=Math.floor((vbX-data.padL)/data.slot);return Math.max(0,Math.min(data.items.length-1,idx));}
+  function show(i){
+    var it=data.items[i],x=cx(i);cross.setAttribute('x1',x);cross.setAttribute('x2',x);cross.setAttribute('opacity','1');
+    var html='<div style="font-weight:700;margin-bottom:2px;">'+esc(it.label)+'</div><div><span class="muted">Spent </span><span class="mono">'+fmt(it.actual||0,0)+' AED</span></div>';
+    if(it.current && Math.abs((it.displayTotal||0)-(it.actual||0))>.01) html+='<div><span class="muted">Projected </span><span class="mono">'+fmt(it.displayTotal||0,0)+' AED</span></div>';
+    if(kind==='budget'){
+      var st=it.status==='rust'?'Over budget':it.status==='amber'?'Trending over':'On track';
+      html+='<div><span class="muted">Budget </span><span class="mono">'+fmt(it.target||0,0)+' AED</span></div><div style="font-weight:600;">'+st+'</div>';
+    }
+    tip.innerHTML=html;positionChartTooltip(tip,svg,x,data.w);tip.style.opacity='1';
+  }
+  function hide(){cross.setAttribute('opacity','0');tip.style.opacity='0';}
+  function move(x){show(indexAt(x));}
+  hit.addEventListener('mousemove',function(e){move(e.clientX);});
+  hit.addEventListener('mouseenter',function(e){move(e.clientX);});
+  hit.addEventListener('mouseleave',hide);
+  hit.addEventListener('touchstart',function(e){move(e.touches[0].clientX);},{passive:true});
+  hit.addEventListener('touchmove',function(e){move(e.touches[0].clientX);e.preventDefault();},{passive:false});
+  hit.addEventListener('touchcancel',hide);
 }
 
 /* Resolves the Analysis page's selected period. week/month/year are navigable
@@ -3056,7 +3137,7 @@ function buildAnalysisBuckets(rows, granularity, catFilter, personFilter, groupF
 
 
 function renderAnalysisBody(T) {
-  lastForecastChartData=null;lastChartData=null;
+  lastForecastChartData=null;lastChartData=null;lastCashBalanceChartData=null;lastOverallTrendChartData=null;
   var today=todayStr(),periodMode=state.analysisPeriodMode||"month",periodFrom=state.analysisPeriodFrom||"",periodTo=state.analysisPeriodTo||"";
   var info=getAnalysisPeriodInfo(),cs=periodStatsOverall(info.start,info.end),granularity=analysisGranularity(info),perLabel=granularity==="month"?"month":"day";
   var h='<div class="eyebrow" style="margin-bottom:10px;">Analysis</div>';
