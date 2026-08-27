@@ -490,7 +490,8 @@ function runRecurringCatchUp() {
         id: Date.now()+"-"+Math.random().toString(36).slice(2,7)+"-"+guard,
         amount: ruleOccurrenceAmount(rule, seq),
         note: rule.note||"", category: rule.category||"", person: rule.person||"", personSplit: rule.personSplit||null,
-        recurringId: rule.id, seq: seq+1, seqTotal: rule.occurrencesTotal
+        recurringId: rule.id, seq: seq+1, seqTotal: rule.occurrencesTotal,
+        kind: rule.entryKind === "income" ? "income" : undefined
       };
       var existingDay = state.entries[due];
       if (existingDay) state.entries[due] = Object.assign({}, existingDay, { items: existingDay.items.concat([newItem]) });
@@ -506,7 +507,14 @@ function fmt(n, dp){ dp = dp || 0; return (Number(n)||0).toLocaleString("en-US",
 function dayLabel(s){ return parseD(s).toLocaleDateString("en-GB",{weekday:"short", day:"numeric", month:"short"}); }
 function shortLabel(s){ return parseD(s).toLocaleDateString("en-GB",{day:"numeric", month:"short"}); }
 function weekdayLong(s){ return parseD(s).toLocaleDateString("en-GB",{weekday:"long"}); }
-function sumSpent(e){ return (e && Array.isArray(e.items)) ? e.items.reduce(function(s,i){ return s+i.amount; },0) : 0; }
+/* A transaction is an expense unless explicitly tagged otherwise. Income
+   transactions live in the same entries[date].items array as expenses (so
+   they show up in Transactions/Calendar like any other logged entry) but
+   must never be counted as spending anywhere. */
+function isExpenseItem(it){ return !it || it.kind !== "income"; }
+function isIncomeItem(it){ return !!it && it.kind === "income"; }
+function sumSpent(e){ return (e && Array.isArray(e.items)) ? e.items.reduce(function(s,i){ return isExpenseItem(i) ? s+i.amount : s; },0) : 0; }
+function sumIncome(e){ return (e && Array.isArray(e.items)) ? e.items.reduce(function(s,i){ return isIncomeItem(i) ? s+i.amount : s; },0) : 0; }
 /* A category can be marked as sitting outside the daily budget — rent, a
    mortgage, anything that's a real expense but isn't discretionary
    day-to-day spending you're pacing against an allowance. Default is
@@ -535,7 +543,7 @@ function normalizeCategoryExcludeFromBudget(map, categories) {
 function sumSpentForBasis(e) {
   if (!e || !Array.isArray(e.items)) return 0;
   if (state.basis === "income") return sumSpent(e);
-  return e.items.reduce(function(s,i){ return itemCountsTowardBudget(i) ? s+i.amount : s; }, 0);
+  return e.items.reduce(function(s,i){ return (isExpenseItem(i) && itemCountsTowardBudget(i)) ? s+i.amount : s; }, 0);
 }
 /* Total outgoings regardless of basis — used by the cash-flow view, which
    always wants the true full picture even while the budget basis is active. */
@@ -641,6 +649,7 @@ var state = {
   categoryRenameEditing: null,
   personRenameEditing: null,
   recurringLimitMode: "ongoing",
+  recurringKindDraft: "expense",
   recurringAmountDraft: null,
   recurringCategoryDraft: null,
   recurringPersonDraft: null,
@@ -650,6 +659,7 @@ var state = {
   recurringCountDraft: null,
   recurringEndDateDraft: null,
   txnSplitMode: "single",
+  txnKind: null,
   txnPersonSplitMode: "single",
   txnCategoryGroup: null,
   entrySplitDaysDraft: null,
@@ -721,7 +731,10 @@ function monthlyIncomeForDate(ds) {
   return amt;
 }
 function incomeIsSet() {
-  return dailyIncomeForDate(todayStr()) > 0;
+  if (dailyIncomeForDate(todayStr()) > 0) return true;
+  return Object.keys(state.entries).some(function(d){
+    return (state.entries[d].items||[]).some(function(it){ return isIncomeItem(it); });
+  });
 }
 /* Plain-language breakdown of what a monthly income figure works out to per
    day and per week, using the current month's real length. Shown live in
@@ -841,7 +854,7 @@ function discretionarySpentInRows(rows) {
   var sum = 0;
   (rows||[]).forEach(function(r){
     (r.items||[]).forEach(function(it){
-      if (!it.recurringId && (state.basis === "income" || itemCountsTowardBudget(it))) sum += it.amount;
+      if (isExpenseItem(it) && !it.recurringId && (state.basis === "income" || itemCountsTowardBudget(it))) sum += it.amount;
     });
   });
   return sum;
@@ -1839,16 +1852,21 @@ function renderAddTxnModal() {
   h += '<div class="modal-card" data-action="noop">';
   h += '<div class="modal-sticky-header"><div class="grabber"></div>';
   h += '<div class="row between">'+'<div class="display" style="font-size:18px;">'+(editingItem?"Edit transaction":"Add transaction")+'</div><button data-action="close-add-txn" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
+  var txnKind = state.txnKind != null ? state.txnKind : (editingItem && editingItem.kind==="income" ? "income" : "expense");
+  h += '<div class="seg" style="margin-bottom:10px; margin-top:14px;">';
+  h += '<button class="seg-btn" role="tab" aria-selected="'+(txnKind==="expense")+'" data-action="set-txn-kind" data-kind="expense">Expense</button>';
+  h += '<button class="seg-btn" role="tab" aria-selected="'+(txnKind==="income")+'" data-action="set-txn-kind" data-kind="income">Income</button>';
+  h += '</div>';
   var splitMode = state.txnSplitMode || "single";
-  if (!editingItem) {
-    h += '<div class="seg" style="margin-bottom:10px; margin-top:14px;">';
+  if (!editingItem && txnKind === "expense") {
+    h += '<div class="seg" style="margin-bottom:10px;">';
     h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==="single")+'" data-action="set-txn-split-mode" data-mode="single">Single day</button>';
     h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==="split")+'" data-action="set-txn-split-mode" data-mode="split">Split across days</button>';
     h += '</div>';
   }
-  h += '<input id="entryDateInput" type="date" class="field mono" style="margin-bottom:8px;'+(editingItem?" margin-top:14px;":"")+'" value="'+formDate+'" max="'+todayStr()+'" />';
+  h += '<input id="entryDateInput" type="date" class="field mono" style="margin-bottom:8px;" value="'+formDate+'" max="'+todayStr()+'" />';
   h += '<div style="position:relative; margin-bottom:8px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none;">AED</span>';
-  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="'+(splitMode==="split"&&!editingItem?"Total amount":"Amount")+'" value="'+(state.entryAmountDraft != null ? esc(state.entryAmountDraft) : (editingItem?editingItem.amount:""))+'" /></div>';
+  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="'+(splitMode==="split"&&!editingItem&&txnKind==="expense"?"Total amount":"Amount")+'" value="'+(state.entryAmountDraft != null ? esc(state.entryAmountDraft) : (editingItem?editingItem.amount:""))+'" /></div>';
   var groupsForTxn = state.settings.categoryGroups||[];
   var selectedCatForTxn = state.entryCategoryDraft != null ? state.entryCategoryDraft : (editingItem ? (editingItem.category||"") : "");
   /* How many times each category has actually been logged, all-time — used
@@ -1867,6 +1885,7 @@ function renderAddTxnModal() {
       return list.indexOf(a) - list.indexOf(b); // stable tiebreak: original relative order
     });
   }
+  if (txnKind === "expense") {
   if (groupsForTxn.length) {
     /* Cascading picker: choosing a group narrows the category list to just
        that group's members, so a long flat list never has to be scrolled.
@@ -1924,6 +1943,7 @@ function renderAddTxnModal() {
     });
     h += '</select>';
   }
+  }
   var peopleForTxn = state.settings.people||[];
   if (peopleForTxn.length) {
     var personSplitMode = peopleForTxn.length >= 2 ? (state.txnPersonSplitMode||"single") : "single";
@@ -1978,12 +1998,12 @@ function renderAddTxnModal() {
     }
   }
   h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:12px;" placeholder="What was it for? (optional)" value="'+(state.entryNoteDraft != null ? esc(state.entryNoteDraft) : (editingItem?esc(editingItem.note||""):""))+'" />';
-  if (!editingItem && splitMode === "split") {
+  if (!editingItem && splitMode === "split" && txnKind === "expense") {
     h += '<input id="splitDaysInput" type="number" inputmode="numeric" min="2" step="1" class="field" style="margin-bottom:8px;" placeholder="Number of days" value="'+(state.entrySplitDaysDraft != null ? esc(state.entrySplitDaysDraft) : "")+'" />';
     h += '<div class="muted caption" style="margin-bottom:12px;">Spreads the total evenly starting from the date above, one share per day. Days still to come are logged as they arrive \u2014 track progress under Plans.</div>';
   }
-  h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent row gap2" style="width:100%; justify-content:center; align-items:center;">'+(editingItem?ICONS.check+" Save":ICONS.plus+" Add")+'</button>';
-  h += '<div id="entryHint" class="muted" style="font-size:11px; margin-top:8px;">'+(todayEntry && !editingItem ? (esc(dayLabel(formDate))+" so far: "+todayEntry.items.length+" transaction"+(todayEntry.items.length===1?"":"s")+", "+fmt(sumSpent(todayEntry),2)+" AED total.") : "")+'</div>';
+  h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent row gap2" style="width:100%; justify-content:center; align-items:center;">'+(editingItem?(ICONS.check+" Save"):(ICONS.plus+" Add "+(txnKind==="income"?"income":"expense")))+'</button>';
+  h += '<div id="entryHint" class="muted" style="font-size:11px; margin-top:8px;">'+(todayEntry && !editingItem ? (esc(dayLabel(formDate))+" so far: "+todayEntry.items.length+" transaction"+(todayEntry.items.length===1?"":"s")+", "+fmt(sumSpent(todayEntry),2)+" AED spent.") : "")+'</div>';
   h += '</div></div>';
   return h;
 }
@@ -2041,7 +2061,10 @@ function renderTransactionsBody() {
   entryDates.forEach(function(d){
     if (!inPeriod(d)) return;
     state.entries[d].items.forEach(function(it){
-      if (itemMatchesFilters(it)) { filterCount++; filterSum += personScopedAmount(it, personFilter); }
+      if (itemMatchesFilters(it)) {
+        filterCount++;
+        if (isExpenseItem(it)) filterSum += personScopedAmount(it, personFilter);
+      }
     });
   });
 
@@ -2127,7 +2150,7 @@ function renderTransactionsBody() {
       var delta = dayRef - spent;
       var bal = balanceMap[date];
       var displayItems = anyItemFilterActive ? day.items.filter(itemMatchesFilters) : day.items;
-      var dayFilteredSpent = displayItems.reduce(function(s,it){ return s+personScopedAmount(it, personFilter); }, 0);
+      var dayFilteredSpent = displayItems.reduce(function(s,it){ return isExpenseItem(it) ? s+personScopedAmount(it, personFilter) : s; }, 0);
       h += '<div style="padding:12px 16px;'+(i===0?"":"border-top:1px solid var(--hairline);")+'">';
       h += '<div class="row between">';
       h += '<div><div style="font-size:14px;">'+esc(dayLabel(date))+'</div>';
@@ -2173,9 +2196,12 @@ function renderTxnRow(date, it) {
       + '<div class="row gap2"><button data-action="delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:var(--rust);border:none;border-radius:5px;padding:4px;color:#fff;" aria-label="Confirm delete">'+ICONS.check+'</button>'
       + '<button data-action="cancel-delete-txn" style="background:none;border:1px solid var(--hairline);border-radius:5px;padding:4px;color:var(--text-muted);" aria-label="Cancel">'+ICONS.x+'</button></div></div>';
   }
+  var isIncome = it.kind === "income";
   var h = '<div class="row" style="align-items:center; gap:10px; padding:6px 0; margin-bottom:2px;">';
   h += '<button data-action="edit-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;flex:1;min-width:0;display:flex;align-items:center;gap:10px;text-align:left;">';
-  h += catIconCircle(it.category);
+  h += isIncome
+    ? '<span style="width:32px; height:32px; border-radius:50%; background:var(--positive); color:white; display:flex; align-items:center; justify-content:center; flex-shrink:0;">'+ICONS.plus+'</span>'
+    : catIconCircle(it.category);
   h += '<span style="min-width:0; flex:1;">';
   var seqBadge = "";
   if (it.recurringId) {
@@ -2183,7 +2209,7 @@ function renderTxnRow(date, it) {
       ? '<span class="mono" style="color:var(--text-muted); flex-shrink:0; font-size:10px;">'+it.seq+'/'+it.seqTotal+'</span>'
       : '<span style="color:var(--text-muted); flex-shrink:0;" title="Recurring payment">'+ICONS.repeat+'</span>';
   }
-  h += '<div style="font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:5px;">'+(it.category?esc(it.category):"Spent")+seqBadge+'</div>';
+  h += '<div style="font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:5px;">'+(isIncome?"Income":(it.category?esc(it.category):"Spent"))+seqBadge+'</div>';
   if (it.note) h += '<div class="muted" style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(it.note)+'</div>';
   var chipHtml = "";
   if (it.personSplit && it.personSplit.length) {
@@ -2195,7 +2221,7 @@ function renderTxnRow(date, it) {
   }
   if (chipHtml) h += '<div style="margin-top:3px; display:flex; align-items:center; flex-wrap:wrap; gap:2px;">'+chipHtml+'</div>';
   h += '</span></button>';
-  h += '<div class="mono" style="font-size:13px; font-weight:600; color:var(--rust); flex-shrink:0;">−'+fmt(it.amount,2)+' AED</div>';
+  h += '<div class="mono" style="font-size:13px; font-weight:600; color:'+(isIncome?"var(--positive)":"var(--rust)")+'; flex-shrink:0;">'+(isIncome?"+":"\u2212")+fmt(it.amount,2)+' AED</div>';
   h += '<button data-action="ask-delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);flex-shrink:0;" aria-label="Delete">'+ICONS.trash+'</button>';
   h += '</div>';
   return h;
@@ -2697,7 +2723,7 @@ function computeForecastNumbers(rows, totalDays, periodStart) {
   var pastDays = pastRows.length;
   var pastSpent = pastRows.reduce(function(s,r){ return s+r.spent; }, 0);
   var pastDiscretionary = discretionarySpentInRows(pastRows);
-  var todayScheduledSpent = todayRow ? (todayRow.items||[]).reduce(function(s,it){ return (it.recurringId && (state.basis === "income" || itemCountsTowardBudget(it))) ? s+it.amount : s; }, 0) : 0;
+  var todayScheduledSpent = todayRow ? (todayRow.items||[]).reduce(function(s,it){ return (isExpenseItem(it) && it.recurringId && (state.basis === "income" || itemCountsTowardBudget(it))) ? s+it.amount : s; }, 0) : 0;
   var actualSpentSoFar = pastSpent + (todayRow ? todayRow.spent : 0);
   var knownSpent = pastSpent + todayScheduledSpent;
   var historicalAvg = overallAvgDailySpend();
@@ -2948,7 +2974,7 @@ function personScopedAmount(it, personFilter) {
 
 function buildAnalysisBuckets(rows, granularity, catFilter, personFilter, groupFilter) {
   function keep(it){
-    return itemMatchesCategoryScope(it, catFilter, groupFilter) && itemMatchesPersonFilter(it, personFilter);
+    return isExpenseItem(it) && itemMatchesCategoryScope(it, catFilter, groupFilter) && itemMatchesPersonFilter(it, personFilter);
   }
   function spentOf(r){
     if (!catFilter && !personFilter && !groupFilter) return r.spent;
@@ -3048,8 +3074,8 @@ function renderAnalysisBody(T) {
      includes a drilled-into group, not just a specific leaf category, so
      browsing "Food & Drinks" filters the rest of the page exactly like
      picking "Restaurants" would, not just the category pie's own display. */
-  function keepItemPerson(it){ return itemMatchesPersonFilter(it, personFilter); }
-  function keepItemCategoryOnly(it){ return itemMatchesCategoryScope(it, catFilter, groupFilter); }
+  function keepItemPerson(it){ return isExpenseItem(it) && itemMatchesPersonFilter(it, personFilter); }
+  function keepItemCategoryOnly(it){ return isExpenseItem(it) && itemMatchesCategoryScope(it, catFilter, groupFilter); }
   function keepItem(it){ return keepItemCategoryOnly(it) && keepItemPerson(it); }
   /* Spend restricted to the active filters — the whole page reads from this
      so tapping a pie slice (category or person) re-scopes every section at
@@ -3213,11 +3239,16 @@ function renderAnalysisBody(T) {
      mortgage) that matter most to this question. Income-basis only, since
      without an income figure there's nothing to compare against. */
   sectionHtml.cashFlow = function(){
-    if (state.basis !== "income" || !incomeIsSet()) return "";
-    /* Income accrued over this period, clipped at the tracking start date —
-       so a Year view shows income since you actually started tracking, not
-       a full calendar year you weren't using the app for. */
-    var incomeTotal = fullPeriodTarget(info.start, info.end);
+    if (state.basis !== "income") return "";
+    /* Income is whatever you've actually logged as income transactions
+       within this period — a recurring salary rule, plus any one-off
+       bonuses or gifts added by hand — not a derived rate. Hides entirely
+       when nothing's been logged yet, rather than showing a misleading
+       "0 income" for a period you simply haven't gotten to. */
+    var incomeTotal = cs.rows.reduce(function(t,r){
+      return t + (r.items||[]).reduce(function(u,it){ return isIncomeItem(it) ? u+it.amount : u; }, 0);
+    }, 0);
+    if (incomeTotal <= 0) return "";
     var expensesTotal = cs.spentAll;
     var netFlow = incomeTotal - expensesTotal;
     var maxSide = Math.max(incomeTotal, expensesTotal, 1);
@@ -3563,19 +3594,22 @@ function renderPlansBody() {
   function ruleCard(rule) {
     var complete = ruleIsComplete(rule);
     var paused = !rule.active && !complete;
+    var isIncomeRule = rule.entryKind === "income";
     var freqLabel = rule.frequency === "daily" ? "Daily" : rule.frequency === "weekly" ? "Every week" : "Every month";
     var logged = rule.occurrencesLogged || 0;
     var s = '<div class="card card-pad" style="margin-bottom:8px;'+(paused?" opacity:0.6;":"")+'">';
     s += '<div class="row between" style="align-items:flex-start;">';
     s += '<div class="row gap2" style="align-items:center; min-width:0;">';
-    s += catIconCircle(rule.category);
+    s += isIncomeRule
+      ? '<span style="width:32px; height:32px; border-radius:50%; background:var(--positive); color:white; display:flex; align-items:center; justify-content:center; flex-shrink:0;">'+ICONS.plus+'</span>'
+      : catIconCircle(rule.category);
     s += '<div style="min-width:0;">';
-    s += '<div style="font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(rule.note || rule.category || (rule.kind==="split"?"Spread":"Recurring payment"))+'</div>';
+    s += '<div style="font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(rule.note || rule.category || (rule.kind==="split"?"Spread":(isIncomeRule?"Recurring income":"Recurring payment")))+'</div>';
     var metaBits = [];
     if (rule.kind === "split") metaBits.push("Spread over "+rule.occurrencesTotal+" days");
     else metaBits.push(freqLabel);
-    metaBits.push(fmt(rule.amount,2)+" AED"+(rule.kind==="split"?"/day":""));
-    s += '<div class="muted caption" style="margin-top:2px;">'+esc(metaBits.join(" \u00b7 "))+'</div>';
+    metaBits.push((isIncomeRule?"+":"")+fmt(rule.amount,2)+" AED"+(rule.kind==="split"?"/day":""));
+    s += '<div class="muted caption" style="margin-top:2px;'+(isIncomeRule?" color:var(--positive);":"")+'">'+esc(metaBits.join(" \u00b7 "))+'</div>';
     s += '</div></div>';
     s += '<div class="row gap2" style="flex-shrink:0;">';
     if (!complete) s += '<button data-action="toggle-recurring-active" data-id="'+esc(rule.id)+'" style="background:none;border:none;padding:5px;color:var(--text-muted);" aria-label="'+(rule.active?"Pause":"Resume")+'">'+(rule.active?ICONS.pause:ICONS.play)+'</button>';
@@ -3625,18 +3659,25 @@ function renderPlansBody() {
 
   h += '<div class="card card-pad" style="margin-top:16px; margin-bottom:16px;">';
   h += '<div class="eyebrow" style="margin-bottom:10px;">Add recurring payment</div>';
+  var recKind = state.recurringKindDraft || "expense";
+  h += '<div class="seg" style="margin-bottom:8px;">';
+  h += '<button class="seg-btn" role="tab" aria-selected="'+(recKind==="expense")+'" data-action="set-recurring-kind" data-kind="expense">Expense</button>';
+  h += '<button class="seg-btn" role="tab" aria-selected="'+(recKind==="income")+'" data-action="set-recurring-kind" data-kind="income">Income</button>';
+  h += '</div>';
   h += '<div style="position:relative; margin-bottom:8px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
   h += '<input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="Amount" value="'+(state.recurringAmountDraft != null ? esc(state.recurringAmountDraft) : "")+'" /></div>';
-  h += '<select id="recurringCategoryInput" class="field" style="margin-bottom:8px;"><option value=""'+(!state.recurringCategoryDraft?" selected":"")+'>No category</option>';
-  (state.settings.categories||[]).forEach(function(c){ h += '<option value="'+esc(c)+'"'+(state.recurringCategoryDraft===c?" selected":"")+'>'+esc(c)+'</option>'; });
-  h += '</select>';
+  if (recKind === "expense") {
+    h += '<select id="recurringCategoryInput" class="field" style="margin-bottom:8px;"><option value=""'+(!state.recurringCategoryDraft?" selected":"")+'>No category</option>';
+    (state.settings.categories||[]).forEach(function(c){ h += '<option value="'+esc(c)+'"'+(state.recurringCategoryDraft===c?" selected":"")+'>'+esc(c)+'</option>'; });
+    h += '</select>';
+  }
   if ((state.settings.people||[]).length) {
     var recDefaultPerson = state.recurringPersonDraft != null ? state.recurringPersonDraft : (state.settings.defaultPerson||"");
     h += '<select id="recurringPersonInput" class="field" style="margin-bottom:8px;"><option value=""'+(recDefaultPerson===""?" selected":"")+'>Who\u2019s this for? (optional)</option>';
     (state.settings.people||[]).forEach(function(p){ h += '<option value="'+esc(p)+'"'+(recDefaultPerson===p?" selected":"")+'>'+esc(p)+'</option>'; });
     h += '</select>';
   }
-  h += '<input id="recurringNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="What\u2019s it for? (e.g. Rent)" value="'+(state.recurringNoteDraft != null ? esc(state.recurringNoteDraft) : "")+'" />';
+  h += '<input id="recurringNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="'+(recKind==="income"?"What\u2019s it for? (e.g. Salary)":"What\u2019s it for? (e.g. Rent)")+'" value="'+(state.recurringNoteDraft != null ? esc(state.recurringNoteDraft) : "")+'" />';
   h += '<div class="row gap2" style="margin-bottom:8px;">';
   h += '<select id="recurringFrequencyInput" class="field" style="flex:1;"><option value="weekly"'+(state.recurringFrequencyDraft!=="monthly"?" selected":"")+'>Every week</option><option value="monthly"'+(state.recurringFrequencyDraft==="monthly"?" selected":"")+'>Every month</option></select>';
   h += '<input id="recurringStartDateInput" type="date" class="field mono" style="flex:1;" value="'+(state.recurringStartDateDraft || today)+'" />';
@@ -3654,7 +3695,7 @@ function renderPlansBody() {
     h += '<input id="recurringEndDateInput" type="date" class="field mono" style="margin-bottom:8px;" value="'+(state.recurringEndDateDraft || "")+'" />';
     h += '<div class="muted caption" style="margin-bottom:8px;">Stops after this date.</div>';
   }
-  h += '<button data-action="add-recurring" class="btn-accent" style="width:100%;">Add recurring payment</button>';
+  h += '<button data-action="add-recurring" class="btn-accent" style="width:100%;">Add recurring '+(recKind==="income"?"income":"payment")+'</button>';
   h += '</div>';
   return h;
 }
@@ -3712,8 +3753,15 @@ function handleAddTransaction() {
     person = personEl ? personEl.value : "";
   }
   var wasEditing = !!(state.editingItemId && state.editingOriginalDate);
+  var origItemForKind = null;
+  if (wasEditing) {
+    var origDayForKind = state.entries[state.editingOriginalDate];
+    if (origDayForKind) origItemForKind = origDayForKind.items.find(function(i){ return i.id === state.editingItemId; }) || null;
+  }
+  var kind = state.txnKind != null ? state.txnKind : (origItemForKind && origItemForKind.kind==="income" ? "income" : "expense");
+  if (kind === "income") category = ""; // income doesn't use the expense category system
 
-  if (!wasEditing && state.txnSplitMode === "split") {
+  if (!wasEditing && state.txnSplitMode === "split" && kind === "expense") {
     var splitDaysEl = document.getElementById("splitDaysInput");
     var splitDays = parseInt(splitDaysEl ? splitDaysEl.value : "", 10);
     if (isNaN(splitDays) || splitDays < 2) return;
@@ -3732,7 +3780,7 @@ function handleAddTransaction() {
       if (remaining.length === 0) delete nextEntries[origDate];
       else nextEntries[origDate] = Object.assign({}, origDay, { items: remaining });
     }
-    var updatedItem = { id: state.editingItemId, amount: amt, note: note, category: category, person: person, personSplit: personSplit };
+    var updatedItem = { id: state.editingItemId, amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind };
     var destDay = nextEntries[date];
     var nextDest = destDay ? Object.assign({}, destDay, { items: destDay.items.concat([updatedItem]) }) : { allowance: carriedAllowance, items: [updatedItem] };
     nextEntries[date] = nextDest;
@@ -3741,7 +3789,7 @@ function handleAddTransaction() {
     state.showAddTxn = false;
   } else {
     var existing = nextEntries[date];
-    var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category, person: person, personSplit: personSplit };
+    var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind };
     nextEntries[date] = existing ? Object.assign({}, existing, { items: existing.items.concat([newItem]) }) : { allowance: dailyAllowance(), items: [newItem] };
     state.showAddTxn = false;
   }
@@ -3782,6 +3830,7 @@ function handleAddSplitTransaction(startDate, totalAmount, category, note, split
   state.entryDate = startDate;
   state.showAddTxn = false;
   state.txnSplitMode = "single";
+  state.txnKind = null;
   persistAll(state.settings, state.entries, "your entries");
   showToast("Spread across "+splitDays+" days");
   render();
@@ -3903,6 +3952,7 @@ function handleEditTxn(date, id) {
   state.showAddTxn = true;
   state.pendingDeleteKey = null;
   state.txnSplitMode = "single";
+  state.txnKind = null;
   state.txnCategoryGroup = null;
   state.entryAmountDraft = null;
   state.entryNoteDraft = null;
@@ -4073,6 +4123,11 @@ document.addEventListener("click", function(e) {
       break;
     case "edit-txn": handleEditTxn(el.dataset.date, el.dataset.id); break;
     case "cancel-edit": handleCancelEdit(); break;
+    case "set-txn-kind":
+      preserveTxnFormDraft();
+      state.txnKind = el.dataset.kind;
+      render();
+      break;
     case "set-txn-split-mode":
       preserveTxnFormDraft();
       state.txnSplitMode = el.dataset.mode;
@@ -4090,6 +4145,7 @@ document.addEventListener("click", function(e) {
       state.showAddTxn = true;
       state.pendingDeleteKey = null;
       state.txnSplitMode = "single";
+      state.txnKind = null;
       state.txnPersonSplitMode = "single";
       state.txnCategoryGroup = null;
       state.entryAmountDraft = null;
@@ -4106,6 +4162,7 @@ document.addEventListener("click", function(e) {
       state.editingItemId = null;
       state.editingOriginalDate = null;
       state.txnSplitMode = "single";
+      state.txnKind = null;
       state.txnPersonSplitMode = "single";
       state.txnCategoryGroup = null;
       state.entryAmountDraft = null;
@@ -4177,6 +4234,11 @@ document.addEventListener("click", function(e) {
         render();
       }
       break;
+    case "set-recurring-kind":
+      preserveRecurringFormDraft();
+      state.recurringKindDraft = el.dataset.kind;
+      render();
+      break;
     case "set-recurring-limit-mode":
       preserveRecurringFormDraft();
       state.recurringLimitMode = el.dataset.mode;
@@ -4188,6 +4250,7 @@ document.addEventListener("click", function(e) {
       var recStartEl = document.getElementById("recurringStartDateInput");
       var recStart = recStartEl ? recStartEl.value : "";
       if (isNaN(recAmount) || recAmount < 0 || !recStart) break;
+      var recKindForRule = state.recurringKindDraft || "expense";
       var recLimitMode = state.recurringLimitMode || "ongoing";
       var recCount = null;
       var recEndDate = null;
@@ -4208,9 +4271,10 @@ document.addEventListener("click", function(e) {
       var newRule = {
         id: Date.now()+"-"+Math.random().toString(36).slice(2,7),
         kind: "recurring",
+        entryKind: recKindForRule,
         amount: recAmount,
         splitTotal: null,
-        category: recCategoryEl ? recCategoryEl.value : "",
+        category: recKindForRule === "income" ? "" : (recCategoryEl ? recCategoryEl.value : ""),
         person: recPersonEl ? recPersonEl.value : "",
         note: recNoteEl ? recNoteEl.value.trim() : "",
         frequency: (recFreqEl && recFreqEl.value === "monthly") ? "monthly" : "weekly",
@@ -4232,7 +4296,8 @@ document.addEventListener("click", function(e) {
       state.recurringStartDateDraft = null;
       state.recurringCountDraft = null;
       state.recurringEndDateDraft = null;
-      showToast("Recurring payment added");
+      showToast(recKindForRule === "income" ? "Recurring income added" : "Recurring payment added");
+      state.recurringKindDraft = "expense";
       render();
       break;
     case "toggle-recurring-active":
