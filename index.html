@@ -643,6 +643,8 @@ var state = {
   analysisCategoryFilter: "",
   analysisPersonFilter: "",
   analysisSelectedGroup: null,
+  budgetCategoryFilter: "",
+  budgetPersonFilter: "",
   basis: "budget", // legacy: UI no longer switches basis
   forecastCompareMode: "previous",
   incomeDraftMode: null,
@@ -1464,12 +1466,33 @@ function renderHomeBody(T, da) {
   var remaining = round2(target - budget.spent);
   var savedSoFar = round2(budget.targetElapsed - budget.spent);
   var daysRemaining = todayStr() <= month.endStr ? daysBetween(todayStr(), month.endStr)+1 : 0;
-  var safePerDay = daysRemaining > 0 ? remaining/daysRemaining : null;
+  var monthSafePerDay = daysRemaining > 0 ? remaining/daysRemaining : null;
+
+  /* Home uses the tighter of the live week and month pacing limits. A person
+     can be comfortably inside this week's allowance but still too close to the
+     monthly ceiling (or vice versa), so one actionable number should respect
+     both horizons rather than letting the looser one hide the tighter one. */
+  var week = getPeriodBounds("week", 0, currentWeeklyTarget(), dailyAllowance());
+  var weekBudget = periodStatsBudget(week.startStr, week.endStr);
+  var weekRemaining = round2(week.target - weekBudget.spent);
+  var weekDaysRemaining = todayStr() <= week.endStr ? daysBetween(todayStr(), week.endStr)+1 : 0;
+  var weekSafePerDay = weekDaysRemaining > 0 ? weekRemaining/weekDaysRemaining : null;
+  var safeCandidates = [monthSafePerDay, weekSafePerDay].filter(function(v){ return v != null; });
+  var safePerDay = safeCandidates.length ? Math.min.apply(null, safeCandidates) : null;
+  var limitingHorizon = (weekSafePerDay != null && monthSafePerDay != null)
+    ? (weekSafePerDay <= monthSafePerDay ? "Week" : "Month")
+    : (weekSafePerDay != null ? "Week" : "Month");
   var chartStart = month.startStr;
   var chartDays = daysBetween(chartStart, month.endStr)+1;
   var fc = overall.rows.length ? computeForecastNumbers(overall.rows, chartDays, chartStart, "overall") : null;
   var projected = fc ? fc.projectedSpend : overall.spent;
+  var budgetChartStart = effectiveRangeStart(month.startStr);
+  var budgetChartDays = daysBetween(budgetChartStart, month.endStr)+1;
+  var budgetFc = budget.rows.length ? computeForecastNumbers(budget.rows, budgetChartDays, budgetChartStart, "budget") : null;
+  var projectedBudgetSpend = budgetFc ? budgetFc.projectedSpend : budget.spent;
+  var projectedSaving = round2(target - projectedBudgetSpend);
   var income = overall.income;
+  var incomePct = income > 0 ? (overall.spent/income*100) : null;
   var cashNet = round2(income - overall.spent);
   var progress = target > 0 ? Math.max(0, Math.min(100, (budget.spent/target)*100)) : 0;
 
@@ -1478,8 +1501,9 @@ function renderHomeBody(T, da) {
   h += '<div class="card card-pad" style="margin-bottom:12px;">';
   h += '<div class="muted caption">TOTAL SPENT</div>';
   h += '<div class="mono" style="font-size:34px; font-weight:700; margin-top:3px;">'+fmt(overall.spent,0)+' <span class="muted" style="font-size:17px;">AED</span></div>';
-  h += '<div class="row between hairline-top" style="margin-top:14px; padding-top:12px;">';
-  h += '<span class="muted subhead">Projected month-end spend</span><span class="mono subhead" style="font-weight:600;">'+fmt(projected,0)+' AED</span></div>';
+  h += '<div class="hairline-top" style="margin-top:14px; padding-top:12px;">';
+  h += '<div class="row between"><span class="muted subhead">Projected month-end spend</span><span class="mono subhead" style="font-weight:600;">'+fmt(projected,0)+' AED</span></div>';
+  h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Spent as % of income received</span><span class="mono subhead" style="font-weight:600;">'+(incomePct==null?'—':incomePct.toFixed(0)+'%')+'</span></div></div>';
   h += '<button data-action="go-page" data-page="analysis" class="btn-plain" style="margin-top:12px;">Open overall analysis →</button>';
   h += '</div>';
 
@@ -1490,9 +1514,12 @@ function renderHomeBody(T, da) {
   h += '<div class="stat-grid">';
   h += statBlock("Remaining", (remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED', remaining>=0?'var(--positive)':'var(--rust)');
   h += statBlock("Saved so far", (savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED', savedSoFar>=0?'var(--positive)':'var(--rust)');
-  h += statBlock("Safe to spend/day", safePerDay==null?'—':fmt(safePerDay,0)+' AED', safePerDay!=null&&safePerDay<0?'var(--rust)':'var(--text)');
   h += statBlock("Budget spent today", fmt(state.entries[todayStr()]?sumBudgetSpent(state.entries[todayStr()]):0,0)+' AED', 'var(--text)');
+  h += statBlock("Safe to spend/day", safePerDay==null?'—':fmt(safePerDay,0)+' AED', safePerDay!=null&&safePerDay<0?'var(--rust)':'var(--text)');
+  h += statBlock("Projected saving", (projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED', projectedSaving>=0?'var(--positive)':'var(--rust)');
+  h += statBlock("Limiting horizon", limitingHorizon, 'var(--text)');
   h += '</div>';
+  h += '<div class="muted caption" style="margin-top:10px;">Safe to spend/day uses the tighter live limit: Week '+(weekSafePerDay==null?'—':fmt(weekSafePerDay,0)+' AED/day')+' · Month '+(monthSafePerDay==null?'—':fmt(monthSafePerDay,0)+' AED/day')+'.</div>';
   h += '<button data-action="go-page" data-page="budget" class="btn-plain" style="margin-top:12px;">Open budget →</button>';
   h += '</div>';
 
@@ -1537,6 +1564,11 @@ function renderBudgetBody(T) {
   var daysRemaining = isCurrent && todayStr() <= period.endStr ? daysBetween(todayStr(), period.endStr)+1 : 0;
   var safePerDay = daysRemaining > 0 ? remaining/daysRemaining : null;
   var spentToday = state.entries[todayStr()] ? sumBudgetSpent(state.entries[todayStr()]) : 0;
+  var budgetForecastStart = effectiveRangeStart(period.startStr);
+  var budgetForecastDays = daysBetween(budgetForecastStart, period.endStr)+1;
+  var budgetForecast = (isCurrent && stats.rows.length) ? computeForecastNumbers(stats.rows, budgetForecastDays, budgetForecastStart, "budget") : null;
+  var projectedBudgetSpend = budgetForecast ? budgetForecast.projectedSpend : stats.spent;
+  var projectedSaving = round2(target - projectedBudgetSpend);
   var progress = target>0 ? Math.max(0,Math.min(100,(stats.spent/target)*100)) : 0;
   var h = '';
   h += '<div class="row between" style="align-items:center; margin-bottom:10px;"><div><div class="eyebrow">Budget</div><div class="muted caption" style="margin-top:2px;">Only categories marked to count toward budget</div></div><button data-action="open-budget-settings" class="btn-outline" style="padding:6px 10px; font-size:12px;">Edit budget</button></div>';
@@ -1556,7 +1588,9 @@ function renderBudgetBody(T) {
   h += statBlock(isClosed?'Saved this period':'Saved so far', (savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED', savedSoFar>=0?'var(--positive)':'var(--rust)');
   h += statBlock("Spent today", isCurrent?fmt(spentToday,0)+' AED':'—', 'var(--text)');
   h += statBlock("Safe to spend/day", safePerDay==null?'—':fmt(safePerDay,0)+' AED', safePerDay!=null&&safePerDay<0?'var(--rust)':'var(--text)');
-  h += '</div></div>';
+  h += statBlock("Projected saving", isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—', projectedSaving>=0?'var(--positive)':'var(--rust)');
+  h += statBlock("Days remaining", isCurrent?String(daysRemaining):'—', 'var(--text)');
+  h += '</div><div class="muted caption" style="margin-top:10px;">Safe to spend/day = remaining '+esc(state.view)+' budget ÷ remaining days in this '+esc(state.view)+', including today.</div></div>';
 
   if (stats.rows.length) {
     var acc=0;
@@ -1579,14 +1613,51 @@ function renderBudgetBody(T) {
     h += buildForecastCard(stats.rows,chartDays,target,chartStart,T,'Budget',periodWord,compareRows,'budget');
   }
 
+  var budgetCatFilter = state.budgetCategoryFilter || "";
+  var budgetPersonFilter = state.budgetPersonFilter || "";
+  function budgetPersonMatch(it) { return itemMatchesPersonFilter(it, budgetPersonFilter); }
+  function budgetCatMatch(it) { return !budgetCatFilter || (it.category||'Uncategorised') === budgetCatFilter; }
+  function budgetScopedAmount(it) { return personScopedAmount(it, budgetPersonFilter); }
+
+  if (budgetCatFilter || budgetPersonFilter) {
+    h += '<div class="row gap2" style="margin-bottom:12px;align-items:center;flex-wrap:wrap;">';
+    if (budgetCatFilter) h += '<span class="chip chip-accent">'+esc(budgetCatFilter)+'</span><button class="btn-plain" data-action="clear-budget-category">Clear category</button>';
+    if (budgetPersonFilter) h += '<span class="chip" style="background:'+(budgetPersonFilter==='Unassigned'?'#8595B5':personColor(budgetPersonFilter))+';color:#fff;font-weight:600;">'+esc(budgetPersonFilter)+'</span><button class="btn-plain" data-action="clear-budget-person">Clear person</button>';
+    h += '</div>';
+  }
+
   var catTotals={};
-  stats.rows.forEach(function(r){ (r.items||[]).forEach(function(it){ if (isExpenseItem(it)&&itemCountsTowardBudget(it)) { var k=it.category||'Uncategorised'; catTotals[k]=(catTotals[k]||0)+it.amount; } }); });
+  stats.rows.forEach(function(r){ (r.items||[]).forEach(function(it){
+    if (!isExpenseItem(it) || !itemCountsTowardBudget(it) || !budgetPersonMatch(it)) return;
+    var k=it.category||'Uncategorised';
+    catTotals[k]=(catTotals[k]||0)+budgetScopedAmount(it);
+  }); });
   var slices=Object.keys(catTotals).map(function(k){return {label:k,value:catTotals[k]};}).sort(function(a,b){return b.value-a.value;});
   if (slices.length) {
     var total=slices.reduce(function(t,x){return t+x.value;},0);
-    h += '<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow" style="margin-bottom:10px;">Where the budget went</div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,null,'Budget',total,'none')+'</div>';
-    slices.forEach(function(sl,i){ var pct=total>0?sl.value/total*100:0; h += '<div class="row between" style="padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="subhead">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+pct.toFixed(0)+'%</span></span></div>'; });
+    h += '<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Where the budget went</span><span class="muted caption">'+(budgetCatFilter?'Tap to clear':'Tap to filter')+'</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,budgetCatFilter||null,'Budget',total,'filter-budget-category','cat')+'</div>';
+    slices.forEach(function(sl,i){ var pct=total>0?sl.value/total*100:0,isSel=budgetCatFilter===sl.label; h += '<button data-action="filter-budget-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(budgetCatFilter&&!isSel?'opacity:.45;':'')+'"><span class="subhead" style="'+(isSel?'font-weight:600;':'')+'">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+pct.toFixed(0)+'%</span></span></button>'; });
     h += '</div>';
+  }
+
+  if ((state.settings.people||[]).length) {
+    var personTotals={};
+    stats.rows.forEach(function(r){ (r.items||[]).forEach(function(it){
+      if (!isExpenseItem(it) || !itemCountsTowardBudget(it) || !budgetCatMatch(it)) return;
+      if (it.personSplit && it.personSplit.length) {
+        it.personSplit.forEach(function(ps){ personTotals[ps.person]=(personTotals[ps.person]||0)+round2(it.amount*ps.pct/100); });
+      } else {
+        var pk=it.person||'Unassigned'; personTotals[pk]=(personTotals[pk]||0)+it.amount;
+      }
+    }); });
+    var personSlices=Object.keys(personTotals).map(function(k){return {label:k,value:personTotals[k]};}).sort(function(a,b){return b.value-a.value;});
+    personSlices.forEach(function(sl){ sl.color=sl.label==='Unassigned'?'#8595B5':personColor(sl.label); });
+    if (personSlices.length) {
+      var personTotal=personSlices.reduce(function(t,x){return t+x.value;},0);
+      h += '<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Budget spend by person</span><span class="muted caption">'+(budgetPersonFilter?'Tap to clear':'Tap to filter')+'</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(personSlices,T,budgetPersonFilter||null,'Budget',personTotal,'filter-budget-person','person')+'</div>';
+      personSlices.forEach(function(sl,i){ var pct=personTotal>0?sl.value/personTotal*100:0,isSel=budgetPersonFilter===sl.label; h += '<button data-action="filter-budget-person" data-person="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(budgetPersonFilter&&!isSel?'opacity:.45;':'')+'"><span>'+(sl.label==='Unassigned'?'<span class="subhead">Unassigned</span>':personChip(sl.label))+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+pct.toFixed(0)+'%</span></span></button>'; });
+      h += '</div>';
+    }
   }
   return h;
 }
@@ -2111,12 +2182,12 @@ function renderTxnRow(date, it) {
 function renderCalendarBody() {
   var base=addMonths(startOfMonth(new Date()),state.calendarOffset), monthStartStr=toStr(base), monthEndStr=toStr(endOfMonth(base));
   var title=base.toLocaleDateString("en-GB",{month:"long",year:"numeric"}), today=todayStr();
-  var h='<div class="row between" style="margin-bottom:10px;"><div><div class="eyebrow">Calendar</div><div class="muted caption">Daily total expenses and income</div></div><button data-action="go-page" data-page="transactions" class="btn-outline" style="padding:6px 10px;font-size:12px;">Back to Txns</button></div>';
+  var h='<div class="row between" style="margin-bottom:10px;"><div><div class="eyebrow">Calendar</div><div class="muted caption">Total spend shown; color reflects budget-counted spend vs that day’s budget</div></div><button data-action="go-page" data-page="transactions" class="btn-outline" style="padding:6px 10px;font-size:12px;">Back to Txns</button></div>';
   h+='<div class="card" style="padding:14px;margin-bottom:12px;"><div class="row between" style="margin-bottom:12px;"><button data-action="cal-nav" data-delta="-1" class="icon-btn">'+ICONS.chevronLeft+'</button><div class="subhead" style="font-weight:600;">'+esc(title)+'</div><button data-action="cal-nav" data-delta="1" class="icon-btn" style="'+(state.calendarOffset>=0?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';
   h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;">';["Mo","Tu","We","Th","Fr","Sa","Su"].forEach(function(x){h+='<div class="muted" style="text-align:center;font-size:10px;">'+x+'</div>';});h+='</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">';
   var firstDow=base.getDay(), blanks=firstDow===0?6:firstDow-1;for(var i=0;i<blanks;i++)h+='<div></div>';var cur=parseD(monthStartStr);
-  while(toStr(cur)<=monthEndStr){var ds=toStr(cur),e=state.entries[ds],spent=e?sumSpent(e):0,income=e?sumIncome(e):0,isFuture=ds>today,isToday=ds===today,isSelected=state.calendarSelectedDate===ds;var bg=e?(spent>0?'var(--rust-wash)':'var(--positive-wash)'):'var(--raised)';if(isFuture&&!e)bg='transparent';var border=isToday?'2px solid var(--accent)':(isSelected?'2px solid var(--text)':'1px solid transparent');h+='<button data-action="cal-select" data-date="'+ds+'" style="min-height:64px;border-radius:9px;border:'+border+';background:'+bg+';display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 1px;gap:3px;"><span style="font-size:14px;font-weight:500;">'+cur.getDate()+'</span><span class="mono" style="font-size:10px;">'+(e?fmt(spent,0):' ')+'</span><span class="mono" style="font-size:9px;color:var(--positive);">'+(income>0?'+'+fmt(income,0):' ')+'</span></button>';cur=addDays(cur,1);}
-  h+='</div></div><div class="row" style="gap:14px;margin-bottom:16px;flex-wrap:wrap;">'+legendSwatch('var(--rust-wash)','Expense day')+legendSwatch('var(--positive-wash)','Income only')+legendSwatch('var(--raised)','No transactions')+'</div>';
+  while(toStr(cur)<=monthEndStr){var ds=toStr(cur),e=state.entries[ds],spent=e?sumSpent(e):0,income=e?sumIncome(e):0,budgetSpent=e?sumBudgetSpent(e):0,dailyBudget=allowanceForDate(ds),isFuture=ds>today,isToday=ds===today,isSelected=state.calendarSelectedDate===ds;var overBudget=budgetSpent>dailyBudget;var bg=e?(overBudget?'var(--rust-wash)':'var(--positive-wash)'):'var(--raised)';if(isFuture&&!e)bg='transparent';var border=isToday?'2px solid var(--accent)':(isSelected?'2px solid var(--text)':'1px solid transparent');h+='<button data-action="cal-select" data-date="'+ds+'" style="min-height:64px;border-radius:9px;border:'+border+';background:'+bg+';display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 1px;gap:3px;"><span style="font-size:14px;font-weight:500;">'+cur.getDate()+'</span><span class="mono" style="font-size:10px;">'+(e?fmt(spent,0):' ')+'</span><span class="mono" style="font-size:9px;color:'+(overBudget?'var(--rust)':'var(--positive)')+';">'+(e?'B '+fmt(budgetSpent,0)+'/'+fmt(dailyBudget,0):' ')+'</span></button>';cur=addDays(cur,1);}
+  h+='</div></div><div class="row" style="gap:14px;margin-bottom:16px;flex-wrap:wrap;">'+legendSwatch('var(--positive-wash)','Within daily budget')+legendSwatch('var(--rust-wash)','Over daily budget')+legendSwatch('var(--raised)','No transactions')+'</div>';
   if(state.calendarSelectedDate){var sd=state.calendarSelectedDate,sday=state.entries[sd];h+='<div class="card card-pad"><div class="eyebrow" style="margin-bottom:8px;">'+esc(dayLabel(sd))+'</div>';if(sday&&sday.items.length)newestFirst(sday.items).forEach(function(it){h+=renderTxnRow(sd,it);});else h+='<div class="muted subhead">Nothing logged this day.</div>';h+='</div>';}
   return h;
 }
@@ -3817,6 +3888,22 @@ document.addEventListener("click", function(e) {
     case "clear-analysis-person":
       state.analysisPersonFilter = "";
       state.analysisSelectedBucket = null;
+      render();
+      break;
+    case "filter-budget-category":
+      state.budgetCategoryFilter = (state.budgetCategoryFilter === el.dataset.cat) ? "" : el.dataset.cat;
+      render();
+      break;
+    case "clear-budget-category":
+      state.budgetCategoryFilter = "";
+      render();
+      break;
+    case "filter-budget-person":
+      state.budgetPersonFilter = (state.budgetPersonFilter === el.dataset.person) ? "" : el.dataset.person;
+      render();
+      break;
+    case "clear-budget-person":
+      state.budgetPersonFilter = "";
       render();
       break;
     case "set-basis":
