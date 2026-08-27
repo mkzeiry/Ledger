@@ -640,7 +640,12 @@ var state = {
   txnCategoryFilter: "",
   txnGroupFilter: "",
   txnPersonFilter: "",
-  txnPeriodMode: "all",
+  txnPeriodMode: "month",
+  txnTypeFilter: "all",
+  txnSearch: "",
+  txnFiltersOpen: false,
+  txnShowAllCategories: false,
+  txnAdvancedOpen: false,
   txnOffset: 0,
   txnPeriodFrom: "",
   txnPeriodTo: "",
@@ -1158,6 +1163,7 @@ function wireBalanceChart(data) {
 
 /* ---------------- tiny inline icons ---------------- */
 var ICONS = {
+  search: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/></svg>',
   plus: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
   trash: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
   settings: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
@@ -2004,215 +2010,239 @@ function renderAddTxnModal() {
     if (origDay) editingItem = origDay.items.find(function(i){ return i.id === state.editingItemId; }) || null;
   }
   var formDate = state.entryDate || todayStr();
-  var todayEntry = state.entries[formDate];
   var cats = state.settings.categories || [];
+  var txnKind = state.txnKind != null ? state.txnKind : (editingItem && editingItem.kind === "income" ? "income" : "expense");
+  var splitMode = state.txnSplitMode || "single";
+  var selectedCat = state.entryCategoryDraft != null ? state.entryCategoryDraft : (editingItem ? (editingItem.category||"") : "");
+  var people = state.settings.people || [];
+  var selectedPerson = state.entryPersonDraft != null ? state.entryPersonDraft : (editingItem ? (editingItem.person||"") : (state.settings.defaultPerson||""));
+  var personSplitMode = people.length >= 2 ? (state.txnPersonSplitMode||"single") : "single";
+  var amountShown = state.entryAmountDraft != null ? state.entryAmountDraft : (editingItem ? editingItem.amount : "");
+  var parsedShown = parseFloat(amountShown);
+  var advancedOpen = !!state.txnAdvancedOpen || !!editingItem || splitMode === "split";
+
+  /* Most-used categories become one-tap choices. The full category hierarchy
+     is still available behind More, but common entries no longer require a
+     group dropdown followed by a category dropdown. */
+  var usage = {};
+  Object.keys(state.entries).forEach(function(d){
+    (state.entries[d].items||[]).forEach(function(it){ if (it.category) usage[it.category]=(usage[it.category]||0)+1; });
+  });
+  function sortedCats(list){
+    var original = list.slice();
+    return list.slice().sort(function(a,b){
+      var diff=(usage[b]||0)-(usage[a]||0);
+      return diff || (original.indexOf(a)-original.indexOf(b));
+    });
+  }
+  var quickCats = sortedCats(cats).slice(0,5);
+  if (selectedCat && quickCats.indexOf(selectedCat)===-1) {
+    quickCats.unshift(selectedCat);
+    quickCats = quickCats.slice(0,5);
+  }
 
   var h = '<div class="modal-backdrop" data-action="close-add-txn">';
   h += '<div class="modal-card" data-action="noop">';
   h += '<div class="modal-sticky-header"><div class="grabber"></div>';
-  h += '<div class="row between">'+'<div class="display" style="font-size:18px;">'+(editingItem?"Edit transaction":"Add transaction")+'</div><button data-action="close-add-txn" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
-  var txnKind = state.txnKind != null ? state.txnKind : (editingItem && editingItem.kind==="income" ? "income" : "expense");
-  h += '<div class="seg" style="margin-bottom:10px; margin-top:14px;">';
+  h += '<div class="row between"><div class="display" style="font-size:18px;">'+(editingItem?"Edit transaction":"Add transaction")+'</div><button data-action="close-add-txn" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
+
+  h += '<div class="seg" style="margin:14px 0 14px;">';
   h += '<button class="seg-btn" role="tab" aria-selected="'+(txnKind==="expense")+'" data-action="set-txn-kind" data-kind="expense">Expense</button>';
   h += '<button class="seg-btn" role="tab" aria-selected="'+(txnKind==="income")+'" data-action="set-txn-kind" data-kind="income">Income</button>';
   h += '</div>';
-  var splitMode = state.txnSplitMode || "single";
-  if (!editingItem && txnKind === "expense") {
-    h += '<div class="seg" style="margin-bottom:10px;">';
-    h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==="single")+'" data-action="set-txn-split-mode" data-mode="single">Single day</button>';
-    h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==="split")+'" data-action="set-txn-split-mode" data-mode="split">Split across days</button>';
-    h += '</div>';
-  }
-  h += '<input id="entryDateInput" type="date" class="field mono" style="margin-bottom:8px;" value="'+formDate+'" max="'+todayStr()+'" />';
-  h += '<div style="position:relative; margin-bottom:8px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none;">AED</span>';
-  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="'+(splitMode==="split"&&!editingItem&&txnKind==="expense"?"Total amount":"Amount")+'" value="'+(state.entryAmountDraft != null ? esc(state.entryAmountDraft) : (editingItem?editingItem.amount:""))+'" /></div>';
-  var groupsForTxn = state.settings.categoryGroups||[];
-  var selectedCatForTxn = state.entryCategoryDraft != null ? state.entryCategoryDraft : (editingItem ? (editingItem.category||"") : "");
-  /* How many times each category has actually been logged, all-time — used
-     to rank categories within their group so the most relevant ones surface
-     first instead of whatever order they happen to sit in in Settings. */
-  var catUsageCounts = {};
-  Object.keys(state.entries).forEach(function(d){
-    (state.entries[d].items||[]).forEach(function(it){
-      if (it.category) catUsageCounts[it.category] = (catUsageCounts[it.category]||0) + 1;
-    });
-  });
-  function sortCatsByUsage(list) {
-    return list.slice().sort(function(a,b){
-      var diff = (catUsageCounts[b]||0) - (catUsageCounts[a]||0);
-      if (diff !== 0) return diff;
-      return list.indexOf(a) - list.indexOf(b); // stable tiebreak: original relative order
-    });
-  }
+
+  h += '<div class="eyebrow" style="margin-bottom:6px;">Amount</div>';
+  h += '<div style="position:relative;margin-bottom:18px;">';
+  h += '<span class="muted" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:16px;pointer-events:none;">AED</span>';
+  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding:14px 14px 14px 58px;font-size:30px;font-weight:700;border-radius:14px;" placeholder="0.00" value="'+esc(amountShown)+'" />';
+  h += '</div>';
+
   if (txnKind === "expense") {
-  if (groupsForTxn.length) {
-    /* Cascading picker: choosing a group narrows the category list to just
-       that group's members, so a long flat list never has to be scrolled.
-       "Ungrouped" is offered as its own bucket so categories that aren't in
-       any group are still reachable. The selected group defaults to whatever
-       the editing item's category belongs to, so editing opens on the right
-       list rather than resetting. */
-    var editCatGroup = editingItem && editingItem.category ? (categoryGroupOf(editingItem.category) || "__ungrouped__") : "";
-    var activeTxnGroup = state.txnCategoryGroup != null ? state.txnCategoryGroup : editCatGroup;
-    var ungroupedCats = cats.filter(function(c){ return !categoryGroupOf(c); });
-    h += '<div class="row gap2" style="margin-bottom:8px;">';
-    h += '<select id="entryGroupInput" class="field" style="flex:1; min-width:0;">';
-    h += '<option value=""'+(activeTxnGroup===""?" selected":"")+'>All groups</option>';
-    groupsForTxn.forEach(function(g){
-      h += '<option value="'+esc(g)+'"'+(activeTxnGroup===g?" selected":"")+'>'+esc(g)+'</option>';
+    h += '<div class="row between" style="margin-bottom:8px;"><span class="eyebrow">Category</span>'+(selectedCat?'<span class="muted caption">'+esc(categoryGroupOf(selectedCat)||"Ungrouped")+'</span>':'')+'</div>';
+    h += '<div style="display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -2px 10px;padding:2px;">';
+    quickCats.forEach(function(c){
+      var sel=selectedCat===c;
+      h += '<button data-action="select-txn-category" data-cat="'+esc(c)+'" style="flex:0 0 auto;min-width:86px;max-width:116px;background:'+(sel?'var(--accent)':'var(--fill)')+';color:'+(sel?'var(--accent-ink)':'var(--text)')+';border:none;border-radius:12px;padding:9px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;">'+catIconCircle(c)+'<span style="font-size:11px;font-weight:'+(sel?'700':'500')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">'+esc(c)+'</span></button>';
     });
-    if (ungroupedCats.length) h += '<option value="__ungrouped__"'+(activeTxnGroup==="__ungrouped__"?" selected":"")+'>Ungrouped</option>';
-    h += '</select>';
-    h += '<select id="entryCategoryInput" class="field" style="flex:1; min-width:0;">';
-    h += '<option value="">No category</option>';
-    if (!activeTxnGroup) {
-      /* "All groups": organize by group (in the user's own established group
-         order from Settings), most-used category first within each, then an
-         Ungrouped bucket at the end — instead of one flat, unsorted list. */
-      groupsForTxn.forEach(function(g){
-        var members = sortCatsByUsage(cats.filter(function(c){ return categoryGroupOf(c)===g; }));
+    h += '<button data-action="toggle-all-categories" style="flex:0 0 auto;min-width:70px;background:var(--fill);border:none;border-radius:12px;padding:9px 10px;color:var(--text-muted);font-size:12px;">More</button>';
+    h += '</div>';
+
+    if (state.txnShowAllCategories) {
+      var groups = state.settings.categoryGroups||[];
+      var ungrouped = cats.filter(function(c){return !categoryGroupOf(c);});
+      h += '<select id="entryCategoryInput" class="field" style="margin-bottom:14px;">';
+      h += '<option value="">No category</option>';
+      groups.forEach(function(g){
+        var members=sortedCats(cats.filter(function(c){return categoryGroupOf(c)===g;}));
         if (!members.length) return;
         h += '<optgroup label="'+esc(g)+'">';
-        members.forEach(function(c){
-          h += '<option value="'+esc(c)+'"'+(selectedCatForTxn===c?" selected":"")+'>'+esc(c)+'</option>';
-        });
+        members.forEach(function(c){h+='<option value="'+esc(c)+'"'+(selectedCat===c?' selected':'')+'>'+esc(c)+'</option>';});
         h += '</optgroup>';
       });
-      var sortedUngrouped = sortCatsByUsage(ungroupedCats);
-      if (sortedUngrouped.length) {
+      if (ungrouped.length) {
         h += '<optgroup label="Ungrouped">';
-        sortedUngrouped.forEach(function(c){
-          h += '<option value="'+esc(c)+'"'+(selectedCatForTxn===c?" selected":"")+'>'+esc(c)+'</option>';
-        });
+        sortedCats(ungrouped).forEach(function(c){h+='<option value="'+esc(c)+'"'+(selectedCat===c?' selected':'')+'>'+esc(c)+'</option>';});
         h += '</optgroup>';
       }
-    } else {
-      var visibleCats = activeTxnGroup === "__ungrouped__" ? ungroupedCats : cats.filter(function(c){ return categoryGroupOf(c)===activeTxnGroup; });
-      sortCatsByUsage(visibleCats).forEach(function(c){
-        h += '<option value="'+esc(c)+'"'+(selectedCatForTxn===c?" selected":"")+'>'+esc(c)+'</option>';
-      });
-    }
-    h += '</select>';
-    h += '</div>';
-  } else {
-    h += '<select id="entryCategoryInput" class="field" style="margin-bottom:8px;">';
-    h += '<option value="">No category</option>';
-    sortCatsByUsage(cats).forEach(function(c){
-      h += '<option value="'+esc(c)+'"'+(selectedCatForTxn===c?" selected":"")+'>'+esc(c)+'</option>';
-    });
-    h += '</select>';
-  }
-  }
-  var peopleForTxn = state.settings.people||[];
-  if (peopleForTxn.length) {
-    var personSplitMode = peopleForTxn.length >= 2 ? (state.txnPersonSplitMode||"single") : "single";
-    if (peopleForTxn.length >= 2) {
-      h += '<div class="seg" style="margin-bottom:8px;">';
-      h += '<button class="seg-btn" role="tab" aria-selected="'+(personSplitMode==="single")+'" data-action="set-txn-person-split-mode" data-mode="single">Single person</button>';
-      h += '<button class="seg-btn" role="tab" aria-selected="'+(personSplitMode==="split")+'" data-action="set-txn-person-split-mode" data-mode="split">Split between people</button>';
-      h += '</div>';
-    }
-    if (personSplitMode === "single") {
-      var preselectedPerson = state.entryPersonDraft != null ? state.entryPersonDraft : (editingItem ? (editingItem.person||"") : (state.settings.defaultPerson||""));
-      h += '<select id="entryPersonInput" class="field" style="margin-bottom:8px;">';
-      h += '<option value=""'+(preselectedPerson===""?" selected":"")+'>Who\u2019s this for? (optional)</option>';
-      peopleForTxn.forEach(function(p){
-        h += '<option value="'+esc(p)+'"'+(preselectedPerson===p?" selected":"")+'>'+esc(p)+'</option>';
-      });
       h += '</select>';
     } else {
-      /* Percentages, not fixed amounts: the split stays correct even if the
-         total amount is edited afterward, and 10% increments keep the
-         picker to a plain native <select> (no free-text math to get wrong). */
-      var existingSplit = {};
-      if (state.entryPersonSplitDraft) {
-        Object.keys(state.entryPersonSplitDraft).forEach(function(p){
-          existingSplit[p] = parseInt(state.entryPersonSplitDraft[p], 10) || 0;
-        });
-      } else if (editingItem && editingItem.personSplit) {
-        editingItem.personSplit.forEach(function(ps){ existingSplit[ps.person] = ps.pct; });
-      }
-      var splitInitTotal = 0;
-      h += '<div class="card" style="padding:10px 12px; margin-bottom:8px;">';
-      peopleForTxn.forEach(function(p){
-        var curPct = existingSplit[p] || 0;
-        splitInitTotal += curPct;
-        h += '<div class="row between" style="padding:5px 0;">';
-        h += '<span style="font-size:13px;">'+esc(p)+'</span>';
-        h += '<select class="split-person-pct field mono" data-person="'+esc(p)+'" style="width:84px; padding:6px 8px; font-size:13px;">';
-        var pctOptions = [];
-        for (var pctOpt=0; pctOpt<=100; pctOpt+=10) pctOptions.push(pctOpt);
-        if (curPct % 10 !== 0 && pctOptions.indexOf(curPct) === -1) pctOptions.push(curPct);
-        pctOptions.sort(function(a,b){ return a-b; });
-        pctOptions.forEach(function(opt){
-          h += '<option value="'+opt+'"'+(curPct===opt?' selected':'')+'>'+opt+'%</option>';
-        });
+      h += '<input id="entryCategoryInput" type="hidden" value="'+esc(selectedCat)+'" />';
+    }
+  } else {
+    h += '<input id="entryCategoryInput" type="hidden" value="" />';
+  }
+
+  if (people.length) {
+    h += '<div class="eyebrow" style="margin:2px 0 8px;">For</div>';
+    h += '<div style="display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-bottom:12px;">';
+    people.forEach(function(p){
+      var sel=personSplitMode==="single" && selectedPerson===p;
+      h += '<button data-action="select-txn-person" data-person="'+esc(p)+'" style="flex:0 0 auto;border:none;border-radius:999px;padding:8px 12px;background:'+(sel?personColor(p):'var(--fill)')+';color:'+(sel?'#fff':'var(--text)')+';font-size:13px;font-weight:'+(sel?'600':'500')+';">'+esc(p)+(sel?' ✓':'')+'</button>';
+    });
+    if (people.length>=2) {
+      var sharedSel=personSplitMode==="split";
+      h += '<button data-action="set-txn-person-split-mode" data-mode="split" style="flex:0 0 auto;border:none;border-radius:999px;padding:8px 12px;background:'+(sharedSel?'var(--accent)':'var(--fill)')+';color:'+(sharedSel?'var(--accent-ink)':'var(--text)')+';font-size:13px;font-weight:'+(sharedSel?'600':'500')+';">Shared'+(sharedSel?' ✓':'')+'</button>';
+    }
+    h += '</div>';
+
+    if (personSplitMode === "single") {
+      h += '<input id="entryPersonInput" type="hidden" value="'+esc(selectedPerson)+'" />';
+    } else {
+      h += '<input id="entryPersonInput" type="hidden" value="" />';
+      var existingSplit={};
+      if (state.entryPersonSplitDraft) Object.keys(state.entryPersonSplitDraft).forEach(function(p){existingSplit[p]=parseInt(state.entryPersonSplitDraft[p],10)||0;});
+      else if (editingItem && editingItem.personSplit) editingItem.personSplit.forEach(function(ps){existingSplit[ps.person]=ps.pct;});
+      var splitTotal=0;
+      h += '<div class="card" style="padding:10px 12px;margin-bottom:12px;">';
+      people.forEach(function(p){
+        var cur=existingSplit[p]||0; splitTotal+=cur;
+        h += '<div class="row between" style="padding:5px 0;"><span style="font-size:13px;">'+esc(p)+'</span><select class="split-person-pct field mono" data-person="'+esc(p)+'" style="width:84px;padding:6px 8px;font-size:13px;">';
+        var opts=[]; for(var q=0;q<=100;q+=10)opts.push(q); if(cur%10!==0&&opts.indexOf(cur)===-1)opts.push(cur); opts.sort(function(a,b){return a-b;});
+        opts.forEach(function(q){h+='<option value="'+q+'"'+(q===cur?' selected':'')+'>'+q+'%</option>';});
         h += '</select></div>';
       });
-      var splitTotalColor = splitInitTotal===100 ? "var(--positive)" : (splitInitTotal===0 ? "var(--text-muted)" : "var(--rust)");
-      h += '<div class="row between hairline-top" style="padding-top:8px; margin-top:2px;">';
-      h += '<span class="muted caption">Total</span>';
-      h += '<span id="splitPersonTotal" class="mono caption" style="font-weight:600; color:'+splitTotalColor+';">'+splitInitTotal+'%</span>';
-      h += '</div></div>';
+      h += '<div class="row between hairline-top" style="padding-top:8px;margin-top:2px;"><span class="muted caption">Total</span><span id="splitPersonTotal" class="mono caption" style="font-weight:600;color:'+(splitTotal===100?'var(--positive)':splitTotal===0?'var(--text-muted)':'var(--rust)')+';">'+splitTotal+'%</span></div></div>';
     }
+  } else {
+    h += '<input id="entryPersonInput" type="hidden" value="" />';
   }
-  h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:12px;" placeholder="What was it for? (optional)" value="'+(state.entryNoteDraft != null ? esc(state.entryNoteDraft) : (editingItem?esc(editingItem.note||""):""))+'" />';
-  if (!editingItem && splitMode === "split" && txnKind === "expense") {
-    h += '<input id="splitDaysInput" type="number" inputmode="numeric" min="2" step="1" class="field" style="margin-bottom:8px;" placeholder="Number of days" value="'+(state.entrySplitDaysDraft != null ? esc(state.entrySplitDaysDraft) : "")+'" />';
-    h += '<div class="muted caption" style="margin-bottom:12px;">Spreads the total evenly starting from the date above, one share per day. Days still to come are logged as they arrive \u2014 track progress under Plans.</div>';
+
+  h += '<div class="eyebrow" style="margin-bottom:6px;">Note</div>';
+  h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:10px;" placeholder="Merchant or what it was for" value="'+(state.entryNoteDraft!=null?esc(state.entryNoteDraft):(editingItem?esc(editingItem.note||""):""))+'" />';
+
+  h += '<button data-action="toggle-txn-advanced" class="row between" style="width:100%;background:none;border:none;padding:8px 0 10px;color:var(--text-muted);font-size:13px;"><span>'+(advancedOpen?'Fewer options':'More options')+'</span><span style="display:flex;transform:rotate('+(advancedOpen?'90':'0')+'deg);">'+ICONS.chevronRight+'</span></button>';
+
+  if (advancedOpen) {
+    h += '<div class="card" style="padding:12px;margin-bottom:12px;">';
+    h += '<label class="eyebrow" style="display:block;margin-bottom:6px;">Date</label><input id="entryDateInput" type="date" class="field mono" style="margin-bottom:10px;" value="'+formDate+'" max="'+todayStr()+'" />';
+    if (!editingItem && txnKind === "expense") {
+      h += '<div class="eyebrow" style="margin-bottom:6px;">Timing</div><div class="seg" style="margin-bottom:'+(splitMode==='split'?'8':'0')+'px;">';
+      h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==='single')+'" data-action="set-txn-split-mode" data-mode="single">Single day</button>';
+      h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==='split')+'" data-action="set-txn-split-mode" data-mode="split">Spread across days</button></div>';
+      if (splitMode === "split") {
+        h += '<input id="splitDaysInput" type="number" inputmode="numeric" min="2" step="1" class="field" style="margin-top:8px;" placeholder="Number of days" value="'+(state.entrySplitDaysDraft!=null?esc(state.entrySplitDaysDraft):"")+'" />';
+        h += '<div class="muted caption" style="margin-top:7px;">The total is spread evenly from this date; future shares are added as their day arrives.</div>';
+      }
+    }
+    h += '</div>';
+  } else {
+    h += '<input id="entryDateInput" type="hidden" value="'+formDate+'" />';
   }
-  h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent row gap2" style="width:100%; justify-content:center; align-items:center;">'+(editingItem?(ICONS.check+" Save"):(ICONS.plus+" Add "+(txnKind==="income"?"income":"expense")))+'</button>';
-  h += '<div id="entryHint" class="muted" style="font-size:11px; margin-top:8px;">'+(todayEntry && !editingItem ? (esc(dayLabel(formDate))+" so far: "+todayEntry.items.length+" transaction"+(todayEntry.items.length===1?"":"s")+", "+fmt(sumSpent(todayEntry),2)+" AED spent.") : "")+'</div>';
+
+  var saveLabel;
+  if (editingItem) saveLabel='Save changes';
+  else if (!isNaN(parsedShown) && parsedShown>0) saveLabel='Add '+fmt(parsedShown,2)+' AED '+(txnKind==='income'?'income':'expense');
+  else saveLabel='Add '+(txnKind==='income'?'income':'expense');
+  h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent" style="width:100%;justify-content:center;align-items:center;font-size:16px;">'+saveLabel+'</button>';
   h += '</div></div>';
   return h;
 }
-
 function renderFab() {
   return '<button data-action="open-add-txn" aria-label="Add transaction" style="position:fixed; right:calc(env(safe-area-inset-right,0px) + 18px); bottom:calc(var(--vvb, 0px) + env(safe-area-inset-bottom,0px) + 78px); width:52px; height:52px; border-radius:999px; background:var(--accent); color:var(--accent-ink); border:none; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,0.35); z-index:45;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
 }
 
 function renderTransactionsBody() {
-  var entryDates = Object.keys(state.entries).sort();
-  var groupFilter = state.txnGroupFilter || "";
-  var categoryFilter = state.txnCategoryFilter || "";
-  var personFilter = state.txnPersonFilter || "";
-  var periodMode = state.txnPeriodMode || "all";
-  var periodFrom = state.txnPeriodFrom || "";
-  var periodTo = state.txnPeriodTo || "";
-  var info = getTxnPeriodInfo();
-  function itemCat(it){ return it.category || "Uncategorised"; }
-  function inPeriod(d){ return d >= info.start && d <= info.end; }
-  function itemMatchesGroup(it){ if(!groupFilter)return true; if(groupFilter==="__ungrouped__")return !categoryGroupOf(it.category); return categoryGroupOf(it.category)===groupFilter; }
-  function itemMatchesPerson(it){ return itemMatchesPersonFilter(it,personFilter); }
-  function itemMatchesFilters(it){
-    if (isIncomeItem(it) && (categoryFilter || groupFilter)) return false;
-    return (!categoryFilter || itemCat(it)===categoryFilter) && itemMatchesGroup(it) && itemMatchesPerson(it);
+  var entryDates=Object.keys(state.entries).sort();
+  var groupFilter=state.txnGroupFilter||"";
+  var categoryFilter=state.txnCategoryFilter||"";
+  var personFilter=state.txnPersonFilter||"";
+  var typeFilter=state.txnTypeFilter||"all";
+  var search=(state.txnSearch||"").trim().toLowerCase();
+  var periodMode=state.txnPeriodMode||"month";
+  var periodFrom=state.txnPeriodFrom||"", periodTo=state.txnPeriodTo||"";
+  var info=getTxnPeriodInfo();
+  var people=state.settings.people||[];
+  var groups=state.settings.categoryGroups||[];
+  function itemCat(it){return it.category||"Uncategorised";}
+  function inPeriod(d){return d>=info.start&&d<=info.end;}
+  function matchesGroup(it){if(!groupFilter)return true;if(groupFilter==="__ungrouped__")return !categoryGroupOf(it.category);return categoryGroupOf(it.category)===groupFilter;}
+  function matchesSearch(it){
+    if(!search)return true;
+    var persons=(it.personSplit&&it.personSplit.length)?it.personSplit.map(function(ps){return ps.person;}).join(" "):(it.person||"");
+    var blob=[it.note||"",it.category||"",categoryGroupOf(it.category)||"",persons,isIncomeItem(it)?"income":"expense",String(it.amount||"")].join(" ").toLowerCase();
+    return blob.indexOf(search)!==-1;
   }
-  var periodActive = periodMode !== "all";
-  var anyItemFilterActive = !!categoryFilter || !!groupFilter || !!personFilter;
-  var anyFilterActive = anyItemFilterActive || periodActive;
-  var groupListForFilter = state.settings.categoryGroups||[];
-  var ungroupedCatsExist = (state.settings.categories||[]).some(function(c){return !categoryGroupOf(c);});
-  var filterOptions = !groupFilter ? (state.settings.categories||[]).slice() : (groupFilter==="__ungrouped__" ? (state.settings.categories||[]).filter(function(c){return !categoryGroupOf(c);}) : (state.settings.categories||[]).filter(function(c){return categoryGroupOf(c)===groupFilter;}));
-  if (!groupFilter || groupFilter === "__ungrouped__") filterOptions.push("Uncategorised");
-  var filterCount=0, filterExpense=0, filterIncome=0;
-  entryDates.forEach(function(d){ if(!inPeriod(d))return; (state.entries[d].items||[]).forEach(function(it){ if(itemMatchesFilters(it)){ filterCount++; if(isExpenseItem(it)) filterExpense += personScopedAmount(it,personFilter); else filterIncome += it.amount; } }); });
+  function matches(it){
+    if(typeFilter==="expense"&&!isExpenseItem(it))return false;
+    if(typeFilter==="income"&&!isIncomeItem(it))return false;
+    if(isIncomeItem(it)&&(categoryFilter||groupFilter))return false;
+    return (!categoryFilter||itemCat(it)===categoryFilter)&&matchesGroup(it)&&itemMatchesPersonFilter(it,personFilter)&&matchesSearch(it);
+  }
+  var itemFilterActive=!!categoryFilter||!!groupFilter||!!personFilter||typeFilter!=="all"||!!search;
 
-  var h='<div class="card" style="overflow:hidden;margin-bottom:16px;">';
-  h+='<div class="row between" style="padding:16px 16px 4px;"><div><div class="eyebrow">All transactions</div><div class="muted caption" style="margin-top:2px;">Every expense and income entry, regardless of budget settings.</div></div><button data-action="go-page" data-page="calendar" class="btn-outline row gap2" style="padding:6px 9px;font-size:12px;align-items:center;">'+ICONS.calendar+' Calendar</button></div>';
-  if(groupListForFilter.length){ h+='<div style="padding:8px 16px 0;"><select id="txnGroupFilterSelect" class="field" style="font-size:13px;"><option value="">All groups</option>'; groupListForFilter.forEach(function(g){h+='<option value="'+esc(g)+'"'+(groupFilter===g?' selected':'')+'>'+esc(g)+'</option>';}); if(ungroupedCatsExist)h+='<option value="__ungrouped__"'+(groupFilter==='__ungrouped__'?' selected':'')+'>Ungrouped</option>'; h+='</select></div>'; }
-  h+='<div style="padding:8px 16px 0;"><select id="txnCategoryFilterSelect" class="field" style="font-size:13px;"><option value="">All categories</option>'; filterOptions.forEach(function(c){h+='<option value="'+esc(c)+'"'+(categoryFilter===c?' selected':'')+'>'+esc(c)+'</option>';}); h+='</select></div>';
-  var people=state.settings.people||[]; if(people.length){h+='<div style="padding:8px 16px 0;"><select id="txnPersonFilterSelect" class="field" style="font-size:13px;"><option value="">All people</option>';people.forEach(function(p){h+='<option value="'+esc(p)+'"'+(personFilter===p?' selected':'')+'>'+esc(p)+'</option>';});h+='<option value="__unassigned__"'+(personFilter==='__unassigned__'?' selected':'')+'>Unassigned</option></select></div>';}
-  h+='<div style="padding:8px 16px;"><div class="seg">'; [["all","All"],["week","Week"],["month","Month"],["year","Year"],["custom","Custom"]].forEach(function(opt){h+='<button class="seg-btn" role="tab" aria-selected="'+(periodMode===opt[0])+'" data-action="set-txn-period" data-mode="'+opt[0]+'">'+opt[1]+'</button>';}); h+='</div></div>';
-  if(periodMode==='custom'){h+='<div class="row gap2" style="padding:0 16px 8px;"><input id="txnPeriodFromInput" type="date" class="field mono" style="flex:1;font-size:13px;" value="'+esc(periodFrom)+'" max="'+todayStr()+'"/><input id="txnPeriodToInput" type="date" class="field mono" style="flex:1;font-size:13px;" value="'+esc(periodTo)+'" max="'+todayStr()+'"/></div>';} else if(periodMode!=='all'){h+='<div style="padding:0 16px 8px;"><div class="row between card" style="padding:8px 10px;"><button data-action="txn-nav-offset" data-delta="-1" class="icon-btn">'+ICONS.chevronLeft+'</button><div style="text-align:center;"><div class="subhead">'+esc(info.title)+'</div><div class="muted caption">'+esc(info.sub)+'</div></div><button data-action="txn-nav-offset" data-delta="1" class="icon-btn" style="'+(info.isCurrent?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div></div>';}
-  if(anyFilterActive) h+='<div class="muted caption" style="padding:0 16px 12px;">'+filterCount+' transaction'+(filterCount===1?'':'s')+' · '+fmt(filterExpense,2)+' AED expenses'+(filterIncome>0?' · '+fmt(filterIncome,2)+' AED income':'')+'</div>';
-  var dates=entryDates.slice().reverse().filter(function(d){if(!inPeriod(d))return false;return anyItemFilterActive?(state.entries[d].items||[]).some(itemMatchesFilters):true;});
-  if(!dates.length) h+='<div class="muted subhead" style="padding:0 16px 20px;">'+(anyFilterActive?'No matching transactions.':'Nothing logged yet.')+'</div>';
-  else dates.forEach(function(date,i){var day=state.entries[date];var displayItems=anyItemFilterActive?day.items.filter(itemMatchesFilters):day.items;var dayExpense=displayItems.reduce(function(s,it){return isExpenseItem(it)?s+personScopedAmount(it,personFilter):s;},0);var dayIncome=displayItems.reduce(function(s,it){return isIncomeItem(it)?s+it.amount:s;},0);var net=dayIncome-dayExpense;h+='<div style="padding:12px 16px;'+(i?'border-top:1px solid var(--hairline);':'')+'"><div class="row between"><div><div class="subhead">'+esc(dayLabel(date))+'</div><div class="muted caption" style="margin-top:2px;">'+displayItems.length+' txn'+(displayItems.length===1?'':'s')+' · '+fmt(dayExpense,2)+' AED spent'+(dayIncome>0?' · '+fmt(dayIncome,2)+' income':'')+'</div></div><div class="mono subhead" style="color:'+(net>=0?'var(--positive)':'var(--rust)')+';">'+(net>=0?'+':'−')+fmt(Math.abs(net),2)+'</div></div><div style="margin-top:4px;">';newestFirst(displayItems).forEach(function(it){h+=renderTxnRow(date,it);});h+='</div></div>';});
+  var allPeriodItems=[];
+  entryDates.forEach(function(d){if(!inPeriod(d))return;(state.entries[d].items||[]).forEach(function(it){if(matches(it))allPeriodItems.push({date:d,it:it});});});
+  var totalExpense=allPeriodItems.reduce(function(t,x){return t+(isExpenseItem(x.it)?personScopedAmount(x.it,personFilter):0);},0);
+  var totalIncome=allPeriodItems.reduce(function(t,x){return t+(isIncomeItem(x.it)?x.it.amount:0);},0);
+  var net=totalIncome-totalExpense;
+
+  var h='';
+  h+='<div class="row between" style="margin-bottom:10px;align-items:center;"><div><div class="eyebrow">Transactions</div><div class="muted caption">'+esc(info.title)+'</div></div><button data-action="go-page" data-page="calendar" class="btn-outline row gap2" style="padding:7px 10px;font-size:12px;align-items:center;">'+ICONS.calendar+' Calendar</button></div>';
+
+  h+='<div class="card card-pad" style="margin-bottom:12px;">';
+  h+='<div class="row between" style="align-items:flex-end;"><div><div class="eyebrow">Spent</div><div class="mono" style="font-size:30px;font-weight:700;margin-top:2px;">'+fmt(totalExpense,2)+' <span class="muted" style="font-size:15px;">AED</span></div></div>';
+  if(totalIncome>0) h+='<div style="text-align:right;"><div class="muted caption">Received</div><div class="mono subhead" style="color:var(--positive);">+'+fmt(totalIncome,2)+'</div><div class="muted caption" style="margin-top:3px;">Net <span class="mono" style="color:'+(net>=0?'var(--positive)':'var(--rust)')+';">'+(net>=0?'+':'−')+fmt(Math.abs(net),2)+'</span></div></div>';
+  h+='</div>';
+  if(periodMode!=="all"&&periodMode!=="custom") h+='<div class="row between hairline-top" style="margin-top:12px;padding-top:10px;"><button data-action="txn-nav-offset" data-delta="-1" class="icon-btn" style="padding:6px;">'+ICONS.chevronLeft+'</button><div style="text-align:center;"><div class="subhead" style="font-weight:600;">'+esc(info.title)+'</div><div class="muted caption">'+esc(info.sub)+'</div></div><button data-action="txn-nav-offset" data-delta="1" class="icon-btn" style="padding:6px;'+(info.isCurrent?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';
+  h+='</div>';
+
+  h+='<div class="card" style="padding:12px;margin-bottom:12px;">';
+  h+='<div style="position:relative;margin-bottom:10px;"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);display:flex;">'+ICONS.search+'</span><input id="txnSearchInput" type="search" class="field" placeholder="Search merchant, category or person" value="'+esc(state.txnSearch||"")+'" style="padding-left:40px;" /></div>';
+  h+='<div style="display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;">';
+  [["all","All"],["expense","Expenses"],["income","Income"]].forEach(function(opt){var sel=typeFilter===opt[0];h+='<button data-action="set-txn-type-filter" data-type="'+opt[0]+'" class="chip" style="flex:0 0 auto;background:'+(sel?'var(--accent)':'var(--fill)')+';color:'+(sel?'var(--accent-ink)':'var(--text)')+';font-weight:'+(sel?'600':'500')+';">'+opt[1]+'</button>';});
+  var extraFilters=!!groupFilter||!!categoryFilter||!!personFilter||periodMode!=="month";
+  h+='<button data-action="toggle-txn-filters" class="chip" style="flex:0 0 auto;'+(extraFilters?'background:var(--accent);color:var(--accent-ink);font-weight:600;':'')+'">Filters'+(extraFilters?' •':'')+'</button>';
+  h+='</div>';
+
+  if(state.txnFiltersOpen){
+    h+='<div class="hairline-top" style="margin-top:12px;padding-top:12px;">';
+    h+='<div class="eyebrow" style="margin-bottom:6px;">Period</div><div class="seg seg-scroll" style="margin-bottom:10px;">';
+    [["week","Week"],["month","Month"],["year","Year"],["all","All time"],["custom","Custom"]].forEach(function(opt){h+='<button class="seg-btn" role="tab" aria-selected="'+(periodMode===opt[0])+'" data-action="set-txn-period" data-mode="'+opt[0]+'">'+opt[1]+'</button>';});h+='</div>';
+    if(periodMode==='custom')h+='<div class="row gap2" style="margin-bottom:10px;"><input id="txnPeriodFromInput" type="date" class="field mono" style="flex:1;font-size:13px;" value="'+esc(periodFrom)+'" max="'+todayStr()+'"/><input id="txnPeriodToInput" type="date" class="field mono" style="flex:1;font-size:13px;" value="'+esc(periodTo)+'" max="'+todayStr()+'"/></div>';
+    if(groups.length){h+='<select id="txnGroupFilterSelect" class="field" style="font-size:13px;margin-bottom:8px;"><option value="">All groups</option>';groups.forEach(function(g){h+='<option value="'+esc(g)+'"'+(groupFilter===g?' selected':'')+'>'+esc(g)+'</option>';});if((state.settings.categories||[]).some(function(c){return !categoryGroupOf(c);}))h+='<option value="__ungrouped__"'+(groupFilter==='__ungrouped__'?' selected':'')+'>Ungrouped</option>';h+='</select>';}
+    var filterCats=!groupFilter?(state.settings.categories||[]).slice():(groupFilter==='__ungrouped__'?(state.settings.categories||[]).filter(function(c){return !categoryGroupOf(c);}):(state.settings.categories||[]).filter(function(c){return categoryGroupOf(c)===groupFilter;}));
+    h+='<select id="txnCategoryFilterSelect" class="field" style="font-size:13px;margin-bottom:8px;"><option value="">All categories</option>';filterCats.forEach(function(c){h+='<option value="'+esc(c)+'"'+(categoryFilter===c?' selected':'')+'>'+esc(c)+'</option>';});h+='<option value="Uncategorised"'+(categoryFilter==='Uncategorised'?' selected':'')+'>Uncategorised</option></select>';
+    if(people.length){h+='<select id="txnPersonFilterSelect" class="field" style="font-size:13px;margin-bottom:8px;"><option value="">All people</option>';people.forEach(function(p){h+='<option value="'+esc(p)+'"'+(personFilter===p?' selected':'')+'>'+esc(p)+'</option>';});h+='<option value="__unassigned__"'+(personFilter==='__unassigned__'?' selected':'')+'>Unassigned</option></select>';}
+    h+='<div style="text-align:right;"><button data-action="clear-txn-filters" class="btn-plain" style="font-size:13px;">Reset filters</button></div></div>';
+  }
+  h+='</div>';
+
+  var dates=entryDates.slice().reverse().filter(function(d){if(!inPeriod(d))return false;return (state.entries[d].items||[]).some(matches);});
+  h+='<div class="card" style="overflow:hidden;margin-bottom:16px;">';
+  if(!dates.length)h+='<div class="muted subhead" style="padding:20px 16px;">'+(itemFilterActive?'No matching transactions.':'Nothing logged in this period.')+'</div>';
+  else dates.forEach(function(date,di){
+    var items=(state.entries[date].items||[]).filter(matches);
+    var expense=items.reduce(function(t,it){return t+(isExpenseItem(it)?personScopedAmount(it,personFilter):0);},0);
+    var income=items.reduce(function(t,it){return t+(isIncomeItem(it)?it.amount:0);},0);
+    var yesterday=toStr(addDays(parseD(todayStr()),-1));
+    var heading=date===todayStr()?"Today · "+shortLabel(date):(date===yesterday?"Yesterday · "+shortLabel(date):dayLabel(date));
+    h+='<div style="padding:12px 16px;'+(di?'border-top:1px solid var(--hairline);':'')+'"><div class="row between" style="margin-bottom:5px;"><div class="subhead" style="font-weight:600;">'+esc(heading)+'</div><div style="text-align:right;">'+(expense>0?'<div class="mono subhead">'+fmt(expense,2)+' AED</div>':'')+(income>0?'<div class="mono caption" style="color:var(--positive);">+'+fmt(income,2)+' received</div>':'')+'</div></div>';
+    newestFirst(items).forEach(function(it){h+=renderTxnRow(date,it);});
+    h+='</div>';
+  });
   h+='</div><div style="text-align:center;margin-bottom:16px;"><button data-action="open-reset" style="background:none;border:none;padding:0;color:var(--text-muted);font-size:11px;">Clear all entries</button></div>';
   return h;
 }
-
 function legendSwatch(bg, label, fg) {
   return '<div class="row" style="align-items:center; gap:5px;"><span style="width:10px; height:10px; border-radius:3px; background:'+bg+'; display:inline-block;"></span><span style="font-size:10px; color:'+(fg||"var(--text-muted)")+';">'+esc(label)+'</span></div>';
 }
@@ -2220,44 +2250,33 @@ function legendSwatch(bg, label, fg) {
 /* Shared transaction-row renderer used by both the Transactions page and the
    Calendar day-detail panel, so the two never visually drift apart. */
 function renderTxnRow(date, it) {
-  var key = date+"|"+it.id;
-  if (state.pendingDeleteKey === key) {
-    return '<div class="row between" style="background:var(--rust-wash); border-radius:8px; padding:8px 10px; margin-bottom:2px;">'
-      + '<span style="font-size:12px;">Delete this?</span>'
-      + '<div class="row gap2"><button data-action="delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:var(--rust);border:none;border-radius:5px;padding:4px;color:#fff;" aria-label="Confirm delete">'+ICONS.check+'</button>'
-      + '<button data-action="cancel-delete-txn" style="background:none;border:1px solid var(--hairline);border-radius:5px;padding:4px;color:var(--text-muted);" aria-label="Cancel">'+ICONS.x+'</button></div></div>';
+  var key=date+"|"+it.id;
+  if(state.pendingDeleteKey===key){
+    return '<div class="row between" style="background:var(--rust-wash);border-radius:8px;padding:8px 10px;margin-bottom:2px;"><span style="font-size:12px;">Delete this?</span><div class="row gap2"><button data-action="delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:var(--rust);border:none;border-radius:5px;padding:4px;color:#fff;">'+ICONS.check+'</button><button data-action="cancel-delete-txn" style="background:none;border:1px solid var(--hairline);border-radius:5px;padding:4px;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
   }
-  var isIncome = it.kind === "income";
-  var h = '<div class="row" style="align-items:center; gap:10px; padding:6px 0; margin-bottom:2px;">';
-  h += '<button data-action="edit-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;flex:1;min-width:0;display:flex;align-items:center;gap:10px;text-align:left;">';
-  h += isIncome
-    ? '<span style="width:32px; height:32px; border-radius:50%; background:var(--positive); color:white; display:flex; align-items:center; justify-content:center; flex-shrink:0;">'+ICONS.plus+'</span>'
-    : catIconCircle(it.category);
-  h += '<span style="min-width:0; flex:1;">';
-  var seqBadge = "";
-  if (it.recurringId) {
-    seqBadge = (it.seq && it.seqTotal)
-      ? '<span class="mono" style="color:var(--text-muted); flex-shrink:0; font-size:10px;">'+it.seq+'/'+it.seqTotal+'</span>'
-      : '<span style="color:var(--text-muted); flex-shrink:0;" title="Recurring payment">'+ICONS.repeat+'</span>';
-  }
-  h += '<div style="font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:5px;">'+(isIncome?"Income":(it.category?esc(it.category):"Spent"))+seqBadge+'</div>';
-  if (it.note) h += '<div class="muted" style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(it.note)+'</div>';
-  var chipHtml = "";
-  if (it.personSplit && it.personSplit.length) {
-    chipHtml = it.personSplit.map(function(ps){
-      return personChip(ps.person, "small")+'<span class="muted" style="font-size:10px; margin-left:3px;">'+ps.pct+'%</span>';
-    }).join('<span style="display:inline-block; width:6px;"></span>');
-  } else if (it.person) {
-    chipHtml = personChip(it.person, "small");
-  }
-  if (chipHtml) h += '<div style="margin-top:3px; display:flex; align-items:center; flex-wrap:wrap; gap:2px;">'+chipHtml+'</div>';
-  h += '</span></button>';
-  h += '<div class="mono" style="font-size:13px; font-weight:600; color:'+(isIncome?"var(--positive)":"var(--rust)")+'; flex-shrink:0;">'+(isIncome?"+":"\u2212")+fmt(it.amount,2)+' AED</div>';
-  h += '<button data-action="ask-delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:4px;color:var(--text-muted);flex-shrink:0;" aria-label="Delete">'+ICONS.trash+'</button>';
-  h += '</div>';
+  var income=isIncomeItem(it);
+  var primary=it.note||(income?"Income":(it.category||"Expense"));
+  var secondary=[];
+  if(it.note&&it.category)secondary.push(it.category);
+  if(!income&&it.category&&categoryGroupOf(it.category))secondary.push(categoryGroupOf(it.category));
+  if(income&&!it.note)secondary.push("Money received");
+  var personText="";
+  if(it.personSplit&&it.personSplit.length)personText=it.personSplit.map(function(ps){return ps.person+" "+ps.pct+"%";}).join(" · ");
+  else if(it.person)personText=it.person;
+  if(personText)secondary.push(personText);
+  var seq="";
+  if(it.recurringId)seq=(it.seq&&it.seqTotal)?(' · '+it.seq+'/'+it.seqTotal):' · Recurring';
+
+  var h='<div class="row" style="align-items:center;gap:10px;padding:8px 0;margin-bottom:1px;">';
+  h+='<button data-action="edit-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:0;flex:1;min-width:0;display:flex;align-items:center;gap:10px;text-align:left;">';
+  h+=income?'<span style="width:34px;height:34px;border-radius:50%;background:var(--positive);color:white;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+ICONS.plus+'</span>':catIconCircle(it.category);
+  h+='<span style="min-width:0;flex:1;"><span style="display:block;font-size:14px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(primary)+'</span>';
+  if(secondary.length||seq)h+='<span class="muted" style="display:block;font-size:11px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(secondary.join(" · "))+esc(seq)+'</span>';
+  h+='</span></button>';
+  h+='<div class="mono" style="font-size:14px;font-weight:650;color:'+(income?'var(--positive)':'var(--text)')+';flex-shrink:0;">'+(income?'+':'−')+fmt(it.amount,2)+'</div>';
+  h+='<button data-action="ask-delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:5px;color:var(--text-muted);flex-shrink:0;" aria-label="Delete">'+ICONS.trash+'</button></div>';
   return h;
 }
-
 function renderCalendarBody() {
   var base=addMonths(startOfMonth(new Date()),state.calendarOffset), monthStartStr=toStr(base), monthEndStr=toStr(endOfMonth(base));
   var title=base.toLocaleDateString("en-GB",{month:"long",year:"numeric"}), today=todayStr();
@@ -3567,6 +3586,8 @@ function handleEditTxn(date, id) {
   state.txnSplitMode = "single";
   state.txnKind = null;
   state.txnCategoryGroup = null;
+  state.txnShowAllCategories = false;
+  state.txnAdvancedOpen = true;
   state.entryAmountDraft = null;
   state.entryNoteDraft = null;
   state.entrySplitDaysDraft = null;
@@ -3782,6 +3803,15 @@ document.addEventListener("click", function(e) {
     case "set-txn-person-split-mode":
       preserveTxnFormDraft();
       state.txnPersonSplitMode = el.dataset.mode;
+      if (el.dataset.mode === "split" && !state.entryPersonSplitDraft) {
+        var pplInit = state.settings.people || [];
+        if (pplInit.length) {
+          state.entryPersonSplitDraft = {};
+          var basePct = Math.floor(100 / pplInit.length / 10) * 10;
+          var usedPct = 0;
+          pplInit.forEach(function(p,idx){ var val = idx === pplInit.length-1 ? 100-usedPct : basePct; state.entryPersonSplitDraft[p]=String(val); usedPct += val; });
+        }
+      }
       render();
       break;
     case "open-add-txn":
@@ -3794,6 +3824,8 @@ document.addEventListener("click", function(e) {
       state.txnKind = null;
       state.txnPersonSplitMode = "single";
       state.txnCategoryGroup = null;
+      state.txnShowAllCategories = false;
+      state.txnAdvancedOpen = false;
       state.entryAmountDraft = null;
       state.entryNoteDraft = null;
       state.entrySplitDaysDraft = null;
@@ -3811,6 +3843,8 @@ document.addEventListener("click", function(e) {
       state.txnKind = null;
       state.txnPersonSplitMode = "single";
       state.txnCategoryGroup = null;
+      state.txnShowAllCategories = false;
+      state.txnAdvancedOpen = false;
       state.entryAmountDraft = null;
       state.entryNoteDraft = null;
       state.entrySplitDaysDraft = null;
@@ -4274,6 +4308,45 @@ document.addEventListener("click", function(e) {
       state.analysisSelectedBucket = null;
       render();
       break;
+    case "set-txn-type-filter":
+      state.txnTypeFilter = el.dataset.type || "all";
+      render();
+      break;
+    case "toggle-txn-filters":
+      state.txnFiltersOpen = !state.txnFiltersOpen;
+      render();
+      break;
+    case "clear-txn-filters":
+      state.txnGroupFilter = "";
+      state.txnCategoryFilter = "";
+      state.txnPersonFilter = "";
+      state.txnPeriodMode = "month";
+      state.txnOffset = 0;
+      render();
+      break;
+    case "select-txn-category":
+      preserveTxnFormDraft();
+      state.entryCategoryDraft = el.dataset.cat || "";
+      state.txnShowAllCategories = false;
+      render();
+      break;
+    case "toggle-all-categories":
+      preserveTxnFormDraft();
+      state.txnShowAllCategories = !state.txnShowAllCategories;
+      render();
+      break;
+    case "select-txn-person":
+      preserveTxnFormDraft();
+      state.entryPersonDraft = el.dataset.person || "";
+      state.txnPersonSplitMode = "single";
+      state.entryPersonSplitDraft = null;
+      render();
+      break;
+    case "toggle-txn-advanced":
+      preserveTxnFormDraft();
+      state.txnAdvancedOpen = !state.txnAdvancedOpen;
+      render();
+      break;
     case "set-txn-period":
       state.txnPeriodMode = el.dataset.mode;
       state.txnOffset = 0;
@@ -4315,6 +4388,28 @@ document.addEventListener("click", function(e) {
    a color is picked, without waiting for Apply or a full re-render (which
    would rebuild the sheet mid-pick and could interrupt the native picker). */
 document.addEventListener("input", function(e) {
+  if (e.target && e.target.id === "txnSearchInput") {
+    state.txnSearch = e.target.value;
+    var caret = e.target.selectionStart;
+    render();
+    var searchEl = document.getElementById("txnSearchInput");
+    if (searchEl) {
+      try { searchEl.focus({preventScroll:true}); } catch(err) { searchEl.focus(); }
+      try { searchEl.setSelectionRange(caret, caret); } catch(err2) {}
+    }
+    return;
+  }
+  if (e.target && e.target.id === "entryAmountInput") {
+    state.entryAmountDraft = e.target.value;
+    var addBtn = document.getElementById("addTxnBtn");
+    if (addBtn) {
+      var val = parseFloat(e.target.value);
+      var editing = !!(state.editingItemId && state.editingOriginalDate);
+      var k = state.txnKind || "expense";
+      addBtn.textContent = editing ? "Save changes" : ((!isNaN(val) && val>0) ? ("Add "+fmt(val,2)+" AED "+(k==="income"?"income":"expense")) : ("Add "+(k==="income"?"income":"expense")));
+    }
+    return;
+  }
   if (e.target && e.target.id === "incomeDraftInput") {
     var derivedEl = document.getElementById("incomeDerivedText");
     if (derivedEl) derivedEl.textContent = incomeDerivedSummary(parseFloat(e.target.value));
@@ -4393,6 +4488,7 @@ document.addEventListener("change", function(e) {
     return;
   }
   if (e.target && e.target.id === "entryDateInput") handleQuickDate(e.target.value);
+  if (e.target && e.target.id === "entryCategoryInput" && e.target.tagName === "SELECT") { state.entryCategoryDraft = e.target.value; }
   if (e.target && e.target.id === "txnGroupFilterSelect") {
     var newTxnGroup = e.target.value;
     var curTxnCat = state.txnCategoryFilter;
