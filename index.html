@@ -108,8 +108,28 @@
   /* Native horizontal chip strips inside a modal. The modal uses a custom
      vertical touch lock on iOS, so these strips are explicitly allowed to
      own horizontal gestures instead of having every touchmove swallowed. */
-  .txn-hscroll { overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-width:none; touch-action:pan-x; overscroll-behavior-x:contain; }
+  .txn-hscroll {
+    display:flex; overflow-x:scroll; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+    touch-action:pan-x; overscroll-behavior-x:auto; scroll-snap-type:none; scroll-behavior:auto;
+  }
   .txn-hscroll::-webkit-scrollbar { display:none; }
+
+  /* Transaction entry is a real page, not a sheet. This removes the iOS
+     visual-viewport tug-of-war between a fixed modal, the page behind it and
+     the keyboard. Normal document scrolling + native horizontal scrolling
+     gives the form the same stable feel as a dedicated app screen. */
+  .txn-entry-page { min-height:100vh; min-height:100dvh; background:var(--bg); padding-top:env(safe-area-inset-top,0px); }
+  .txn-entry-shell { width:100%; max-width:460px; margin:0 auto; padding:0 16px calc(env(safe-area-inset-bottom,0px) + 28px); }
+  .txn-entry-header {
+    position:sticky; top:0; z-index:30; display:grid; grid-template-columns:44px 1fr 44px; align-items:center;
+    min-height:60px; margin:0 -16px 12px; padding:6px 16px; background:var(--bg); border-bottom:1px solid var(--sep);
+  }
+  .txn-entry-header-title { font-size:20px; line-height:1.15; font-weight:760; letter-spacing:-0.025em; text-align:center; }
+  .txn-entry-back { width:38px; height:38px; display:flex; align-items:center; justify-content:center; border:none; border-radius:999px; background:var(--fill); color:var(--text); padding:0; }
+  .txn-entry-content { padding-bottom:18px; }
+  .txn-entry-page input, .txn-entry-page select, .txn-entry-page textarea { scroll-margin-top:84px; }
+  .txn-entry-save { margin-top:6px; min-height:52px; border-radius:14px !important; font-size:17px !important; }
+  @media (min-width:480px) { .txn-entry-shell { padding-left:20px; padding-right:20px; } .txn-entry-header { margin-left:-20px; margin-right:-20px; padding-left:20px; padding-right:20px; } }
   .seg-scroll .seg-btn { flex: 0 0 auto; white-space:nowrap; padding: 7px 14px; }
   .seg-wrap { flex-wrap: wrap; gap: 6px; }
   .seg-wrap .seg-btn { flex: 0 0 auto; white-space:nowrap; padding: 7px 14px; }
@@ -641,6 +661,8 @@ var state = {
   editingItemId: null,
   editingOriginalDate: null,
   showAddTxn: false,
+  txnEntryReturnScrollY: 0,
+  txnEntryRestoreScroll: false,
   toastMessage: null,
   settingsTab: "budget",
   pendingDeleteKey: null,
@@ -1258,7 +1280,8 @@ function unlockBodyScroll() {
   window.scrollTo(0, lockedScrollY);
 }
 
-/* Manual touch-scroll for whichever .modal-card is open. CSS alone (overflow
+/* Manual touch-scroll for Settings/Backup sheet modals. Transaction entry is
+   intentionally a normal full page and never enters this touch system. CSS alone (overflow
    hidden, overscroll-behavior: contain) stops normal scroll chaining, but iOS
    can still pan the visual viewport mid-gesture as its own keyboard-avoidance
    heuristic — that's a compositor-level behavior CSS doesn't govern, and it's
@@ -1399,7 +1422,7 @@ function render() {
   var T = effectivePalette();
   applyTheme(T);
 
-  var anyModalOpen = state.showAddTxn || state.showSettings || state.showBackup || state.showResetConfirm;
+  var anyModalOpen = state.showSettings || state.showBackup || state.showResetConfirm;
   if (anyModalOpen) lockBodyScroll(); else unlockBodyScroll();
 
   /* root.innerHTML = html below destroys and recreates every element on every
@@ -1412,8 +1435,10 @@ function render() {
      pinned via lockBodyScroll, so only the modal's own scrollTop matters;
      with no modal open, the page's own scroll position is what matters. */
   var modalCardEl = document.querySelector(".modal-card");
+  var txnEntryPageEl = document.querySelector(".txn-entry-page");
+  var savedTxnEntryScrollY = txnEntryPageEl ? (window.scrollY || window.pageYOffset || 0) : 0;
   var savedModalScrollTop = modalCardEl ? modalCardEl.scrollTop : 0;
-  var savedPageScrollY = modalCardEl ? 0 : (window.scrollY || window.pageYOffset || 0);
+  var savedPageScrollY = (modalCardEl || txnEntryPageEl) ? 0 : (window.scrollY || window.pageYOffset || 0);
 
   if (state.loading) {
     root.innerHTML = '<div class="row" style="min-height:100vh; align-items:center; justify-content:center;"><div class="muted" style="font-size:14px;">Loading your ledger…</div></div>';
@@ -1421,6 +1446,16 @@ function render() {
   }
 
   var da = dailyAllowance();
+
+  /* Add/Edit transaction is its own screen. Keeping it outside the normal app
+     shell prevents the bottom nav, FAB and underlying page from moving when
+     iOS opens/closes the keyboard. */
+  if (state.showAddTxn) {
+    root.innerHTML = renderAddTxnPage();
+    window.scrollTo(0, savedTxnEntryScrollY);
+    return;
+  }
+
   var html = "";
   html += '<div class="wrap">';
 
@@ -1456,7 +1491,6 @@ function render() {
   html += renderBottomNav();
 
   // modals
-  if (state.showAddTxn) html += renderAddTxnModal();
   if (state.showSettings) {
     html += renderSettingsModal();
   }
@@ -1494,7 +1528,11 @@ function render() {
 
   root.innerHTML = html;
   var newModalCardEl = document.querySelector(".modal-card");
-  if (newModalCardEl) {
+  if (state.txnEntryRestoreScroll) {
+    var restoreTxnY = state.txnEntryReturnScrollY || 0;
+    state.txnEntryRestoreScroll = false;
+    window.scrollTo(0, restoreTxnY);
+  } else if (newModalCardEl) {
     if (savedModalScrollTop) newModalCardEl.scrollTop = savedModalScrollTop;
   } else if (savedPageScrollY) {
     window.scrollTo(0, savedPageScrollY);
@@ -2030,7 +2068,7 @@ function renderSettingsModal() {
   return h;
 }
 
-function renderAddTxnModal() {
+function renderAddTxnPage() {
   var editingItem = null;
   if (state.editingItemId && state.editingOriginalDate) {
     var origDay = state.entries[state.editingOriginalDate];
@@ -2068,10 +2106,11 @@ function renderAddTxnModal() {
     quickCats = quickCats.slice(0,8);
   }
 
-  var h = '<div class="modal-backdrop" data-action="close-add-txn">';
-  h += '<div class="modal-card" data-action="noop">';
-  h += '<div class="modal-sticky-header"><div class="grabber"></div>';
-  h += '<div class="row between"><div class="sheet-title">'+(editingItem?"Edit transaction":"Add transaction")+'</div><button data-action="close-add-txn" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
+  var h = '<div class="txn-entry-page"><div class="txn-entry-shell">';
+  h += '<div class="txn-entry-header">';
+  h += '<button data-action="close-add-txn" class="txn-entry-back" aria-label="Back">'+ICONS.chevronLeft+'</button>';
+  h += '<div class="txn-entry-header-title">'+(editingItem?"Edit transaction":"Add transaction")+'</div><span></span></div>';
+  h += '<div class="txn-entry-content">';
 
   h += '<div class="seg" style="margin:14px 0 14px;">';
   h += '<button class="seg-btn" role="tab" aria-selected="'+(txnKind==="expense")+'" data-action="set-txn-kind" data-kind="expense">Expense</button>';
@@ -2093,7 +2132,7 @@ function renderAddTxnModal() {
 
   if (txnKind === "expense") {
     h += '<div class="row between" style="margin-bottom:8px;"><span class="eyebrow">Category</span>'+(selectedCat?'<span class="muted caption">'+esc(categoryGroupOf(selectedCat)||"Ungrouped")+'</span>':'')+'</div>';
-    h += '<div class="txn-hscroll" style="display:flex;gap:8px;margin:0 -8px 10px;padding:2px 8px 5px;">';
+    h += '<div class="txn-hscroll" style="gap:8px;margin:0 -8px 10px;padding:2px 8px 5px;">';
     quickCats.forEach(function(c){
       var sel=selectedCat===c;
       h += '<button data-action="select-txn-category" data-cat="'+esc(c)+'" style="flex:0 0 auto;min-width:86px;max-width:116px;background:'+(sel?'var(--accent)':'var(--fill)')+';color:'+(sel?'var(--accent-ink)':'var(--text)')+';border:none;border-radius:12px;padding:9px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;">'+catIconCircle(c)+'<span style="font-size:11px;font-weight:'+(sel?'700':'500')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">'+esc(c)+'</span></button>';
@@ -2128,7 +2167,7 @@ function renderAddTxnModal() {
 
   if (people.length) {
     h += '<div class="eyebrow" style="margin:2px 0 8px;">For</div>';
-    h += '<div class="txn-hscroll" style="display:flex;gap:8px;margin:0 -8px 12px;padding:0 8px 4px;">';
+    h += '<div class="txn-hscroll" style="gap:8px;margin:0 -8px 12px;padding:0 8px 4px;">';
     people.forEach(function(p){
       var sel=personSplitMode==="single" && selectedPerson===p;
       h += '<button data-action="select-txn-person" data-person="'+esc(p)+'" style="flex:0 0 auto;border:none;border-radius:999px;padding:8px 12px;background:'+(sel?personColor(p):'var(--fill)')+';color:'+(sel?'#fff':'var(--text)')+';font-size:13px;font-weight:'+(sel?'600':'500')+';">'+esc(p)+(sel?' ✓':'')+'</button>';
@@ -2184,7 +2223,9 @@ function renderAddTxnModal() {
   if (editingItem) saveLabel='Save changes';
   else if (!isNaN(parsedShown) && parsedShown>0) saveLabel='Add '+fmt(parsedShown,2)+' AED '+(txnKind==='income'?'income':'expense');
   else saveLabel='Add '+(txnKind==='income'?'income':'expense');
-  h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent" style="width:100%;justify-content:center;align-items:center;font-size:16px;">'+saveLabel+'</button>';
+  h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent txn-entry-save" style="width:100%;justify-content:center;align-items:center;">'+saveLabel+'</button>';
+  h += '</div>';
+  if (state.toastMessage) h += '<div style="position:fixed;top:calc(env(safe-area-inset-top,0px) + 14px);left:50%;transform:translateX(-50%);background:var(--positive);color:#0C1322;font-size:13px;font-weight:650;padding:9px 16px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,0.35);z-index:80;white-space:nowrap;">'+esc(state.toastMessage)+'</div>';
   h += '</div></div>';
   return h;
 }
@@ -3440,11 +3481,13 @@ function handleAddTransaction() {
     state.editingItemId = null;
     state.editingOriginalDate = null;
     state.showAddTxn = false;
+    state.txnEntryRestoreScroll = true;
   } else {
     var existing = nextEntries[date];
     var newItem = { id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind };
     nextEntries[date] = existing ? Object.assign({}, existing, { items: existing.items.concat([newItem]) }) : { allowance: allowanceForDate(date), items: [newItem] };
     state.showAddTxn = false;
+    state.txnEntryRestoreScroll = true;
   }
 
   state.entryDate = date;
@@ -3482,6 +3525,7 @@ function handleAddSplitTransaction(startDate, totalAmount, category, note, split
   runRecurringCatchUp();
   state.entryDate = startDate;
   state.showAddTxn = false;
+  state.txnEntryRestoreScroll = true;
   state.txnSplitMode = "single";
   state.txnKind = null;
   persistAll(state.settings, state.entries, "your entries");
@@ -3609,6 +3653,8 @@ function showToast(msg) {
 }
 
 function handleEditTxn(date, id) {
+  state.txnEntryReturnScrollY = window.scrollY || window.pageYOffset || 0;
+  state.txnEntryRestoreScroll = false;
   state.entryDate = date;
   state.editingItemId = id;
   state.editingOriginalDate = date;
@@ -3629,7 +3675,6 @@ function handleEditTxn(date, id) {
   var editItem = editDay ? editDay.items.find(function(i){ return i.id === id; }) : null;
   state.txnPersonSplitMode = (editItem && editItem.personSplit && editItem.personSplit.length) ? "split" : "single";
   render();
-  focusAmountInput();
 }
 
 function handleCancelEdit() {
@@ -3846,6 +3891,8 @@ document.addEventListener("click", function(e) {
       render();
       break;
     case "open-add-txn":
+      state.txnEntryReturnScrollY = window.scrollY || window.pageYOffset || 0;
+      state.txnEntryRestoreScroll = false;
       state.editingItemId = null;
       state.editingOriginalDate = null;
       state.entryDate = todayStr();
@@ -3864,10 +3911,10 @@ document.addEventListener("click", function(e) {
       state.entryCategoryDraft = null;
       state.entryPersonDraft = null;
       render();
-      focusAmountInput();
       break;
     case "close-add-txn":
       state.showAddTxn = false;
+      state.txnEntryRestoreScroll = true;
       state.editingItemId = null;
       state.editingOriginalDate = null;
       state.txnSplitMode = "single";
@@ -3888,6 +3935,7 @@ document.addEventListener("click", function(e) {
       state.editingItemId = null;
       state.editingOriginalDate = null;
       state.showAddTxn = false;
+      state.txnEntryRestoreScroll = false;
       state.pendingDeleteKey = null;
       state.page = el.dataset.page;
       render();
