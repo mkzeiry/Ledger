@@ -641,6 +641,14 @@ var state = {
   categoryRenameEditing: null,
   personRenameEditing: null,
   recurringLimitMode: "ongoing",
+  recurringAmountDraft: null,
+  recurringCategoryDraft: null,
+  recurringPersonDraft: null,
+  recurringNoteDraft: null,
+  recurringFrequencyDraft: null,
+  recurringStartDateDraft: null,
+  recurringCountDraft: null,
+  recurringEndDateDraft: null,
   txnSplitMode: "single",
   txnPersonSplitMode: "single",
   txnCategoryGroup: null,
@@ -3618,20 +3626,20 @@ function renderPlansBody() {
   h += '<div class="card card-pad" style="margin-top:16px; margin-bottom:16px;">';
   h += '<div class="eyebrow" style="margin-bottom:10px;">Add recurring payment</div>';
   h += '<div style="position:relative; margin-bottom:8px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
-  h += '<input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="Amount" /></div>';
-  h += '<select id="recurringCategoryInput" class="field" style="margin-bottom:8px;"><option value="">No category</option>';
-  (state.settings.categories||[]).forEach(function(c){ h += '<option value="'+esc(c)+'">'+esc(c)+'</option>'; });
+  h += '<input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="Amount" value="'+(state.recurringAmountDraft != null ? esc(state.recurringAmountDraft) : "")+'" /></div>';
+  h += '<select id="recurringCategoryInput" class="field" style="margin-bottom:8px;"><option value=""'+(!state.recurringCategoryDraft?" selected":"")+'>No category</option>';
+  (state.settings.categories||[]).forEach(function(c){ h += '<option value="'+esc(c)+'"'+(state.recurringCategoryDraft===c?" selected":"")+'>'+esc(c)+'</option>'; });
   h += '</select>';
   if ((state.settings.people||[]).length) {
-    var recDefaultPerson = state.settings.defaultPerson||"";
+    var recDefaultPerson = state.recurringPersonDraft != null ? state.recurringPersonDraft : (state.settings.defaultPerson||"");
     h += '<select id="recurringPersonInput" class="field" style="margin-bottom:8px;"><option value=""'+(recDefaultPerson===""?" selected":"")+'>Who\u2019s this for? (optional)</option>';
     (state.settings.people||[]).forEach(function(p){ h += '<option value="'+esc(p)+'"'+(recDefaultPerson===p?" selected":"")+'>'+esc(p)+'</option>'; });
     h += '</select>';
   }
-  h += '<input id="recurringNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="What\u2019s it for? (e.g. Rent)" />';
+  h += '<input id="recurringNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="What\u2019s it for? (e.g. Rent)" value="'+(state.recurringNoteDraft != null ? esc(state.recurringNoteDraft) : "")+'" />';
   h += '<div class="row gap2" style="margin-bottom:8px;">';
-  h += '<select id="recurringFrequencyInput" class="field" style="flex:1;"><option value="weekly">Every week</option><option value="monthly">Every month</option></select>';
-  h += '<input id="recurringStartDateInput" type="date" class="field mono" style="flex:1;" value="'+today+'" />';
+  h += '<select id="recurringFrequencyInput" class="field" style="flex:1;"><option value="weekly"'+(state.recurringFrequencyDraft!=="monthly"?" selected":"")+'>Every week</option><option value="monthly"'+(state.recurringFrequencyDraft==="monthly"?" selected":"")+'>Every month</option></select>';
+  h += '<input id="recurringStartDateInput" type="date" class="field mono" style="flex:1;" value="'+(state.recurringStartDateDraft || today)+'" />';
   h += '</div>';
   h += '<div class="muted caption" style="margin-bottom:10px;">Starts on that date, then repeats on the same day each week or month.</div>';
   var limitMode = state.recurringLimitMode || "ongoing";
@@ -3641,9 +3649,9 @@ function renderPlansBody() {
   });
   h += '</div>';
   if (limitMode === "count") {
-    h += '<input id="recurringCountInput" type="number" inputmode="numeric" min="1" step="1" class="field" style="margin-bottom:8px;" placeholder="Number of times" />';
+    h += '<input id="recurringCountInput" type="number" inputmode="numeric" min="1" step="1" class="field" style="margin-bottom:8px;" placeholder="Number of times" value="'+(state.recurringCountDraft != null ? esc(state.recurringCountDraft) : "")+'" />';
   } else if (limitMode === "until") {
-    h += '<input id="recurringEndDateInput" type="date" class="field mono" style="margin-bottom:8px;" />';
+    h += '<input id="recurringEndDateInput" type="date" class="field mono" style="margin-bottom:8px;" value="'+(state.recurringEndDateDraft || "")+'" />';
     h += '<div class="muted caption" style="margin-bottom:8px;">Stops after this date.</div>';
   }
   h += '<button data-action="add-recurring" class="btn-accent" style="width:100%;">Add recurring payment</button>';
@@ -3933,6 +3941,28 @@ function handleDeleteTxn(date, id) {
    first, or they'd silently reset the moment the toggle re-renders it.
    Called at the top of every such toggle handler, before it touches other
    state and calls render(). */
+/* Same root cause as preserveTxnFormDraft, same fix: the Add Recurring
+   Payment form's fields have no draft state of their own, so toggling the
+   limit-mode segmented control (or pausing/deleting a DIFFERENT rule on the
+   same page) rebuilds the DOM and silently erases whatever's been typed
+   into this form. Called before any such action mutates state and renders. */
+function preserveRecurringFormDraft() {
+  var pairs = [
+    ["recurringAmountInput","recurringAmountDraft"],
+    ["recurringCategoryInput","recurringCategoryDraft"],
+    ["recurringPersonInput","recurringPersonDraft"],
+    ["recurringNoteInput","recurringNoteDraft"],
+    ["recurringFrequencyInput","recurringFrequencyDraft"],
+    ["recurringStartDateInput","recurringStartDateDraft"],
+    ["recurringCountInput","recurringCountDraft"],
+    ["recurringEndDateInput","recurringEndDateDraft"]
+  ];
+  pairs.forEach(function(p){
+    var el = document.getElementById(p[0]);
+    if (el) state[p[1]] = el.value;
+  });
+}
+
 function preserveTxnFormDraft() {
   var amtEl = document.getElementById("entryAmountInput");
   var noteEl = document.getElementById("entryNoteInput");
@@ -4148,6 +4178,7 @@ document.addEventListener("click", function(e) {
       }
       break;
     case "set-recurring-limit-mode":
+      preserveRecurringFormDraft();
       state.recurringLimitMode = el.dataset.mode;
       render();
       break;
@@ -4193,10 +4224,19 @@ document.addEventListener("click", function(e) {
       runRecurringCatchUp();
       persistAll(state.settings, state.entries, "your settings");
       state.recurringLimitMode = "ongoing";
+      state.recurringAmountDraft = null;
+      state.recurringCategoryDraft = null;
+      state.recurringPersonDraft = null;
+      state.recurringNoteDraft = null;
+      state.recurringFrequencyDraft = null;
+      state.recurringStartDateDraft = null;
+      state.recurringCountDraft = null;
+      state.recurringEndDateDraft = null;
       showToast("Recurring payment added");
       render();
       break;
     case "toggle-recurring-active":
+      preserveRecurringFormDraft();
       var toggleId = el.dataset.id;
       state.settings = Object.assign({}, state.settings, { recurringRules: (state.settings.recurringRules||[]).map(function(r){
         return r.id === toggleId ? Object.assign({}, r, { active: !r.active }) : r;
@@ -4206,6 +4246,7 @@ document.addEventListener("click", function(e) {
       render();
       break;
     case "delete-recurring":
+      preserveRecurringFormDraft();
       var deleteId = el.dataset.id;
       var remainingRules = (state.settings.recurringRules||[]).filter(function(r){ return r.id !== deleteId; });
       /* Deleting a plan undoes everything it already logged, not just the
@@ -4715,6 +4756,16 @@ document.addEventListener("focusin", function(e) {
   var t = e.target;
   if (!t || !t.closest(".modal-card")) return;
   if (t.tagName !== "INPUT" && t.tagName !== "SELECT" && t.tagName !== "TEXTAREA") return;
+  [50, 150, 300, 450].forEach(function(ms){ setTimeout(updateVisualViewportOffset, ms); });
+});
+document.addEventListener("focusout", function(e) {
+  var t = e.target;
+  if (!t || !t.closest(".modal-card")) return;
+  if (t.tagName !== "INPUT" && t.tagName !== "SELECT" && t.tagName !== "TEXTAREA") return;
+  /* Closing the keyboard needs the same re-checks as opening it — otherwise
+     the viewport offset can stay stuck at whatever it was while the
+     keyboard was open, leaving the backdrop positioned too low and showing
+     a strip of the page behind it above the modal's own header. */
   [50, 150, 300, 450].forEach(function(ms){ setTimeout(updateVisualViewportOffset, ms); });
 });
 loadInitial();
