@@ -2974,7 +2974,7 @@ function personScopedAmount(it, personFilter) {
 
 function buildAnalysisBuckets(rows, granularity, catFilter, personFilter, groupFilter) {
   function keep(it){
-    return isExpenseItem(it) && itemMatchesCategoryScope(it, catFilter, groupFilter) && itemMatchesPersonFilter(it, personFilter);
+    return isExpenseItem(it) && (state.basis === "income" || itemCountsTowardBudget(it)) && itemMatchesCategoryScope(it, catFilter, groupFilter) && itemMatchesPersonFilter(it, personFilter);
   }
   function spentOf(r){
     if (!catFilter && !personFilter && !groupFilter) return r.spent;
@@ -3074,8 +3074,16 @@ function renderAnalysisBody(T) {
      includes a drilled-into group, not just a specific leaf category, so
      browsing "Food & Drinks" filters the rest of the page exactly like
      picking "Restaurants" would, not just the category pie's own display. */
-  function keepItemPerson(it){ return isExpenseItem(it) && itemMatchesPersonFilter(it, personFilter); }
-  function keepItemCategoryOnly(it){ return isExpenseItem(it) && itemMatchesCategoryScope(it, catFilter, groupFilter); }
+  /* Whether an item counts under the CURRENT basis: on Income basis
+     everything counts (cash flow cares about every dirham out), on Budget
+     basis a category marked excluded (rent, a mortgage) doesn't — mirrors
+     sumSpentForBasis's own rule, which is why the two must agree: without
+     this, "Total spent" (built from sumSpentForBasis via periodStats) could
+     show a smaller figure than the category breakdown sitting right below
+     it, which built its own total by summing every item unconditionally. */
+  function itemCountsForBasis(it){ return state.basis === "income" || itemCountsTowardBudget(it); }
+  function keepItemPerson(it){ return isExpenseItem(it) && itemCountsForBasis(it) && itemMatchesPersonFilter(it, personFilter); }
+  function keepItemCategoryOnly(it){ return isExpenseItem(it) && itemCountsForBasis(it) && itemMatchesCategoryScope(it, catFilter, groupFilter); }
   function keepItem(it){ return keepItemCategoryOnly(it) && keepItemPerson(it); }
   /* Spend restricted to the active filters — the whole page reads from this
      so tapping a pie slice (category or person) re-scopes every section at
