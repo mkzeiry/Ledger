@@ -16,7 +16,7 @@
     --bg:#0B1120; --card:#151E33; --raised:#1C2740; --hairline:#2A3550;
     --sep:#252F49; --fill:#1C2740;
     --text:#F2F5FA; --text-muted:#8A99B8; --accent:#E0B368; --accent-ink:#0C1322;
-    --rust:#E0705A; --rust-wash: rgba(224,112,90,0.12); --positive:#5EBD8C;
+    --rust:#FF453A; --rust-wash: rgba(255,69,58,0.15); --positive:#30D158;
     --tab-bg: rgba(21,30,51,0.82);
     --f-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     --f-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -35,6 +35,17 @@
     flex: 1 0 auto; max-width: 460px; width: 100%; margin: 0 auto; box-sizing: border-box;
     padding: calc(env(safe-area-inset-top, 0px) + 8px) 16px calc(env(safe-area-inset-bottom, 0px) + 92px);
   }
+  /* Persistent app chrome on the primary tabs. It remains below the iOS
+     status area while the content scrolls beneath it. */
+  .app-topbar {
+    position:sticky; top:env(safe-area-inset-top, 0px); z-index:38;
+    margin:-8px -16px 14px; padding:8px 16px 10px; min-height:58px;
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    background:color-mix(in srgb, var(--bg) 90%, transparent);
+    -webkit-backdrop-filter:saturate(180%) blur(18px); backdrop-filter:saturate(180%) blur(18px);
+    border-bottom:1px solid color-mix(in srgb, var(--sep) 70%, transparent);
+  }
+  @supports not (background: color-mix(in srgb, black, white)) { .app-topbar { background:var(--bg); } }
   .row { display: flex; align-items: center; }
   .between { justify-content: space-between; }
   .col { display: flex; flex-direction: column; }
@@ -447,10 +458,10 @@ function renameTag(kind, oldName, newName) {
 var PALETTES = {
   dark:  { bg:"#0B1120", card:"#151E33", raised:"#1C2740", hairline:"#2A3550", sep:"#252F49", fill:"#1C2740",
            text:"#F2F5FA", textMuted:"#8A99B8", accent:"#E0B368", accentInk:"#0C1322",
-           rust:"#E0705A", rustWash:"rgba(224,112,90,0.12)", positive:"#5EBD8C", positiveWash:"rgba(94,189,140,0.20)", amber:"#E0972E", tabBg:"rgba(21,30,51,0.82)" },
+           rust:"#FF453A", rustWash:"rgba(255,69,58,0.15)", positive:"#30D158", positiveWash:"rgba(48,209,88,0.18)", amber:"#E0972E", tabBg:"rgba(21,30,51,0.82)" },
   light: { bg:"#F2F2F7", card:"#FFFFFF", raised:"#EFEFF4", hairline:"#D8D8DE", sep:"#E5E5EA", fill:"#EFEFF4",
            text:"#11131A", textMuted:"#6B7280", accent:"#B07F2A", accentInk:"#FFFFFF",
-           rust:"#C0442B", rustWash:"rgba(192,68,43,0.08)", positive:"#1E8E5A", positiveWash:"rgba(30,142,90,0.14)", amber:"#B8730A", tabBg:"rgba(255,255,255,0.82)" },
+           rust:"#E53935", rustWash:"rgba(229,57,53,0.10)", positive:"#1FA855", positiveWash:"rgba(31,168,85,0.13)", amber:"#B8730A", tabBg:"rgba(255,255,255,0.82)" },
 };
 
 /* ---------------- custom appearance ----------------
@@ -1816,8 +1827,8 @@ function render() {
   var html = "";
   html += '<div class="wrap">';
 
-  // header
-  html += '<div class="row between" style="align-items:center; margin:8px 0 16px;">';
+  // Sticky primary-app header. Editors and Settings have their own bars.
+  html += '<div class="app-topbar">';
   html += '<div class="brand-title">The Ledger</div>';
   html += '<div class="row gap2">';
   html += '<button class="icon-btn press" data-action="toggle-theme" aria-label="Toggle theme">'+(state.settings.theme==="dark"?ICONS.sun:ICONS.moon)+'</button>';
@@ -2136,7 +2147,7 @@ function renderBudgetBody(T) {
       groupSlices.forEach(function(sl,i){ var pct=groupTotal>0?sl.value/groupTotal*100:0; catCard += '<button data-action="drill-budget-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="subhead">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+pct.toFixed(0)+'%</span>'+ICONS.chevronRight+'</span></button>'; });
     } else {
       var visibleCats=budgetGroupFilter ? Object.keys(catTotals).filter(function(c){return (categoryGroupOf(c)||'Ungrouped')===budgetGroupFilter;}) : Object.keys(catTotals);
-      var slices=visibleCats.map(function(k){return {label:k,value:catTotals[k],color:categoryStyle(k).color};}).sort(function(a,b){return b.value-a.value;});
+      var slices=visibleCats.map(function(k){return {label:k,value:catTotals[k],color:budgetGroupFilter?subcategoryShade(budgetGroupFilter,k):categoryStyle(k).color};}).sort(function(a,b){return b.value-a.value;});
       var total=slices.reduce(function(t,x){return t+x.value;},0);
       catCard += '<div class="row between" style="margin-bottom:10px;">'+(budgetGroupFilter?'<button data-action="clear-budget-group" class="btn-plain">← '+esc(budgetGroupFilter)+'</button>':'<span class="eyebrow">Budget by category</span>')+'<span class="muted caption">'+(budgetCatFilter?'Tap to clear':'Tap to filter')+'</span></div>';
       if (slices.length) catCard += '<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,budgetCatFilter||null,'Budget',total,'filter-budget-category','cat')+'</div>';
@@ -2807,6 +2818,24 @@ function categoryGroupStyle(groupName) {
   var members = (state.settings.categories||[]).filter(function(c){ return categoryGroupOf(c)===groupName; });
   if (members.length) { var first = categoryStyle(members[0]); return { icon:first.icon, color:first.color }; }
   return { icon:"tag", color:groupThemeColor(groupName) };
+}
+/* A drill-down pie uses graded versions of its parent Category color. The
+   shade is tied to the configured subcategory order, not current spend rank,
+   so the same subcategory keeps the same shade across periods. */
+function subcategoryShade(groupName, subcategoryName) {
+  if (!groupName || groupName === "Ungrouped" || groupName === "__ungrouped__") return categoryStyle(subcategoryName).color;
+  var members = (state.settings.categories||[]).filter(function(c){ return categoryGroupOf(c)===groupName; });
+  var idx = Math.max(0, members.indexOf(subcategoryName));
+  var count = Math.max(1, members.length);
+  var base = categoryGroupStyle(groupName).color;
+  if (count === 1) return base;
+  var hsl = hexToHsl(base);
+  var span = Math.min(30, 12 + count*3);
+  var low = Math.max(20, hsl[2] - span/2);
+  var high = Math.min(80, hsl[2] + span/2);
+  if (high-low < 12) { low=Math.max(14,hsl[2]-8); high=Math.min(86,hsl[2]+8); }
+  var light = low + (high-low) * (idx/(count-1));
+  return hslToHex(hsl[0], Math.max(48, hsl[1]), light);
 }
 function categoryGroupIconCircle(groupName) {
   var st = categoryGroupStyle(groupName);
@@ -3652,7 +3681,7 @@ function renderAnalysisBody(T) {
   sectionHtml.forecastedSpend=function(){return'';}
   sectionHtml.balance=function(){if(catFilter||personFilter||groupFilter)return'';return buildCashBalanceCard(info,cs,T);};
   sectionHtml.spendTrend=function(){if(catFilter||personFilter||groupFilter)return'';return buildOverallTrendCard(info,cs,T);};
-  sectionHtml.category=function(){var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemPerson(it))return;var k=itemCatOf(it);totals[k]=(totals[k]||0)+personScopedAmount(it,personFilter);});});if(!Object.keys(totals).length)return'';var groups=state.settings.categoryGroups||[],selected=state.analysisSelectedGroup,showGroups=groups.length>0&&!selected&&!catFilter,s='<div id="analysisCategoryCard" class="card card-pad" style="margin-bottom:16px;">';if(showGroups){var gt={};Object.keys(totals).forEach(function(c){var g=categoryGroupOf(c)||'Ungrouped';gt[g]=(gt[g]||0)+totals[c];});var gs=Object.keys(gt).map(function(g){return{label:g,value:gt[g],color:g==="Ungrouped"?"#8595B5":categoryGroupStyle(g).color};}).sort(function(a,b){return b.value-a.value;}),gTotal=gs.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by category</span><span class="muted caption">Tap to drill in</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(gs,T,null,'All',gTotal,'drill-analysis-group','group')+'</div>';gs.forEach(function(sl,i){var p=gTotal?sl.value/gTotal*100:0;s+='<button data-action="drill-analysis-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="subhead">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span>'+ICONS.chevronRight+'</span></button>';});}else{var names=selected?Object.keys(totals).filter(function(c){return(categoryGroupOf(c)||'Ungrouped')===selected;}):Object.keys(totals),slices=names.map(function(k){return{label:k,value:totals[k],color:categoryStyle(k).color};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;">'+(selected?'<button data-action="clear-analysis-group" class="btn-plain">← '+esc(selected)+'</button>':'<span class="eyebrow">Spend by category</span>')+'<span class="muted caption">'+(catFilter?'Tap to clear':'Tap to filter')+'</span></div>';if(slices.length)s+='<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,catFilter||null,'All',total)+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=catFilter===sl.label;s+='<button data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(catFilter&&!isSel?'opacity:.45;':'')+'"><span class="subhead" style="'+(isSel?'font-weight:600;':'')+'">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});}return s+'</div>';};
+  sectionHtml.category=function(){var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemPerson(it))return;var k=itemCatOf(it);totals[k]=(totals[k]||0)+personScopedAmount(it,personFilter);});});if(!Object.keys(totals).length)return'';var groups=state.settings.categoryGroups||[],selected=state.analysisSelectedGroup,showGroups=groups.length>0&&!selected&&!catFilter,s='<div id="analysisCategoryCard" class="card card-pad" style="margin-bottom:16px;">';if(showGroups){var gt={};Object.keys(totals).forEach(function(c){var g=categoryGroupOf(c)||'Ungrouped';gt[g]=(gt[g]||0)+totals[c];});var gs=Object.keys(gt).map(function(g){return{label:g,value:gt[g],color:g==="Ungrouped"?"#8595B5":categoryGroupStyle(g).color};}).sort(function(a,b){return b.value-a.value;}),gTotal=gs.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by category</span><span class="muted caption">Tap to drill in</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(gs,T,null,'All',gTotal,'drill-analysis-group','group')+'</div>';gs.forEach(function(sl,i){var p=gTotal?sl.value/gTotal*100:0;s+='<button data-action="drill-analysis-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="subhead">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span>'+ICONS.chevronRight+'</span></button>';});}else{var names=selected?Object.keys(totals).filter(function(c){return(categoryGroupOf(c)||'Ungrouped')===selected;}):Object.keys(totals),slices=names.map(function(k){return{label:k,value:totals[k],color:selected?subcategoryShade(selected,k):categoryStyle(k).color};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;">'+(selected?'<button data-action="clear-analysis-group" class="btn-plain">← '+esc(selected)+'</button>':'<span class="eyebrow">Spend by category</span>')+'<span class="muted caption">'+(catFilter?'Tap to clear':'Tap to filter')+'</span></div>';if(slices.length)s+='<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,catFilter||null,'All',total)+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=catFilter===sl.label;s+='<button data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(catFilter&&!isSel?'opacity:.45;':'')+'"><span class="subhead" style="'+(isSel?'font-weight:600;':'')+'">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});}return s+'</div>';};
   sectionHtml.person=function(){if(!(state.settings.people||[]).length)return'';var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemCategoryOnly(it))return;if(it.personSplit&&it.personSplit.length)it.personSplit.forEach(function(ps){totals[ps.person]=(totals[ps.person]||0)+round2(it.amount*ps.pct/100);});else{var k=it.person||'Unassigned';totals[k]=(totals[k]||0)+it.amount;}});});var slices=Object.keys(totals).map(function(k){return{label:k,value:totals[k]};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);if(!slices.length)return'';slices.forEach(function(sl){sl.color=sl.label==='Unassigned'?'#8595B5':personColor(sl.label);});var s='<div id="analysisPersonCard" class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by person</span><span class="muted caption">'+(personFilter?'Tap to clear':'Tap to filter')+'</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,personFilter||null,'All',total,'filter-analysis-person','person')+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=personFilter===sl.label;s+='<button data-action="filter-analysis-person" data-person="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(personFilter&&!isSel?'opacity:.45;':'')+'"><span>'+ (sl.label==='Unassigned'?'<span class="subhead">Unassigned</span>':personChip(sl.label))+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});return s+'</div>';};
   sectionHtml.dow=function(){return'';}
   sectionHtml.topTransactions=function(){var all=[];cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(keepItem(it))all.push({date:r.date,it:it,amount:personScopedAmount(it,personFilter)});});});all.sort(function(a,b){return b.amount-a.amount;});var top=all.slice(0,5),s='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow" style="margin-bottom:10px;">Biggest transactions</div>';if(!top.length)s+='<div class="muted subhead">Nothing logged in this period.</div>';else top.forEach(function(x,i){s+='<div class="row" style="gap:10px;align-items:center;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'">'+catIconCircle(x.it.category)+'<div style="flex:1;min-width:0;"><div class="subhead">'+esc(x.it.note||x.it.category||'Spent')+'</div><div class="muted caption">'+esc(dayLabel(x.date)+(x.it.category?' · '+x.it.category:''))+'</div></div><div class="mono subhead">'+fmt(x.amount,2)+' AED</div></div>';});return s+'</div>';};
