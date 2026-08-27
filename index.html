@@ -153,6 +153,27 @@
   .settings-detail > .eyebrow:first-child { display:block; margin-top:4px; }
   .settings-danger { color:var(--rust); }
   .settings-page input, .settings-page select, .settings-page textarea { scroll-margin-top:84px; }
+  .settings-header-action { min-width:54px; height:36px; padding:0 13px; border:none; border-radius:18px; background:var(--fill); color:var(--text); font-size:14px; font-weight:600; display:flex; align-items:center; justify-content:center; }
+  .taxonomy-list { overflow:hidden; border-radius:16px; background:var(--card); }
+  .taxonomy-row { width:100%; min-height:68px; display:flex; align-items:center; gap:12px; padding:10px 14px; background:none; border:none; text-align:left; }
+  .taxonomy-row + .taxonomy-row { border-top:1px solid var(--sep); }
+  .taxonomy-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .taxonomy-name { font-size:17px; font-weight:600; letter-spacing:-0.018em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .taxonomy-meta { font-size:12px; color:var(--text-muted); }
+  .taxonomy-icon { width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .taxonomy-edit-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+  .taxonomy-edit-actions button { width:30px; height:30px; border:none; border-radius:9px; background:var(--fill); color:var(--text-muted); display:flex; align-items:center; justify-content:center; }
+  .taxonomy-hero { display:flex; align-items:center; gap:13px; padding:14px 16px; border-radius:16px; background:var(--card); margin-bottom:18px; }
+  .taxonomy-hero .taxonomy-icon { width:48px; height:48px; }
+  .taxonomy-add { display:flex; gap:8px; margin-top:12px; }
+  .taxonomy-add .field { flex:1; }
+  .taxonomy-section-label { margin:20px 2px 8px; color:var(--text-muted); font-size:12px; font-weight:650; letter-spacing:.045em; text-transform:uppercase; }
+  .taxonomy-badge { font-size:11px; font-weight:650; padding:3px 7px; border-radius:999px; white-space:nowrap; }
+  .taxonomy-badge.in { color:var(--positive); background:var(--positive-wash); }
+  .taxonomy-badge.out { color:var(--rust); background:var(--rust-wash); }
+  .taxonomy-form-card { background:var(--card); border-radius:16px; padding:14px 16px; margin-bottom:14px; }
+  .taxonomy-icon-grid { display:flex; flex-wrap:wrap; gap:9px; }
+  .taxonomy-icon-choice { width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; padding:0; }
   @media (min-width:480px) { .settings-shell { padding-left:20px; padding-right:20px; } .settings-header { margin-left:-20px; margin-right:-20px; padding-left:20px; padding-right:20px; } }
   .seg-scroll .seg-btn { flex: 0 0 auto; white-space:nowrap; padding: 7px 14px; }
   .seg-wrap { flex-wrap: wrap; gap: 6px; }
@@ -214,7 +235,7 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null };
 var DEFAULT_ANALYSIS_ORDER = ["summary","cashFlow","forecastedSpend","spendTrend","dailySpend","category","person","dow","topTransactions"];
 var ANALYSIS_SECTION_LABELS = { summary:"Summary", cashFlow:"Cash flow", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", category:"Spend by category", person:"Spend by person", dow:"Average by day of week", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
@@ -228,6 +249,14 @@ function normalizeHiddenSections(hidden) {
 function normalizeCategoryStyles(styles, categories) {
   var out = {};
   var valid = categories || [];
+  Object.keys(styles||{}).forEach(function(name){
+    if (valid.indexOf(name) !== -1) out[name] = styles[name];
+  });
+  return out;
+}
+function normalizeCategoryGroupStyles(styles, groups) {
+  var out = {};
+  var valid = groups || [];
   Object.keys(styles||{}).forEach(function(name){
     if (valid.indexOf(name) !== -1) out[name] = styles[name];
   });
@@ -690,6 +719,10 @@ var state = {
   toastMessage: null,
   settingsTab: "budget", // legacy; dedicated Settings uses settingsSection
   settingsSection: null,
+  settingsCategorySelected: null,
+  settingsSubcategorySelected: null,
+  settingsCategoryCustomize: false,
+  settingsCategoryEditMode: false,
   pendingDeleteKey: null,
   txnCategoryFilter: "",
   txnGroupFilter: "",
@@ -904,6 +937,7 @@ function loadInitial() {
   state.settings.monthlyBudgetHistory = normalizeMonthlyBudgetHistory(state.settings.monthlyBudgetHistory);
   state.settings.categoryStyles = normalizeCategoryStyles(state.settings.categoryStyles, state.settings.categories);
   state.settings.categoryGroups = normalizeCategoryGroups(state.settings.categoryGroups);
+  state.settings.categoryGroupStyles = normalizeCategoryGroupStyles(state.settings.categoryGroupStyles, state.settings.categoryGroups);
   state.settings.categoryGroupOf = normalizeCategoryGroupOf(state.settings.categoryGroupOf, state.settings.categories, state.settings.categoryGroups);
   state.settings.people = normalizePeople(state.settings.people);
   state.settings.personColors = normalizePersonColors(state.settings.personColors, state.settings.people);
@@ -1810,7 +1844,7 @@ function renderBudgetBody(T) {
 
   if (budgetCatFilter || budgetPersonFilter) {
     h += '<div class="row gap2" style="margin-bottom:12px;align-items:center;flex-wrap:wrap;">';
-    if (budgetCatFilter) h += '<span class="chip chip-accent">'+esc(budgetCatFilter)+'</span><button class="btn-plain" data-action="clear-budget-category">Clear category</button>';
+    if (budgetCatFilter) h += '<span class="chip chip-accent">'+esc(budgetCatFilter)+'</span><button class="btn-plain" data-action="clear-budget-category">Clear subcategory</button>';
     if (budgetPersonFilter) h += '<span class="chip" style="background:'+(budgetPersonFilter==='Unassigned'?'#8595B5':personColor(budgetPersonFilter))+';color:#fff;font-weight:600;">'+esc(budgetPersonFilter)+'</span><button class="btn-plain" data-action="clear-budget-person">Clear person</button>';
     h += '</div>';
   }
@@ -1831,7 +1865,7 @@ function renderBudgetBody(T) {
         var groupName=categoryGroupOf(catName)||'Ungrouped';
         groupTotals[groupName]=(groupTotals[groupName]||0)+catTotals[catName];
       });
-      var groupSlices=Object.keys(groupTotals).map(function(k){return {label:k,value:groupTotals[k]};}).sort(function(a,b){return b.value-a.value;});
+      var groupSlices=Object.keys(groupTotals).map(function(k){return {label:k,value:groupTotals[k],color:k==="Ungrouped"?"#8595B5":categoryGroupStyle(k).color};}).sort(function(a,b){return b.value-a.value;});
       var groupTotal=groupSlices.reduce(function(t,x){return t+x.value;},0);
       catCard += '<div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Budget by category</span><span class="muted caption">Tap to drill in</span></div>';
       catCard += '<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(groupSlices,T,null,'Budget',groupTotal,'drill-budget-group','group')+'</div>';
@@ -1871,11 +1905,22 @@ function renderBudgetBody(T) {
 
 function renderSettingsPage() {
   var section = state.settingsSection || "";
-  var titles = { budget:"Monthly budget", categories:"Categories & groups", people:"People", theme:"Appearance", tracking:"Tracking & data", backup:"Backup & restore" };
+  var titles = { budget:"Monthly budget", categories:"Categories", people:"People", theme:"Appearance", tracking:"Tracking & data", backup:"Backup & restore" };
+  var categoryHeaderTitle = "Categories";
+  if (section === "categories") {
+    if (state.settingsSubcategorySelected) categoryHeaderTitle = state.settingsSubcategorySelected;
+    else if (state.settingsCategorySelected && state.settingsCategorySelected !== "__ungrouped__") categoryHeaderTitle = state.settingsCategorySelected;
+    else if (state.settingsCategorySelected === "__ungrouped__") categoryHeaderTitle = "Uncategorized";
+  }
+  var headerTitle = section === "categories" ? categoryHeaderTitle : (section ? titles[section] : "Settings");
   var h = '<div class="settings-page"><div class="settings-shell">';
   h += '<div class="settings-header">';
   h += '<button data-action="settings-back" class="settings-back" aria-label="Back">'+ICONS.chevronLeft+'</button>';
-  h += '<div class="settings-title">'+esc(section ? titles[section] : "Settings")+'</div><span></span></div>';
+  h += '<div class="settings-title">'+esc(headerTitle)+'</div>';
+  if (section === "categories" && !state.settingsSubcategorySelected && !state.settingsCategoryCustomize) {
+    h += '<button data-action="toggle-settings-category-edit" class="settings-header-action">'+(state.settingsCategoryEditMode?'Done':'Edit')+'</button>';
+  } else h += '<span></span>';
+  h += '</div>';
 
   if (!section) {
     var monthlyNow = currentMonthlyBudget();
@@ -1886,7 +1931,7 @@ function renderSettingsPage() {
 
     h += '<div class="settings-group-title">Money</div><div class="settings-list">';
     h += '<button class="settings-row" data-action="settings-section" data-section="budget"><span class="settings-row-main"><span class="settings-row-label">Monthly budget</span><span class="settings-row-sub">Your controllable-spend target</span></span><span class="row gap2"><span class="settings-row-value">'+fmt(monthlyNow,0)+' AED</span>'+ICONS.chevronRight+'</span></button>';
-    h += '<button class="settings-row" data-action="settings-section" data-section="categories"><span class="settings-row-main"><span class="settings-row-label">Categories & groups</span><span class="settings-row-sub">Organize spending and budget inclusion</span></span><span class="row gap2"><span class="settings-row-value">'+catsN+(groupsN?' · '+groupsN+' groups':'')+'</span>'+ICONS.chevronRight+'</span></button>';
+    h += '<button class="settings-row" data-action="settings-section" data-section="categories"><span class="settings-row-main"><span class="settings-row-label">Categories</span><span class="settings-row-sub">Categories, subcategories and budget rules</span></span><span class="row gap2"><span class="settings-row-value">'+groupsN+' · '+catsN+' sub</span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="people"><span class="settings-row-main"><span class="settings-row-label">People</span><span class="settings-row-sub">Defaults, colors and shared spending</span></span><span class="row gap2"><span class="settings-row-value">'+peopleN+'</span>'+ICONS.chevronRight+'</span></button>';
     h += '</div>';
 
@@ -1962,144 +2007,73 @@ function renderSettingsPage() {
   if (section === "categories") {
     var groupList = state.settings.categoryGroups||[];
     var catListAll = state.settings.categories||[];
+    var selectedGroup = state.settingsCategorySelected;
+    var selectedSub = state.settingsSubcategorySelected;
 
-    /* Shared row renderer: identical markup whether a category is nested
-       under a group or listed under Ungrouped, so the two can't drift apart.
-       "siblings" is whichever list this category's up/down arrows should
-       move it within — its group's members, or the ungrouped list — NOT
-       necessarily the full flat categories array, so the arrows always
-       visibly do something relative to what's on screen. */
-    function renderCategoryRow(c, localIdx, siblings) {
-      var isEditingStyle = state.categoryStyleEditing === c;
-      var isRenaming = state.categoryRenameEditing === c;
-      var atTop = localIdx === 0, atBottom = localIdx === siblings.length-1;
-      var rh = '<div style="background:var(--card); border:1px solid var(--hairline); border-radius:8px; overflow:hidden;">';
-      rh += '<div class="row between" style="padding:7px 8px 7px 8px;">';
-      if (isRenaming) {
-        rh += '<input id="categoryRenameInput" data-cat="'+esc(c)+'" type="text" class="field" style="flex:1; margin-right:8px; font-size:13px; padding:6px 10px;" value="'+esc(c)+'" />';
-        rh += '<div class="row gap2" style="flex-shrink:0;">';
-        rh += '<button data-action="save-category-rename" data-cat="'+esc(c)+'" class="btn-plain" style="font-size:13px;">Save</button>';
-        rh += '<button data-action="cancel-category-rename" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Cancel">'+ICONS.x+'</button>';
-        rh += '</div>';
-      } else {
-        rh += '<div class="row gap2" style="align-items:center; min-width:0;">';
-        rh += '<button data-action="edit-category-style" data-cat="'+esc(c)+'" style="background:none;border:none;padding:0;flex-shrink:0;" aria-label="Change icon and color">'+catIconCircle(c)+'</button>';
-        rh += '<span style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(c)+'</span>';
-        rh += '</div>';
-        rh += '<div class="row gap2" style="flex-shrink:0;">';
-        rh += '<button data-action="edit-category-name" data-cat="'+esc(c)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Rename">'+ICONS.pencil+'</button>';
-        rh += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(atTop?"var(--hairline)":"var(--text-muted)")+';" '+(atTop?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
-        rh += '<button data-action="move-category" data-cat="'+esc(c)+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(atBottom?"var(--hairline)":"var(--text-muted)")+';" '+(atBottom?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
-        rh += '<button data-action="remove-category" data-cat="'+esc(c)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Remove">'+ICONS.trash+'</button>';
-        rh += '</div>';
-      }
-      rh += '</div>';
-      if (!isRenaming && groupList.length) {
-        rh += '<div style="padding:0 12px 8px;"><select data-role="category-group-select" data-cat="'+esc(c)+'" class="field" style="font-size:12px; padding:6px 10px;">';
-        rh += '<option value=""'+(!categoryGroupOf(c)?' selected':'')+'>No group</option>';
-        groupList.forEach(function(g){
-          rh += '<option value="'+esc(g)+'"'+(categoryGroupOf(c)===g?' selected':'')+'>'+esc(g)+'</option>';
-        });
-        rh += '</select></div>';
-      }
-      if (!isRenaming) {
-        var isExcluded = categoryExcludedFromBudget(c);
-        rh += '<div class="row between" style="padding:0 12px 10px; align-items:center;">';
-        rh += '<span class="muted caption" style="min-width:0;">'+(isExcluded ? "Outside the budget \u2014 tracked as an expense only" : "Counts toward the budget")+'</span>';
-        rh += '<button data-action="toggle-category-budget" data-cat="'+esc(c)+'" class="btn-plain" style="flex-shrink:0; color:'+(isExcluded?"var(--rust)":"var(--positive)")+';">'+(isExcluded ? "Excluded" : "Included")+'</button>';
-        rh += '</div>';
-      }
-      if (isEditingStyle) {
-        var curStyle = categoryStyle(c);
-        var hasCustom = !!(state.settings.categoryStyles && state.settings.categoryStyles[c]);
-        rh += '<div style="padding:4px 12px 14px;">';
-        rh += '<div class="muted caption" style="margin-bottom:8px;">Icon</div>';
-        rh += '<div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">';
-        CAT_ICON_ORDER.forEach(function(iconKey){
-          var isSel = curStyle.icon === iconKey;
-          rh += '<button data-action="set-category-icon" data-cat="'+esc(c)+'" data-icon="'+iconKey+'" style="width:36px; height:36px; border-radius:50%; background:'+curStyle.color+'; border:'+(isSel?"2px solid var(--text)":"2px solid transparent")+'; display:flex; align-items:center; justify-content:center; padding:0;" aria-label="'+iconKey+'">'+CAT_ICON_SVGS[iconKey]+'</button>';
-        });
-        rh += '</div>';
-        rh += '<div class="muted caption" style="margin-bottom:8px;">Color</div>';
-        rh += '<div class="row gap2" style="align-items:center; margin-bottom:12px;">';
-        rh += '<input id="categoryColorInput" data-cat="'+esc(c)+'" type="color" value="'+curStyle.color+'" style="width:44px; height:36px; border:none; border-radius:8px; padding:0; background:none;" />';
-        rh += '<span class="mono subhead">'+curStyle.color.toUpperCase()+'</span>';
-        rh += '</div>';
-        rh += '<button data-action="reset-category-style" data-cat="'+esc(c)+'" class="btn-plain" style="'+(hasCustom?"":"opacity:0.4;")+'" '+(hasCustom?"":"disabled")+'>Reset to default</button>';
-        rh += '</div>';
-      }
-      rh += '</div>';
-      return rh;
-    }
-
-    h += '<label class="eyebrow">Categories</label>';
-    h += '<div class="muted caption" style="margin:4px 0 10px;">Organize related categories under a group — e.g. Restaurants, Food & Dining, and Groceries under "Food & Drinks" — so Analysis can show either level. Tap a category\u2019s icon to customize it, or a group\u2019s palette icon to style everyone in it at once.</div>';
-    h += '<div style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">';
-
-    groupList.forEach(function(g,gi){
-      var members = catListAll.filter(function(c){ return categoryGroupOf(c)===g; });
-      var isStylingGroup = state.groupStyleEditing === g;
-      h += '<div style="background:var(--raised); border:1px solid var(--hairline); border-radius:10px; overflow:hidden;">';
-      h += '<div class="row between" style="padding:8px 8px 8px 12px;">';
-      h += '<div class="row gap2" style="align-items:baseline; min-width:0;"><span style="font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(g)+'</span><span class="muted caption">'+members.length+' categor'+(members.length===1?"y":"ies")+'</span></div>';
-      h += '<div class="row gap2" style="flex-shrink:0;">';
-      h += '<button data-action="edit-group-style" data-group="'+esc(g)+'" style="background:none;border:none;padding:3px;color:'+(isStylingGroup?"var(--accent)":"var(--text-muted)")+';'+(members.length===0?"opacity:0.35;":"")+'" '+(members.length===0?"disabled":"")+' aria-label="Style all categories in this group">'+ICONS.palette+'</button>';
-      h += '<button data-action="move-group" data-group="'+esc(g)+'" data-dir="-1" style="background:none;border:none;padding:3px;color:'+(gi===0?"var(--hairline)":"var(--text-muted)")+';" '+(gi===0?"disabled":"")+' aria-label="Move up">'+ICONS.chevronUp+'</button>';
-      h += '<button data-action="move-group" data-group="'+esc(g)+'" data-dir="1" style="background:none;border:none;padding:3px;color:'+(gi===groupList.length-1?"var(--hairline)":"var(--text-muted)")+';" '+(gi===groupList.length-1?"disabled":"")+' aria-label="Move down">'+ICONS.chevronDown+'</button>';
-      h += '<button data-action="remove-group" data-group="'+esc(g)+'" style="background:none;border:none;padding:3px;color:var(--text-muted);" aria-label="Remove">'+ICONS.trash+'</button>';
-      h += '</div></div>';
-      if (isStylingGroup) {
-        /* Bulk styling: whatever's picked here is written to every category
-           in the group at once, overwriting their individual styles. The
-           preview swatch uses the first member's current color so the
-           starting point reflects reality rather than an arbitrary default. */
-        var seedStyle = categoryStyle(members[0]);
-        h += '<div style="padding:4px 12px 14px;">';
-        h += '<div class="muted caption" style="margin-bottom:8px;">Apply an icon to all '+members.length+' categor'+(members.length===1?"y":"ies")+' in this group</div>';
-        h += '<div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">';
-        CAT_ICON_ORDER.forEach(function(iconKey){
-          h += '<button data-action="set-group-icon" data-group="'+esc(g)+'" data-icon="'+iconKey+'" style="width:36px; height:36px; border-radius:50%; background:'+seedStyle.color+'; border:2px solid transparent; display:flex; align-items:center; justify-content:center; padding:0;" aria-label="'+iconKey+'">'+CAT_ICON_SVGS[iconKey]+'</button>';
-        });
+    if (!selectedGroup) {
+      h += '<div class="muted caption" style="margin:0 2px 12px;">Categories are the top level. Open one to manage its subcategories.</div>';
+      h += '<div class="taxonomy-list">';
+      groupList.forEach(function(g,gi){
+        var members = catListAll.filter(function(c){ return categoryGroupOf(c)===g; });
+        h += '<div class="taxonomy-row">'+categoryGroupIconCircle(g);
+        h += '<button data-action="open-settings-category" data-group="'+esc(g)+'" class="taxonomy-main" style="background:none;border:none;text-align:left;padding:0;color:inherit;">';
+        h += '<span class="taxonomy-name">'+esc(g)+'</span><span class="taxonomy-meta">'+members.length+' subcategor'+(members.length===1?'y':'ies')+'</span></button>';
+        if (state.settingsCategoryEditMode) {
+          h += '<div class="taxonomy-edit-actions">';
+          h += '<button data-action="move-group" data-group="'+esc(g)+'" data-dir="-1" '+(gi===0?'disabled':'')+' style="'+(gi===0?'opacity:.3;':'')+'">'+ICONS.chevronUp+'</button>';
+          h += '<button data-action="move-group" data-group="'+esc(g)+'" data-dir="1" '+(gi===groupList.length-1?'disabled':'')+' style="'+(gi===groupList.length-1?'opacity:.3;':'')+'">'+ICONS.chevronDown+'</button>';
+          h += '<button data-action="remove-group" data-group="'+esc(g)+'" style="color:var(--rust);">'+ICONS.trash+'</button></div>';
+        } else h += '<span class="muted">'+ICONS.chevronRight+'</span>';
         h += '</div>';
-        h += '<div class="muted caption" style="margin-bottom:8px;">Apply a color to all of them</div>';
-        h += '<div class="row gap2" style="align-items:center;">';
-        h += '<input id="groupColorInput" data-group="'+esc(g)+'" type="color" value="'+seedStyle.color+'" style="width:44px; height:36px; border:none; border-radius:8px; padding:0; background:none;" />';
-        h += '<span class="muted caption">Changes every category in the group</span>';
-        h += '</div></div>';
-      }
-      if (members.length) {
-        h += '<div style="padding:0 10px 10px 10px;">';
-        h += '<div style="padding-left:14px; border-left:2px solid var(--hairline); display:flex; flex-direction:column; gap:6px;">';
-        members.forEach(function(c,ci){ h += renderCategoryRow(c, ci, members); });
-        h += '</div></div>';
-      }
-      h += '<div style="padding:0 12px 12px;"><div class="row gap2"><input class="new-category-input field" data-group="'+esc(g)+'" type="text" placeholder="Add category to '+esc(g)+'" style="flex:1; font-size:13px; padding:8px 10px;" /><button data-action="add-category-scoped" data-group="'+esc(g)+'" class="btn-outline" style="padding:6px 12px; font-size:13px;">Add</button></div></div>';
-      h += '</div>';
-    });
-
-    var ungrouped = catListAll.filter(function(c){ return !categoryGroupOf(c); });
-    if (groupList.length) {
-      h += '<div style="background:var(--raised); border:1px solid var(--hairline); border-radius:10px; overflow:hidden;">';
-      h += '<div style="padding:8px 8px 4px 12px;"><span style="font-size:14px; font-weight:600;">Ungrouped</span></div>';
+      });
+      var ungrouped = catListAll.filter(function(c){ return !categoryGroupOf(c); });
       if (ungrouped.length) {
-        h += '<div style="padding:0 10px 10px 10px;">';
-        h += '<div style="padding-left:14px; border-left:2px solid var(--hairline); display:flex; flex-direction:column; gap:6px;">';
-        ungrouped.forEach(function(c,ci){ h += renderCategoryRow(c, ci, ungrouped); });
-        h += '</div></div>';
+        h += '<div class="taxonomy-row"><span class="taxonomy-icon" style="background:#8595B5;">'+CAT_ICON_SVGS.tag+'</span>';
+        h += '<button data-action="open-settings-category" data-group="__ungrouped__" class="taxonomy-main" style="background:none;border:none;text-align:left;padding:0;color:inherit;"><span class="taxonomy-name">Uncategorized</span><span class="taxonomy-meta">'+ungrouped.length+' subcategor'+(ungrouped.length===1?'y':'ies')+'</span></button><span class="muted">'+ICONS.chevronRight+'</span></div>';
       }
-      h += '<div style="padding:0 12px 12px;"><div class="row gap2"><input class="new-category-input field" data-group="" type="text" placeholder="Add category" style="flex:1; font-size:13px; padding:8px 10px;" /><button data-action="add-category-scoped" data-group="" class="btn-outline" style="padding:6px 12px; font-size:13px;">Add</button></div></div>';
+      if (!groupList.length && !ungrouped.length) h += '<div class="muted subhead" style="padding:20px 16px;">No categories yet.</div>';
       h += '</div>';
-    } else {
-      h += '<div style="display:flex; flex-direction:column; gap:6px;">';
-      catListAll.forEach(function(c,ci){ h += renderCategoryRow(c, ci, catListAll); });
-      h += '</div>';
+      h += '<div class="taxonomy-add"><input id="newGroupInput" type="text" class="field" placeholder="New category" /><button data-action="add-group" class="btn-accent" style="padding:10px 14px;">Add</button></div>';
     }
-    if (!catListAll.length && !groupList.length) h += '<span class="muted" style="font-size:12px;">No categories yet.</span>';
-    h += '</div>';
-
-    h += '<div class="row gap2" style="margin-bottom:10px;"><input id="newGroupInput" type="text" class="field" placeholder="New group" style="flex:1;" /><button data-action="add-group" class="btn-outline">Add group</button></div>';
-    if (!groupList.length) {
-      h += '<div class="row gap2"><input id="newCategoryInput" type="text" class="field" placeholder="New category" style="flex:1;" /><button data-action="add-category" class="btn-outline">Add category</button></div>';
+    else if (selectedSub) {
+      var subStyle = categoryStyle(selectedSub);
+      var subParent = categoryGroupOf(selectedSub)||"";
+      h += '<div class="taxonomy-hero"><span class="taxonomy-icon" style="background:'+subStyle.color+';">'+CAT_ICON_SVGS[subStyle.icon]+'</span><div class="taxonomy-main"><span class="taxonomy-name">'+esc(selectedSub)+'</span><span class="taxonomy-meta">Subcategory'+(subParent?' · '+esc(subParent):' · Uncategorized')+'</span></div></div>';
+      h += '<div class="taxonomy-form-card"><label class="eyebrow">Name</label><div class="row gap2" style="margin-top:7px;"><input id="subcategoryNameInput" class="field" value="'+esc(selectedSub)+'" style="flex:1;" /><button data-action="save-subcategory-name" data-cat="'+esc(selectedSub)+'" class="btn-outline">Save</button></div></div>';
+      h += '<div class="taxonomy-form-card"><label class="eyebrow">Category</label><select id="subcategoryParentInput" data-cat="'+esc(selectedSub)+'" class="field" style="margin-top:7px;"><option value="">Uncategorized</option>';
+      groupList.forEach(function(g){ h += '<option value="'+esc(g)+'"'+(subParent===g?' selected':'')+'>'+esc(g)+'</option>'; });
+      h += '</select></div>';
+      h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Counts toward budget</div><div class="muted caption" style="margin-top:2px;">Overall Analysis always includes it.</div></div><button data-action="toggle-category-budget" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(categoryExcludedFromBudget(selectedSub)?'var(--rust)':'var(--positive)')+';">'+(categoryExcludedFromBudget(selectedSub)?'Excluded':'Included')+'</button></div></div>';
+      h += '<div class="taxonomy-form-card"><label class="eyebrow">Icon</label><div class="taxonomy-icon-grid" style="margin-top:10px;">';
+      CAT_ICON_ORDER.forEach(function(iconKey){ var on=subStyle.icon===iconKey; h += '<button data-action="set-category-icon" data-cat="'+esc(selectedSub)+'" data-icon="'+iconKey+'" class="taxonomy-icon-choice" style="background:'+subStyle.color+';border:'+(on?'2px solid var(--text)':'2px solid transparent')+';">'+CAT_ICON_SVGS[iconKey]+'</button>'; });
+      h += '</div><label class="eyebrow" style="display:block;margin-top:16px;">Color</label><div class="row gap2" style="margin-top:7px;align-items:center;"><input id="categoryColorInput" data-cat="'+esc(selectedSub)+'" type="color" value="'+subStyle.color+'" style="width:48px;height:40px;border:none;background:none;padding:0;" /><span class="mono subhead">'+subStyle.color.toUpperCase()+'</span></div></div>';
+      h += '<button data-action="remove-category" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="width:100%;color:var(--rust);">Delete subcategory</button>';
+    }
+    else if (state.settingsCategoryCustomize && selectedGroup !== "__ungrouped__") {
+      var parentStyle = categoryGroupStyle(selectedGroup);
+      h += '<div class="taxonomy-hero">'+categoryGroupIconCircle(selectedGroup)+'<div class="taxonomy-main"><span class="taxonomy-name">'+esc(selectedGroup)+'</span><span class="taxonomy-meta">Category appearance</span></div></div>';
+      h += '<div class="taxonomy-form-card"><label class="eyebrow">Name</label><div class="row gap2" style="margin-top:7px;"><input id="categoryGroupNameInput" class="field" value="'+esc(selectedGroup)+'" style="flex:1;" /><button data-action="save-category-group-name" data-group="'+esc(selectedGroup)+'" class="btn-outline">Save</button></div></div>';
+      h += '<div class="taxonomy-form-card"><label class="eyebrow">Icon</label><div class="taxonomy-icon-grid" style="margin-top:10px;">';
+      CAT_ICON_ORDER.forEach(function(iconKey){ var on=parentStyle.icon===iconKey; h += '<button data-action="set-category-group-icon" data-group="'+esc(selectedGroup)+'" data-icon="'+iconKey+'" class="taxonomy-icon-choice" style="background:'+parentStyle.color+';border:'+(on?'2px solid var(--text)':'2px solid transparent')+';">'+CAT_ICON_SVGS[iconKey]+'</button>'; });
+      h += '</div><label class="eyebrow" style="display:block;margin-top:16px;">Color</label><div class="row gap2" style="margin-top:7px;align-items:center;"><input id="categoryGroupColorInput" data-group="'+esc(selectedGroup)+'" type="color" value="'+parentStyle.color+'" style="width:48px;height:40px;border:none;background:none;padding:0;" /><span class="mono subhead">'+parentStyle.color.toUpperCase()+'</span></div></div>';
+      h += '<button data-action="remove-group" data-group="'+esc(selectedGroup)+'" class="btn-outline" style="width:100%;color:var(--rust);">Delete category</button><div class="muted caption" style="margin:7px 2px 0;">Its subcategories are kept and moved to Uncategorized.</div>';
+    }
+    else {
+      var members = selectedGroup === "__ungrouped__" ? catListAll.filter(function(c){return !categoryGroupOf(c);}) : catListAll.filter(function(c){return categoryGroupOf(c)===selectedGroup;});
+      if (selectedGroup !== "__ungrouped__") {
+        h += '<button data-action="customize-settings-category" class="taxonomy-hero" style="width:100%;border:none;text-align:left;color:inherit;">'+categoryGroupIconCircle(selectedGroup)+'<div class="taxonomy-main"><span class="taxonomy-name">'+esc(selectedGroup)+'</span><span class="taxonomy-meta">'+members.length+' subcategor'+(members.length===1?'y':'ies')+' · Tap to customize</span></div><span class="muted">'+ICONS.chevronRight+'</span></button>';
+      } else h += '<div class="muted caption" style="margin:0 2px 14px;">Subcategories here are not assigned to a category yet.</div>';
+      h += '<div class="taxonomy-section-label">Subcategories</div><div class="taxonomy-list">';
+      members.forEach(function(c,ci){
+        var st=categoryStyle(c), excluded=categoryExcludedFromBudget(c);
+        h += '<div class="taxonomy-row"><span class="taxonomy-icon" style="background:'+st.color+';">'+CAT_ICON_SVGS[st.icon]+'</span><button data-action="open-settings-subcategory" data-cat="'+esc(c)+'" class="taxonomy-main" style="background:none;border:none;text-align:left;padding:0;color:inherit;"><span class="taxonomy-name">'+esc(c)+'</span><span class="taxonomy-meta">'+(excluded?'Outside budget':'Included in budget')+'</span></button><span class="taxonomy-badge '+(excluded?'out':'in')+'">'+(excluded?'Excluded':'Included')+'</span>';
+        if (state.settingsCategoryEditMode) h += '<div class="taxonomy-edit-actions"><button data-action="move-category" data-cat="'+esc(c)+'" data-dir="-1" '+(ci===0?'disabled':'')+' style="'+(ci===0?'opacity:.3;':'')+'">'+ICONS.chevronUp+'</button><button data-action="move-category" data-cat="'+esc(c)+'" data-dir="1" '+(ci===members.length-1?'disabled':'')+' style="'+(ci===members.length-1?'opacity:.3;':'')+'">'+ICONS.chevronDown+'</button></div>';
+        else h += '<span class="muted">'+ICONS.chevronRight+'</span>';
+        h += '</div>';
+      });
+      if (!members.length) h += '<div class="muted subhead" style="padding:20px 16px;">No subcategories yet.</div>';
+      h += '</div>';
+      if (selectedGroup !== "__ungrouped__") h += '<div class="taxonomy-add"><input id="newSubcategoryInput" type="text" class="field" placeholder="New subcategory" /><button data-action="add-subcategory" data-group="'+esc(selectedGroup)+'" class="btn-accent" style="padding:10px 14px;">Add</button></div>';
     }
   }
 
@@ -2227,7 +2201,7 @@ function renderAddTxnPage() {
   h += '</div>';
 
   if (txnKind === "expense") {
-    h += '<div class="row between" style="margin-bottom:8px;"><span class="eyebrow">Category</span>'+(selectedCat?'<span class="muted caption">'+esc(categoryGroupOf(selectedCat)||"Ungrouped")+'</span>':'')+'</div>';
+    h += '<div class="row between" style="margin-bottom:8px;"><span class="eyebrow">Subcategory</span>'+(selectedCat?'<span class="muted caption">'+esc(categoryGroupOf(selectedCat)||"Ungrouped")+'</span>':'')+'</div>';
     h += '<div class="txn-hscroll" style="gap:8px;margin:0 -8px 10px;padding:2px 8px 5px;">';
     quickCats.forEach(function(c){
       var sel=selectedCat===c;
@@ -2375,7 +2349,7 @@ function renderTransactionsBody() {
   h+='</div>';
 
   h+='<div class="card" style="padding:12px;margin-bottom:12px;">';
-  h+='<div style="position:relative;margin-bottom:10px;"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);display:flex;">'+ICONS.search+'</span><input id="txnSearchInput" type="search" class="field" placeholder="Search merchant, category or person" value="'+esc(state.txnSearch||"")+'" style="padding-left:40px;" /></div>';
+  h+='<div style="position:relative;margin-bottom:10px;"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);display:flex;">'+ICONS.search+'</span><input id="txnSearchInput" type="search" class="field" placeholder="Search merchant, category, subcategory or person" value="'+esc(state.txnSearch||"")+'" style="padding-left:40px;" /></div>';
   h+='<div style="display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;">';
   [["all","All"],["expense","Expenses"],["income","Income"]].forEach(function(opt){var sel=typeFilter===opt[0];h+='<button data-action="set-txn-type-filter" data-type="'+opt[0]+'" class="chip" style="flex:0 0 auto;background:'+(sel?'var(--accent)':'var(--fill)')+';color:'+(sel?'var(--accent-ink)':'var(--text)')+';font-weight:'+(sel?'600':'500')+';">'+opt[1]+'</button>';});
   var extraFilters=!!groupFilter||!!categoryFilter||!!personFilter||periodMode!=="month";
@@ -2387,9 +2361,9 @@ function renderTransactionsBody() {
     h+='<div class="eyebrow" style="margin-bottom:6px;">Period</div><div class="seg seg-scroll" style="margin-bottom:10px;">';
     [["week","Week"],["month","Month"],["year","Year"],["all","All time"],["custom","Custom"]].forEach(function(opt){h+='<button class="seg-btn" role="tab" aria-selected="'+(periodMode===opt[0])+'" data-action="set-txn-period" data-mode="'+opt[0]+'">'+opt[1]+'</button>';});h+='</div>';
     if(periodMode==='custom')h+='<div class="row gap2" style="margin-bottom:10px;"><input id="txnPeriodFromInput" type="date" class="field mono" style="flex:1;font-size:13px;" value="'+esc(periodFrom)+'" max="'+todayStr()+'"/><input id="txnPeriodToInput" type="date" class="field mono" style="flex:1;font-size:13px;" value="'+esc(periodTo)+'" max="'+todayStr()+'"/></div>';
-    if(groups.length){h+='<select id="txnGroupFilterSelect" class="field" style="font-size:13px;margin-bottom:8px;"><option value="">All groups</option>';groups.forEach(function(g){h+='<option value="'+esc(g)+'"'+(groupFilter===g?' selected':'')+'>'+esc(g)+'</option>';});if((state.settings.categories||[]).some(function(c){return !categoryGroupOf(c);}))h+='<option value="__ungrouped__"'+(groupFilter==='__ungrouped__'?' selected':'')+'>Ungrouped</option>';h+='</select>';}
+    if(groups.length){h+='<select id="txnGroupFilterSelect" class="field" style="font-size:13px;margin-bottom:8px;"><option value="">All categories</option>';groups.forEach(function(g){h+='<option value="'+esc(g)+'"'+(groupFilter===g?' selected':'')+'>'+esc(g)+'</option>';});if((state.settings.categories||[]).some(function(c){return !categoryGroupOf(c);}))h+='<option value="__ungrouped__"'+(groupFilter==='__ungrouped__'?' selected':'')+'>Uncategorized</option>';h+='</select>';}
     var filterCats=!groupFilter?(state.settings.categories||[]).slice():(groupFilter==='__ungrouped__'?(state.settings.categories||[]).filter(function(c){return !categoryGroupOf(c);}):(state.settings.categories||[]).filter(function(c){return categoryGroupOf(c)===groupFilter;}));
-    h+='<select id="txnCategoryFilterSelect" class="field" style="font-size:13px;margin-bottom:8px;"><option value="">All categories</option>';filterCats.forEach(function(c){h+='<option value="'+esc(c)+'"'+(categoryFilter===c?' selected':'')+'>'+esc(c)+'</option>';});h+='<option value="Uncategorised"'+(categoryFilter==='Uncategorised'?' selected':'')+'>Uncategorised</option></select>';
+    h+='<select id="txnCategoryFilterSelect" class="field" style="font-size:13px;margin-bottom:8px;"><option value="">All subcategories</option>';filterCats.forEach(function(c){h+='<option value="'+esc(c)+'"'+(categoryFilter===c?' selected':'')+'>'+esc(c)+'</option>';});h+='<option value="Uncategorised"'+(categoryFilter==='Uncategorised'?' selected':'')+'>Uncategorised</option></select>';
     if(people.length){h+='<select id="txnPersonFilterSelect" class="field" style="font-size:13px;margin-bottom:8px;"><option value="">All people</option>';people.forEach(function(p){h+='<option value="'+esc(p)+'"'+(personFilter===p?' selected':'')+'>'+esc(p)+'</option>';});h+='<option value="__unassigned__"'+(personFilter==='__unassigned__'?' selected':'')+'>Unassigned</option></select>';}
     h+='<div style="text-align:right;"><button data-action="clear-txn-filters" class="btn-plain" style="font-size:13px;">Reset filters</button></div></div>';
   }
@@ -2541,6 +2515,35 @@ function groupThemeColor(groupName) {
   var hash = 0;
   for (var i=0;i<groupName.length;i++) hash = (hash*31 + groupName.charCodeAt(i)) >>> 0;
   return PIE_COLORS[hash % PIE_COLORS.length];
+}
+function categoryGroupStyle(groupName) {
+  if (!groupName || groupName === "__ungrouped__") return { icon:"tag", color:"#8595B5" };
+  var custom = state.settings.categoryGroupStyles && state.settings.categoryGroupStyles[groupName];
+  if (custom) return { icon:(custom.icon && CAT_ICON_SVGS[custom.icon]) ? custom.icon : "tag", color:custom.color || groupThemeColor(groupName) };
+  var members = (state.settings.categories||[]).filter(function(c){ return categoryGroupOf(c)===groupName; });
+  if (members.length) { var first = categoryStyle(members[0]); return { icon:first.icon, color:first.color }; }
+  return { icon:"tag", color:groupThemeColor(groupName) };
+}
+function categoryGroupIconCircle(groupName) {
+  var st = categoryGroupStyle(groupName);
+  return '<span class="taxonomy-icon" style="background:'+st.color+';">'+CAT_ICON_SVGS[st.icon]+'</span>';
+}
+function renameCategoryGroup(oldName, newName) {
+  newName = (newName||"").trim();
+  if (!newName || newName === oldName) return false;
+  var groups = (state.settings.categoryGroups||[]).slice();
+  if (groups.indexOf(newName) !== -1) return false;
+  var idx = groups.indexOf(oldName);
+  if (idx < 0) return false;
+  groups[idx] = newName;
+  var groupOf = Object.assign({}, state.settings.categoryGroupOf||{});
+  Object.keys(groupOf).forEach(function(c){ if (groupOf[c] === oldName) groupOf[c] = newName; });
+  var styles = Object.assign({}, state.settings.categoryGroupStyles||{});
+  if (styles[oldName]) { styles[newName] = styles[oldName]; delete styles[oldName]; }
+  if (state.analysisSelectedGroup === oldName) state.analysisSelectedGroup = newName;
+  if (state.budgetSelectedGroup === oldName) state.budgetSelectedGroup = newName;
+  persistAll(Object.assign({}, state.settings, { categoryGroups:groups, categoryGroupOf:groupOf, categoryGroupStyles:styles }), state.entries, "your categories");
+  return true;
 }
 function catIconCircle(categoryName) {
   var st = categoryStyle(categoryName);
@@ -3350,7 +3353,7 @@ function renderAnalysisBody(T) {
   var catFilter=state.analysisCategoryFilter||"",personFilter=state.analysisPersonFilter||"",groupFilter=state.analysisSelectedGroup||"",selKey=state.analysisSelectedBucket;
   var buckets=buildAnalysisBuckets(cs.rows,granularity,catFilter,personFilter,groupFilter);function itemCatOf(it){return it.category||'Uncategorised';}
   function keepItemPerson(it){return isExpenseItem(it)&&itemMatchesPersonFilter(it,personFilter);}function keepItemCategoryOnly(it){return isExpenseItem(it)&&itemMatchesCategoryScope(it,catFilter,groupFilter);}function keepItem(it){return keepItemCategoryOnly(it)&&keepItemPerson(it);}function filteredSpent(){return cs.rows.reduce(function(t,r){return t+(r.items||[]).reduce(function(u,it){return keepItem(it)?u+personScopedAmount(it,personFilter):u;},0);},0);}
-  var showGroupChip=groupFilter&&!catFilter;if(catFilter||personFilter||showGroupChip){h+='<div class="row gap2" style="margin-bottom:12px;align-items:center;flex-wrap:wrap;">';if(showGroupChip)h+='<span class="chip chip-accent">'+esc(groupFilter)+'</span>';if(catFilter)h+='<span class="chip chip-accent">'+esc(catFilter)+'</span>';if(personFilter)h+='<span class="chip" style="background:'+(personFilter==='Unassigned'?'#8595B5':personColor(personFilter))+';color:#fff;font-weight:600;">'+esc(personFilter)+'</span>';if(showGroupChip)h+='<button class="btn-plain" data-action="clear-analysis-group">Clear group</button>';if(catFilter)h+='<button class="btn-plain" data-action="clear-analysis-category">Clear category</button>';if(personFilter)h+='<button class="btn-plain" data-action="clear-analysis-person">Clear person</button>';h+='</div>';}
+  var showGroupChip=groupFilter&&!catFilter;if(catFilter||personFilter||showGroupChip){h+='<div class="row gap2" style="margin-bottom:12px;align-items:center;flex-wrap:wrap;">';if(showGroupChip)h+='<span class="chip chip-accent">'+esc(groupFilter)+'</span>';if(catFilter)h+='<span class="chip chip-accent">'+esc(catFilter)+'</span>';if(personFilter)h+='<span class="chip" style="background:'+(personFilter==='Unassigned'?'#8595B5':personColor(personFilter))+';color:#fff;font-weight:600;">'+esc(personFilter)+'</span>';if(showGroupChip)h+='<button class="btn-plain" data-action="clear-analysis-group">Clear group</button>';if(catFilter)h+='<button class="btn-plain" data-action="clear-analysis-category">Clear subcategory</button>';if(personFilter)h+='<button class="btn-plain" data-action="clear-analysis-person">Clear person</button>';h+='</div>';}
   var sectionHtml={};
   sectionHtml.summary=function(){if(!(catFilter||personFilter||groupFilter))return'';var label=[groupFilter&&!catFilter?groupFilter:'',catFilter,personFilter].filter(Boolean).join(' · '),v=filteredSpent(),pct=cs.spent>0?v/cs.spent*100:0,count=cs.rows.reduce(function(t,r){return t+(r.items||[]).filter(keepItem).length;},0);return '<div class="card card-pad" style="margin-bottom:16px;"><div class="muted caption">FILTERED SPEND</div><div class="mono" style="font-size:28px;font-weight:700;margin-top:3px;">'+fmt(v,0)+' AED</div><div class="row between hairline-top" style="margin-top:12px;padding-top:10px;"><span class="muted subhead">'+esc(label)+'</span><span class="mono subhead">'+pct.toFixed(0)+'% of total · '+count+' txn'+(count===1?'':'s')+'</span></div></div>';};
   function bucketDetail(chartId){if(selKey==null)return'';var prefix=chartId+'|';if(selKey.indexOf(prefix)!==0)return'';var key=selKey.slice(prefix.length),b=buckets.find(function(x){return x.key===key;});if(!b)return'';var items=[];cs.rows.filter(function(r){return b.dates.indexOf(r.date)!==-1;}).forEach(function(r){(r.items||[]).forEach(function(it){if(keepItem(it))items.push({date:r.date,it:it});});});items.sort(function(a,b2){return personScopedAmount(b2.it,personFilter)-personScopedAmount(a.it,personFilter);});var total=items.reduce(function(t,x){return t+personScopedAmount(x.it,personFilter);},0);var s='<div class="bucket-detail hairline-top" style="margin-top:12px;padding-top:12px;"><div class="row between" style="margin-bottom:10px;"><div><div class="headline">'+esc(b.title)+'</div><div class="muted footnote">'+fmt(total,0)+' AED spent · '+items.length+' transaction'+(items.length===1?'':'s')+'</div></div><button class="icon-btn" data-action="clear-bucket">'+ICONS.x+'</button></div>';items.forEach(function(x,i){s+='<div class="row" style="align-items:center;gap:10px;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'">'+catIconCircle(x.it.category)+'<div style="flex:1;min-width:0;"><div class="subhead">'+esc(x.it.note||x.it.category||'Spent')+'</div><div class="muted caption">'+esc((b.dates.length>1?dayLabel(x.date):'')+(x.it.category?' · '+x.it.category:''))+'</div></div><div class="mono subhead">'+fmt(personScopedAmount(x.it,personFilter),2)+'</div></div>';});return s+'</div>';}
@@ -3360,7 +3363,7 @@ function renderAnalysisBody(T) {
   sectionHtml.forecastedSpend=function(){return'';}
   sectionHtml.balance=function(){if(catFilter||personFilter||groupFilter)return'';return buildCashBalanceCard(info,cs,T);};
   sectionHtml.spendTrend=function(){if(catFilter||personFilter||groupFilter)return'';return buildOverallTrendCard(info,cs,T);};
-  sectionHtml.category=function(){var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemPerson(it))return;var k=itemCatOf(it);totals[k]=(totals[k]||0)+personScopedAmount(it,personFilter);});});if(!Object.keys(totals).length)return'';var groups=state.settings.categoryGroups||[],selected=state.analysisSelectedGroup,showGroups=groups.length>0&&!selected&&!catFilter,s='<div class="card card-pad" style="margin-bottom:16px;">';if(showGroups){var gt={};Object.keys(totals).forEach(function(c){var g=categoryGroupOf(c)||'Ungrouped';gt[g]=(gt[g]||0)+totals[c];});var gs=Object.keys(gt).map(function(g){return{label:g,value:gt[g]};}).sort(function(a,b){return b.value-a.value;}),gTotal=gs.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by category</span><span class="muted caption">Tap to drill in</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(gs,T,null,'All',gTotal,'drill-analysis-group','group')+'</div>';gs.forEach(function(sl,i){var p=gTotal?sl.value/gTotal*100:0;s+='<button data-action="drill-analysis-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="subhead">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span>'+ICONS.chevronRight+'</span></button>';});}else{var names=selected?Object.keys(totals).filter(function(c){return(categoryGroupOf(c)||'Ungrouped')===selected;}):Object.keys(totals),slices=names.map(function(k){return{label:k,value:totals[k]};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;">'+(selected?'<button data-action="clear-analysis-group" class="btn-plain">← '+esc(selected)+'</button>':'<span class="eyebrow">Spend by category</span>')+'<span class="muted caption">'+(catFilter?'Tap to clear':'Tap to filter')+'</span></div>';if(slices.length)s+='<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,catFilter||null,'All',total)+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=catFilter===sl.label;s+='<button data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(catFilter&&!isSel?'opacity:.45;':'')+'"><span class="subhead" style="'+(isSel?'font-weight:600;':'')+'">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});}return s+'</div>';};
+  sectionHtml.category=function(){var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemPerson(it))return;var k=itemCatOf(it);totals[k]=(totals[k]||0)+personScopedAmount(it,personFilter);});});if(!Object.keys(totals).length)return'';var groups=state.settings.categoryGroups||[],selected=state.analysisSelectedGroup,showGroups=groups.length>0&&!selected&&!catFilter,s='<div class="card card-pad" style="margin-bottom:16px;">';if(showGroups){var gt={};Object.keys(totals).forEach(function(c){var g=categoryGroupOf(c)||'Ungrouped';gt[g]=(gt[g]||0)+totals[c];});var gs=Object.keys(gt).map(function(g){return{label:g,value:gt[g],color:g==="Ungrouped"?"#8595B5":categoryGroupStyle(g).color};}).sort(function(a,b){return b.value-a.value;}),gTotal=gs.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by category</span><span class="muted caption">Tap to drill in</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(gs,T,null,'All',gTotal,'drill-analysis-group','group')+'</div>';gs.forEach(function(sl,i){var p=gTotal?sl.value/gTotal*100:0;s+='<button data-action="drill-analysis-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="subhead">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span>'+ICONS.chevronRight+'</span></button>';});}else{var names=selected?Object.keys(totals).filter(function(c){return(categoryGroupOf(c)||'Ungrouped')===selected;}):Object.keys(totals),slices=names.map(function(k){return{label:k,value:totals[k]};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;">'+(selected?'<button data-action="clear-analysis-group" class="btn-plain">← '+esc(selected)+'</button>':'<span class="eyebrow">Spend by category</span>')+'<span class="muted caption">'+(catFilter?'Tap to clear':'Tap to filter')+'</span></div>';if(slices.length)s+='<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,catFilter||null,'All',total)+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=catFilter===sl.label;s+='<button data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(catFilter&&!isSel?'opacity:.45;':'')+'"><span class="subhead" style="'+(isSel?'font-weight:600;':'')+'">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});}return s+'</div>';};
   sectionHtml.person=function(){if(!(state.settings.people||[]).length)return'';var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemCategoryOnly(it))return;if(it.personSplit&&it.personSplit.length)it.personSplit.forEach(function(ps){totals[ps.person]=(totals[ps.person]||0)+round2(it.amount*ps.pct/100);});else{var k=it.person||'Unassigned';totals[k]=(totals[k]||0)+it.amount;}});});var slices=Object.keys(totals).map(function(k){return{label:k,value:totals[k]};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);if(!slices.length)return'';slices.forEach(function(sl){sl.color=sl.label==='Unassigned'?'#8595B5':personColor(sl.label);});var s='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by person</span><span class="muted caption">'+(personFilter?'Tap to clear':'Tap to filter')+'</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,personFilter||null,'All',total,'filter-analysis-person','person')+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=personFilter===sl.label;s+='<button data-action="filter-analysis-person" data-person="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(personFilter&&!isSel?'opacity:.45;':'')+'"><span>'+ (sl.label==='Unassigned'?'<span class="subhead">Unassigned</span>':personChip(sl.label))+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});return s+'</div>';};
   sectionHtml.dow=function(){return'';}
   sectionHtml.topTransactions=function(){var all=[];cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(keepItem(it))all.push({date:r.date,it:it,amount:personScopedAmount(it,personFilter)});});});all.sort(function(a,b){return b.amount-a.amount;});var top=all.slice(0,5),s='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow" style="margin-bottom:10px;">Biggest transactions</div>';if(!top.length)s+='<div class="muted subhead">Nothing logged in this period.</div>';else top.forEach(function(x,i){s+='<div class="row" style="gap:10px;align-items:center;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'">'+catIconCircle(x.it.category)+'<div style="flex:1;min-width:0;"><div class="subhead">'+esc(x.it.note||x.it.category||'Spent')+'</div><div class="muted caption">'+esc(dayLabel(x.date)+(x.it.category?' · '+x.it.category:''))+'</div></div><div class="mono subhead">'+fmt(x.amount,2)+' AED</div></div>';});return s+'</div>';};
@@ -3901,6 +3904,7 @@ function handleRestore() {
     nextSettings.monthlyBudgetHistory = normalizeMonthlyBudgetHistory(nextSettings.monthlyBudgetHistory);
     nextSettings.categoryStyles = normalizeCategoryStyles(nextSettings.categoryStyles, nextSettings.categories);
     nextSettings.categoryGroups = normalizeCategoryGroups(nextSettings.categoryGroups);
+    nextSettings.categoryGroupStyles = normalizeCategoryGroupStyles(nextSettings.categoryGroupStyles, nextSettings.categoryGroups);
     nextSettings.categoryGroupOf = normalizeCategoryGroupOf(nextSettings.categoryGroupOf, nextSettings.categories, nextSettings.categoryGroups);
     nextSettings.people = normalizePeople(nextSettings.people);
     nextSettings.personColors = normalizePersonColors(nextSettings.personColors, nextSettings.people);
@@ -4048,13 +4052,83 @@ document.addEventListener("click", function(e) {
       if (state.saveError) { var se = state.saveError; state.saveError = null; persistAll(se.nextSettings, se.nextEntries, se.label); }
       render();
       break;
+    case "toggle-settings-category-edit":
+      state.settingsCategoryEditMode = !state.settingsCategoryEditMode;
+      render();
+      break;
+    case "open-settings-category":
+      state.settingsCategorySelected = el.dataset.group || null;
+      state.settingsSubcategorySelected = null;
+      state.settingsCategoryCustomize = false;
+      state.settingsCategoryEditMode = false;
+      window.scrollTo(0,0);
+      render();
+      break;
+    case "open-settings-subcategory":
+      state.settingsSubcategorySelected = el.dataset.cat || null;
+      state.settingsCategoryCustomize = false;
+      window.scrollTo(0,0);
+      render();
+      break;
+    case "customize-settings-category":
+      state.settingsCategoryCustomize = true;
+      state.settingsCategoryEditMode = false;
+      window.scrollTo(0,0);
+      render();
+      break;
+    case "add-subcategory":
+      var addSubEl = document.getElementById("newSubcategoryInput");
+      var addSubName = addSubEl ? addSubEl.value.trim() : "";
+      var addSubGroup = el.dataset.group || "";
+      if (addSubName && (state.settings.categories||[]).indexOf(addSubName) === -1) {
+        var addSubCats = (state.settings.categories||[]).concat([addSubName]);
+        var addSubOf = Object.assign({}, state.settings.categoryGroupOf||{});
+        addSubOf[addSubName] = addSubGroup;
+        var addSubStyles = Object.assign({}, state.settings.categoryStyles||{});
+        var parentSt = categoryGroupStyle(addSubGroup);
+        addSubStyles[addSubName] = { icon:"tag", color:parentSt.color };
+        persistAll(Object.assign({}, state.settings, { categories:addSubCats, categoryGroupOf:addSubOf, categoryStyles:addSubStyles }), state.entries, "your categories");
+        render();
+      }
+      break;
+    case "save-subcategory-name":
+      var subNameEl = document.getElementById("subcategoryNameInput");
+      var oldSubName = el.dataset.cat;
+      var newSubName = subNameEl ? subNameEl.value.trim() : "";
+      if (newSubName && newSubName !== oldSubName) {
+        renameTag("category", oldSubName, newSubName);
+        state.settingsSubcategorySelected = newSubName;
+        showToast("Subcategory renamed");
+      }
+      render();
+      break;
+    case "save-category-group-name":
+      var groupNameEl = document.getElementById("categoryGroupNameInput");
+      var oldGroupName = el.dataset.group;
+      var newGroupName = groupNameEl ? groupNameEl.value.trim() : "";
+      if (renameCategoryGroup(oldGroupName, newGroupName)) { state.settingsCategorySelected = newGroupName; showToast("Category renamed"); }
+      render();
+      break;
+    case "set-category-group-icon":
+      var parentIconGroup = el.dataset.group;
+      var parentIcon = el.dataset.icon;
+      var parentStyles = Object.assign({}, state.settings.categoryGroupStyles||{});
+      var parentCur = categoryGroupStyle(parentIconGroup);
+      parentStyles[parentIconGroup] = { icon:parentIcon, color:parentCur.color };
+      persistAll(Object.assign({}, state.settings, { categoryGroupStyles:parentStyles }), state.entries, "your categories");
+      render();
+      break;
     case "settings-section":
       state.settingsSection = el.dataset.section || null;
+      if (state.settingsSection === "categories") { state.settingsCategorySelected = null; state.settingsSubcategorySelected = null; state.settingsCategoryCustomize = false; state.settingsCategoryEditMode = false; }
       window.scrollTo(0,0);
       render();
       break;
     case "settings-back":
-      if (state.settingsSection) { state.settingsSection = null; window.scrollTo(0,0); }
+      if (state.settingsSection === "categories" && state.settingsSubcategorySelected) { state.settingsSubcategorySelected = null; window.scrollTo(0,0); }
+      else if (state.settingsSection === "categories" && state.settingsCategoryCustomize) { state.settingsCategoryCustomize = false; window.scrollTo(0,0); }
+      else if (state.settingsSection === "categories" && state.settingsCategorySelected) { state.settingsCategorySelected = null; state.settingsCategoryEditMode = false; window.scrollTo(0,0); }
+      else if (state.settingsSection) { state.settingsSection = null; state.settingsCategorySelected = null; state.settingsSubcategorySelected = null; state.settingsCategoryCustomize = false; state.settingsCategoryEditMode = false; window.scrollTo(0,0); }
       else { state.showSettings = false; }
       render();
       break;
@@ -4213,15 +4287,19 @@ document.addEventListener("click", function(e) {
       var withoutCat = Object.assign({}, state.settings, { categories: nextCatsAfterRemove, categoryStyles: stylesAfterRemove, categoryGroupOf: groupOfAfterRemoveCat, categoryExcludeFromBudget: excludeAfterRemove });
       if (state.categoryStyleEditing === catToRemove) state.categoryStyleEditing = null;
       if (state.categoryRenameEditing === catToRemove) state.categoryRenameEditing = null;
-      persistAll(withoutCat, state.entries, "your settings");
+      persistAll(withoutCat, state.entries, "your categories");
+      if (state.settingsSubcategorySelected === catToRemove) state.settingsSubcategorySelected = null;
       render();
       break;
     case "add-group":
       var newGroupEl = document.getElementById("newGroupInput");
       var newGroup = newGroupEl ? newGroupEl.value.trim() : "";
       if (newGroup && (state.settings.categoryGroups||[]).indexOf(newGroup) === -1) {
-        var withGroup = Object.assign({}, state.settings, { categoryGroups: (state.settings.categoryGroups||[]).concat([newGroup]) });
-        persistAll(withGroup, state.entries, "your settings");
+        var nextGroupStylesAdd = Object.assign({}, state.settings.categoryGroupStyles||{});
+        var gh=0; for(var gci=0;gci<newGroup.length;gci++) gh=(gh*31+newGroup.charCodeAt(gci))>>>0;
+        nextGroupStylesAdd[newGroup] = { icon:"tag", color:PIE_COLORS[gh % PIE_COLORS.length] };
+        var withGroup = Object.assign({}, state.settings, { categoryGroups: (state.settings.categoryGroups||[]).concat([newGroup]), categoryGroupStyles:nextGroupStylesAdd });
+        persistAll(withGroup, state.entries, "your categories");
         render();
       }
       break;
@@ -4232,8 +4310,12 @@ document.addEventListener("click", function(e) {
       Object.keys(groupOfAfterRemoveGroup).forEach(function(c){
         if (groupOfAfterRemoveGroup[c] === groupToRemove) delete groupOfAfterRemoveGroup[c];
       });
-      persistAll(Object.assign({}, state.settings, { categoryGroups: nextGroups, categoryGroupOf: groupOfAfterRemoveGroup }), state.entries, "your settings");
+      var groupStylesAfterRemove = Object.assign({}, state.settings.categoryGroupStyles||{});
+      delete groupStylesAfterRemove[groupToRemove];
+      persistAll(Object.assign({}, state.settings, { categoryGroups: nextGroups, categoryGroupOf: groupOfAfterRemoveGroup, categoryGroupStyles:groupStylesAfterRemove }), state.entries, "your categories");
       if (state.analysisSelectedGroup === groupToRemove) state.analysisSelectedGroup = null;
+      if (state.budgetSelectedGroup === groupToRemove) state.budgetSelectedGroup = null;
+      if (state.settingsCategorySelected === groupToRemove) { state.settingsCategorySelected = null; state.settingsCategoryCustomize = false; }
       render();
       break;
     case "move-group":
@@ -4682,12 +4764,33 @@ document.addEventListener("change", function(e) {
     render();
     return;
   }
+  if (e.target && e.target.id === "subcategoryParentInput") {
+    var moveSub = e.target.dataset.cat;
+    var moveToGroup = e.target.value || "";
+    var movedOf = Object.assign({}, state.settings.categoryGroupOf||{});
+    if (moveToGroup) movedOf[moveSub] = moveToGroup; else delete movedOf[moveSub];
+    persistAll(Object.assign({}, state.settings, { categoryGroupOf:movedOf }), state.entries, "your categories");
+    state.settingsCategorySelected = moveToGroup || "__ungrouped__";
+    render();
+    return;
+  }
   if (e.target && e.target.id === "txnPersonFilterSelect") { state.txnPersonFilter = e.target.value; render(); }
   if (e.target && e.target.id === "txnCategoryFilterSelect") { state.txnCategoryFilter = e.target.value; render(); }
   if (e.target && e.target.id === "txnPeriodFromInput") { state.txnPeriodFrom = e.target.value; render(); }
   if (e.target && e.target.id === "txnPeriodToInput") { state.txnPeriodTo = e.target.value; render(); }
   if (e.target && e.target.id === "analysisPeriodFromInput") { state.analysisPeriodFrom = e.target.value; render(); }
   if (e.target && e.target.id === "analysisPeriodToInput") { state.analysisPeriodTo = e.target.value; render(); }
+  if (e.target && e.target.id === "categoryGroupColorInput") {
+    var parentColorGroup = e.target.dataset.group;
+    var parentColorValue = e.target.value;
+    setTimeout(function(){
+      var parentColorStyles = Object.assign({}, state.settings.categoryGroupStyles||{});
+      var parentColorCur = categoryGroupStyle(parentColorGroup);
+      parentColorStyles[parentColorGroup] = { icon:parentColorCur.icon, color:parentColorValue };
+      persistAll(Object.assign({}, state.settings, { categoryGroupStyles:parentColorStyles }), state.entries, "your categories");
+      render();
+    },300);
+  }
   if (e.target && e.target.id === "groupColorInput") {
     var groupC = e.target.dataset.group;
     var newGroupColor = e.target.value;
