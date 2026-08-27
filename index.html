@@ -645,6 +645,7 @@ var state = {
   analysisSelectedGroup: null,
   budgetCategoryFilter: "",
   budgetPersonFilter: "",
+  budgetSelectedGroup: null,
   basis: "budget", // legacy: UI no longer switches basis
   forecastCompareMode: "previous",
   incomeDraftMode: null,
@@ -1377,13 +1378,12 @@ function render() {
   html += '<div class="wrap">';
 
   // header
-  html += '<div class="row between" style="align-items:center; margin:8px 0 2px;">';
+  html += '<div class="row between" style="align-items:center; margin:8px 0 16px;">';
   html += '<div class="lg-title display">The Ledger</div>';
   html += '<div class="row gap2">';
   html += '<button class="icon-btn press" data-action="toggle-theme" aria-label="Toggle theme">'+(state.settings.theme==="dark"?ICONS.sun:ICONS.moon)+'</button>';
   html += '<button class="icon-btn press" data-action="open-settings" aria-label="Settings">'+ICONS.settings+'</button>';
   html += '</div></div>';
-  html += '<div class="muted footnote" style="margin-bottom:16px;">'+fmt(da,0)+' AED/day budget · weeks run Mon–Sun</div>';
 
   // storage warning
   if (state.storageOK === false) {
@@ -1492,7 +1492,8 @@ function renderHomeBody(T, da) {
   var projectedBudgetSpend = budgetFc ? budgetFc.projectedSpend : budget.spent;
   var projectedSaving = round2(target - projectedBudgetSpend);
   var income = overall.income;
-  var incomePct = income > 0 ? (overall.spent/income*100) : null;
+  var projectedCashSaving = income > 0 ? round2(income - projected) : null;
+  var projectedCashSavingPct = income > 0 ? (projectedCashSaving/income*100) : null;
   var cashNet = round2(income - overall.spent);
   var progress = target > 0 ? Math.max(0, Math.min(100, (budget.spent/target)*100)) : 0;
 
@@ -1503,23 +1504,21 @@ function renderHomeBody(T, da) {
   h += '<div class="mono" style="font-size:34px; font-weight:700; margin-top:3px;">'+fmt(overall.spent,0)+' <span class="muted" style="font-size:17px;">AED</span></div>';
   h += '<div class="hairline-top" style="margin-top:14px; padding-top:12px;">';
   h += '<div class="row between"><span class="muted subhead">Projected month-end spend</span><span class="mono subhead" style="font-weight:600;">'+fmt(projected,0)+' AED</span></div>';
-  h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Spent as % of income received</span><span class="mono subhead" style="font-weight:600;">'+(incomePct==null?'—':incomePct.toFixed(0)+'%')+'</span></div></div>';
+  h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Projected saving</span><span class="mono subhead" style="font-weight:600;color:'+(projectedCashSaving==null?'var(--text)':(projectedCashSaving>=0?'var(--positive)':'var(--rust)'))+';">'+(projectedCashSaving==null?'—':((projectedCashSaving<0?'−':'')+fmt(Math.abs(projectedCashSaving),0)+' AED ('+(projectedCashSavingPct<0?'−':'')+Math.abs(projectedCashSavingPct).toFixed(0)+'%)'))+'</span></div></div>';
   h += '<button data-action="go-page" data-page="analysis" class="btn-plain" style="margin-top:12px;">Open overall analysis →</button>';
   h += '</div>';
 
   h += '<div class="card card-pad" style="margin-bottom:12px;">';
-  h += '<div class="row between" style="align-items:baseline;"><div><div class="eyebrow">Budget</div><div class="muted caption" style="margin-top:2px;">Only categories that count toward budget</div></div>';
+  h += '<div class="row between" style="align-items:baseline;"><div class="eyebrow">Budget</div>';
   h += '<span class="mono subhead" style="font-weight:600;">'+fmt(budget.spent,0)+' / '+fmt(target,0)+' AED</span></div>';
-  h += '<div style="height:10px; background:var(--fill); border-radius:999px; overflow:hidden; margin:12px 0 10px;"><div style="height:100%; width:'+progress+'%; background:'+(budget.spent>target?'var(--rust)':'var(--accent)')+';"></div></div>';
-  h += '<div class="stat-grid">';
-  h += statBlock("Remaining", (remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED', remaining>=0?'var(--positive)':'var(--rust)');
-  h += statBlock("Saved so far", (savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED', savedSoFar>=0?'var(--positive)':'var(--rust)');
-  h += statBlock("Budget spent today", fmt(state.entries[todayStr()]?sumBudgetSpent(state.entries[todayStr()]):0,0)+' AED', 'var(--text)');
-  h += statBlock("Safe to spend/day", safePerDay==null?'—':fmt(safePerDay,0)+' AED', safePerDay!=null&&safePerDay<0?'var(--rust)':'var(--text)');
-  h += statBlock("Projected saving", (projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED', projectedSaving>=0?'var(--positive)':'var(--rust)');
-  h += statBlock("Limiting horizon", limitingHorizon, 'var(--text)');
+  h += '<div style="height:10px; background:var(--fill); border-radius:999px; overflow:hidden; margin:12px 0 16px;"><div style="height:100%; width:'+progress+'%; background:'+(budget.spent>target?'var(--rust)':'var(--accent)')+';"></div></div>';
+  h += '<div class="muted caption">SAFE TO SPEND / DAY</div>';
+  h += '<div class="mono" style="font-size:34px; font-weight:700; margin-top:3px; color:'+(safePerDay!=null&&safePerDay<0?'var(--rust)':'var(--text)')+';">'+(safePerDay==null?'—':fmt(safePerDay,0)+' <span class="muted" style="font-size:17px;">AED</span>')+'</div>';
+  h += '<div class="hairline-top" style="margin-top:14px; padding-top:12px;">';
+  h += '<div class="row between"><span class="muted subhead">Saved so far</span><span class="mono subhead" style="font-weight:600;color:'+(savedSoFar>=0?'var(--positive)':'var(--rust)')+';">'+(savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED</span></div>';
+  h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Remaining</span><span class="mono subhead" style="font-weight:600;color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED</span></div>';
+  h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Spent today</span><span class="mono subhead" style="font-weight:600;">'+fmt(state.entries[todayStr()]?sumBudgetSpent(state.entries[todayStr()]):0,0)+' AED</span></div>';
   h += '</div>';
-  h += '<div class="muted caption" style="margin-top:10px;">Safe to spend/day uses the tighter live limit: Week '+(weekSafePerDay==null?'—':fmt(weekSafePerDay,0)+' AED/day')+' · Month '+(monthSafePerDay==null?'—':fmt(monthSafePerDay,0)+' AED/day')+'.</div>';
   h += '<button data-action="go-page" data-page="budget" class="btn-plain" style="margin-top:12px;">Open budget →</button>';
   h += '</div>';
 
@@ -1615,8 +1614,13 @@ function renderBudgetBody(T) {
 
   var budgetCatFilter = state.budgetCategoryFilter || "";
   var budgetPersonFilter = state.budgetPersonFilter || "";
+  var budgetGroupFilter = state.budgetSelectedGroup || "";
   function budgetPersonMatch(it) { return itemMatchesPersonFilter(it, budgetPersonFilter); }
-  function budgetCatMatch(it) { return !budgetCatFilter || (it.category||'Uncategorised') === budgetCatFilter; }
+  function budgetCatMatch(it) {
+    if (budgetCatFilter) return (it.category||'Uncategorised') === budgetCatFilter;
+    if (budgetGroupFilter) return (categoryGroupOf(it.category)||'Ungrouped') === budgetGroupFilter;
+    return true;
+  }
   function budgetScopedAmount(it) { return personScopedAmount(it, budgetPersonFilter); }
 
   if (budgetCatFilter || budgetPersonFilter) {
@@ -1632,12 +1636,30 @@ function renderBudgetBody(T) {
     var k=it.category||'Uncategorised';
     catTotals[k]=(catTotals[k]||0)+budgetScopedAmount(it);
   }); });
-  var slices=Object.keys(catTotals).map(function(k){return {label:k,value:catTotals[k]};}).sort(function(a,b){return b.value-a.value;});
-  if (slices.length) {
-    var total=slices.reduce(function(t,x){return t+x.value;},0);
-    h += '<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Where the budget went</span><span class="muted caption">'+(budgetCatFilter?'Tap to clear':'Tap to filter')+'</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,budgetCatFilter||null,'Budget',total,'filter-budget-category','cat')+'</div>';
-    slices.forEach(function(sl,i){ var pct=total>0?sl.value/total*100:0,isSel=budgetCatFilter===sl.label; h += '<button data-action="filter-budget-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(budgetCatFilter&&!isSel?'opacity:.45;':'')+'"><span class="subhead" style="'+(isSel?'font-weight:600;':'')+'">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+pct.toFixed(0)+'%</span></span></button>'; });
-    h += '</div>';
+  if (Object.keys(catTotals).length) {
+    var budgetGroups = state.settings.categoryGroups||[];
+    var showBudgetGroups = budgetGroups.length > 0 && !budgetGroupFilter && !budgetCatFilter;
+    var catCard = '<div class="card card-pad" style="margin-bottom:16px;">';
+    if (showBudgetGroups) {
+      var groupTotals={};
+      Object.keys(catTotals).forEach(function(catName){
+        var groupName=categoryGroupOf(catName)||'Ungrouped';
+        groupTotals[groupName]=(groupTotals[groupName]||0)+catTotals[catName];
+      });
+      var groupSlices=Object.keys(groupTotals).map(function(k){return {label:k,value:groupTotals[k]};}).sort(function(a,b){return b.value-a.value;});
+      var groupTotal=groupSlices.reduce(function(t,x){return t+x.value;},0);
+      catCard += '<div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Budget by category</span><span class="muted caption">Tap to drill in</span></div>';
+      catCard += '<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(groupSlices,T,null,'Budget',groupTotal,'drill-budget-group','group')+'</div>';
+      groupSlices.forEach(function(sl,i){ var pct=groupTotal>0?sl.value/groupTotal*100:0; catCard += '<button data-action="drill-budget-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="subhead">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+pct.toFixed(0)+'%</span>'+ICONS.chevronRight+'</span></button>'; });
+    } else {
+      var visibleCats=budgetGroupFilter ? Object.keys(catTotals).filter(function(c){return (categoryGroupOf(c)||'Ungrouped')===budgetGroupFilter;}) : Object.keys(catTotals);
+      var slices=visibleCats.map(function(k){return {label:k,value:catTotals[k]};}).sort(function(a,b){return b.value-a.value;});
+      var total=slices.reduce(function(t,x){return t+x.value;},0);
+      catCard += '<div class="row between" style="margin-bottom:10px;">'+(budgetGroupFilter?'<button data-action="clear-budget-group" class="btn-plain">← '+esc(budgetGroupFilter)+'</button>':'<span class="eyebrow">Budget by category</span>')+'<span class="muted caption">'+(budgetCatFilter?'Tap to clear':'Tap to filter')+'</span></div>';
+      if (slices.length) catCard += '<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,budgetCatFilter||null,'Budget',total,'filter-budget-category','cat')+'</div>';
+      slices.forEach(function(sl,i){ var pct=total>0?sl.value/total*100:0,isSel=budgetCatFilter===sl.label; catCard += '<button data-action="filter-budget-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(budgetCatFilter&&!isSel?'opacity:.45;':'')+'"><span class="subhead" style="'+(isSel?'font-weight:600;':'')+'">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+pct.toFixed(0)+'%</span></span></button>'; });
+    }
+    h += catCard+'</div>';
   }
 
   if ((state.settings.people||[]).length) {
@@ -2186,7 +2208,7 @@ function renderCalendarBody() {
   h+='<div class="card" style="padding:14px;margin-bottom:12px;"><div class="row between" style="margin-bottom:12px;"><button data-action="cal-nav" data-delta="-1" class="icon-btn">'+ICONS.chevronLeft+'</button><div class="subhead" style="font-weight:600;">'+esc(title)+'</div><button data-action="cal-nav" data-delta="1" class="icon-btn" style="'+(state.calendarOffset>=0?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';
   h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;">';["Mo","Tu","We","Th","Fr","Sa","Su"].forEach(function(x){h+='<div class="muted" style="text-align:center;font-size:10px;">'+x+'</div>';});h+='</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">';
   var firstDow=base.getDay(), blanks=firstDow===0?6:firstDow-1;for(var i=0;i<blanks;i++)h+='<div></div>';var cur=parseD(monthStartStr);
-  while(toStr(cur)<=monthEndStr){var ds=toStr(cur),e=state.entries[ds],spent=e?sumSpent(e):0,income=e?sumIncome(e):0,budgetSpent=e?sumBudgetSpent(e):0,dailyBudget=allowanceForDate(ds),isFuture=ds>today,isToday=ds===today,isSelected=state.calendarSelectedDate===ds;var overBudget=budgetSpent>dailyBudget;var bg=e?(overBudget?'var(--rust-wash)':'var(--positive-wash)'):'var(--raised)';if(isFuture&&!e)bg='transparent';var border=isToday?'2px solid var(--accent)':(isSelected?'2px solid var(--text)':'1px solid transparent');h+='<button data-action="cal-select" data-date="'+ds+'" style="min-height:64px;border-radius:9px;border:'+border+';background:'+bg+';display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 1px;gap:3px;"><span style="font-size:14px;font-weight:500;">'+cur.getDate()+'</span><span class="mono" style="font-size:10px;">'+(e?fmt(spent,0):' ')+'</span><span class="mono" style="font-size:9px;color:'+(overBudget?'var(--rust)':'var(--positive)')+';">'+(e?'B '+fmt(budgetSpent,0)+'/'+fmt(dailyBudget,0):' ')+'</span></button>';cur=addDays(cur,1);}
+  while(toStr(cur)<=monthEndStr){var ds=toStr(cur),e=state.entries[ds],spent=e?sumSpent(e):0,income=e?sumIncome(e):0,budgetSpent=e?sumBudgetSpent(e):0,dailyBudget=allowanceForDate(ds),isFuture=ds>today,isToday=ds===today,isSelected=state.calendarSelectedDate===ds;var overBudget=budgetSpent>dailyBudget;var bg=e?(overBudget?'var(--rust-wash)':'var(--positive-wash)'):'var(--raised)';if(isFuture&&!e)bg='transparent';var border=isToday?'2px solid var(--accent)':(isSelected?'2px solid var(--text)':'1px solid transparent');h+='<button data-action="cal-select" data-date="'+ds+'" style="min-height:64px;border-radius:9px;border:'+border+';background:'+bg+';display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 1px;gap:4px;"><span style="font-size:14px;font-weight:500;">'+cur.getDate()+'</span><span class="mono" style="font-size:11px;">'+(e?fmt(spent,0):' ')+'</span></button>';cur=addDays(cur,1);}
   h+='</div></div><div class="row" style="gap:14px;margin-bottom:16px;flex-wrap:wrap;">'+legendSwatch('var(--positive-wash)','Within daily budget')+legendSwatch('var(--rust-wash)','Over daily budget')+legendSwatch('var(--raised)','No transactions')+'</div>';
   if(state.calendarSelectedDate){var sd=state.calendarSelectedDate,sday=state.entries[sd];h+='<div class="card card-pad"><div class="eyebrow" style="margin-bottom:8px;">'+esc(dayLabel(sd))+'</div>';if(sday&&sday.items.length)newestFirst(sday.items).forEach(function(it){h+=renderTxnRow(sd,it);});else h+='<div class="muted subhead">Nothing logged this day.</div>';h+='</div>';}
   return h;
@@ -3888,6 +3910,16 @@ document.addEventListener("click", function(e) {
     case "clear-analysis-person":
       state.analysisPersonFilter = "";
       state.analysisSelectedBucket = null;
+      render();
+      break;
+    case "drill-budget-group":
+      state.budgetSelectedGroup = el.dataset.group;
+      state.budgetCategoryFilter = "";
+      render();
+      break;
+    case "clear-budget-group":
+      state.budgetSelectedGroup = null;
+      state.budgetCategoryFilter = "";
       render();
       break;
     case "filter-budget-category":
