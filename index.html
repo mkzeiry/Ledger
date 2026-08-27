@@ -120,6 +120,12 @@
   @media (min-width: 480px) { .modal-card { border-radius:16px; padding-top:20px; } }
   .grabber { width:36px; height:5px; border-radius:999px; background:var(--hairline); margin:0 auto 12px; }
   @media (min-width: 480px) { .grabber { display:none; } }
+  .modal-sticky-header {
+    position:sticky; top:0; z-index:5; background:var(--card);
+    margin:-8px -20px 0; padding:8px 20px 12px; border-bottom:1px solid var(--hairline);
+    border-radius:16px 16px 0 0;
+  }
+  @media (min-width: 480px) { .modal-sticky-header { margin-top:-20px; padding-top:20px; } }
 
   /* Translucent tab bar */
   .tabbar {
@@ -1171,6 +1177,31 @@ function unlockBodyScroll() {
 var touchLockCard = null, touchLockStartY = null, touchLockStartScrollTop = null;
 var sheetDragging = false, sheetDragAnchorY = null, sheetDragDelta = 0;
 var SHEET_DISMISS_THRESHOLD = 90;
+var momentumHandle = null;
+var scrollVelSamples = [];
+var raf = window.requestAnimationFrame ? window.requestAnimationFrame.bind(window) : function(cb){ return setTimeout(function(){ cb(Date.now()); }, 16); };
+var caf = window.cancelAnimationFrame ? window.cancelAnimationFrame.bind(window) : function(id){ clearTimeout(id); };
+function stopMomentum() {
+  if (momentumHandle != null) { caf(momentumHandle); momentumHandle = null; }
+}
+function runMomentum(card, v0) {
+  var v = v0; // scrollTop px per ms
+  var last = null;
+  function step(now) {
+    if (last == null) { last = now; momentumHandle = raf(step); return; }
+    var dt = Math.min(now - last, 48);
+    last = now;
+    var maxScroll = Math.max(0, card.scrollHeight - card.clientHeight);
+    var next = card.scrollTop + v*dt;
+    v *= Math.pow(0.94, dt/16.67);
+    if (next <= 0) { card.scrollTop = 0; momentumHandle = null; return; }
+    if (next >= maxScroll) { card.scrollTop = maxScroll; momentumHandle = null; return; }
+    card.scrollTop = next;
+    if (Math.abs(v) < 0.02) { momentumHandle = null; return; }
+    momentumHandle = raf(step);
+  }
+  momentumHandle = raf(step);
+}
 function closeCurrentModal() {
   var backdrop = document.querySelector(".modal-backdrop");
   if (backdrop) backdrop.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -1178,12 +1209,14 @@ function closeCurrentModal() {
 document.addEventListener("touchstart", function(e) {
   if (!bodyScrollLocked) return;
   var card = e.target.closest(".modal-card");
+  if (card) stopMomentum(); // grabbing a still-gliding scroll stops it, like a native scroll view
   touchLockCard = card || null;
   touchLockStartY = e.touches[0].clientY;
   touchLockStartScrollTop = card ? card.scrollTop : 0;
   sheetDragging = false;
   sheetDragAnchorY = null;
   sheetDragDelta = 0;
+  scrollVelSamples = card ? [{ st: card.scrollTop, t: Date.now() }] : [];
   if (touchLockCard) touchLockCard.style.transition = "";
 }, { passive: true });
 document.addEventListener("touchmove", function(e) {
@@ -1204,6 +1237,8 @@ document.addEventListener("touchmove", function(e) {
       var deltaY = touchLockStartY - curY;
       var maxScroll = Math.max(0, touchLockCard.scrollHeight - touchLockCard.clientHeight);
       touchLockCard.scrollTop = Math.max(0, Math.min(maxScroll, touchLockStartScrollTop + deltaY));
+      scrollVelSamples.push({ st: touchLockCard.scrollTop, t: Date.now() });
+      if (scrollVelSamples.length > 8) scrollVelSamples.shift();
       return;
     }
   }
@@ -1223,9 +1258,25 @@ document.addEventListener("touchend", function() {
       if (backdrop) { backdrop.style.transition = "background 0.2s ease"; backdrop.style.background = ""; }
       setTimeout(function(){ card.style.transition = ""; if (backdrop) backdrop.style.transition = ""; }, 220);
     }
+  } else if (touchLockCard && scrollVelSamples.length >= 2) {
+    var lastS = scrollVelSamples[scrollVelSamples.length-1];
+    var recentCutoff = lastS.t - 100;
+    var refSample = null;
+    for (var si=scrollVelSamples.length-2; si>=0; si--) {
+      if (scrollVelSamples[si].t >= recentCutoff) refSample = scrollVelSamples[si];
+      else break;
+    }
+    if (refSample) {
+      var dt = lastS.t - refSample.t;
+      if (dt > 0) {
+        var v = (lastS.st - refSample.st) / dt;
+        if (Math.abs(v) > 0.05) runMomentum(touchLockCard, v);
+      }
+    }
   }
   touchLockCard = null; touchLockStartY = null; touchLockStartScrollTop = null;
   sheetDragging = false; sheetDragAnchorY = null; sheetDragDelta = 0;
+  scrollVelSamples = [];
 }, { passive: true });
 
 function render() {
@@ -1299,9 +1350,9 @@ function render() {
     var backupText = JSON.stringify({settings:state.settings, entries:state.entries}, null, 2);
     html += '<div class="modal-backdrop" data-action="close-backup">';
     html += '<div class="modal-card" data-action="noop">';
-    html += '<div class="grabber"></div>';
-    html += '<div class="row between" style="margin-bottom:12px;"><div class="display" style="font-size:18px;">Backup & restore</div><button data-action="close-backup" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div>';
-    html += '<div class="muted" style="font-size:12px; margin-bottom:8px;">Use this to move data to another device, or as a safety net.</div>';
+    html += '<div class="modal-sticky-header"><div class="grabber"></div>';
+    html += '<div class="row between">'+'<div class="display" style="font-size:18px;">Backup & restore</div><button data-action="close-backup" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
+    html += '<div class="muted" style="font-size:12px; margin-bottom:8px; margin-top:14px;">Use this to move data to another device, or as a safety net.</div>';
     html += '<textarea readonly class="field mono" style="height:120px; font-size:11px; margin-bottom:8px; resize:none;" onfocus="this.select()">'+esc(backupText)+'</textarea>';
     html += '<button id="copyBackupBtn" data-action="copy-backup" class="btn-accent" style="width:100%; margin-bottom:20px;">Copy backup</button>';
     html += '<div class="muted" style="font-size:12px; margin-bottom:8px;">Restore from a backup:</div>';
@@ -1494,10 +1545,10 @@ function renderSettingsModal() {
   var tabs = [{id:"budget",label:"Budget"},{id:"income",label:"Income"},{id:"tracking",label:"Tracking"},{id:"categories",label:"Categories"},{id:"people",label:"People"},{id:"theme",label:"Theme"}];
   var h = '<div class="modal-backdrop" data-action="close-settings">';
   h += '<div class="modal-card" data-action="noop">';
-  h += '<div class="grabber"></div>';
-  h += '<div class="row between" style="margin-bottom:14px;"><div class="display" style="font-size:18px;">Settings</div><button data-action="close-settings" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div>';
+  h += '<div class="modal-sticky-header"><div class="grabber"></div>';
+  h += '<div class="row between">'+'<div class="display" style="font-size:18px;">Settings</div><button data-action="close-settings" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
 
-  h += '<div class="seg seg-wrap" style="margin-bottom:18px;">';
+  h += '<div class="seg seg-wrap" style="margin-bottom:18px; margin-top:14px;">';
   tabs.forEach(function(t){
     var active = state.settingsTab === t.id;
     h += '<button class="seg-btn" role="tab" aria-selected="'+active+'" data-action="settings-tab" data-tab="'+t.id+'">'+t.label+'</button>';
@@ -1778,16 +1829,16 @@ function renderAddTxnModal() {
 
   var h = '<div class="modal-backdrop" data-action="close-add-txn">';
   h += '<div class="modal-card" data-action="noop">';
-  h += '<div class="grabber"></div>';
-  h += '<div class="row between" style="margin-bottom:16px;"><div class="display" style="font-size:18px;">'+(editingItem?"Edit transaction":"Add transaction")+'</div><button data-action="close-add-txn" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div>';
+  h += '<div class="modal-sticky-header"><div class="grabber"></div>';
+  h += '<div class="row between">'+'<div class="display" style="font-size:18px;">'+(editingItem?"Edit transaction":"Add transaction")+'</div><button data-action="close-add-txn" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
   var splitMode = state.txnSplitMode || "single";
   if (!editingItem) {
-    h += '<div class="seg" style="margin-bottom:10px;">';
+    h += '<div class="seg" style="margin-bottom:10px; margin-top:14px;">';
     h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==="single")+'" data-action="set-txn-split-mode" data-mode="single">Single day</button>';
     h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==="split")+'" data-action="set-txn-split-mode" data-mode="split">Split across days</button>';
     h += '</div>';
   }
-  h += '<input id="entryDateInput" type="date" class="field mono" style="margin-bottom:8px;" value="'+formDate+'" max="'+todayStr()+'" />';
+  h += '<input id="entryDateInput" type="date" class="field mono" style="margin-bottom:8px;'+(editingItem?" margin-top:14px;":"")+'" value="'+formDate+'" max="'+todayStr()+'" />';
   h += '<div style="position:relative; margin-bottom:8px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none;">AED</span>';
   h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="'+(splitMode==="split"&&!editingItem?"Total amount":"Amount")+'" value="'+(state.entryAmountDraft != null ? esc(state.entryAmountDraft) : (editingItem?editingItem.amount:""))+'" /></div>';
   var groupsForTxn = state.settings.categoryGroups||[];
