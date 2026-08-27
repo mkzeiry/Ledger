@@ -154,6 +154,16 @@
   .settings-danger { color:var(--rust); }
   .settings-page input, .settings-page select, .settings-page textarea { scroll-margin-top:84px; }
   .settings-header-action { min-width:54px; height:36px; padding:0 13px; border:none; border-radius:18px; background:var(--fill); color:var(--text); font-size:14px; font-weight:600; display:flex; align-items:center; justify-content:center; }
+
+  /* Native-style navigation transitions for Settings. The actual page stays in
+     normal document flow; temporary fixed snapshots animate over it, which
+     avoids layout jumps and lets back gestures feel like an iOS navigation
+     stack without changing the ledger's state/storage model. */
+  .settings-nav-overlay { position:fixed; inset:0; z-index:120; overflow:hidden; background:var(--bg); pointer-events:none; }
+  .settings-nav-layer { position:absolute; inset:0; overflow:hidden; background:var(--bg); will-change:transform; backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+  .settings-nav-layer > .settings-page { position:absolute; left:0; right:0; width:100%; min-height:100dvh; }
+  .settings-nav-layer.is-front { box-shadow:-14px 0 34px rgba(0,0,0,.22); }
+  .settings-nav-edge-hint { position:fixed; left:0; top:0; bottom:0; width:22px; z-index:119; pointer-events:none; }
   .taxonomy-list { overflow:hidden; border-radius:16px; background:var(--card); }
   .taxonomy-row { width:100%; min-height:68px; display:flex; align-items:center; gap:12px; padding:10px 14px; background:none; border:none; text-align:left; }
   .taxonomy-row + .taxonomy-row { border-top:1px solid var(--sep); }
@@ -1510,6 +1520,207 @@ document.addEventListener("touchend", function() {
   sheetDragging = false; sheetDragAnchorY = null; sheetDragDelta = 0;
   scrollVelSamples = [];
 }, { passive: true });
+
+
+/* ---------------- Settings navigation stack ----------------
+   Settings is rendered as a single SPA page, so ordinary state changes used
+   to make a nested screen appear instantly. These helpers keep a lightweight
+   visual snapshot stack ONLY for transitions. The real source of truth is
+   still `state`; no transaction/settings data is duplicated or migrated. */
+var settingsNavStack = [];
+var settingsSwipe = null;
+
+function captureSettingsVisual() {
+  var page = document.querySelector('.settings-page');
+  if (!page) return null;
+  return { html: page.outerHTML, scrollY: window.scrollY || window.pageYOffset || 0 };
+}
+
+function makeSettingsNavLayer(snapshot, className) {
+  var layer = document.createElement('div');
+  layer.className = 'settings-nav-layer ' + (className || '');
+  layer.innerHTML = snapshot && snapshot.html ? snapshot.html : '';
+  var p = layer.querySelector('.settings-page');
+  if (p) {
+    p.style.top = '-' + Math.max(0, snapshot.scrollY || 0) + 'px';
+    p.style.bottom = 'auto';
+  }
+  return layer;
+}
+
+function settingsReducedMotion() {
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+
+function buildSettingsNavOverlay(behindSnapshot, frontSnapshot) {
+  var overlay = document.createElement('div');
+  overlay.className = 'settings-nav-overlay';
+  var behind = makeSettingsNavLayer(behindSnapshot, 'is-behind');
+  var front = makeSettingsNavLayer(frontSnapshot, 'is-front');
+  overlay.appendChild(behind);
+  overlay.appendChild(front);
+  document.body.appendChild(overlay);
+  return { overlay:overlay, behind:behind, front:front };
+}
+
+function removeSettingsNavOverlay(parts) {
+  if (parts && parts.overlay && parts.overlay.parentNode) parts.overlay.parentNode.removeChild(parts.overlay);
+}
+
+function animateSettingsForward(fromSnapshot, toSnapshot) {
+  if (!fromSnapshot || !toSnapshot || settingsReducedMotion()) return;
+  var parts = buildSettingsNavOverlay(fromSnapshot, toSnapshot);
+  parts.behind.style.transform = 'translate3d(0,0,0)';
+  parts.front.style.transform = 'translate3d(100%,0,0)';
+  parts.behind.style.transition = 'none';
+  parts.front.style.transition = 'none';
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      var ease = 'cubic-bezier(.32,.72,0,1)';
+      parts.behind.style.transition = 'transform 320ms '+ease;
+      parts.front.style.transition = 'transform 320ms '+ease;
+      parts.behind.style.transform = 'translate3d(-22%,0,0)';
+      parts.front.style.transform = 'translate3d(0,0,0)';
+      setTimeout(function(){ removeSettingsNavOverlay(parts); }, 340);
+    });
+  });
+}
+
+function applySettingsBackState() {
+  if (state.settingsSection === 'categories' && state.settingsSubcategorySelected) {
+    state.settingsSubcategorySelected = null;
+  } else if (state.settingsSection === 'categories' && state.settingsCategoryCustomize) {
+    state.settingsCategoryCustomize = false;
+  } else if (state.settingsSection === 'categories' && state.settingsCategorySelected) {
+    state.settingsCategorySelected = null;
+    state.settingsCategoryEditMode = false;
+  } else if (state.settingsSection) {
+    state.settingsSection = null;
+    state.settingsCategorySelected = null;
+    state.settingsSubcategorySelected = null;
+    state.settingsCategoryCustomize = false;
+    state.settingsCategoryEditMode = false;
+  } else {
+    state.showSettings = false;
+  }
+}
+
+function settingsNavigateForward(mutator) {
+  var fromSnapshot = captureSettingsVisual();
+  if (fromSnapshot) settingsNavStack.push(fromSnapshot);
+  mutator();
+  window.scrollTo(0,0);
+  render();
+  var toSnapshot = captureSettingsVisual();
+  animateSettingsForward(fromSnapshot, toSnapshot);
+}
+
+function settingsNavigateBack() {
+  if (!state.showSettings) return;
+  var destination = settingsNavStack.length ? settingsNavStack[settingsNavStack.length-1] : null;
+  var current = captureSettingsVisual();
+  if (!destination || !current || settingsReducedMotion()) {
+    if (settingsNavStack.length) settingsNavStack.pop();
+    applySettingsBackState();
+    render();
+    if (destination) window.scrollTo(0, destination.scrollY || 0); else window.scrollTo(0,0);
+    return;
+  }
+
+  var parts = buildSettingsNavOverlay(destination, current);
+  parts.behind.style.transform = 'translate3d(-22%,0,0)';
+  parts.front.style.transform = 'translate3d(0,0,0)';
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      var ease = 'cubic-bezier(.32,.72,0,1)';
+      parts.behind.style.transition = 'transform 300ms '+ease;
+      parts.front.style.transition = 'transform 300ms '+ease;
+      parts.behind.style.transform = 'translate3d(0,0,0)';
+      parts.front.style.transform = 'translate3d(100%,0,0)';
+      setTimeout(function(){
+        settingsNavStack.pop();
+        applySettingsBackState();
+        render();
+        window.scrollTo(0, destination.scrollY || 0);
+        removeSettingsNavOverlay(parts);
+      }, 310);
+    });
+  });
+}
+
+/* Edge-swipe back. It deliberately starts only within 26px of the left edge,
+   so horizontal carousels/chips elsewhere keep their native momentum. */
+document.addEventListener('touchstart', function(e){
+  if (!state.showSettings || !settingsNavStack.length || settingsSwipe || !e.touches || e.touches.length !== 1) return;
+  if (document.querySelector('.modal-backdrop')) return;
+  var t = e.touches[0];
+  if (t.clientX > 26) return;
+  var current = captureSettingsVisual();
+  var destination = settingsNavStack[settingsNavStack.length-1];
+  if (!current || !destination) return;
+  var parts = buildSettingsNavOverlay(destination, current);
+  parts.behind.style.transform = 'translate3d(-22%,0,0)';
+  parts.front.style.transform = 'translate3d(0,0,0)';
+  settingsSwipe = {
+    startX:t.clientX, startY:t.clientY, lastX:t.clientX, lastT:performance.now(),
+    dx:0, intent:null, parts:parts, destination:destination
+  };
+}, { passive:true });
+
+document.addEventListener('touchmove', function(e){
+  if (!settingsSwipe || !e.touches || !e.touches.length) return;
+  var t = e.touches[0], sw = settingsSwipe;
+  var dx = Math.max(0, t.clientX - sw.startX);
+  var dy = t.clientY - sw.startY;
+  if (sw.intent == null && (Math.abs(dx) > 7 || Math.abs(dy) > 7)) {
+    sw.intent = Math.abs(dx) > Math.abs(dy) * 1.12 ? 'horizontal' : 'vertical';
+  }
+  if (sw.intent !== 'horizontal') return;
+  e.preventDefault();
+  sw.dx = dx;
+  var w = Math.max(1, window.innerWidth);
+  var p = Math.min(1, dx / w);
+  sw.parts.front.style.transition = 'none';
+  sw.parts.behind.style.transition = 'none';
+  sw.parts.front.style.transform = 'translate3d('+dx+'px,0,0)';
+  sw.parts.behind.style.transform = 'translate3d('+(-22 + 22*p)+'%,0,0)';
+  sw.lastX = t.clientX;
+  sw.lastT = performance.now();
+}, { passive:false });
+
+function finishSettingsSwipe(commit) {
+  var sw = settingsSwipe;
+  if (!sw) return;
+  settingsSwipe = null;
+  var parts = sw.parts;
+  var ease = 'cubic-bezier(.32,.72,0,1)';
+  parts.behind.style.transition = 'transform 250ms '+ease;
+  parts.front.style.transition = 'transform 250ms '+ease;
+  if (commit) {
+    parts.behind.style.transform = 'translate3d(0,0,0)';
+    parts.front.style.transform = 'translate3d(100%,0,0)';
+    setTimeout(function(){
+      settingsNavStack.pop();
+      applySettingsBackState();
+      render();
+      window.scrollTo(0, sw.destination.scrollY || 0);
+      removeSettingsNavOverlay(parts);
+    }, 260);
+  } else {
+    parts.behind.style.transform = 'translate3d(-22%,0,0)';
+    parts.front.style.transform = 'translate3d(0,0,0)';
+    setTimeout(function(){ removeSettingsNavOverlay(parts); }, 260);
+  }
+}
+
+document.addEventListener('touchend', function(){
+  if (!settingsSwipe) return;
+  if (settingsSwipe.intent !== 'horizontal') { removeSettingsNavOverlay(settingsSwipe.parts); settingsSwipe = null; return; }
+  var threshold = Math.min(120, window.innerWidth * 0.28);
+  finishSettingsSwipe(settingsSwipe.dx >= threshold);
+}, { passive:true });
+
+document.addEventListener('touchcancel', function(){ if (settingsSwipe) finishSettingsSwipe(false); }, { passive:true });
 
 function render() {
   var root = document.getElementById("root");
@@ -3933,9 +4144,9 @@ document.addEventListener("click", function(e) {
   switch(action) {
     case "open-backup": state.showBackup = true; render(); break;
     case "close-backup": state.showBackup = false; state.restoreError = null; render(); break;
-    case "open-settings": state.settingsSection = null; state.showSettings = true; render(); break;
-    case "open-budget-settings": state.settingsSection = "budget"; state.showSettings = true; render(); break;
-    case "close-settings": state.settingsSection = null; state.showSettings = false; render(); break;
+    case "open-settings": settingsNavStack = []; state.settingsSection = null; state.showSettings = true; render(); break;
+    case "open-budget-settings": settingsNavStack = []; state.settingsSection = "budget"; state.showSettings = true; render(); break;
+    case "close-settings": settingsNavStack = []; state.settingsSection = null; state.showSettings = false; render(); break;
     case "open-reset": state.showResetConfirm = true; render(); break;
     case "close-reset": state.showResetConfirm = false; render(); break;
     case "toggle-theme":
@@ -4057,24 +4268,26 @@ document.addEventListener("click", function(e) {
       render();
       break;
     case "open-settings-category":
-      state.settingsCategorySelected = el.dataset.group || null;
-      state.settingsSubcategorySelected = null;
-      state.settingsCategoryCustomize = false;
-      state.settingsCategoryEditMode = false;
-      window.scrollTo(0,0);
-      render();
+      var openSettingsGroup = el.dataset.group || null;
+      settingsNavigateForward(function(){
+        state.settingsCategorySelected = openSettingsGroup;
+        state.settingsSubcategorySelected = null;
+        state.settingsCategoryCustomize = false;
+        state.settingsCategoryEditMode = false;
+      });
       break;
     case "open-settings-subcategory":
-      state.settingsSubcategorySelected = el.dataset.cat || null;
-      state.settingsCategoryCustomize = false;
-      window.scrollTo(0,0);
-      render();
+      var openSettingsSub = el.dataset.cat || null;
+      settingsNavigateForward(function(){
+        state.settingsSubcategorySelected = openSettingsSub;
+        state.settingsCategoryCustomize = false;
+      });
       break;
     case "customize-settings-category":
-      state.settingsCategoryCustomize = true;
-      state.settingsCategoryEditMode = false;
-      window.scrollTo(0,0);
-      render();
+      settingsNavigateForward(function(){
+        state.settingsCategoryCustomize = true;
+        state.settingsCategoryEditMode = false;
+      });
       break;
     case "add-subcategory":
       var addSubEl = document.getElementById("newSubcategoryInput");
@@ -4119,18 +4332,14 @@ document.addEventListener("click", function(e) {
       render();
       break;
     case "settings-section":
-      state.settingsSection = el.dataset.section || null;
-      if (state.settingsSection === "categories") { state.settingsCategorySelected = null; state.settingsSubcategorySelected = null; state.settingsCategoryCustomize = false; state.settingsCategoryEditMode = false; }
-      window.scrollTo(0,0);
-      render();
+      var nextSettingsSection = el.dataset.section || null;
+      settingsNavigateForward(function(){
+        state.settingsSection = nextSettingsSection;
+        if (state.settingsSection === "categories") { state.settingsCategorySelected = null; state.settingsSubcategorySelected = null; state.settingsCategoryCustomize = false; state.settingsCategoryEditMode = false; }
+      });
       break;
     case "settings-back":
-      if (state.settingsSection === "categories" && state.settingsSubcategorySelected) { state.settingsSubcategorySelected = null; window.scrollTo(0,0); }
-      else if (state.settingsSection === "categories" && state.settingsCategoryCustomize) { state.settingsCategoryCustomize = false; window.scrollTo(0,0); }
-      else if (state.settingsSection === "categories" && state.settingsCategorySelected) { state.settingsCategorySelected = null; state.settingsCategoryEditMode = false; window.scrollTo(0,0); }
-      else if (state.settingsSection) { state.settingsSection = null; state.settingsCategorySelected = null; state.settingsSubcategorySelected = null; state.settingsCategoryCustomize = false; state.settingsCategoryEditMode = false; window.scrollTo(0,0); }
-      else { state.showSettings = false; }
-      render();
+      settingsNavigateBack();
       break;
     case "save-tracking":
       var tsEl = document.getElementById("trackingStartInput");
