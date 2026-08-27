@@ -157,9 +157,9 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 0, theme: "light", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, categoryStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null };
-var DEFAULT_ANALYSIS_ORDER = ["summary","forecastedSpend","spendTrend","dailySpend","dailySaving","cumulativeSaving","category","person","dow","topTransactions"];
-var ANALYSIS_SECTION_LABELS = { summary:"Summary", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", dailySaving:"Saved per day", cumulativeSaving:"Cumulative saving", category:"Spend by category", person:"Spend by person", dow:"Average by day of week", topTransactions:"Biggest transactions" };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, categoryStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null };
+var DEFAULT_ANALYSIS_ORDER = ["summary","cashFlow","forecastedSpend","spendTrend","dailySpend","dailySaving","cumulativeSaving","category","person","dow","topTransactions"];
+var ANALYSIS_SECTION_LABELS = { summary:"Summary", cashFlow:"Cash flow", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", dailySaving:"Saved per day", cumulativeSaving:"Cumulative saving", category:"Spend by category", person:"Spend by person", dow:"Average by day of week", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_ANALYSIS_ORDER.indexOf(id) !== -1; });
   DEFAULT_ANALYSIS_ORDER.forEach(function(id){ if (out.indexOf(id)===-1) out.push(id); });
@@ -289,6 +289,10 @@ function renameTag(kind, oldName, newName) {
     if (!isMerge && nextGroupOf[oldName]) nextGroupOf[newName] = nextGroupOf[oldName];
     delete nextGroupOf[oldName];
     patch.categoryGroupOf = nextGroupOf;
+    var nextExclude = Object.assign({}, state.settings.categoryExcludeFromBudget||{});
+    if (!isMerge && nextExclude[oldName]) nextExclude[newName] = true;
+    delete nextExclude[oldName];
+    patch.categoryExcludeFromBudget = nextExclude;
   } else {
     var nextPersonColors = Object.assign({}, state.settings.personColors||{});
     if (!isMerge && nextPersonColors[oldName]) nextPersonColors[newName] = nextPersonColors[oldName];
@@ -497,6 +501,39 @@ function dayLabel(s){ return parseD(s).toLocaleDateString("en-GB",{weekday:"shor
 function shortLabel(s){ return parseD(s).toLocaleDateString("en-GB",{day:"numeric", month:"short"}); }
 function weekdayLong(s){ return parseD(s).toLocaleDateString("en-GB",{weekday:"long"}); }
 function sumSpent(e){ return (e && Array.isArray(e.items)) ? e.items.reduce(function(s,i){ return s+i.amount; },0) : 0; }
+/* A category can be marked as sitting outside the daily budget — rent, a
+   mortgage, anything that's a real expense but isn't discretionary
+   day-to-day spending you're pacing against an allowance. Default is
+   included, so nothing changes for anyone who never touches this. */
+function categoryExcludedFromBudget(catName) {
+  if (!catName) return false;
+  var map = state.settings.categoryExcludeFromBudget;
+  return !!(map && map[catName]);
+}
+function itemCountsTowardBudget(it) { return !categoryExcludedFromBudget(it && it.category); }
+function normalizeCategoryExcludeFromBudget(map, categories) {
+  var out = {};
+  var valid = categories || [];
+  Object.keys(map||{}).forEach(function(c){
+    if (valid.indexOf(c) !== -1 && map[c]) out[c] = true;
+  });
+  return out;
+}
+/* The spend figure the CURRENT basis cares about. Budget basis omits
+   excluded categories so they never eat into the daily allowance; income
+   basis counts every dirham that left the account, because cash flow is
+   about total outgoings vs total income. Every budget number in the app
+   flows from periodStats, which reads this — so the exclusion propagates
+   everywhere (headline saved, forecast, trend, calendar, "left to spend")
+   without each of those needing to know the rule. */
+function sumSpentForBasis(e) {
+  if (!e || !Array.isArray(e.items)) return 0;
+  if (state.basis === "income") return sumSpent(e);
+  return e.items.reduce(function(s,i){ return itemCountsTowardBudget(i) ? s+i.amount : s; }, 0);
+}
+/* Total outgoings regardless of basis — used by the cash-flow view, which
+   always wants the true full picture even while the budget basis is active. */
+function sumSpentAll(e) { return sumSpent(e); }
 function itemTimeKey(it){ var n = parseInt(String(it.id).split("-")[0], 10); return isNaN(n) ? 0 : n; }
 function newestFirst(items){ return items.slice().sort(function(a,b){ return itemTimeKey(b) - itemTimeKey(a); }); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
@@ -672,6 +709,16 @@ function monthlyIncomeForDate(ds) {
 function incomeIsSet() {
   return dailyIncomeForDate(todayStr()) > 0;
 }
+/* Plain-language breakdown of what a monthly income figure works out to per
+   day and per week, using the current month's real length. Shown live in
+   Settings so the derived Week/Year views aren't a black box. */
+function incomeDerivedSummary(monthlyAmt) {
+  var amt = Number(monthlyAmt) || 0;
+  if (amt <= 0) return "Set a monthly figure to see the weekly and daily equivalents.";
+  var dim = daysInMonth(new Date());
+  var perDay = amt / dim;
+  return "= " + fmt(perDay, 2) + " AED a day \u00b7 " + fmt(perDay*7, 0) + " AED a week.";
+}
 function normalizeIncomeHistory(hist) {
   var out = (hist||[]).slice().sort(function(a,b){ return a.from < b.from ? -1 : a.from > b.from ? 1 : 0; });
   var dedup = [];
@@ -730,6 +777,7 @@ function loadInitial() {
   state.settings.categoryGroupOf = normalizeCategoryGroupOf(state.settings.categoryGroupOf, state.settings.categories, state.settings.categoryGroups);
   state.settings.people = normalizePeople(state.settings.people);
   state.settings.personColors = normalizePersonColors(state.settings.personColors, state.settings.people);
+  state.settings.categoryExcludeFromBudget = normalizeCategoryExcludeFromBudget(state.settings.categoryExcludeFromBudget, state.settings.categories);
   state.settings.defaultPerson = normalizeDefaultPerson(state.settings.defaultPerson, state.settings.people);
   state.settings.recurringRules = normalizeRecurringRules(state.settings.recurringRules);
   if (runRecurringCatchUp()) {
@@ -772,11 +820,15 @@ function fullPeriodTarget(startStr, endStr) {
 /* Spend excluding anything generated by a recurring/spread plan. The forecast
    adds scheduled amounts back in explicitly, on their real due dates, so any
    pace average it blends must be discretionary-only — otherwise a big monthly
-   rent would inflate the daily pace AND get counted again as a future payment. */
+   rent would inflate the daily pace AND get counted again as a future payment.
+   Budget-excluded categories are skipped for the same reason: they're not
+   part of the allowance being paced against, so they mustn't shape the pace. */
 function discretionarySpentInRows(rows) {
   var sum = 0;
   (rows||[]).forEach(function(r){
-    (r.items||[]).forEach(function(it){ if (!it.recurringId) sum += it.amount; });
+    (r.items||[]).forEach(function(it){
+      if (!it.recurringId && (state.basis === "income" || itemCountsTowardBudget(it))) sum += it.amount;
+    });
   });
   return sum;
 }
@@ -862,7 +914,7 @@ function periodStats(startStr, endStrRaw) {
     while (toStr(cur) <= endStr) {
       var ds = toStr(cur);
       var e = state.entries[ds];
-      rows.push({ date: ds, logged: !!e, items: e ? e.items : [], spent: e ? sumSpent(e) : 0, allowance: referenceForDate(ds) });
+      rows.push({ date: ds, logged: !!e, items: e ? e.items : [], spent: e ? sumSpentForBasis(e) : 0, spentAll: e ? sumSpentAll(e) : 0, allowance: referenceForDate(ds) });
       cur = addDays(cur, 1);
     }
   }
@@ -870,7 +922,8 @@ function periodStats(startStr, endStrRaw) {
   var closing = round2(opening+net);
   var calendarElapsedDays = (startStr <= endStr) ? (daysBetween(startStr, endStr) + 1) : 0;
   return { opening:opening, net:net, closing:closing, rows:rows, elapsedDays: rows.length, calendarElapsedDays: calendarElapsedDays,
-    loggedCount: rows.filter(function(r){return r.logged;}).length, spent: rows.reduce(function(s,r){return s+r.spent;},0) };
+    loggedCount: rows.filter(function(r){return r.logged;}).length, spent: rows.reduce(function(s,r){return s+r.spent;},0),
+    spentAll: rows.reduce(function(s,r){return s+r.spentAll;},0) };
 }
 
 /* Daily budget left for the CURRENT (live) instance of a given view type,
@@ -1311,7 +1364,7 @@ function renderHomeBody(T, da) {
   var cumColor = cumulative.net >= 0 ? "var(--positive)" : "var(--rust)";
   var cumLabel = "Saved since " + parseD(cumAnchor).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
   var todayEntryForCard = state.entries[todayStr()];
-  var spentToday = todayEntryForCard ? sumSpent(todayEntryForCard) : 0;
+  var spentToday = todayEntryForCard ? sumSpentForBasis(todayEntryForCard) : 0;
   var spentTodayColor = spentToday > da ? "var(--rust)" : "var(--text)";
   var todayAllowanceForCard = referenceForDate(todayStr());
 
@@ -1480,30 +1533,18 @@ function renderSettingsModal() {
 
   if (state.settingsTab === "income") {
     var curInc = incomeForDate(todayStr());
-    var draftMode = state.incomeDraftMode || curInc.mode || "monthly";
     var curAmt = Number(curInc.amount) || 0;
     var dim = daysInMonth(new Date());
     var monthName = new Date().toLocaleDateString("en-GB",{month:"long"});
     var mBounds = getPeriodBounds("month", 0, currentWeeklyTarget(), dailyReference());
-    h += '<label class="eyebrow">How do you want to enter it?</label>';
-    h += '<div class="seg" style="margin:6px 0 12px;">';
-    [["monthly","Monthly"],["daily","Daily"]].forEach(function(opt){
-      var act = draftMode === opt[0];
-      h += '<button class="seg-btn" role="tab" aria-selected="'+act+'" data-action="income-mode" data-mode="'+opt[0]+'">'+opt[1]+'</button>';
-    });
-    h += '</div>';
-    h += '<label class="eyebrow">'+(draftMode==="monthly"?"Monthly income":"Daily income")+'</label>';
+    h += '<label class="eyebrow">Monthly income</label>';
     h += '<div style="position:relative; margin:6px 0 6px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
     var shownAmt = (state.incomeDraftAmount != null) ? state.incomeDraftAmount : (curAmt || "");
     h += '<input id="incomeDraftInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" value="'+esc(shownAmt)+'" /></div>';
-    if (curAmt > 0) {
-      var perDayNow = dailyIncomeForDate(todayStr());
-      var perMonthNow = monthlyIncomeForDate(todayStr());
-      h += '<div class="muted" style="font-size:12px; margin-bottom:6px;">Currently '+fmt(perMonthNow,0)+' AED in '+esc(monthName)+' · '+fmt(perDayNow,2)+' AED a day.</div>';
-    }
-    h += '<div class="muted" style="font-size:11px; margin-bottom:14px;">'+(draftMode==="monthly"
-      ? ("A monthly figure is divided across that month's real length ("+dim+" days in "+esc(monthName)+"), so it accrues to exactly the full amount by month end.")
-      : "A daily figure stays flat, so a month's total varies with its length.")+'</div>';
+    /* Everything else derives from this one number, so show the derived
+       figures outright rather than making them guess the arithmetic. */
+    h += '<div class="muted" id="incomeDerivedText" style="font-size:12px; margin-bottom:6px;">'+incomeDerivedSummary(curAmt)+'</div>';
+    h += '<div class="muted" style="font-size:11px; margin-bottom:14px;">Enter what you actually earn in a month. The monthly figure is spread across that month\u2019s real length ('+dim+' days in '+esc(monthName)+'), so Week and Year views derive from it automatically \u2014 and Year counts only from your tracking start date, not the whole calendar year.</div>';
     h += '<button data-action="apply-income" data-scope="future" class="btn-accent" style="width:100%; margin-bottom:8px;">From this month onward</button>';
     h += '<div class="muted" style="font-size:11px; margin-bottom:12px;">From '+esc(shortLabel(mBounds.startStr))+' forward. Earlier months keep the income they were actually judged against — this is usually what you want.</div>';
     h += '<button data-action="apply-income" data-scope="all" class="btn-outline" style="width:100%; margin-bottom:8px;">All periods, past and future</button>';
@@ -1574,6 +1615,13 @@ function renderSettingsModal() {
           rh += '<option value="'+esc(g)+'"'+(categoryGroupOf(c)===g?' selected':'')+'>'+esc(g)+'</option>';
         });
         rh += '</select></div>';
+      }
+      if (!isRenaming) {
+        var isExcluded = categoryExcludedFromBudget(c);
+        rh += '<div class="row between" style="padding:0 12px 10px; align-items:center;">';
+        rh += '<span class="muted caption" style="min-width:0;">'+(isExcluded ? "Outside the budget \u2014 tracked as an expense only" : "Counts toward the budget")+'</span>';
+        rh += '<button data-action="toggle-category-budget" data-cat="'+esc(c)+'" class="btn-plain" style="flex-shrink:0; color:'+(isExcluded?"var(--rust)":"var(--positive)")+';">'+(isExcluded ? "Excluded" : "Included")+'</button>';
+        rh += '</div>';
       }
       if (isEditingStyle) {
         var curStyle = categoryStyle(c);
@@ -2010,7 +2058,7 @@ function renderTransactionsBody() {
   } else {
     dates.forEach(function(date, i){
       var day = state.entries[date];
-      var spent = sumSpent(day);
+      var spent = sumSpentForBasis(day);
       var dayRef = referenceForDate(date);
       var delta = dayRef - spent;
       var bal = balanceMap[date];
@@ -2120,7 +2168,7 @@ function renderCalendarBody() {
     var ds = toStr(cur);
     var e = state.entries[ds];
     var logged = !!e;
-    var spent = logged ? sumSpent(e) : 0;
+    var spent = logged ? sumSpentForBasis(e) : 0;
     var allowance = referenceForDate(ds);
     var isFuture = ds > today;
     var isPreTracking = tsd && ds < tsd;
@@ -2559,7 +2607,7 @@ function computeForecastNumbers(rows, totalDays, periodStart) {
   var pastDays = pastRows.length;
   var pastSpent = pastRows.reduce(function(s,r){ return s+r.spent; }, 0);
   var pastDiscretionary = discretionarySpentInRows(pastRows);
-  var todayScheduledSpent = todayRow ? (todayRow.items||[]).reduce(function(s,it){ return it.recurringId ? s+it.amount : s; }, 0) : 0;
+  var todayScheduledSpent = todayRow ? (todayRow.items||[]).reduce(function(s,it){ return (it.recurringId && (state.basis === "income" || itemCountsTowardBudget(it))) ? s+it.amount : s; }, 0) : 0;
   var actualSpentSoFar = pastSpent + (todayRow ? todayRow.spent : 0);
   var knownSpent = pastSpent + todayScheduledSpent;
   var historicalAvg = overallAvgDailySpend();
@@ -3065,6 +3113,59 @@ function renderAnalysisBody(T) {
     s += renderChart(chartData, T);
     s += '</div></div>';
     lastChartData = chartData;
+    return s;
+  };
+
+  /* Cash flow answers a different question from the rest of the page: not
+     "am I pacing against my allowance" but "did more money come in than went
+     out". So it counts EVERY expense — including categories deliberately
+     excluded from the budget, which are usually the big fixed ones (rent, a
+     mortgage) that matter most to this question. Income-basis only, since
+     without an income figure there's nothing to compare against. */
+  sectionHtml.cashFlow = function(){
+    if (state.basis !== "income" || !incomeIsSet()) return "";
+    /* Income accrued over this period, clipped at the tracking start date —
+       so a Year view shows income since you actually started tracking, not
+       a full calendar year you weren't using the app for. */
+    var incomeTotal = fullPeriodTarget(info.start, info.end);
+    var expensesTotal = cs.spentAll;
+    var netFlow = incomeTotal - expensesTotal;
+    var maxSide = Math.max(incomeTotal, expensesTotal, 1);
+    var incomePct = Math.round((incomeTotal/maxSide)*100);
+    var expensePct = Math.round((expensesTotal/maxSide)*100);
+    var positive = netFlow >= 0;
+    /* Computed directly rather than as (spentAll - spent): under the income
+       basis those two are equal by design, since income counts everything,
+       so a subtraction would always come out to zero here. */
+    var excludedTotal = cs.rows.reduce(function(t,r){
+      return t + (r.items||[]).reduce(function(u,it){ return categoryExcludedFromBudget(it.category) ? u+it.amount : u; }, 0);
+    }, 0);
+    var periodLabelUpper = periodMode === "week" ? "THIS WEEK"
+      : periodMode === "month" ? "THIS MONTH"
+      : periodMode === "year" ? "THIS YEAR"
+      : "THIS PERIOD";
+    if (info.offset && info.offset !== 0) periodLabelUpper = String(info.title||"").toUpperCase();
+
+    var s = '<div class="card card-pad" style="margin-bottom:16px;">';
+    s += '<div class="eyebrow" style="margin-bottom:2px;">Cash flow</div>';
+    s += '<div class="muted caption" style="margin-bottom:12px;">Am I spending less than I make?</div>';
+    s += '<div class="hairline-top" style="padding-top:12px;">';
+    s += '<div class="muted caption">'+esc(periodLabelUpper)+'</div>';
+    s += '<div class="mono" style="font-size:26px; font-weight:700; margin-top:2px; color:'+(positive?"var(--positive)":"var(--rust)")+';">'+(positive?"":"\u2212")+fmt(Math.abs(netFlow),2)+' <span class="muted" style="font-size:15px;">AED</span></div>';
+    s += '<div class="muted caption" style="margin-top:2px;">'+(positive?"left over after everything":"more spent than earned")+'</div>';
+    s += '</div>';
+
+    s += '<div style="margin-top:16px;">';
+    s += '<div class="row between" style="align-items:baseline; margin-bottom:6px;"><span class="subhead" style="font-weight:600;">Income</span><span class="mono subhead" style="font-weight:600;">'+fmt(incomeTotal,2)+' AED</span></div>';
+    s += '<div style="background:var(--fill); border-radius:6px; height:14px; overflow:hidden; margin-bottom:16px;"><div style="width:'+incomePct+'%; height:100%; border-radius:6px; background:var(--positive);"></div></div>';
+    s += '<div class="row between" style="align-items:baseline; margin-bottom:6px;"><span class="subhead" style="font-weight:600;">Expenses</span><span class="mono subhead" style="font-weight:600;">'+fmt(expensesTotal,2)+' AED</span></div>';
+    s += '<div style="background:var(--fill); border-radius:6px; height:14px; overflow:hidden;"><div style="width:'+expensePct+'%; height:100%; border-radius:6px; background:var(--rust);"></div></div>';
+    s += '</div>';
+
+    if (excludedTotal > 0) {
+      s += '<div class="muted caption hairline-top" style="margin-top:14px; padding-top:10px;">Includes '+fmt(excludedTotal,0)+' AED from categories kept outside the budget.</div>';
+    }
+    s += '</div>';
     return s;
   };
 
@@ -3603,7 +3704,7 @@ function handleApplyIncome(scope) {
   var el = document.getElementById("incomeDraftInput");
   var v = el ? parseFloat(el.value) : NaN;
   if (isNaN(v) || v < 0) return;
-  var mode = state.incomeDraftMode || incomeForDate(todayStr()).mode || "monthly";
+  var mode = "monthly"; // income is entered monthly only; legacy daily-mode history still reads correctly
   var monthStart = toStr(startOfMonth(new Date()));
   var hist = (state.settings.incomeHistory || []).slice();
   var label;
@@ -3806,6 +3907,7 @@ function handleRestore() {
     nextSettings.categoryGroupOf = normalizeCategoryGroupOf(nextSettings.categoryGroupOf, nextSettings.categories, nextSettings.categoryGroups);
     nextSettings.people = normalizePeople(nextSettings.people);
     nextSettings.personColors = normalizePersonColors(nextSettings.personColors, nextSettings.people);
+    nextSettings.categoryExcludeFromBudget = normalizeCategoryExcludeFromBudget(nextSettings.categoryExcludeFromBudget, nextSettings.categories);
     nextSettings.defaultPerson = normalizeDefaultPerson(nextSettings.defaultPerson, nextSettings.people);
     nextSettings.recurringRules = normalizeRecurringRules(nextSettings.recurringRules);
     var nextEntries = migrateEntries(parsed.entries||{}, nextSettings.weeklyTarget/7);
@@ -4027,6 +4129,15 @@ document.addEventListener("click", function(e) {
       persistAll(Object.assign({}, state.settings, { recurringRules: remainingRules }), entriesAfterDelete, "your settings");
       render();
       break;
+    case "toggle-category-budget":
+      var catToToggle = el.dataset.cat;
+      var nextExcludeMap = Object.assign({}, state.settings.categoryExcludeFromBudget||{});
+      if (nextExcludeMap[catToToggle]) delete nextExcludeMap[catToToggle];
+      else nextExcludeMap[catToToggle] = true;
+      persistAll(Object.assign({}, state.settings, { categoryExcludeFromBudget: nextExcludeMap }), state.entries, "your settings");
+      showToast(nextExcludeMap[catToToggle] ? catToToggle+" excluded from budget" : catToToggle+" counts toward budget");
+      render();
+      break;
     case "remove-category":
       var catToRemove = el.dataset.cat;
       var nextCatsAfterRemove = (state.settings.categories||[]).filter(function(c){ return c !== catToRemove; });
@@ -4034,7 +4145,9 @@ document.addEventListener("click", function(e) {
       delete stylesAfterRemove[catToRemove];
       var groupOfAfterRemoveCat = Object.assign({}, state.settings.categoryGroupOf||{});
       delete groupOfAfterRemoveCat[catToRemove];
-      var withoutCat = Object.assign({}, state.settings, { categories: nextCatsAfterRemove, categoryStyles: stylesAfterRemove, categoryGroupOf: groupOfAfterRemoveCat });
+      var excludeAfterRemove = Object.assign({}, state.settings.categoryExcludeFromBudget||{});
+      delete excludeAfterRemove[catToRemove];
+      var withoutCat = Object.assign({}, state.settings, { categories: nextCatsAfterRemove, categoryStyles: stylesAfterRemove, categoryGroupOf: groupOfAfterRemoveCat, categoryExcludeFromBudget: excludeAfterRemove });
       if (state.categoryStyleEditing === catToRemove) state.categoryStyleEditing = null;
       if (state.categoryRenameEditing === catToRemove) state.categoryRenameEditing = null;
       persistAll(withoutCat, state.entries, "your settings");
@@ -4258,12 +4371,6 @@ document.addEventListener("click", function(e) {
       state.showSettings = true;
       render();
       break;
-    case "income-mode":
-      var incEl = document.getElementById("incomeDraftInput");
-      if (incEl) state.incomeDraftAmount = incEl.value;
-      state.incomeDraftMode = el.dataset.mode;
-      render();
-      break;
     case "apply-income":
       handleApplyIncome(el.dataset.scope);
       break;
@@ -4331,6 +4438,10 @@ document.addEventListener("click", function(e) {
    a color is picked, without waiting for Apply or a full re-render (which
    would rebuild the sheet mid-pick and could interrupt the native picker). */
 document.addEventListener("input", function(e) {
+  if (e.target && e.target.id === "incomeDraftInput") {
+    var derivedEl = document.getElementById("incomeDerivedText");
+    if (derivedEl) derivedEl.textContent = incomeDerivedSummary(parseFloat(e.target.value));
+  }
   if (e.target && e.target.id === "weeklyDraftInput") {
     var v = parseFloat(e.target.value);
     var perDayEl = document.getElementById("weeklyPerDayText");
