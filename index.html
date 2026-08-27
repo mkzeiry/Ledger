@@ -130,6 +130,30 @@
   .txn-entry-page input, .txn-entry-page select, .txn-entry-page textarea { scroll-margin-top:84px; }
   .txn-entry-save { margin-top:6px; min-height:52px; border-radius:14px !important; font-size:17px !important; }
   @media (min-width:480px) { .txn-entry-shell { padding-left:20px; padding-right:20px; } .txn-entry-header { margin-left:-20px; margin-right:-20px; padding-left:20px; padding-right:20px; } }
+
+  /* Settings is a full app screen, not a tabbed sheet. The landing view uses
+     grouped navigation rows; each row opens a focused detail screen. */
+  .settings-page { min-height:100vh; min-height:100dvh; background:var(--bg); padding-top:env(safe-area-inset-top,0px); }
+  .settings-shell { width:100%; max-width:460px; margin:0 auto; padding:0 16px calc(env(safe-area-inset-bottom,0px) + 32px); }
+  .settings-header {
+    position:sticky; top:0; z-index:30; display:grid; grid-template-columns:44px 1fr 44px; align-items:center;
+    min-height:60px; margin:0 -16px 16px; padding:6px 16px; background:var(--bg); border-bottom:1px solid var(--sep);
+  }
+  .settings-title { font-size:20px; line-height:1.15; font-weight:760; letter-spacing:-0.025em; text-align:center; }
+  .settings-back { width:38px; height:38px; display:flex; align-items:center; justify-content:center; border:none; border-radius:999px; background:var(--fill); color:var(--text); padding:0; }
+  .settings-group-title { margin:22px 4px 8px; color:var(--text-muted); font-size:12px; font-weight:700; letter-spacing:.055em; text-transform:uppercase; }
+  .settings-list { overflow:hidden; border-radius:14px; background:var(--card); }
+  .settings-row { width:100%; min-height:58px; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 14px; background:none; border:none; text-align:left; }
+  .settings-row + .settings-row { border-top:1px solid var(--sep); }
+  .settings-row-main { min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .settings-row-label { font-size:16px; font-weight:600; letter-spacing:-0.015em; }
+  .settings-row-sub { color:var(--text-muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px; }
+  .settings-row-value { color:var(--text-muted); font-size:14px; white-space:nowrap; }
+  .settings-detail { padding-bottom:20px; }
+  .settings-detail > .eyebrow:first-child { display:block; margin-top:4px; }
+  .settings-danger { color:var(--rust); }
+  .settings-page input, .settings-page select, .settings-page textarea { scroll-margin-top:84px; }
+  @media (min-width:480px) { .settings-shell { padding-left:20px; padding-right:20px; } .settings-header { margin-left:-20px; margin-right:-20px; padding-left:20px; padding-right:20px; } }
   .seg-scroll .seg-btn { flex: 0 0 auto; white-space:nowrap; padding: 7px 14px; }
   .seg-wrap { flex-wrap: wrap; gap: 6px; }
   .seg-wrap .seg-btn { flex: 0 0 auto; white-space:nowrap; padding: 7px 14px; }
@@ -190,7 +214,7 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null };
 var DEFAULT_ANALYSIS_ORDER = ["summary","cashFlow","forecastedSpend","spendTrend","dailySpend","category","person","dow","topTransactions"];
 var ANALYSIS_SECTION_LABELS = { summary:"Summary", cashFlow:"Cash flow", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", category:"Spend by category", person:"Spend by person", dow:"Average by day of week", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
@@ -664,7 +688,8 @@ var state = {
   txnEntryReturnScrollY: 0,
   txnEntryRestoreScroll: false,
   toastMessage: null,
-  settingsTab: "budget",
+  settingsTab: "budget", // legacy; dedicated Settings uses settingsSection
+  settingsSection: null,
   pendingDeleteKey: null,
   txnCategoryFilter: "",
   txnGroupFilter: "",
@@ -718,7 +743,8 @@ var state = {
   entryPersonDraft: null,
 };
 
-/* Rate history: records what the weekly target was over time, so past periods are
+/* Legacy rate history: retained for backwards compatibility with ledgers created
+   before monthly budgets became the primary model. Past periods are
    judged against the rate that was actually in effect then, not today's rate. */
 function rateForDate(ds) {
   var hist = state.settings.rateHistory;
@@ -729,14 +755,47 @@ function rateForDate(ds) {
   }
   return rate;
 }
-function currentWeeklyTarget(){ return rateForDate(todayStr()); }
-function dailyAllowance(){ return currentWeeklyTarget()/7; }
-/* A logged day keeps whatever rate it was saved at; unlogged days fall back to
-   whatever rate history says applied on that date. */
+/* Monthly budget is the primary budget model. Old weekly-rate history remains
+   readable as a compatibility fallback, so existing ledgers and backups do not
+   need destructive migration. Once a monthly budget is saved, each date gets
+   that month's budget divided by its real number of calendar days. */
+function normalizeMonthlyBudgetHistory(hist) {
+  var out = (hist||[]).filter(function(x){ return x && x.from && Number(x.monthlyBudget) > 0; })
+    .slice().sort(function(a,b){ return a.from < b.from ? -1 : a.from > b.from ? 1 : 0; });
+  var dedup=[];
+  for (var i=0;i<out.length;i++) {
+    var item={ from:out[i].from, monthlyBudget:Number(out[i].monthlyBudget) };
+    if (dedup.length && dedup[dedup.length-1].from===item.from) dedup[dedup.length-1]=item;
+    else if (dedup.length && dedup[dedup.length-1].monthlyBudget===item.monthlyBudget) continue;
+    else dedup.push(item);
+  }
+  return dedup;
+}
+function monthlyBudgetForDate(ds) {
+  var hist = state.settings.monthlyBudgetHistory;
+  if (hist && hist.length) {
+    var found = null;
+    for (var i=0;i<hist.length;i++) { if (hist[i].from <= ds) found=hist[i]; else break; }
+    if (found) return Number(found.monthlyBudget)||0;
+  }
+  if (state.settings.monthlyBudget != null && (!hist || !hist.length)) return Number(state.settings.monthlyBudget)||0;
+  /* Legacy fallback: preserve exactly the daily allowance the old weekly model
+     would have used, expressed as that month's equivalent monthly budget. */
+  return (rateForDate(ds)/7) * daysInMonth(parseD(ds));
+}
+function dailyBudgetForDate(ds) {
+  var m = monthlyBudgetForDate(ds);
+  return m > 0 ? m / daysInMonth(parseD(ds)) : 0;
+}
+function currentMonthlyBudget(){ return monthlyBudgetForDate(todayStr()); }
+function currentWeeklyTarget(){ return dailyBudgetForDate(todayStr())*7; }
+function dailyAllowance(){ return dailyBudgetForDate(todayStr()); }
+/* A logged day keeps the allowance it was last saved/rejudged at; unlogged days
+   derive from the monthly budget that applies to that calendar month. */
 function allowanceForDate(ds) {
   var e = state.entries[ds];
   if (e && typeof e.allowance === "number") return e.allowance;
-  return rateForDate(ds)/7;
+  return dailyBudgetForDate(ds);
 }
 function normalizeRateHistory(hist) {
   var out = (hist||[]).slice().sort(function(a,b){ return a.from < b.from ? -1 : a.from > b.from ? 1 : 0; });
@@ -842,6 +901,7 @@ function loadInitial() {
   state.settings.analysisSectionOrder = normalizeAnalysisOrder(state.settings.analysisSectionOrder);
   state.settings.analysisHiddenSections = normalizeHiddenSections(state.settings.analysisHiddenSections);
   state.settings.incomeHistory = normalizeIncomeHistory(state.settings.incomeHistory);
+  state.settings.monthlyBudgetHistory = normalizeMonthlyBudgetHistory(state.settings.monthlyBudgetHistory);
   state.settings.categoryStyles = normalizeCategoryStyles(state.settings.categoryStyles, state.settings.categories);
   state.settings.categoryGroups = normalizeCategoryGroups(state.settings.categoryGroups);
   state.settings.categoryGroupOf = normalizeCategoryGroupOf(state.settings.categoryGroupOf, state.settings.categories, state.settings.categoryGroups);
@@ -1422,7 +1482,7 @@ function render() {
   var T = effectivePalette();
   applyTheme(T);
 
-  var anyModalOpen = state.showSettings || state.showBackup || state.showResetConfirm;
+  var anyModalOpen = state.showBackup || state.showResetConfirm;
   if (anyModalOpen) lockBodyScroll(); else unlockBodyScroll();
 
   /* root.innerHTML = html below destroys and recreates every element on every
@@ -1436,9 +1496,11 @@ function render() {
      with no modal open, the page's own scroll position is what matters. */
   var modalCardEl = document.querySelector(".modal-card");
   var txnEntryPageEl = document.querySelector(".txn-entry-page");
+  var settingsPageEl = document.querySelector(".settings-page");
   var savedTxnEntryScrollY = txnEntryPageEl ? (window.scrollY || window.pageYOffset || 0) : 0;
+  var savedSettingsScrollY = settingsPageEl ? (window.scrollY || window.pageYOffset || 0) : 0;
   var savedModalScrollTop = modalCardEl ? modalCardEl.scrollTop : 0;
-  var savedPageScrollY = (modalCardEl || txnEntryPageEl) ? 0 : (window.scrollY || window.pageYOffset || 0);
+  var savedPageScrollY = (modalCardEl || txnEntryPageEl || settingsPageEl) ? 0 : (window.scrollY || window.pageYOffset || 0);
 
   if (state.loading) {
     root.innerHTML = '<div class="row" style="min-height:100vh; align-items:center; justify-content:center;"><div class="muted" style="font-size:14px;">Loading your ledger…</div></div>';
@@ -1453,6 +1515,12 @@ function render() {
   if (state.showAddTxn) {
     root.innerHTML = renderAddTxnPage();
     window.scrollTo(0, savedTxnEntryScrollY);
+    return;
+  }
+
+  if (state.showSettings) {
+    root.innerHTML = renderSettingsPage();
+    window.scrollTo(0, savedSettingsScrollY);
     return;
   }
 
@@ -1491,10 +1559,6 @@ function render() {
   html += renderBottomNav();
 
   // modals
-  if (state.showSettings) {
-    html += renderSettingsModal();
-  }
-
   if (state.showBackup) {
     var backupText = JSON.stringify({settings:state.settings, entries:state.entries}, null, 2);
     html += '<div class="modal-backdrop" data-action="close-backup">';
@@ -1515,7 +1579,7 @@ function render() {
     html += '<div class="modal-backdrop" data-action="close-reset" style="padding:0 24px;">';
     html += '<div class="modal-card" style="border-radius:16px;" data-action="noop">';
     html += '<div class="sheet-title" style="margin-bottom:8px;">Clear all entries?</div>';
-    html += '<div class="muted" style="font-size:14px; margin-bottom:16px;">Every logged transaction is removed. Your weekly target and theme stay. This can\'t be undone.</div>';
+    html += '<div class="muted" style="font-size:14px; margin-bottom:16px;">Every logged transaction is removed. Your monthly budget and theme stay. This can\'t be undone.</div>';
     html += '<div class="row gap2">';
     html += '<button data-action="close-reset" class="btn-outline" style="flex:1;">Cancel</button>';
     html += '<button data-action="confirm-reset" class="btn-rust row gap2" style="flex:1; justify-content:center; align-items:center;">'+ICONS.rotate+' Clear</button>';
@@ -1805,36 +1869,56 @@ function renderBudgetBody(T) {
   return h;
 }
 
-function renderSettingsModal() {
-  var tabs = [{id:"budget",label:"Budget"},{id:"tracking",label:"Tracking"},{id:"categories",label:"Categories"},{id:"people",label:"People"},{id:"theme",label:"Theme"}];
-  var h = '<div class="modal-backdrop" data-action="close-settings">';
-  h += '<div class="modal-card" data-action="noop">';
-  h += '<div class="modal-sticky-header"><div class="grabber"></div>';
-  h += '<div class="row between">'+'<div class="sheet-title">Settings</div><button data-action="close-settings" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
+function renderSettingsPage() {
+  var section = state.settingsSection || "";
+  var titles = { budget:"Monthly budget", categories:"Categories & groups", people:"People", theme:"Appearance", tracking:"Tracking & data", backup:"Backup & restore" };
+  var h = '<div class="settings-page"><div class="settings-shell">';
+  h += '<div class="settings-header">';
+  h += '<button data-action="settings-back" class="settings-back" aria-label="Back">'+ICONS.chevronLeft+'</button>';
+  h += '<div class="settings-title">'+esc(section ? titles[section] : "Settings")+'</div><span></span></div>';
 
-  h += '<div class="seg seg-wrap" style="margin-bottom:18px; margin-top:14px;">';
-  tabs.forEach(function(t){
-    var active = state.settingsTab === t.id;
-    h += '<button class="seg-btn" role="tab" aria-selected="'+active+'" data-action="settings-tab" data-tab="'+t.id+'">'+t.label+'</button>';
-  });
-  h += '</div>';
+  if (!section) {
+    var monthlyNow = currentMonthlyBudget();
+    var catsN=(state.settings.categories||[]).length, groupsN=(state.settings.categoryGroups||[]).length;
+    var peopleN=(state.settings.people||[]).length;
+    var themeLabel = state.settings.theme === "dark" ? "Dark" : "Light";
+    var trackLabel = state.settings.trackingStartDate ? shortLabel(state.settings.trackingStartDate) : "Not set";
 
-  if (state.settingsTab === "budget") {
-    var curWeekly = currentWeeklyTarget();
-    var wkBounds = getPeriodBounds("week", 0, curWeekly, curWeekly/7);
-    h += '<label class="eyebrow">Weekly budget target</label><div class="muted caption" style="margin-top:4px; margin-bottom:8px;">Only expenses in categories marked “Included” count against this budget.</div>';
-    h += '<div style="position:relative; margin:6px 0 6px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
-    h += '<input id="weeklyDraftInput" type="number" inputmode="decimal" class="field mono" style="padding-left:44px;" value="'+curWeekly+'" /></div>';
-    h += '<div class="muted" id="weeklyPerDayText" style="font-size:12px; margin-bottom:14px;">= '+fmt(curWeekly/7,2)+' AED per day. Choose how far this change should reach:</div>';
-    h += '<button data-action="apply-budget" data-scope="future" class="btn-accent" style="width:100%; margin-bottom:8px;">This week onward</button>';
-    h += '<div class="muted" style="font-size:11px; margin-bottom:12px;">From '+esc(shortLabel(wkBounds.startStr))+' forward. Earlier weeks keep their old rate — this is usually what you want.</div>';
-    h += '<button data-action="apply-budget" data-scope="thisPeriod" class="btn-outline" style="width:100%; margin-bottom:8px;">This week only</button>';
-    h += '<div class="muted" style="font-size:11px; margin-bottom:12px;">Just '+esc(shortLabel(wkBounds.startStr))+'–'+esc(shortLabel(wkBounds.endStr))+'. Reverts to the previous rate afterwards.</div>';
-    h += '<button data-action="apply-budget" data-scope="all" class="btn-outline" style="width:100%; margin-bottom:8px;">All periods, past and future</button>';
-    h += '<div class="muted" style="font-size:11px;">Rewrites your whole history to this rate. Use if you were still dialling the number in and want past weeks re-judged against it.</div>';
+    h += '<div class="settings-group-title">Money</div><div class="settings-list">';
+    h += '<button class="settings-row" data-action="settings-section" data-section="budget"><span class="settings-row-main"><span class="settings-row-label">Monthly budget</span><span class="settings-row-sub">Your controllable-spend target</span></span><span class="row gap2"><span class="settings-row-value">'+fmt(monthlyNow,0)+' AED</span>'+ICONS.chevronRight+'</span></button>';
+    h += '<button class="settings-row" data-action="settings-section" data-section="categories"><span class="settings-row-main"><span class="settings-row-label">Categories & groups</span><span class="settings-row-sub">Organize spending and budget inclusion</span></span><span class="row gap2"><span class="settings-row-value">'+catsN+(groupsN?' · '+groupsN+' groups':'')+'</span>'+ICONS.chevronRight+'</span></button>';
+    h += '<button class="settings-row" data-action="settings-section" data-section="people"><span class="settings-row-main"><span class="settings-row-label">People</span><span class="settings-row-sub">Defaults, colors and shared spending</span></span><span class="row gap2"><span class="settings-row-value">'+peopleN+'</span>'+ICONS.chevronRight+'</span></button>';
+    h += '</div>';
+
+    h += '<div class="settings-group-title">App</div><div class="settings-list">';
+    h += '<button class="settings-row" data-action="settings-section" data-section="theme"><span class="settings-row-main"><span class="settings-row-label">Appearance</span><span class="settings-row-sub">Theme, background, cards and accent</span></span><span class="row gap2"><span class="settings-row-value">'+themeLabel+'</span>'+ICONS.chevronRight+'</span></button>';
+    h += '</div>';
+
+    h += '<div class="settings-group-title">Data</div><div class="settings-list">';
+    h += '<button class="settings-row" data-action="settings-section" data-section="tracking"><span class="settings-row-main"><span class="settings-row-label">Tracking & data</span><span class="settings-row-sub">Tracking start date and data tools</span></span><span class="row gap2"><span class="settings-row-value">'+esc(trackLabel)+'</span>'+ICONS.chevronRight+'</span></button>';
+    h += '<button class="settings-row" data-action="settings-section" data-section="backup"><span class="settings-row-main"><span class="settings-row-label">Backup & restore</span><span class="settings-row-sub">Copy, restore or move your ledger</span></span><span>'+ICONS.chevronRight+'</span></button>';
+    h += '</div>';
+    h += '</div></div>';
+    return h;
   }
 
-  if (state.settingsTab === "tracking") {
+  h += '<div class="settings-detail">';
+  if (section === "budget") {
+    var curMonthly = currentMonthlyBudget();
+    var monthBounds = getPeriodBounds("month", 0, currentWeeklyTarget(), dailyAllowance());
+    var dim = daysInMonth(new Date());
+    var monthName = new Date().toLocaleDateString("en-GB",{month:"long"});
+    h += '<label class="eyebrow">Monthly budget</label>';
+    h += '<div class="muted caption" style="margin:4px 0 10px;">Set the total amount you want available for budget-counted categories each month.</div>';
+    h += '<div style="position:relative; margin:6px 0 6px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
+    h += '<input id="monthlyDraftInput" type="number" inputmode="decimal" class="field mono" style="padding-left:44px; font-size:20px; font-weight:650;" value="'+round2(curMonthly)+'" /></div>';
+    h += '<div class="muted" id="monthlyBudgetDerivedText" style="font-size:12px; margin-bottom:18px;">= '+fmt(curMonthly/dim,2)+' AED/day in '+esc(monthName)+' · about '+fmt((curMonthly/dim)*7,0)+' AED/week</div>';
+    h += '<button data-action="apply-budget" data-scope="future" class="btn-accent" style="width:100%; margin-bottom:8px;">From this month onward</button>';
+    h += '<div class="muted" style="font-size:11px; margin-bottom:14px;">Starts '+esc(shortLabel(monthBounds.startStr))+'. Earlier months keep the budget that applied then.</div>';
+    h += '<button data-action="apply-budget" data-scope="all" class="btn-outline" style="width:100%; margin-bottom:8px;">All periods, past and future</button>';
+    h += '<div class="muted" style="font-size:11px;">Use this only when correcting the budget itself; historical days will be re-judged against the new monthly amount.</div>';
+  }
+  if (section === "tracking") {
     h += '<label class="eyebrow">Tracking start date (optional)</label>';
     h += '<input id="trackingStartInput" type="date" class="field mono" style="margin:6px 0 6px;" value="'+(state.settings.trackingStartDate||"")+'" max="'+todayStr()+'" />';
     h += '<div class="muted" style="font-size:12px; margin-bottom:16px;">Caps how far back Week/Month/Year totals count. Set this to when you actually started using the app so untracked earlier days aren\'t assumed as saved. Leave blank to count from each period\'s natural start.</div>';
@@ -1842,11 +1926,11 @@ function renderSettingsModal() {
     h += '<div class="hairline-top" style="padding-top:14px;">';
     h += '<label class="eyebrow">Backup & restore</label>';
     h += '<div class="muted" style="font-size:12px; margin:6px 0 10px;">Copy your data out, or paste it back in — also how you move data between devices or browsers.</div>';
-    h += '<button data-action="open-backup" class="btn-outline" style="width:100%;">Open backup & restore</button>';
+    h += '<button data-action="settings-section" data-section="backup" class="btn-outline" style="width:100%;">Open backup & restore</button>';
     h += '</div>';
   }
 
-  if (state.settingsTab === "theme") {
+  if (section === "theme") {
     var curBg = state.settings.customDarkBg || PALETTES.dark.bg;
     var curAccent = state.settings.customAccent || PALETTES.dark.accent;
     var curCardLightness = state.settings.customCardLightness != null ? Number(state.settings.customCardLightness) : 15;
@@ -1869,13 +1953,13 @@ function renderSettingsModal() {
     h += '<input id="customAccentInput" type="color" value="'+curAccent+'" style="width:48px; height:40px; border:none; border-radius:10px; padding:0; background:none;" />';
     h += '<span class="mono subhead" id="customAccentLabel">'+curAccent.toUpperCase()+'</span>';
     h += '</div>';
-    h += '<div class="muted footnote" style="margin-bottom:18px;">Used for buttons, active tabs, and chart highlights, in either theme.</div>';
+    h += '<div class="muted footnote" style="margin-bottom:18px;">Used for buttons, selected controls, and chart highlights, in either theme.</div>';
 
     h += '<button data-action="apply-appearance" class="btn-accent" style="width:100%; margin-bottom:8px;">Apply</button>';
     h += '<button data-action="reset-appearance" class="btn-outline" style="width:100%;'+(hasCustom?"":"opacity:0.4;")+'" '+(hasCustom?"":"disabled")+'>Reset to default</button>';
   }
 
-  if (state.settingsTab === "categories") {
+  if (section === "categories") {
     var groupList = state.settings.categoryGroups||[];
     var catListAll = state.settings.categories||[];
 
@@ -2019,7 +2103,7 @@ function renderSettingsModal() {
     }
   }
 
-  if (state.settingsTab === "people") {
+  if (section === "people") {
     h += '<label class="eyebrow">People</label>';
     h += '<div class="muted caption" style="margin:4px 0 10px;">Tag transactions with who they were for, then see the breakdown in Analysis.</div>';
     var peopleListForDefault = state.settings.people||[];
@@ -2064,7 +2148,19 @@ function renderSettingsModal() {
     h += '<div class="row gap2"><input id="newPersonInput" type="text" class="field" placeholder="New person" style="flex:1;" /><button data-action="add-person" class="btn-outline">Add</button></div>';
   }
 
-  h += '</div></div>';
+
+  if (section === "backup") {
+    var backupText = JSON.stringify({settings:state.settings, entries:state.entries}, null, 2);
+    h += '<div class="muted" style="font-size:12px; margin-bottom:10px;">Copy your full ledger as text. Keep it somewhere safe before major code changes or when moving devices.</div>';
+    h += '<textarea readonly class="field mono" style="height:150px; font-size:11px; margin-bottom:8px; resize:none;" onfocus="this.select()">'+esc(backupText)+'</textarea>';
+    h += '<button id="copyBackupBtn" data-action="copy-backup" class="btn-accent" style="width:100%; margin-bottom:24px;">Copy backup</button>';
+    h += '<div class="hairline-top" style="padding-top:18px;"><label class="eyebrow">Restore</label>';
+    h += '<div class="muted" style="font-size:12px; margin:6px 0 10px;">Paste a backup created by The Ledger.</div>';
+    h += '<textarea id="restoreInput" class="field mono" style="height:110px; font-size:11px; margin-bottom:8px; resize:none;" placeholder="Paste backup text here"></textarea>';
+    if (state.restoreError) h += '<div style="color:var(--rust); font-size:12px; margin-bottom:8px;">'+esc(state.restoreError)+'</div>';
+    h += '<button data-action="restore-backup" class="btn-outline" style="width:100%;">Restore this backup</button></div>';
+  }
+  h += '</div></div></div>';
   return h;
 }
 
@@ -3578,49 +3674,45 @@ function handleApplyIncome(scope) {
 }
 
 function handleApplyBudget(scope) {
-  var wEl = document.getElementById("weeklyDraftInput");
-  var v = wEl ? parseFloat(wEl.value) : NaN;
+  var el = document.getElementById("monthlyDraftInput");
+  var v = el ? parseFloat(el.value) : NaN;
   if (isNaN(v) || v <= 0) return;
-  var newDaily = v / 7;
-  var wk = getPeriodBounds("week", 0, v, newDaily);
-  var hist = (state.settings.rateHistory || []).slice();
+  var month = getPeriodBounds("month", 0, currentWeeklyTarget(), dailyAllowance());
+  var hist = (state.settings.monthlyBudgetHistory || []).slice();
   var nextEntries = Object.assign({}, state.entries);
   var label;
 
+  function budgetFromHist(histArr, ds) {
+    var found=null;
+    for (var i=0;i<histArr.length;i++) { if (histArr[i].from<=ds) found=histArr[i]; else break; }
+    return found ? Number(found.monthlyBudget)||0 : null;
+  }
   function rewriteLoggedFrom(fromStr, toStr_) {
     Object.keys(nextEntries).forEach(function(d){
       if (d >= fromStr && (!toStr_ || d <= toStr_)) {
-        nextEntries[d] = Object.assign({}, nextEntries[d], { allowance: newDaily });
+        nextEntries[d] = Object.assign({}, nextEntries[d], { allowance: v / daysInMonth(parseD(d)) });
       }
     });
   }
 
   if (scope === "all") {
-    hist = [{ from: "1900-01-01", weeklyTarget: v }];
+    hist = [{ from:"1900-01-01", monthlyBudget:v }];
     rewriteLoggedFrom("1900-01-01", null);
-    label = "Applied to all periods";
-  } else if (scope === "future") {
-    hist.push({ from: wk.startStr, weeklyTarget: v });
-    rewriteLoggedFrom(wk.startStr, null);
-    label = "Applied from this week onward";
-  } else { // thisPeriod
-    var prevRate = rateForDate(wk.startStr);
-    var dayAfter = toStr(addDays(parseD(wk.endStr), 1));
-    hist.push({ from: wk.startStr, weeklyTarget: v });
-    hist.push({ from: dayAfter, weeklyTarget: prevRate });
-    rewriteLoggedFrom(wk.startStr, wk.endStr);
-    label = "Applied to this week only";
+    label = "Monthly budget applied to all periods";
+  } else {
+    hist.push({ from:month.startStr, monthlyBudget:v });
+    hist = normalizeMonthlyBudgetHistory(hist);
+    rewriteLoggedFrom(month.startStr, null);
+    label = "Monthly budget applied from this month onward";
   }
-
-  hist = normalizeRateHistory(hist);
-  var nextSettings = Object.assign({}, state.settings, { rateHistory: hist });
-  nextSettings.weeklyTarget = (function(){
-    var r = hist[0].weeklyTarget, t = todayStr();
-    for (var i=0;i<hist.length;i++){ if (hist[i].from <= t) r = hist[i].weeklyTarget; else break; }
-    return r;
-  })();
+  hist = normalizeMonthlyBudgetHistory(hist);
+  var nextSettings = Object.assign({}, state.settings, {
+    monthlyBudgetHistory: hist,
+    monthlyBudget: v,
+    /* Keep a compatible weekly equivalent for older versions/backups. */
+    weeklyTarget: (v / daysInMonth(new Date())) * 7
+  });
   persistAll(nextSettings, nextEntries, "your budget");
-  state.showSettings = false;
   showToast(label);
   render();
 }
@@ -3806,6 +3898,7 @@ function handleRestore() {
     nextSettings.analysisSectionOrder = normalizeAnalysisOrder(nextSettings.analysisSectionOrder);
     nextSettings.analysisHiddenSections = normalizeHiddenSections(nextSettings.analysisHiddenSections);
     nextSettings.incomeHistory = normalizeIncomeHistory(nextSettings.incomeHistory);
+    nextSettings.monthlyBudgetHistory = normalizeMonthlyBudgetHistory(nextSettings.monthlyBudgetHistory);
     nextSettings.categoryStyles = normalizeCategoryStyles(nextSettings.categoryStyles, nextSettings.categories);
     nextSettings.categoryGroups = normalizeCategoryGroups(nextSettings.categoryGroups);
     nextSettings.categoryGroupOf = normalizeCategoryGroupOf(nextSettings.categoryGroupOf, nextSettings.categories, nextSettings.categoryGroups);
@@ -3814,7 +3907,8 @@ function handleRestore() {
     nextSettings.categoryExcludeFromBudget = normalizeCategoryExcludeFromBudget(nextSettings.categoryExcludeFromBudget, nextSettings.categories);
     nextSettings.defaultPerson = normalizeDefaultPerson(nextSettings.defaultPerson, nextSettings.people);
     nextSettings.recurringRules = normalizeRecurringRules(nextSettings.recurringRules);
-    var nextEntries = migrateEntries(parsed.entries||{}, nextSettings.weeklyTarget/7);
+    var restoreFallback = nextSettings.monthlyBudget ? (Number(nextSettings.monthlyBudget)/daysInMonth(new Date())) : (nextSettings.weeklyTarget/7);
+    var nextEntries = migrateEntries(parsed.entries||{}, restoreFallback);
     state.settings = nextSettings;
     state.entries = nextEntries;
     runRecurringCatchUp();
@@ -3835,9 +3929,9 @@ document.addEventListener("click", function(e) {
   switch(action) {
     case "open-backup": state.showBackup = true; render(); break;
     case "close-backup": state.showBackup = false; state.restoreError = null; render(); break;
-    case "open-settings": state.showSettings = true; render(); break;
-    case "open-budget-settings": state.settingsTab = "budget"; state.showSettings = true; render(); break;
-    case "close-settings": state.showSettings = false; render(); break;
+    case "open-settings": state.settingsSection = null; state.showSettings = true; render(); break;
+    case "open-budget-settings": state.settingsSection = "budget"; state.showSettings = true; render(); break;
+    case "close-settings": state.settingsSection = null; state.showSettings = false; render(); break;
     case "open-reset": state.showResetConfirm = true; render(); break;
     case "close-reset": state.showResetConfirm = false; render(); break;
     case "toggle-theme":
@@ -3954,8 +4048,14 @@ document.addEventListener("click", function(e) {
       if (state.saveError) { var se = state.saveError; state.saveError = null; persistAll(se.nextSettings, se.nextEntries, se.label); }
       render();
       break;
-    case "settings-tab":
-      state.settingsTab = el.dataset.tab;
+    case "settings-section":
+      state.settingsSection = el.dataset.section || null;
+      window.scrollTo(0,0);
+      render();
+      break;
+    case "settings-back":
+      if (state.settingsSection) { state.settingsSection = null; window.scrollTo(0,0); }
+      else { state.showSettings = false; }
       render();
       break;
     case "save-tracking":
@@ -4372,7 +4472,6 @@ document.addEventListener("click", function(e) {
         customCardLightness: cardEl ? Number(cardEl.value) : state.settings.customCardLightness
       });
       persistAll(nextAppearance, state.entries, "your settings");
-      state.showSettings = false;
       showToast("Appearance updated");
       render();
       break;
@@ -4493,12 +4592,14 @@ document.addEventListener("input", function(e) {
     var derivedEl = document.getElementById("incomeDerivedText");
     if (derivedEl) derivedEl.textContent = incomeDerivedSummary(parseFloat(e.target.value));
   }
-  if (e.target && e.target.id === "weeklyDraftInput") {
+  if (e.target && e.target.id === "monthlyDraftInput") {
     var v = parseFloat(e.target.value);
-    var perDayEl = document.getElementById("weeklyPerDayText");
-    if (perDayEl) {
-      var perDay = (!isNaN(v) && v >= 0) ? v/7 : 0;
-      perDayEl.textContent = "= " + fmt(perDay, 2) + " AED per day. Choose how far this change should reach:";
+    var derived = document.getElementById("monthlyBudgetDerivedText");
+    if (derived) {
+      var dim = daysInMonth(new Date());
+      var perDay = (!isNaN(v) && v >= 0) ? v/dim : 0;
+      var monthName = new Date().toLocaleDateString("en-GB",{month:"long"});
+      derived.textContent = "= " + fmt(perDay,2) + " AED/day in " + monthName + " · about " + fmt(perDay*7,0) + " AED/week";
     }
   }
   if (e.target && e.target.id === "customBgInput") {
