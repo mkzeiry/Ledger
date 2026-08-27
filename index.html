@@ -103,6 +103,11 @@
   }
   .seg-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
   .seg-scroll::-webkit-scrollbar { display:none; }
+  /* Native horizontal chip strips inside a modal. The modal uses a custom
+     vertical touch lock on iOS, so these strips are explicitly allowed to
+     own horizontal gestures instead of having every touchmove swallowed. */
+  .txn-hscroll { overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-width:none; touch-action:pan-x; overscroll-behavior-x:contain; }
+  .txn-hscroll::-webkit-scrollbar { display:none; }
   .seg-scroll .seg-btn { flex: 0 0 auto; white-space:nowrap; padding: 7px 14px; }
   .seg-wrap { flex-wrap: wrap; gap: 6px; }
   .seg-wrap .seg-btn { flex: 0 0 auto; white-space:nowrap; padding: 7px 14px; }
@@ -1262,7 +1267,8 @@ function unlockBodyScroll() {
    inside it still works natively, and color inputs are exempted so their
    native spectrum/slider picker gets real drag gestures instead of having
    them swallowed mid-slide (which was registering as an instant tap-select). */
-var touchLockCard = null, touchLockStartY = null, touchLockStartScrollTop = null;
+var touchLockCard = null, touchLockStartY = null, touchLockStartX = null, touchLockStartScrollTop = null;
+var touchLockHScroll = null, touchLockHStartScrollLeft = null, touchLockHorizontalGesture = false;
 var sheetDragging = false, sheetDragAnchorY = null, sheetDragDelta = 0;
 var SHEET_DISMISS_THRESHOLD = 90;
 var momentumHandle = null;
@@ -1300,7 +1306,11 @@ document.addEventListener("touchstart", function(e) {
   if (card) stopMomentum(); // grabbing a still-gliding scroll stops it, like a native scroll view
   touchLockCard = card || null;
   touchLockStartY = e.touches[0].clientY;
+  touchLockStartX = e.touches[0].clientX;
   touchLockStartScrollTop = card ? card.scrollTop : 0;
+  touchLockHScroll = e.target.closest(".txn-hscroll");
+  touchLockHStartScrollLeft = touchLockHScroll ? touchLockHScroll.scrollLeft : null;
+  touchLockHorizontalGesture = false;
   sheetDragging = false;
   sheetDragAnchorY = null;
   sheetDragDelta = 0;
@@ -1310,9 +1320,23 @@ document.addEventListener("touchstart", function(e) {
 document.addEventListener("touchmove", function(e) {
   if (!bodyScrollLocked) return;
   if (e.target && (e.target.id === "entryNoteInput" || e.target.type === "color")) return;
-  e.preventDefault();
   if (!touchLockCard || touchLockStartY == null) return;
   var curY = e.touches[0].clientY;
+  var curX = e.touches[0].clientX;
+  /* Horizontal category/person strips must remain swipeable on iPhone even
+     though the sheet itself uses manual vertical scrolling. Lock the gesture
+     to horizontal once horizontal movement clearly wins. */
+  if (touchLockHScroll && touchLockStartX != null) {
+    var dx = curX - touchLockStartX, dy = curY - touchLockStartY;
+    if (!touchLockHorizontalGesture && Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) touchLockHorizontalGesture = true;
+    if (touchLockHorizontalGesture) {
+      e.preventDefault();
+      var maxLeft = Math.max(0, touchLockHScroll.scrollWidth - touchLockHScroll.clientWidth);
+      touchLockHScroll.scrollLeft = Math.max(0, Math.min(maxLeft, touchLockHStartScrollLeft - dx));
+      return;
+    }
+  }
+  e.preventDefault();
   if (!sheetDragging) {
     /* Checked against the LIVE scrollTop, not just the gesture's starting
        value, so scrolling up to the top and continuing to pull down in one
@@ -1362,7 +1386,8 @@ document.addEventListener("touchend", function() {
       }
     }
   }
-  touchLockCard = null; touchLockStartY = null; touchLockStartScrollTop = null;
+  touchLockCard = null; touchLockStartY = null; touchLockStartX = null; touchLockStartScrollTop = null;
+  touchLockHScroll = null; touchLockHStartScrollLeft = null; touchLockHorizontalGesture = false;
   sheetDragging = false; sheetDragAnchorY = null; sheetDragDelta = 0;
   scrollVelSamples = [];
 }, { passive: true });
@@ -2035,10 +2060,10 @@ function renderAddTxnModal() {
       return diff || (original.indexOf(a)-original.indexOf(b));
     });
   }
-  var quickCats = sortedCats(cats).slice(0,5);
+  var quickCats = sortedCats(cats).slice(0,8);
   if (selectedCat && quickCats.indexOf(selectedCat)===-1) {
     quickCats.unshift(selectedCat);
-    quickCats = quickCats.slice(0,5);
+    quickCats = quickCats.slice(0,8);
   }
 
   var h = '<div class="modal-backdrop" data-action="close-add-txn">';
@@ -2057,9 +2082,16 @@ function renderAddTxnModal() {
   h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding:14px 14px 14px 58px;font-size:30px;font-weight:700;border-radius:14px;" placeholder="0.00" value="'+esc(amountShown)+'" />';
   h += '</div>';
 
+  /* Date is part of the primary entry flow: most entries default to Today,
+     but a backdated transaction should never require opening More options. */
+  h += '<div class="row between" style="margin-bottom:14px;align-items:center;gap:12px;">';
+  h += '<label class="eyebrow" for="entryDateInput" style="flex-shrink:0;">Date</label>';
+  h += '<input id="entryDateInput" type="date" class="field mono" style="width:auto;min-width:156px;flex:0 1 190px;padding:9px 10px;font-size:14px;" value="'+formDate+'" max="'+todayStr()+'" />';
+  h += '</div>';
+
   if (txnKind === "expense") {
     h += '<div class="row between" style="margin-bottom:8px;"><span class="eyebrow">Category</span>'+(selectedCat?'<span class="muted caption">'+esc(categoryGroupOf(selectedCat)||"Ungrouped")+'</span>':'')+'</div>';
-    h += '<div style="display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -2px 10px;padding:2px;">';
+    h += '<div class="txn-hscroll" style="display:flex;gap:8px;margin:0 -8px 10px;padding:2px 8px 5px;">';
     quickCats.forEach(function(c){
       var sel=selectedCat===c;
       h += '<button data-action="select-txn-category" data-cat="'+esc(c)+'" style="flex:0 0 auto;min-width:86px;max-width:116px;background:'+(sel?'var(--accent)':'var(--fill)')+';color:'+(sel?'var(--accent-ink)':'var(--text)')+';border:none;border-radius:12px;padding:9px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;">'+catIconCircle(c)+'<span style="font-size:11px;font-weight:'+(sel?'700':'500')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">'+esc(c)+'</span></button>';
@@ -2094,7 +2126,7 @@ function renderAddTxnModal() {
 
   if (people.length) {
     h += '<div class="eyebrow" style="margin:2px 0 8px;">For</div>';
-    h += '<div style="display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-bottom:12px;">';
+    h += '<div class="txn-hscroll" style="display:flex;gap:8px;margin:0 -8px 12px;padding:0 8px 4px;">';
     people.forEach(function(p){
       var sel=personSplitMode==="single" && selectedPerson===p;
       h += '<button data-action="select-txn-person" data-person="'+esc(p)+'" style="flex:0 0 auto;border:none;border-radius:999px;padding:8px 12px;background:'+(sel?personColor(p):'var(--fill)')+';color:'+(sel?'#fff':'var(--text)')+';font-size:13px;font-weight:'+(sel?'600':'500')+';">'+esc(p)+(sel?' ✓':'')+'</button>';
@@ -2134,7 +2166,6 @@ function renderAddTxnModal() {
 
   if (advancedOpen) {
     h += '<div class="card" style="padding:12px;margin-bottom:12px;">';
-    h += '<label class="eyebrow" style="display:block;margin-bottom:6px;">Date</label><input id="entryDateInput" type="date" class="field mono" style="margin-bottom:10px;" value="'+formDate+'" max="'+todayStr()+'" />';
     if (!editingItem && txnKind === "expense") {
       h += '<div class="eyebrow" style="margin-bottom:6px;">Timing</div><div class="seg" style="margin-bottom:'+(splitMode==='split'?'8':'0')+'px;">';
       h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==='single')+'" data-action="set-txn-split-mode" data-mode="single">Single day</button>';
@@ -2145,8 +2176,6 @@ function renderAddTxnModal() {
       }
     }
     h += '</div>';
-  } else {
-    h += '<input id="entryDateInput" type="hidden" value="'+formDate+'" />';
   }
 
   var saveLabel;
