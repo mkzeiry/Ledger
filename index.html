@@ -1591,6 +1591,12 @@ function renderBudgetBody(T) {
   h += statBlock("Days remaining", isCurrent?String(daysRemaining):'—', 'var(--text)');
   h += '</div></div>';
 
+  /* Detailed live forecast: actual-to-date + projected remainder against the
+     selected period's budget, with previous-period / average-pace comparison. */
+  var budgetCompareRows = previousPeriodRows(state.view, state.offset, period.startStr, period.endStr, "budget");
+  h += buildForecastCard(stats.rows, budgetForecastDays, target, budgetForecastStart, T, "Budget", state.view, budgetCompareRows, "budget");
+
+  /* Compact multi-period history/status view complements the detailed forecast. */
   h += buildBudgetTrendCard(state.view, state.offset, T);
 
   if (stats.rows.length) {
@@ -2641,7 +2647,14 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
       scheduledUpcoming = fc.scheduledUpcoming, hasForecast = fc.hasForecast, projectedSpend = fc.projectedSpend;
   var hasTarget = target != null;
   var projectedSaved = hasTarget ? target - projectedSpend : null;
-  var favorable = hasTarget ? projectedSaved >= 0 : true;
+  var actualSoFar = fc.actualSpentSoFar;
+  /* Budget forecast status: green if forecast closes within budget; amber if
+     actual is still within budget but the forecast crosses it; red once the
+     period is already over budget. */
+  var forecastStatus = !hasTarget ? "positive" : (actualSoFar > target ? "rust" : (projectedSpend > target ? "amber" : "positive"));
+  var favorable = forecastStatus === "positive";
+  var forecastStatusColor = forecastStatus === "rust" ? "var(--rust)" : (forecastStatus === "amber" ? "var(--amber)" : "var(--positive)");
+  var forecastStatusBg = forecastStatus === "rust" ? "var(--rust-wash)" : (forecastStatus === "amber" ? "rgba(224,151,46,.16)" : "var(--positive-wash)");
   var vsBudgetPct = hasTarget && target > 0 ? Math.round(((projectedSpend-target)/target)*100) : null;
   var compareMode = state.forecastCompareMode === "average" ? "average" : "previous";
   var compareLabel = compareMode === "average" ? "Average pace" : (periodWord === "period" ? "Previous period" : ("Last "+periodWord));
@@ -2662,8 +2675,8 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   s += '<div><div class="muted caption">THIS '+esc(periodWord.toUpperCase())+'</div><div class="mono" style="font-size:22px; font-weight:700; margin-top:2px;">'+fmt(projectedSpend,0)+' AED</div></div>';
   if (hasTarget) {
     s += '<div style="text-align:right;"><div class="muted caption">VS '+esc((refLabel||"Budget").toUpperCase())+'</div>';
-    s += '<div class="chip" style="margin-top:4px; background:'+(favorable?'var(--positive)':'var(--rust)')+'; color:#fff; font-weight:700;">'+(vsBudgetPct>=0?'+':'')+vsBudgetPct+'%</div>';
-    s += '<div class="mono footnote" style="margin-top:4px; color:'+(favorable?'var(--positive)':'var(--rust)')+';">'+(projectedSaved>=0?'+':'−')+fmt(Math.abs(projectedSaved),0)+' AED</div></div>';
+    s += '<div class="chip" style="margin-top:4px; background:'+forecastStatusBg+'; color:'+forecastStatusColor+'; font-weight:700;">'+(vsBudgetPct>=0?'+':'')+vsBudgetPct+'%</div>';
+    s += '<div class="mono footnote" style="margin-top:4px; color:'+forecastStatusColor+';">'+(projectedSaved>=0?'+':'−')+fmt(Math.abs(projectedSaved),0)+' AED</div></div>';
   }
   s += '</div>';
   s += '<div class="seg" style="margin-bottom:12px;">';
@@ -2779,6 +2792,71 @@ function buildBudgetTrendCard(view, baseOffset, T) {
   s+='<div class="row between" style="margin-top:6px;"><span class="muted subhead">'+(diff>=0?'Projected saving':'Projected over')+'</span><span class="mono subhead" style="font-weight:600;color:'+(diff>=0?'var(--positive)':'var(--rust)')+';">'+fmt(Math.abs(diff),0)+' AED</span></div>';
   s+='<div style="margin-top:10px;">'+renderBudgetTrendChart(items,T)+'</div>';
   s+='<div class="row" style="gap:12px;justify-content:center;flex-wrap:wrap;margin-top:4px;"><span class="caption" style="color:var(--positive);">● On track</span><span class="caption" style="color:var(--amber);">● Trending over</span><span class="caption" style="color:var(--rust);">● Over budget</span></div></div>';
+  return s;
+}
+
+
+/* Analysis cash-balance line: running net cash flow over the selected period.
+   Starts from zero at the period boundary, adds actual income transactions on
+   their logged dates and subtracts every expense. The x-axis spans the full
+   selected period while the line stops at the latest elapsed date, matching
+   the visual idea of a balance falling/rising through the month without
+   inventing future values. */
+function renderCashBalanceLineChart(rows, info, T) {
+  if (!rows || !rows.length) return "";
+  var w=340,h=205,padL=42,padR=8,padT=14,padB=24,plotW=w-padL-padR,plotH=h-padT-padB;
+  var totalDays=Math.max(1, daysBetween(info.start, info.end)+1);
+  var acc=0, pts=[];
+  rows.forEach(function(r){
+    acc=round2(acc + (Number(r.income)||0) - (Number(r.spent)||0));
+    var dayIndex=Math.max(0, daysBetween(info.start, r.date));
+    pts.push({date:r.date,label:shortLabel(r.date),balance:acc,idx:dayIndex});
+  });
+  if (!pts.length) return "";
+  var vals=pts.map(function(p){return p.balance;}).concat([0]);
+  var min=Math.min.apply(null,vals),max=Math.max.apply(null,vals);
+  if (max===min) { max+=1; min-=1; }
+  var margin=(max-min)*0.08; max+=margin; min-=margin;
+  function xIdx(i){ return padL + (totalDays<=1 ? plotW/2 : (i/(totalDays-1))*plotW); }
+  function y(v){ return padT + plotH - ((v-min)/(max-min))*plotH; }
+  function tick(v){ var a=Math.abs(v); return a>=1000 ? ((v/1000).toFixed(a>=10000?0:1)+"K") : fmt(Math.round(v),0); }
+  var grid="";
+  [0,.25,.5,.75,1].forEach(function(fr){
+    var v=min+(max-min)*fr, yy=y(v);
+    grid+='<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+yy+'" y2="'+yy+'" stroke="'+T.hairline+'" stroke-width="1" stroke-dasharray="3,3"/>';
+    grid+='<text x="'+(padL-5)+'" y="'+(yy+3)+'" font-size="8" fill="'+T.textMuted+'" text-anchor="end">'+tick(v)+'</text>';
+  });
+  if (min<0 && max>0) grid+='<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+y(0)+'" y2="'+y(0)+'" stroke="'+T.textMuted+'" stroke-width="1.2"/>';
+  var xy=pts.map(function(p){return[xIdx(p.idx),y(p.balance)];});
+  var curveD=xy.length>=2?smoothPathD(xy):"";
+  var baselineY=y(Math.max(min,Math.min(max,0)));
+  var areaD=xy.length>=2?(curveD+' L '+xy[xy.length-1][0]+','+baselineY+' L '+xy[0][0]+','+baselineY+' Z'):"";
+  var lineColor=acc>=0?T.positive:T.rust;
+  var line="";
+  if (xy.length>=2) line='<path d="'+areaD+'" fill="'+lineColor+'" fill-opacity="0.13" stroke="none"/><path d="'+curveD+'" fill="none" stroke="'+lineColor+'" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>';
+  else line='<circle cx="'+xy[0][0]+'" cy="'+xy[0][1]+'" r="4" fill="'+lineColor+'"/>';
+  var axis="",labelCount=Math.min(5,totalDays),seen={};
+  for(var i=0;i<labelCount;i++){
+    var idx=labelCount===1?0:Math.round((i/(labelCount-1))*(totalDays-1));
+    if(seen[idx])continue;seen[idx]=true;
+    var ds=toStr(addDays(parseD(info.start),idx));
+    axis+='<text x="'+xIdx(idx)+'" y="'+(h-5)+'" font-size="8" fill="'+T.textMuted+'" text-anchor="'+(idx===0?'start':(idx===totalDays-1?'end':'middle'))+'">'+esc(shortLabel(ds))+'</text>';
+  }
+  var todayMark="";
+  if(info.start<=todayStr() && todayStr()<=info.end){
+    var ti=daysBetween(info.start,todayStr()),tx=xIdx(ti);
+    todayMark='<line x1="'+tx+'" x2="'+tx+'" y1="'+padT+'" y2="'+(h-padB)+'" stroke="'+T.hairline+'" stroke-dasharray="2,3"/><text x="'+tx+'" y="'+(padT+9)+'" font-size="8" fill="'+T.textMuted+'" text-anchor="middle">Today</text>';
+  }
+  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="none">'+grid+todayMark+line+axis+'</svg>';
+}
+
+function buildCashBalanceCard(info, cs, T) {
+  if (!cs.rows.length || cs.income<=0) return "";
+  var balance=round2(cs.income-cs.spent);
+  var s='<div class="card card-pad" style="margin-bottom:16px;">';
+  s+='<div class="row between" style="align-items:flex-end;"><div><div class="eyebrow">Cash balance</div><div class="mono" style="font-size:28px;font-weight:700;margin-top:4px;color:'+(balance>=0?'var(--positive)':'var(--rust)')+';">'+(balance<0?'−':'')+fmt(Math.abs(balance),0)+' AED</div></div><div style="text-align:right;"><div class="muted caption">INCOME − EXPENSES</div><div class="mono subhead">'+fmt(cs.income,0)+' − '+fmt(cs.spent,0)+'</div></div></div>';
+  s+='<div style="margin-top:10px;">'+renderCashBalanceLineChart(cs.rows,info,T)+'</div>';
+  s+='<div class="muted caption" style="margin-top:4px;">Running net cash flow from the start of this period.</div></div>';
   return s;
 }
 
@@ -2963,12 +3041,13 @@ function renderAnalysisBody(T) {
   sectionHtml.dailySaving=function(){return'';};sectionHtml.cumulativeSaving=function(){return'';};
   sectionHtml.cashFlow=function(){if(catFilter||personFilter||groupFilter||cs.income<=0)return'';var net=cs.income-cs.spent,max=Math.max(cs.income,cs.spent,1),ip=Math.round(cs.income/max*100),ep=Math.round(cs.spent/max*100);var s='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow">Cash flow</div><div class="muted caption" style="margin:2px 0 12px;">Actual income transactions versus all expenses.</div><div class="mono" style="font-size:26px;font-weight:700;color:'+(net>=0?'var(--positive)':'var(--rust)')+';">'+(net>=0?'+':'−')+fmt(Math.abs(net),0)+' AED</div><div style="margin-top:16px;"><div class="row between"><span class="subhead">Income</span><span class="mono subhead">'+fmt(cs.income,0)+'</span></div><div style="background:var(--fill);height:12px;border-radius:6px;overflow:hidden;margin:6px 0 14px;"><div style="height:100%;width:'+ip+'%;background:var(--positive);"></div></div><div class="row between"><span class="subhead">Expenses</span><span class="mono subhead">'+fmt(cs.spent,0)+'</span></div><div style="background:var(--fill);height:12px;border-radius:6px;overflow:hidden;margin-top:6px;"><div style="height:100%;width:'+ep+'%;background:var(--rust);"></div></div></div></div>';return s;};
   sectionHtml.forecastedSpend=function(){return'';}
+  sectionHtml.balance=function(){if(catFilter||personFilter||groupFilter)return'';return buildCashBalanceCard(info,cs,T);};
   sectionHtml.spendTrend=function(){if(catFilter||personFilter||groupFilter)return'';return buildOverallTrendCard(info,cs,T);};
   sectionHtml.category=function(){var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemPerson(it))return;var k=itemCatOf(it);totals[k]=(totals[k]||0)+personScopedAmount(it,personFilter);});});if(!Object.keys(totals).length)return'';var groups=state.settings.categoryGroups||[],selected=state.analysisSelectedGroup,showGroups=groups.length>0&&!selected&&!catFilter,s='<div class="card card-pad" style="margin-bottom:16px;">';if(showGroups){var gt={};Object.keys(totals).forEach(function(c){var g=categoryGroupOf(c)||'Ungrouped';gt[g]=(gt[g]||0)+totals[c];});var gs=Object.keys(gt).map(function(g){return{label:g,value:gt[g]};}).sort(function(a,b){return b.value-a.value;}),gTotal=gs.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by category</span><span class="muted caption">Tap to drill in</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(gs,T,null,'All',gTotal,'drill-analysis-group','group')+'</div>';gs.forEach(function(sl,i){var p=gTotal?sl.value/gTotal*100:0;s+='<button data-action="drill-analysis-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="subhead">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span>'+ICONS.chevronRight+'</span></button>';});}else{var names=selected?Object.keys(totals).filter(function(c){return(categoryGroupOf(c)||'Ungrouped')===selected;}):Object.keys(totals),slices=names.map(function(k){return{label:k,value:totals[k]};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;">'+(selected?'<button data-action="clear-analysis-group" class="btn-plain">← '+esc(selected)+'</button>':'<span class="eyebrow">Spend by category</span>')+'<span class="muted caption">'+(catFilter?'Tap to clear':'Tap to filter')+'</span></div>';if(slices.length)s+='<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,catFilter||null,'All',total)+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=catFilter===sl.label;s+='<button data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(catFilter&&!isSel?'opacity:.45;':'')+'"><span class="subhead" style="'+(isSel?'font-weight:600;':'')+'">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});}return s+'</div>';};
   sectionHtml.person=function(){if(!(state.settings.people||[]).length)return'';var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemCategoryOnly(it))return;if(it.personSplit&&it.personSplit.length)it.personSplit.forEach(function(ps){totals[ps.person]=(totals[ps.person]||0)+round2(it.amount*ps.pct/100);});else{var k=it.person||'Unassigned';totals[k]=(totals[k]||0)+it.amount;}});});var slices=Object.keys(totals).map(function(k){return{label:k,value:totals[k]};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);if(!slices.length)return'';slices.forEach(function(sl){sl.color=sl.label==='Unassigned'?'#8595B5':personColor(sl.label);});var s='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by person</span><span class="muted caption">'+(personFilter?'Tap to clear':'Tap to filter')+'</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,personFilter||null,'All',total,'filter-analysis-person','person')+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=personFilter===sl.label;s+='<button data-action="filter-analysis-person" data-person="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(personFilter&&!isSel?'opacity:.45;':'')+'"><span>'+ (sl.label==='Unassigned'?'<span class="subhead">Unassigned</span>':personChip(sl.label))+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});return s+'</div>';};
   sectionHtml.dow=function(){return'';}
   sectionHtml.topTransactions=function(){var all=[];cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(keepItem(it))all.push({date:r.date,it:it,amount:personScopedAmount(it,personFilter)});});});all.sort(function(a,b){return b.amount-a.amount;});var top=all.slice(0,5),s='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow" style="margin-bottom:10px;">Biggest transactions</div>';if(!top.length)s+='<div class="muted subhead">Nothing logged in this period.</div>';else top.forEach(function(x,i){s+='<div class="row" style="gap:10px;align-items:center;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'">'+catIconCircle(x.it.category)+'<div style="flex:1;min-width:0;"><div class="subhead">'+esc(x.it.note||x.it.category||'Spent')+'</div><div class="muted caption">'+esc(dayLabel(x.date)+(x.it.category?' · '+x.it.category:''))+'</div></div><div class="mono subhead">'+fmt(x.amount,2)+' AED</div></div>';});return s+'</div>';};
-  var cleanOrder=(catFilter||personFilter||groupFilter)?['summary','category','person','topTransactions']:['spendTrend','cashFlow','category','person','topTransactions'];cleanOrder.forEach(function(id){var c=sectionHtml[id]?sectionHtml[id]():'';if(c)h+=c;});
+  var cleanOrder=(catFilter||personFilter||groupFilter)?['summary','category','person','topTransactions']:['balance','cashFlow','spendTrend','category','person','topTransactions'];cleanOrder.forEach(function(id){var c=sectionHtml[id]?sectionHtml[id]():'';if(c)h+=c;});
   return h;
 }
 
