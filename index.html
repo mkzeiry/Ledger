@@ -1686,30 +1686,35 @@ function renderSettingsModal() {
         h += '<div style="padding-left:14px; border-left:2px solid var(--hairline); display:flex; flex-direction:column; gap:6px;">';
         members.forEach(function(c,ci){ h += renderCategoryRow(c, ci, members); });
         h += '</div></div>';
-      } else {
-        h += '<div style="padding:0 12px 10px;"><span class="muted caption">No categories yet \u2014 assign one below.</span></div>';
       }
+      h += '<div style="padding:0 12px 12px;"><div class="row gap2"><input class="new-category-input field" data-group="'+esc(g)+'" type="text" placeholder="Add category to '+esc(g)+'" style="flex:1; font-size:13px; padding:8px 10px;" /><button data-action="add-category-scoped" data-group="'+esc(g)+'" class="btn-outline" style="padding:6px 12px; font-size:13px;">Add</button></div></div>';
       h += '</div>';
     });
 
     var ungrouped = catListAll.filter(function(c){ return !categoryGroupOf(c); });
     if (groupList.length) {
+      h += '<div style="background:var(--raised); border:1px solid var(--hairline); border-radius:10px; overflow:hidden;">';
+      h += '<div style="padding:8px 8px 4px 12px;"><span style="font-size:14px; font-weight:600;">Ungrouped</span></div>';
       if (ungrouped.length) {
-        h += '<div><div class="muted caption" style="padding:2px 2px 6px;">Ungrouped</div>';
-        h += '<div style="display:flex; flex-direction:column; gap:6px;">';
+        h += '<div style="padding:0 10px 10px 10px;">';
+        h += '<div style="padding-left:14px; border-left:2px solid var(--hairline); display:flex; flex-direction:column; gap:6px;">';
         ungrouped.forEach(function(c,ci){ h += renderCategoryRow(c, ci, ungrouped); });
         h += '</div></div>';
       }
+      h += '<div style="padding:0 12px 12px;"><div class="row gap2"><input class="new-category-input field" data-group="" type="text" placeholder="Add category" style="flex:1; font-size:13px; padding:8px 10px;" /><button data-action="add-category-scoped" data-group="" class="btn-outline" style="padding:6px 12px; font-size:13px;">Add</button></div></div>';
+      h += '</div>';
     } else {
       h += '<div style="display:flex; flex-direction:column; gap:6px;">';
       catListAll.forEach(function(c,ci){ h += renderCategoryRow(c, ci, catListAll); });
       h += '</div>';
     }
-    if (!catListAll.length) h += '<span class="muted" style="font-size:12px;">No categories yet.</span>';
+    if (!catListAll.length && !groupList.length) h += '<span class="muted" style="font-size:12px;">No categories yet.</span>';
     h += '</div>';
 
     h += '<div class="row gap2" style="margin-bottom:10px;"><input id="newGroupInput" type="text" class="field" placeholder="New group" style="flex:1;" /><button data-action="add-group" class="btn-outline">Add group</button></div>';
-    h += '<div class="row gap2"><input id="newCategoryInput" type="text" class="field" placeholder="New category" style="flex:1;" /><button data-action="add-category" class="btn-outline">Add category</button></div>';
+    if (!groupList.length) {
+      h += '<div class="row gap2"><input id="newCategoryInput" type="text" class="field" placeholder="New category" style="flex:1;" /><button data-action="add-category" class="btn-outline">Add category</button></div>';
+    }
   }
 
   if (state.settingsTab === "people") {
@@ -2242,6 +2247,18 @@ var CAT_ICON_SVGS = {
   film: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M7 3v18M17 3v18M2 8h5M2 16h5M17 8h5M17 16h5"/></svg>',
   house: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
   gift: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C9 2 12 7 12 7z"/></svg>',
+  cloche: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 17h20"/><path d="M4 17a8 7 0 0 1 16 0"/><line x1="12" y1="4" x2="12" y2="7"/><circle cx="12" cy="3" r="1" fill="white" stroke="none"/></svg>',
+  key: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="15" r="4"/><path d="M10 12l10-10"/><path d="M17 5l3 3"/><path d="M14 8l2.5 2.5"/></svg>',
+  bank: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M4 21V10M9 21V10M15 21V10M20 21V10"/><path d="M2 10l10-6 10 6"/></svg>',
+  plug: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v4M15 2v4"/><path d="M7 6h10v5a5 5 0 0 1-10 0z"/><path d="M12 16v6"/></svg>',
+  shield: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+  tollgate: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="10" width="4" height="10" rx="1"/><rect x="18" y="10" width="4" height="10" rx="1"/><path d="M6 12l14-4"/></svg>',
+  layers: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
+  kettlebell: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 8a3 3 0 0 1 6 0v2"/><circle cx="12" cy="15" r="7"/></svg>',
+  handset: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+  wifi: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13a10 10 0 0 1 14 0"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>',
+  handheart: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12.5c-1-2-3-3-3-5a2 2 0 0 1 4-.5 2 2 0 0 1 4 .5c0 2-2 3-3 5z"/><path d="M4 15c0 3 3.5 5.5 8 7 4.5-1.5 8-4 8-7"/></svg>',
+  receipt: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12v18l-3-2-3 2-3-2-3 2z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/></svg>',
   book: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
   plane: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>',
   fuel: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="15" y2="22"/><line x1="4" y1="9" x2="14" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v3a1.5 1.5 0 0 0 3 0V9.5a1.5 1.5 0 0 0-.44-1.06L18 6"/><circle cx="7" cy="5.5" r="1"/></svg>',
@@ -2264,7 +2281,7 @@ var CAT_ICON_SVGS = {
   ticket: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2a2 2 0 0 0 0 4v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a2 2 0 0 0 0-4z"/><path d="M13 5v14"/></svg>',
   tag: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 12.6 12.6 20.6a2 2 0 0 1-2.83 0L2.6 13.4a2 2 0 0 1 0-2.83l8-8A2 2 0 0 1 12 2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-.4 1.2Z"/><circle cx="16.5" cy="7.5" r="1"/></svg>',
 };
-var CAT_ICON_ORDER = ["tag","fork","chefhat","coffee","basket","apple","cart","bag","phone","shirt","house","wrench","sparkles","bucket","spray","car","fuel","parking","bolt","heart","cross","pill","dumbbell","leaf","film","music","ticket","book","gift","plane"];
+var CAT_ICON_ORDER = ["tag","fork","chefhat","cloche","coffee","basket","apple","cart","bag","phone","handset","shirt","house","key","bank","wrench","sparkles","bucket","spray","car","fuel","parking","tollgate","shield","plug","wifi","bolt","heart","cross","pill","dumbbell","kettlebell","leaf","film","music","ticket","layers","book","gift","handheart","receipt","plane"];
 var CATEGORY_STYLES = {
   "Food & Dining": { icon:"fork", color:"#D4614A" },
   "Groceries": { icon:"basket", color:"#5EA05E" },
@@ -2283,6 +2300,20 @@ function categoryStyle(name) {
   var hash = 0;
   for (var i=0;i<name.length;i++) hash = (hash*31 + name.charCodeAt(i)) >>> 0;
   return { icon:"tag", color: PIE_COLORS[hash % PIE_COLORS.length] };
+}
+/* A group's "theme color" for the purpose of seeding a newly-added category:
+   whatever its existing members currently share, so a new category visually
+   joins the group it was added to instead of getting an unrelated color. A
+   group with no members yet has no real color to borrow, so it falls back
+   to a stable hash of the group's own name — the same trick an uncustomized
+   category already uses — so the group still has a consistent identity from
+   the very first category added to it onward. */
+function groupThemeColor(groupName) {
+  var members = (state.settings.categories||[]).filter(function(c){ return categoryGroupOf(c)===groupName; });
+  if (members.length) return categoryStyle(members[0]).color;
+  var hash = 0;
+  for (var i=0;i<groupName.length;i++) hash = (hash*31 + groupName.charCodeAt(i)) >>> 0;
+  return PIE_COLORS[hash % PIE_COLORS.length];
 }
 function catIconCircle(categoryName) {
   var st = categoryStyle(categoryName);
@@ -4039,6 +4070,22 @@ document.addEventListener("click", function(e) {
       break;
     case "apply-budget":
       handleApplyBudget(el.dataset.scope);
+      break;
+    case "add-category-scoped":
+      var scopedGroup = el.dataset.group || "";
+      var scopedInput = document.querySelector('.new-category-input[data-group="'+scopedGroup.replace(/"/g,'\\"')+'"]');
+      var scopedName = scopedInput ? scopedInput.value.trim() : "";
+      if (scopedName && (state.settings.categories||[]).indexOf(scopedName) === -1) {
+        var nextCatsScoped = (state.settings.categories||[]).concat([scopedName]);
+        var nextGroupOfScoped = Object.assign({}, state.settings.categoryGroupOf||{});
+        var nextStylesScoped = Object.assign({}, state.settings.categoryStyles||{});
+        if (scopedGroup) {
+          nextGroupOfScoped[scopedName] = scopedGroup;
+          nextStylesScoped[scopedName] = { icon: "tag", color: groupThemeColor(scopedGroup) };
+        }
+        persistAll(Object.assign({}, state.settings, { categories: nextCatsScoped, categoryGroupOf: nextGroupOfScoped, categoryStyles: nextStylesScoped }), state.entries, "your settings");
+        render();
+      }
       break;
     case "add-category":
       var newCatEl = document.getElementById("newCategoryInput");
