@@ -118,7 +118,7 @@
      visual-viewport tug-of-war between a fixed modal, the page behind it and
      the keyboard. Normal document scrolling + native horizontal scrolling
      gives the form the same stable feel as a dedicated app screen. */
-  .txn-entry-page { min-height:100vh; min-height:100dvh; background:var(--bg); padding-top:env(safe-area-inset-top,0px); }
+  .txn-entry-page, .plan-entry-page { min-height:100vh; min-height:100dvh; background:var(--bg); padding-top:env(safe-area-inset-top,0px); }
   .txn-entry-shell { width:100%; max-width:460px; margin:0 auto; padding:0 16px calc(env(safe-area-inset-bottom,0px) + 28px); }
   .txn-entry-header {
     position:sticky; top:0; z-index:30; display:grid; grid-template-columns:44px 1fr 44px; align-items:center;
@@ -127,7 +127,7 @@
   .txn-entry-header-title { font-size:20px; line-height:1.15; font-weight:760; letter-spacing:-0.025em; text-align:center; }
   .txn-entry-back { width:38px; height:38px; display:flex; align-items:center; justify-content:center; border:none; border-radius:999px; background:var(--fill); color:var(--text); padding:0; }
   .txn-entry-content { padding-bottom:18px; }
-  .txn-entry-page input, .txn-entry-page select, .txn-entry-page textarea { scroll-margin-top:84px; }
+  .txn-entry-page input, .txn-entry-page select, .txn-entry-page textarea, .plan-entry-page input, .plan-entry-page select, .plan-entry-page textarea { scroll-margin-top:84px; }
   .txn-entry-save { margin-top:6px; min-height:52px; border-radius:14px !important; font-size:17px !important; }
   @media (min-width:480px) { .txn-entry-shell { padding-left:20px; padding-right:20px; } .txn-entry-header { margin-left:-20px; margin-right:-20px; padding-left:20px; padding-right:20px; } }
 
@@ -760,6 +760,9 @@ var state = {
   homeReorderMode: false,
   plansCreateOpen: false,
   plansShowFinished: false,
+  plansReturnScrollY: 0,
+  plansRestoreScroll: false,
+  analysisAnchorRestore: null,
   analysisSelectedBucket: null,
   analysisCategoryFilter: "",
   analysisPersonFilter: "",
@@ -1732,6 +1735,26 @@ document.addEventListener('touchend', function(){
 
 document.addEventListener('touchcancel', function(){ if (settingsSwipe) finishSettingsSwipe(false); }, { passive:true });
 
+/* Keep an Analysis drill-down card visually anchored while its surrounding
+   sections appear/disappear. Preserving raw window.scrollY is not enough: when
+   a category filter hides the large charts above it, the old scroll position
+   can exceed the new document height and iOS clamps straight to the bottom. */
+function captureAnalysisAnchor(id) {
+  var el = document.getElementById(id);
+  state.analysisAnchorRestore = el ? { id:id, top:el.getBoundingClientRect().top } : null;
+}
+function restoreAnalysisAnchor() {
+  var anchor = state.analysisAnchorRestore;
+  if (!anchor) return;
+  state.analysisAnchorRestore = null;
+  requestAnimationFrame(function(){
+    var el = document.getElementById(anchor.id);
+    if (!el) return;
+    var delta = el.getBoundingClientRect().top - anchor.top;
+    if (Math.abs(delta) > 0.5) window.scrollBy(0, delta);
+  });
+}
+
 function render() {
   var root = document.getElementById("root");
   var T = effectivePalette();
@@ -1752,10 +1775,12 @@ function render() {
   var modalCardEl = document.querySelector(".modal-card");
   var txnEntryPageEl = document.querySelector(".txn-entry-page");
   var settingsPageEl = document.querySelector(".settings-page");
+  var planEntryPageEl = document.querySelector(".plan-entry-page");
   var savedTxnEntryScrollY = txnEntryPageEl ? (window.scrollY || window.pageYOffset || 0) : 0;
+  var savedPlanEntryScrollY = planEntryPageEl ? (window.scrollY || window.pageYOffset || 0) : 0;
   var savedSettingsScrollY = settingsPageEl ? (window.scrollY || window.pageYOffset || 0) : 0;
   var savedModalScrollTop = modalCardEl ? modalCardEl.scrollTop : 0;
-  var savedPageScrollY = (modalCardEl || txnEntryPageEl || settingsPageEl) ? 0 : (window.scrollY || window.pageYOffset || 0);
+  var savedPageScrollY = (modalCardEl || txnEntryPageEl || settingsPageEl || planEntryPageEl) ? 0 : (window.scrollY || window.pageYOffset || 0);
 
   if (state.loading) {
     root.innerHTML = '<div class="row" style="min-height:100vh; align-items:center; justify-content:center;"><div class="muted" style="font-size:14px;">Loading your ledger…</div></div>';
@@ -1776,6 +1801,15 @@ function render() {
   if (state.showSettings) {
     root.innerHTML = renderSettingsPage();
     window.scrollTo(0, savedSettingsScrollY);
+    return;
+  }
+
+  /* Creating a plan is also a dedicated screen. This keeps the fixed app tab
+     bar out of the keyboard area and avoids the visual-viewport overlap that
+     made the inline form look broken on iPhone. */
+  if (state.page === "plans" && state.plansCreateOpen) {
+    root.innerHTML = renderPlanEditorPage();
+    window.scrollTo(0, savedPlanEntryScrollY);
     return;
   }
 
@@ -1851,6 +1885,10 @@ function render() {
     var restoreTxnY = state.txnEntryReturnScrollY || 0;
     state.txnEntryRestoreScroll = false;
     window.scrollTo(0, restoreTxnY);
+  } else if (state.plansRestoreScroll) {
+    var restorePlanY = state.plansReturnScrollY || 0;
+    state.plansRestoreScroll = false;
+    window.scrollTo(0, restorePlanY);
   } else if (newModalCardEl) {
     if (savedModalScrollTop) newModalCardEl.scrollTop = savedModalScrollTop;
   } else if (savedPageScrollY) {
@@ -1861,6 +1899,7 @@ function render() {
   if (state.page === "analysis" && lastCashBalanceChartData) wireCashBalanceChart(lastCashBalanceChartData);
   if (state.page === "budget" && lastBudgetTrendChartData) wirePeriodTrendChart("budget", lastBudgetTrendChartData);
   if (state.page === "analysis" && lastOverallTrendChartData) wirePeriodTrendChart("overall", lastOverallTrendChartData);
+  if (state.page === "analysis") restoreAnalysisAnchor();
 }
 
 
@@ -1931,7 +1970,8 @@ function renderHomeBody(T, da) {
   var projectedCashSaving = income > 0 ? round2(income - projected) : null;
   var projectedCashSavingPct = income > 0 ? (projectedCashSaving/income*100) : null;
   var cashNet = round2(income - overall.spent);
-  var progress = target > 0 ? Math.max(0, Math.min(100, (budget.spent/target)*100)) : 0;
+  var budgetPctRaw = target > 0 ? (budget.spent/target)*100 : 0;
+  var progress = Math.max(0, Math.min(100, budgetPctRaw));
   var cards = {};
 
   var spending = '<div class="card card-pad">';
@@ -1944,7 +1984,7 @@ function renderHomeBody(T, da) {
   cards.spending = spending;
 
   var budgetCard = '<div class="card card-pad">';
-  budgetCard += '<div class="row between" style="align-items:baseline;"><div class="eyebrow">Budget</div><span class="mono subhead" style="font-weight:600;">'+fmt(budget.spent,0)+' / '+fmt(target,0)+' AED</span></div>';
+  budgetCard += '<div class="row between" style="align-items:baseline;"><div class="eyebrow">Budget</div><span class="row" style="align-items:baseline;gap:8px;"><span class="mono subhead" style="font-weight:600;">'+fmt(budget.spent,0)+' / '+fmt(target,0)+' AED</span><span class="mono caption" style="font-weight:700;color:'+(budgetPctRaw>100?'var(--rust)':'var(--text-muted)')+';">'+budgetPctRaw.toFixed(0)+'%</span></span></div>';
   budgetCard += '<div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 16px;"><div style="height:100%;width:'+progress+'%;background:'+(budget.spent>target?'var(--rust)':'var(--accent)')+';"></div></div>';
   budgetCard += '<div class="muted caption">SAFE TO SPEND TODAY</div>';
   budgetCard += '<div class="mono" style="font-size:34px;font-weight:700;margin-top:3px;color:'+(safeToday!=null&&safeToday<0?'var(--rust)':'var(--text)')+';">'+(safeToday==null?'—':((safeToday<0?'−':'')+fmt(Math.abs(safeToday),0)+' <span class="muted" style="font-size:17px;">AED</span>'))+'</div>';
@@ -2096,7 +2136,7 @@ function renderBudgetBody(T) {
       groupSlices.forEach(function(sl,i){ var pct=groupTotal>0?sl.value/groupTotal*100:0; catCard += '<button data-action="drill-budget-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="subhead">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+pct.toFixed(0)+'%</span>'+ICONS.chevronRight+'</span></button>'; });
     } else {
       var visibleCats=budgetGroupFilter ? Object.keys(catTotals).filter(function(c){return (categoryGroupOf(c)||'Ungrouped')===budgetGroupFilter;}) : Object.keys(catTotals);
-      var slices=visibleCats.map(function(k){return {label:k,value:catTotals[k]};}).sort(function(a,b){return b.value-a.value;});
+      var slices=visibleCats.map(function(k){return {label:k,value:catTotals[k],color:categoryStyle(k).color};}).sort(function(a,b){return b.value-a.value;});
       var total=slices.reduce(function(t,x){return t+x.value;},0);
       catCard += '<div class="row between" style="margin-bottom:10px;">'+(budgetGroupFilter?'<button data-action="clear-budget-group" class="btn-plain">← '+esc(budgetGroupFilter)+'</button>':'<span class="eyebrow">Budget by category</span>')+'<span class="muted caption">'+(budgetCatFilter?'Tap to clear':'Tap to filter')+'</span></div>';
       if (slices.length) catCard += '<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,budgetCatFilter||null,'Budget',total,'filter-budget-category','cat')+'</div>';
@@ -2806,7 +2846,9 @@ function renderPieChart(slices, T, selectedLabel, centerLabel, centerValue, tapA
     var end = angle + sweep;
     var color = sl.color || PIE_COLORS[i % PIE_COLORS.length];
     var isSel = selectedLabel != null && sl.label === selectedLabel;
-    var op = (selectedLabel != null && !isSel) ? ' opacity="0.3"' : '';
+    /* Keep category/person colors exact. Selection is communicated by the
+       center label and list state rather than washing the other slices out. */
+    var op = '';
     var tap = (tapAction === "none") ? '' : (' class="chart-hit" data-action="'+(tapAction||"filter-analysis-category")+'" data-'+(tapDataKey||"cat")+'="'+esc(sl.label)+'"');
     var d;
     if (frac >= 0.9999) {
@@ -3610,8 +3652,8 @@ function renderAnalysisBody(T) {
   sectionHtml.forecastedSpend=function(){return'';}
   sectionHtml.balance=function(){if(catFilter||personFilter||groupFilter)return'';return buildCashBalanceCard(info,cs,T);};
   sectionHtml.spendTrend=function(){if(catFilter||personFilter||groupFilter)return'';return buildOverallTrendCard(info,cs,T);};
-  sectionHtml.category=function(){var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemPerson(it))return;var k=itemCatOf(it);totals[k]=(totals[k]||0)+personScopedAmount(it,personFilter);});});if(!Object.keys(totals).length)return'';var groups=state.settings.categoryGroups||[],selected=state.analysisSelectedGroup,showGroups=groups.length>0&&!selected&&!catFilter,s='<div class="card card-pad" style="margin-bottom:16px;">';if(showGroups){var gt={};Object.keys(totals).forEach(function(c){var g=categoryGroupOf(c)||'Ungrouped';gt[g]=(gt[g]||0)+totals[c];});var gs=Object.keys(gt).map(function(g){return{label:g,value:gt[g],color:g==="Ungrouped"?"#8595B5":categoryGroupStyle(g).color};}).sort(function(a,b){return b.value-a.value;}),gTotal=gs.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by category</span><span class="muted caption">Tap to drill in</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(gs,T,null,'All',gTotal,'drill-analysis-group','group')+'</div>';gs.forEach(function(sl,i){var p=gTotal?sl.value/gTotal*100:0;s+='<button data-action="drill-analysis-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="subhead">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span>'+ICONS.chevronRight+'</span></button>';});}else{var names=selected?Object.keys(totals).filter(function(c){return(categoryGroupOf(c)||'Ungrouped')===selected;}):Object.keys(totals),slices=names.map(function(k){return{label:k,value:totals[k]};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;">'+(selected?'<button data-action="clear-analysis-group" class="btn-plain">← '+esc(selected)+'</button>':'<span class="eyebrow">Spend by category</span>')+'<span class="muted caption">'+(catFilter?'Tap to clear':'Tap to filter')+'</span></div>';if(slices.length)s+='<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,catFilter||null,'All',total)+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=catFilter===sl.label;s+='<button data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(catFilter&&!isSel?'opacity:.45;':'')+'"><span class="subhead" style="'+(isSel?'font-weight:600;':'')+'">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});}return s+'</div>';};
-  sectionHtml.person=function(){if(!(state.settings.people||[]).length)return'';var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemCategoryOnly(it))return;if(it.personSplit&&it.personSplit.length)it.personSplit.forEach(function(ps){totals[ps.person]=(totals[ps.person]||0)+round2(it.amount*ps.pct/100);});else{var k=it.person||'Unassigned';totals[k]=(totals[k]||0)+it.amount;}});});var slices=Object.keys(totals).map(function(k){return{label:k,value:totals[k]};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);if(!slices.length)return'';slices.forEach(function(sl){sl.color=sl.label==='Unassigned'?'#8595B5':personColor(sl.label);});var s='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by person</span><span class="muted caption">'+(personFilter?'Tap to clear':'Tap to filter')+'</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,personFilter||null,'All',total,'filter-analysis-person','person')+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=personFilter===sl.label;s+='<button data-action="filter-analysis-person" data-person="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(personFilter&&!isSel?'opacity:.45;':'')+'"><span>'+ (sl.label==='Unassigned'?'<span class="subhead">Unassigned</span>':personChip(sl.label))+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});return s+'</div>';};
+  sectionHtml.category=function(){var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemPerson(it))return;var k=itemCatOf(it);totals[k]=(totals[k]||0)+personScopedAmount(it,personFilter);});});if(!Object.keys(totals).length)return'';var groups=state.settings.categoryGroups||[],selected=state.analysisSelectedGroup,showGroups=groups.length>0&&!selected&&!catFilter,s='<div id="analysisCategoryCard" class="card card-pad" style="margin-bottom:16px;">';if(showGroups){var gt={};Object.keys(totals).forEach(function(c){var g=categoryGroupOf(c)||'Ungrouped';gt[g]=(gt[g]||0)+totals[c];});var gs=Object.keys(gt).map(function(g){return{label:g,value:gt[g],color:g==="Ungrouped"?"#8595B5":categoryGroupStyle(g).color};}).sort(function(a,b){return b.value-a.value;}),gTotal=gs.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by category</span><span class="muted caption">Tap to drill in</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(gs,T,null,'All',gTotal,'drill-analysis-group','group')+'</div>';gs.forEach(function(sl,i){var p=gTotal?sl.value/gTotal*100:0;s+='<button data-action="drill-analysis-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="subhead">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span>'+ICONS.chevronRight+'</span></button>';});}else{var names=selected?Object.keys(totals).filter(function(c){return(categoryGroupOf(c)||'Ungrouped')===selected;}):Object.keys(totals),slices=names.map(function(k){return{label:k,value:totals[k],color:categoryStyle(k).color};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;">'+(selected?'<button data-action="clear-analysis-group" class="btn-plain">← '+esc(selected)+'</button>':'<span class="eyebrow">Spend by category</span>')+'<span class="muted caption">'+(catFilter?'Tap to clear':'Tap to filter')+'</span></div>';if(slices.length)s+='<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,catFilter||null,'All',total)+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=catFilter===sl.label;s+='<button data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(catFilter&&!isSel?'opacity:.45;':'')+'"><span class="subhead" style="'+(isSel?'font-weight:600;':'')+'">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});}return s+'</div>';};
+  sectionHtml.person=function(){if(!(state.settings.people||[]).length)return'';var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemCategoryOnly(it))return;if(it.personSplit&&it.personSplit.length)it.personSplit.forEach(function(ps){totals[ps.person]=(totals[ps.person]||0)+round2(it.amount*ps.pct/100);});else{var k=it.person||'Unassigned';totals[k]=(totals[k]||0)+it.amount;}});});var slices=Object.keys(totals).map(function(k){return{label:k,value:totals[k]};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);if(!slices.length)return'';slices.forEach(function(sl){sl.color=sl.label==='Unassigned'?'#8595B5':personColor(sl.label);});var s='<div id="analysisPersonCard" class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by person</span><span class="muted caption">'+(personFilter?'Tap to clear':'Tap to filter')+'</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,personFilter||null,'All',total,'filter-analysis-person','person')+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=personFilter===sl.label;s+='<button data-action="filter-analysis-person" data-person="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(personFilter&&!isSel?'opacity:.45;':'')+'"><span>'+ (sl.label==='Unassigned'?'<span class="subhead">Unassigned</span>':personChip(sl.label))+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});return s+'</div>';};
   sectionHtml.dow=function(){return'';}
   sectionHtml.topTransactions=function(){var all=[];cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(keepItem(it))all.push({date:r.date,it:it,amount:personScopedAmount(it,personFilter)});});});all.sort(function(a,b){return b.amount-a.amount;});var top=all.slice(0,5),s='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow" style="margin-bottom:10px;">Biggest transactions</div>';if(!top.length)s+='<div class="muted subhead">Nothing logged in this period.</div>';else top.forEach(function(x,i){s+='<div class="row" style="gap:10px;align-items:center;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'">'+catIconCircle(x.it.category)+'<div style="flex:1;min-width:0;"><div class="subhead">'+esc(x.it.note||x.it.category||'Spent')+'</div><div class="muted caption">'+esc(dayLabel(x.date)+(x.it.category?' · '+x.it.category:''))+'</div></div><div class="mono subhead">'+fmt(x.amount,2)+' AED</div></div>';});return s+'</div>';};
   var cleanOrder=(catFilter||personFilter||groupFilter)?['summary','category','person','topTransactions']:['balance','cashFlow','spendTrend','category','person','topTransactions'];cleanOrder.forEach(function(id){var c=sectionHtml[id]?sectionHtml[id]():'';if(c)h+=c;});
@@ -3625,6 +3667,39 @@ function ruleLoggedAmount(rule) {
   var sum = 0;
   for (var i=0; i<(rule.occurrencesLogged||0); i++) sum += ruleOccurrenceAmount(rule, i);
   return round2(sum);
+}
+
+function renderPlanEditorPage() {
+  var today = todayStr();
+  var recKind = state.recurringKindDraft || 'expense';
+  var limitMode = state.recurringLimitMode || 'ongoing';
+  var h = '<div class="plan-entry-page"><div class="txn-entry-shell">';
+  h += '<div class="txn-entry-header"><button data-action="toggle-plan-create" class="txn-entry-back" aria-label="Back">'+ICONS.chevronLeft+'</button><div class="txn-entry-header-title">New plan</div><span></span></div>';
+  h += '<div class="txn-entry-content">';
+  h += '<div class="seg" style="margin-bottom:16px;"><button class="seg-btn" role="tab" aria-selected="'+(recKind==='expense')+'" data-action="set-recurring-kind" data-kind="expense">Expense</button><button class="seg-btn" role="tab" aria-selected="'+(recKind==='income')+'" data-action="set-recurring-kind" data-kind="income">Income</button></div>';
+  h += '<label class="eyebrow">Amount</label><div style="position:relative;margin:7px 0 16px;"><span class="muted" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:15px;">AED</span><input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding:15px 14px 15px 50px;font-size:28px;font-weight:700;" placeholder="0.00" value="'+(state.recurringAmountDraft!=null?esc(state.recurringAmountDraft):'')+'" /></div>';
+  h += '<label class="eyebrow">Name</label><input id="recurringNoteInput" type="text" class="field" style="margin:7px 0 16px;" placeholder="'+(recKind==='income'?'Salary, freelance…':'Rent, subscription…')+'" value="'+(state.recurringNoteDraft!=null?esc(state.recurringNoteDraft):'')+'" />';
+  if (recKind === 'expense') {
+    h += '<label class="eyebrow">Subcategory</label><select id="recurringCategoryInput" class="field" style="margin:7px 0 16px;"><option value="">No subcategory</option>';
+    (state.settings.categories||[]).forEach(function(c){ var g=categoryGroupOf(c); h += '<option value="'+esc(c)+'"'+(state.recurringCategoryDraft===c?' selected':'')+'>'+esc(g?g+' — '+c:c)+'</option>'; });
+    h += '</select>';
+  }
+  if ((state.settings.people||[]).length) {
+    var rp = state.recurringPersonDraft!=null ? state.recurringPersonDraft : (state.settings.defaultPerson||'');
+    h += '<label class="eyebrow">For</label><select id="recurringPersonInput" class="field" style="margin:7px 0 16px;"><option value="">Unassigned</option>';
+    (state.settings.people||[]).forEach(function(p){ h += '<option value="'+esc(p)+'"'+(rp===p?' selected':'')+'>'+esc(p)+'</option>'; });
+    h += '</select>';
+  }
+  h += '<label class="eyebrow">Repeats</label><select id="recurringFrequencyInput" class="field" style="margin:7px 0 16px;"><option value="weekly"'+(state.recurringFrequencyDraft!=='monthly'?' selected':'')+'>Weekly</option><option value="monthly"'+(state.recurringFrequencyDraft==='monthly'?' selected':'')+'>Monthly</option></select>';
+  h += '<label class="eyebrow">Starts</label><input id="recurringStartDateInput" type="date" class="field mono" style="margin:7px 0 16px;" value="'+(state.recurringStartDateDraft||today)+'" />';
+  h += '<label class="eyebrow">Ends</label><div class="seg" style="margin:7px 0 12px;">';
+  [['ongoing','Ongoing'],['count','After #'],['until','On date']].forEach(function(o){ h += '<button class="seg-btn" role="tab" aria-selected="'+(limitMode===o[0])+'" data-action="set-recurring-limit-mode" data-mode="'+o[0]+'">'+o[1]+'</button>'; });
+  h += '</div>';
+  if (limitMode === 'count') h += '<input id="recurringCountInput" type="number" inputmode="numeric" min="1" step="1" class="field" style="margin-bottom:16px;" placeholder="Number of payments" value="'+(state.recurringCountDraft!=null?esc(state.recurringCountDraft):'')+'" />';
+  else if (limitMode === 'until') h += '<input id="recurringEndDateInput" type="date" class="field mono" style="margin-bottom:16px;" value="'+(state.recurringEndDateDraft||'')+'" />';
+  h += '<button data-action="add-recurring" class="btn-accent txn-entry-save" style="width:100%;">Create '+(recKind==='income'?'income':'expense')+' plan</button>';
+  h += '</div></div></div>';
+  return h;
 }
 
 function renderPlansBody() {
@@ -4470,6 +4545,7 @@ document.addEventListener("click", function(e) {
       showToast(recKindForRule === "income" ? "Recurring income added" : "Recurring payment added");
       state.recurringKindDraft = "expense";
       state.plansCreateOpen = false;
+      state.plansRestoreScroll = true;
       render();
       break;
     case "toggle-recurring-active":
@@ -4615,11 +4691,13 @@ document.addEventListener("click", function(e) {
       render();
       break;
     case "drill-analysis-group":
+      captureAnalysisAnchor("analysisCategoryCard");
       state.analysisSelectedGroup = el.dataset.group;
       state.analysisSelectedBucket = null;
       render();
       break;
     case "clear-analysis-group":
+      captureAnalysisAnchor("analysisCategoryCard");
       state.analysisSelectedGroup = null;
       render();
       break;
@@ -4716,7 +4794,13 @@ document.addEventListener("click", function(e) {
       break;
     case "toggle-plan-create":
       preserveRecurringFormDraft();
-      state.plansCreateOpen = !state.plansCreateOpen;
+      if (!state.plansCreateOpen) {
+        state.plansReturnScrollY = window.scrollY || window.pageYOffset || 0;
+        state.plansCreateOpen = true;
+      } else {
+        state.plansCreateOpen = false;
+        state.plansRestoreScroll = true;
+      }
       render();
       break;
     case "toggle-finished-plans":
@@ -4743,21 +4827,25 @@ document.addEventListener("click", function(e) {
       render();
       break;
     case "filter-analysis-category":
+      captureAnalysisAnchor("analysisCategoryCard");
       state.analysisCategoryFilter = (state.analysisCategoryFilter === el.dataset.cat) ? "" : el.dataset.cat;
       state.analysisSelectedBucket = null;
       render();
       break;
     case "clear-analysis-category":
+      captureAnalysisAnchor("analysisCategoryCard");
       state.analysisCategoryFilter = "";
       state.analysisSelectedBucket = null;
       render();
       break;
     case "filter-analysis-person":
+      captureAnalysisAnchor("analysisPersonCard");
       state.analysisPersonFilter = (state.analysisPersonFilter === el.dataset.person) ? "" : el.dataset.person;
       state.analysisSelectedBucket = null;
       render();
       break;
     case "clear-analysis-person":
+      captureAnalysisAnchor("analysisPersonCard");
       state.analysisPersonFilter = "";
       state.analysisSelectedBucket = null;
       render();
