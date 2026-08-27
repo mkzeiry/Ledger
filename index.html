@@ -1456,6 +1456,48 @@ function render() {
   if ((state.page === "analysis" || state.page === "budget") && lastForecastChartData) wireForecastChart(lastForecastChartData);
 }
 
+
+/* Live budget pacing is anchored at the OPENING of today. The daily average
+   must not shrink every time another transaction is logged during the day.
+
+   For each live horizon:
+     opening remaining = full period budget - budget spend before today
+     opening daily avg  = opening remaining / days left including today
+
+   The app then uses the tighter (lower) of week and month. Today's transactions
+   only reduce "safe left today"; they do not recalculate the opening average. */
+function liveBudgetPacing() {
+  var today = todayStr();
+  var spentToday = state.entries[today] ? sumBudgetSpent(state.entries[today]) : 0;
+
+  function horizon(mode) {
+    var per = getPeriodBounds(mode, 0, currentWeeklyTarget(), dailyAllowance());
+    if (today < per.startStr || today > per.endStr) {
+      return { mode:mode, avg:null, openingRemaining:null, days:0 };
+    }
+    var stats = periodStatsBudget(per.startStr, per.endStr);
+    var spentBeforeToday = round2(Math.max(0, stats.spent - spentToday));
+    var openingRemaining = round2(per.target - spentBeforeToday);
+    var days = daysBetween(today, per.endStr) + 1;
+    var avg = days > 0 ? openingRemaining / days : null;
+    return { mode:mode, avg:avg, openingRemaining:openingRemaining, days:days };
+  }
+
+  var week = horizon("week");
+  var month = horizon("month");
+  var vals = [week.avg, month.avg].filter(function(v){ return v != null; });
+  var dailyAverage = vals.length ? Math.min.apply(null, vals) : null;
+  var safeToday = dailyAverage == null ? null : round2(dailyAverage - spentToday);
+
+  return {
+    week:week,
+    month:month,
+    dailyAverage:dailyAverage,
+    spentToday:spentToday,
+    safeToday:safeToday
+  };
+}
+
 function renderHomeBody(T, da) {
   lastChartData = null;
   lastForecastChartData = null;
@@ -1465,23 +1507,10 @@ function renderHomeBody(T, da) {
   var target = month.target;
   var remaining = round2(target - budget.spent);
   var savedSoFar = round2(budget.targetElapsed - budget.spent);
-  var daysRemaining = todayStr() <= month.endStr ? daysBetween(todayStr(), month.endStr)+1 : 0;
-  var monthSafePerDay = daysRemaining > 0 ? remaining/daysRemaining : null;
-
-  /* Home uses the tighter of the live week and month pacing limits. A person
-     can be comfortably inside this week's allowance but still too close to the
-     monthly ceiling (or vice versa), so one actionable number should respect
-     both horizons rather than letting the looser one hide the tighter one. */
-  var week = getPeriodBounds("week", 0, currentWeeklyTarget(), dailyAllowance());
-  var weekBudget = periodStatsBudget(week.startStr, week.endStr);
-  var weekRemaining = round2(week.target - weekBudget.spent);
-  var weekDaysRemaining = todayStr() <= week.endStr ? daysBetween(todayStr(), week.endStr)+1 : 0;
-  var weekSafePerDay = weekDaysRemaining > 0 ? weekRemaining/weekDaysRemaining : null;
-  var safeCandidates = [monthSafePerDay, weekSafePerDay].filter(function(v){ return v != null; });
-  var safePerDay = safeCandidates.length ? Math.min.apply(null, safeCandidates) : null;
-  var limitingHorizon = (weekSafePerDay != null && monthSafePerDay != null)
-    ? (weekSafePerDay <= monthSafePerDay ? "Week" : "Month")
-    : (weekSafePerDay != null ? "Week" : "Month");
+  var pacing = liveBudgetPacing();
+  var dailyAverage = pacing.dailyAverage;
+  var safeToday = pacing.safeToday;
+  var spentToday = pacing.spentToday;
   var chartStart = month.startStr;
   var chartDays = daysBetween(chartStart, month.endStr)+1;
   var fc = overall.rows.length ? computeForecastNumbers(overall.rows, chartDays, chartStart, "overall") : null;
@@ -1512,12 +1541,13 @@ function renderHomeBody(T, da) {
   h += '<div class="row between" style="align-items:baseline;"><div class="eyebrow">Budget</div>';
   h += '<span class="mono subhead" style="font-weight:600;">'+fmt(budget.spent,0)+' / '+fmt(target,0)+' AED</span></div>';
   h += '<div style="height:10px; background:var(--fill); border-radius:999px; overflow:hidden; margin:12px 0 16px;"><div style="height:100%; width:'+progress+'%; background:'+(budget.spent>target?'var(--rust)':'var(--accent)')+';"></div></div>';
-  h += '<div class="muted caption">SAFE TO SPEND / DAY</div>';
-  h += '<div class="mono" style="font-size:34px; font-weight:700; margin-top:3px; color:'+(safePerDay!=null&&safePerDay<0?'var(--rust)':'var(--text)')+';">'+(safePerDay==null?'—':fmt(safePerDay,0)+' <span class="muted" style="font-size:17px;">AED</span>')+'</div>';
+  h += '<div class="muted caption">SAFE TO SPEND TODAY</div>';
+  h += '<div class="mono" style="font-size:34px; font-weight:700; margin-top:3px; color:'+(safeToday!=null&&safeToday<0?'var(--rust)':'var(--text)')+';">'+(safeToday==null?'—':((safeToday<0?'−':'')+fmt(Math.abs(safeToday),0)+' <span class="muted" style="font-size:17px;">AED</span>'))+'</div>';
   h += '<div class="hairline-top" style="margin-top:14px; padding-top:12px;">';
-  h += '<div class="row between"><span class="muted subhead">Saved so far</span><span class="mono subhead" style="font-weight:600;color:'+(savedSoFar>=0?'var(--positive)':'var(--rust)')+';">'+(savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED</span></div>';
-  h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Remaining</span><span class="mono subhead" style="font-weight:600;color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED</span></div>';
-  h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Spent today</span><span class="mono subhead" style="font-weight:600;">'+fmt(state.entries[todayStr()]?sumBudgetSpent(state.entries[todayStr()]):0,0)+' AED</span></div>';
+  h += '<div class="row between"><span class="muted subhead">Daily avg to stay on budget</span><span class="mono subhead" style="font-weight:600;color:'+(dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)')+';">'+(dailyAverage==null?'—':((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'))+'</span></div>';
+  h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Saved so far</span><span class="mono subhead" style="font-weight:600;color:'+(savedSoFar>=0?'var(--positive)':'var(--rust)')+';">'+(savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED</span></div>';
+  h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Spent today</span><span class="mono subhead" style="font-weight:600;">'+fmt(spentToday,0)+' AED</span></div>';
+  h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Remaining this month</span><span class="mono subhead" style="font-weight:600;color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED</span></div>';
   h += '</div>';
   h += '<button data-action="go-page" data-page="budget" class="btn-plain" style="margin-top:12px;">Open budget →</button>';
   h += '</div>';
@@ -1561,8 +1591,10 @@ function renderBudgetBody(T) {
   var remaining = round2(target - stats.spent);
   var savedSoFar = round2(stats.targetElapsed - stats.spent);
   var daysRemaining = isCurrent && todayStr() <= period.endStr ? daysBetween(todayStr(), period.endStr)+1 : 0;
-  var safePerDay = daysRemaining > 0 ? remaining/daysRemaining : null;
-  var spentToday = state.entries[todayStr()] ? sumBudgetSpent(state.entries[todayStr()]) : 0;
+  var livePacing = isCurrent ? liveBudgetPacing() : null;
+  var dailyAverage = livePacing ? livePacing.dailyAverage : null;
+  var safeToday = livePacing ? livePacing.safeToday : null;
+  var spentToday = livePacing ? livePacing.spentToday : 0;
   var budgetForecastStart = effectiveRangeStart(period.startStr);
   var budgetForecastDays = daysBetween(budgetForecastStart, period.endStr)+1;
   var budgetForecast = (isCurrent && stats.rows.length) ? computeForecastNumbers(stats.rows, budgetForecastDays, budgetForecastStart, "budget") : null;
@@ -1585,10 +1617,10 @@ function renderBudgetBody(T) {
   h += '<div class="stat-grid">';
   h += statBlock("Remaining", (remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED', remaining>=0?'var(--positive)':'var(--rust)');
   h += statBlock(isClosed?'Saved this period':'Saved so far', (savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED', savedSoFar>=0?'var(--positive)':'var(--rust)');
+  h += statBlock("Daily avg to stay on budget", isCurrent&&dailyAverage!=null?((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'):'—', dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)');
+  h += statBlock("Safe to spend today", isCurrent&&safeToday!=null?((safeToday<0?'−':'')+fmt(Math.abs(safeToday),0)+' AED'):'—', safeToday!=null&&safeToday<0?'var(--rust)':'var(--text)');
   h += statBlock("Spent today", isCurrent?fmt(spentToday,0)+' AED':'—', 'var(--text)');
-  h += statBlock("Safe to spend/day", safePerDay==null?'—':fmt(safePerDay,0)+' AED', safePerDay!=null&&safePerDay<0?'var(--rust)':'var(--text)');
   h += statBlock("Projected saving", isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—', projectedSaving>=0?'var(--positive)':'var(--rust)');
-  h += statBlock("Days remaining", isCurrent?String(daysRemaining):'—', 'var(--text)');
   h += '</div></div>';
 
   /* Detailed live forecast: actual-to-date + projected remainder against the
