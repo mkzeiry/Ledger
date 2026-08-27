@@ -245,7 +245,13 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, homeSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null };
+var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
+function normalizeHomeOrder(order) {
+  var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
+  DEFAULT_HOME_ORDER.forEach(function(id){ if(out.indexOf(id)===-1) out.push(id); });
+  return out;
+}
 var DEFAULT_ANALYSIS_ORDER = ["summary","cashFlow","forecastedSpend","spendTrend","dailySpend","category","person","dow","topTransactions"];
 var ANALYSIS_SECTION_LABELS = { summary:"Summary", cashFlow:"Cash flow", forecastedSpend:"Forecasted spend", spendTrend:"Spend trend", dailySpend:"Spend per day", category:"Spend by category", person:"Spend by person", dow:"Average by day of week", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
@@ -751,6 +757,9 @@ var state = {
   analysisPeriodFrom: "",
   analysisPeriodTo: "",
   analysisReorderMode: false,
+  homeReorderMode: false,
+  plansCreateOpen: false,
+  plansShowFinished: false,
   analysisSelectedBucket: null,
   analysisCategoryFilter: "",
   analysisPersonFilter: "",
@@ -943,6 +952,7 @@ function loadInitial() {
   }
   state.settings.analysisSectionOrder = normalizeAnalysisOrder(state.settings.analysisSectionOrder);
   state.settings.analysisHiddenSections = normalizeHiddenSections(state.settings.analysisHiddenSections);
+  state.settings.homeSectionOrder = normalizeHomeOrder(state.settings.homeSectionOrder);
   state.settings.incomeHistory = normalizeIncomeHistory(state.settings.incomeHistory);
   state.settings.monthlyBudgetHistory = normalizeMonthlyBudgetHistory(state.settings.monthlyBudgetHistory);
   state.settings.categoryStyles = normalizeCategoryStyles(state.settings.categoryStyles, state.settings.categories);
@@ -1922,57 +1932,60 @@ function renderHomeBody(T, da) {
   var projectedCashSavingPct = income > 0 ? (projectedCashSaving/income*100) : null;
   var cashNet = round2(income - overall.spent);
   var progress = target > 0 ? Math.max(0, Math.min(100, (budget.spent/target)*100)) : 0;
+  var cards = {};
 
-  var h = '';
-  h += '<div class="eyebrow" style="margin-bottom:8px;">This month</div>';
-  h += '<div class="card card-pad" style="margin-bottom:12px;">';
-  h += '<div class="muted caption">TOTAL SPENT</div>';
-  h += '<div class="mono" style="font-size:34px; font-weight:700; margin-top:3px;">'+fmt(overall.spent,0)+' <span class="muted" style="font-size:17px;">AED</span></div>';
-  h += '<div class="hairline-top" style="margin-top:14px; padding-top:12px;">';
-  h += '<div class="row between"><span class="muted subhead">Projected month-end spend</span><span class="mono subhead" style="font-weight:600;">'+fmt(projected,0)+' AED</span></div>';
-  h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Projected saving</span><span class="mono subhead" style="font-weight:600;color:'+(projectedCashSaving==null?'var(--text)':(projectedCashSaving>=0?'var(--positive)':'var(--rust)'))+';">'+(projectedCashSaving==null?'—':((projectedCashSaving<0?'−':'')+fmt(Math.abs(projectedCashSaving),0)+' AED ('+(projectedCashSavingPct<0?'−':'')+Math.abs(projectedCashSavingPct).toFixed(0)+'%)'))+'</span></div></div>';
-  h += '<button data-action="go-page" data-page="analysis" class="btn-plain" style="margin-top:12px;">Open overall analysis →</button>';
-  h += '</div>';
+  var spending = '<div class="card card-pad">';
+  spending += '<div class="muted caption">TOTAL SPENT</div>';
+  spending += '<div class="mono" style="font-size:34px;font-weight:700;margin-top:3px;">'+fmt(overall.spent,0)+' <span class="muted" style="font-size:17px;">AED</span></div>';
+  spending += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;">';
+  spending += '<div class="row between"><span class="muted subhead">Projected month-end spend</span><span class="mono subhead" style="font-weight:600;">'+fmt(projected,0)+' AED</span></div>';
+  spending += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Projected saving</span><span class="mono subhead" style="font-weight:600;color:'+(projectedCashSaving==null?'var(--text)':(projectedCashSaving>=0?'var(--positive)':'var(--rust)'))+';">'+(projectedCashSaving==null?'—':((projectedCashSaving<0?'−':'')+fmt(Math.abs(projectedCashSaving),0)+' AED ('+(projectedCashSavingPct<0?'−':'')+Math.abs(projectedCashSavingPct).toFixed(0)+'%)'))+'</span></div></div>';
+  spending += '<button data-action="go-page" data-page="analysis" class="btn-plain" style="margin-top:12px;">Open overall analysis →</button></div>';
+  cards.spending = spending;
 
-  h += '<div class="card card-pad" style="margin-bottom:12px;">';
-  h += '<div class="row between" style="align-items:baseline;"><div class="eyebrow">Budget</div>';
-  h += '<span class="mono subhead" style="font-weight:600;">'+fmt(budget.spent,0)+' / '+fmt(target,0)+' AED</span></div>';
-  h += '<div style="height:10px; background:var(--fill); border-radius:999px; overflow:hidden; margin:12px 0 16px;"><div style="height:100%; width:'+progress+'%; background:'+(budget.spent>target?'var(--rust)':'var(--accent)')+';"></div></div>';
-  h += '<div class="muted caption">SAFE TO SPEND TODAY</div>';
-  h += '<div class="mono" style="font-size:34px; font-weight:700; margin-top:3px; color:'+(safeToday!=null&&safeToday<0?'var(--rust)':'var(--text)')+';">'+(safeToday==null?'—':((safeToday<0?'−':'')+fmt(Math.abs(safeToday),0)+' <span class="muted" style="font-size:17px;">AED</span>'))+'</div>';
-  h += '<div class="hairline-top" style="margin-top:14px; padding-top:12px;">';
-  h += '<div class="row between"><span class="muted subhead">Daily avg to stay on budget</span><span class="mono subhead" style="font-weight:600;color:'+(dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)')+';">'+(dailyAverage==null?'—':((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'))+'</span></div>';
-  h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Saved so far</span><span class="mono subhead" style="font-weight:600;color:'+(savedSoFar>=0?'var(--positive)':'var(--rust)')+';">'+(savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED</span></div>';
-  h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Spent today</span><span class="mono subhead" style="font-weight:600;">'+fmt(spentToday,0)+' AED</span></div>';
-  h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Remaining this month</span><span class="mono subhead" style="font-weight:600;color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED</span></div>';
-  h += '</div>';
-  h += '<button data-action="go-page" data-page="budget" class="btn-plain" style="margin-top:12px;">Open budget →</button>';
-  h += '</div>';
+  var budgetCard = '<div class="card card-pad">';
+  budgetCard += '<div class="row between" style="align-items:baseline;"><div class="eyebrow">Budget</div><span class="mono subhead" style="font-weight:600;">'+fmt(budget.spent,0)+' / '+fmt(target,0)+' AED</span></div>';
+  budgetCard += '<div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 16px;"><div style="height:100%;width:'+progress+'%;background:'+(budget.spent>target?'var(--rust)':'var(--accent)')+';"></div></div>';
+  budgetCard += '<div class="muted caption">SAFE TO SPEND TODAY</div>';
+  budgetCard += '<div class="mono" style="font-size:34px;font-weight:700;margin-top:3px;color:'+(safeToday!=null&&safeToday<0?'var(--rust)':'var(--text)')+';">'+(safeToday==null?'—':((safeToday<0?'−':'')+fmt(Math.abs(safeToday),0)+' <span class="muted" style="font-size:17px;">AED</span>'))+'</div>';
+  budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;">';
+  budgetCard += '<div class="row between"><span class="muted subhead">Daily avg to stay on budget</span><span class="mono subhead" style="font-weight:600;color:'+(dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)')+';">'+(dailyAverage==null?'—':((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'))+'</span></div>';
+  budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Saved so far</span><span class="mono subhead" style="font-weight:600;color:'+(savedSoFar>=0?'var(--positive)':'var(--rust)')+';">'+(savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED</span></div>';
+  budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Spent today</span><span class="mono subhead" style="font-weight:600;">'+fmt(spentToday,0)+' AED</span></div>';
+  budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Remaining this month</span><span class="mono subhead" style="font-weight:600;color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED</span></div></div>';
+  budgetCard += '<button data-action="go-page" data-page="budget" class="btn-plain" style="margin-top:12px;">Open budget →</button></div>';
+  cards.budget = budgetCard;
 
-  h += '<div class="card card-pad" style="margin-bottom:16px;">';
-  h += '<div class="eyebrow">Cash flow</div>';
+  var cash = '<div class="card card-pad"><div class="eyebrow">Cash flow</div>';
   if (income > 0) {
-    h += '<div class="stat-grid" style="margin-top:10px;">';
-    h += statBlock("Income received", fmt(income,0)+' AED', 'var(--positive)');
-    h += statBlock("Expenses", fmt(overall.spent,0)+' AED', 'var(--rust)');
-    h += statBlock("Net cash flow", (cashNet>=0?'+':'−')+fmt(Math.abs(cashNet),0)+' AED', cashNet>=0?'var(--positive)':'var(--rust)');
-    h += statBlock("Expense transactions", String(overall.rows.reduce(function(t,r){ return t+(r.items||[]).filter(isExpenseItem).length; },0)), 'var(--text)');
-    h += '</div>';
-  } else {
-    h += '<div class="muted subhead" style="margin-top:8px;">Log salary or other money received as Income transactions to see cash flow here.</div>';
-  }
-  h += '</div>';
+    cash += '<div class="stat-grid" style="margin-top:10px;">';
+    cash += statBlock("Income received", fmt(income,0)+' AED', 'var(--positive)');
+    cash += statBlock("Expenses", fmt(overall.spent,0)+' AED', 'var(--rust)');
+    cash += statBlock("Net cash flow", (cashNet>=0?'+':'−')+fmt(Math.abs(cashNet),0)+' AED', cashNet>=0?'var(--positive)':'var(--rust)');
+    cash += statBlock("Expense transactions", String(overall.rows.reduce(function(t,r){ return t+(r.items||[]).filter(isExpenseItem).length; },0)), 'var(--text)');
+    cash += '</div>';
+  } else cash += '<div class="muted subhead" style="margin-top:8px;">Log salary or other money received as Income transactions to see cash flow here.</div>';
+  cash += '</div>';
+  cards.cashFlow = cash;
 
   var recent = [];
-  Object.keys(state.entries).sort().reverse().some(function(d){
-    newestFirst(state.entries[d].items||[]).forEach(function(it){ if (recent.length<5) recent.push({date:d,it:it}); });
-    return recent.length>=5;
-  });
+  Object.keys(state.entries).sort().reverse().some(function(d){ newestFirst(state.entries[d].items||[]).forEach(function(it){ if(recent.length<5) recent.push({date:d,it:it}); }); return recent.length>=5; });
   if (recent.length) {
-    h += '<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Recent transactions</span><button data-action="go-page" data-page="transactions" class="btn-plain" style="font-size:12px;">See all</button></div>';
-    recent.forEach(function(x,i){ h += '<div style="'+(i?'border-top:1px solid var(--sep);':'')+'">'+renderTxnRow(x.date,x.it)+'</div>'; });
-    h += '</div>';
+    var recentCard = '<div class="card card-pad"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Recent transactions</span><button data-action="go-page" data-page="transactions" class="btn-plain" style="font-size:12px;">See all</button></div>';
+    recent.forEach(function(x,i){ recentCard += '<div style="'+(i?'border-top:1px solid var(--sep);':'')+'">'+renderTxnRow(x.date,x.it)+'</div>'; });
+    cards.recent = recentCard+'</div>';
   }
+
+  var order = normalizeHomeOrder(state.settings.homeSectionOrder);
+  var labels = { spending:"Spending", budget:"Budget", cashFlow:"Cash flow", recent:"Recent transactions" };
+  var h = '<div class="row between" style="margin-bottom:8px;align-items:center;"><div class="eyebrow">This month</div><button data-action="toggle-home-reorder" class="btn-plain" style="font-size:12px;">'+(state.homeReorderMode?'Done':'Arrange')+'</button></div>';
+  order.forEach(function(id, idx){
+    if (!cards[id]) return;
+    if (state.homeReorderMode) {
+      h += '<div class="row between" style="padding:5px 2px 7px;"><span class="muted caption" style="font-weight:600;">'+labels[id]+'</span><span class="row gap2"><button data-action="move-home-card" data-id="'+id+'" data-dir="-1" class="icon-btn" style="padding:5px;'+(idx===0?'opacity:.3;':'')+'" '+(idx===0?'disabled':'')+'>'+ICONS.chevronUp+'</button><button data-action="move-home-card" data-id="'+id+'" data-dir="1" class="icon-btn" style="padding:5px;'+(idx===order.length-1?'opacity:.3;':'')+'" '+(idx===order.length-1?'disabled':'')+'>'+ICONS.chevronDown+'</button></span></div>';
+    }
+    h += '<div style="margin-bottom:12px;">'+cards[id]+'</div>';
+  });
   return h;
 }
 
@@ -2691,9 +2704,29 @@ var CAT_ICON_SVGS = {
   pill: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 20.5-7-7a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"/><path d="m8.5 8.5 7 7"/></svg>',
   dumbbell: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M3 9v5M17.5 6.5v11M21 9v5M6.5 12h11"/></svg>',
   ticket: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2a2 2 0 0 0 0 4v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a2 2 0 0 0 0-4z"/><path d="M13 5v14"/></svg>',
+  baby: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/><path d="M9 7h.01M15 7h.01"/></svg>',
+  stroller: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h3l2 9h9a4 4 0 0 0-4-4H8"/><circle cx="10" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></svg>',
+  paw: '<svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><circle cx="7" cy="8" r="2.2"/><circle cx="17" cy="8" r="2.2"/><circle cx="4.5" cy="13" r="2"/><circle cx="19.5" cy="13" r="2"/><path d="M12 11c-3.5 0-6 3-6 5.5S8.3 20 12 18c3.7 2 6 .9 6-1.5S15.5 11 12 11z"/></svg>',
+  scissors: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="7" r="3"/><circle cx="6" cy="17" r="3"/><path d="M8.5 8.5 21 3M8.5 15.5 21 21M10 12l11-5"/></svg>',
+  umbrella: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 18 0H3z"/><path d="M12 12v7a2 2 0 0 0 4 0"/></svg>',
+  bed: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14M21 12v7M3 16h18"/><path d="M6 12V8h5a3 3 0 0 1 3 3v1M14 12h7"/></svg>',
+  sofa: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 11V8a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v3"/><path d="M4 10a2 2 0 0 0-2 2v5h20v-5a2 2 0 0 0-4 0v2H6v-2a2 2 0 0 0-2-2z"/><path d="M5 17v2M19 17v2"/></svg>',
+  train: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="15" rx="3"/><path d="M8 7h8M7 13h10M8 21l2-3M16 21l-2-3"/><circle cx="9" cy="15" r="1"/><circle cx="15" cy="15" r="1"/></svg>',
+  taxi: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17v-6l2-4h14l2 4v6"/><path d="M8 7V4h8v3M5 17h14"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>',
+  controller: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10a5 5 0 0 1 4.5 7.2l-1.2 2.4a2.5 2.5 0 0 1-4.2.5L14 14h-4l-2.1 3.1a2.5 2.5 0 0 1-4.2-.5l-1.2-2.4A5 5 0 0 1 7 7z"/><path d="M7 11v4M5 13h4"/><circle cx="17" cy="11" r="1"/><circle cx="19" cy="14" r="1"/></svg>',
+  ball: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 8 3-2 3 2-1 4h-4zM10 12l-3 3M14 12l3 3M9 8 6-1M15 8l3-1M12 18v-3"/></svg>',
+  graduation: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 2 9 2 12 0v-5M22 10v6"/></svg>',
+  briefcase: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V4h8v3M3 12h18M10 12v2h4v-2"/></svg>',
+  card: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/></svg>',
+  wallet: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h15a2 2 0 0 1 2 2v12H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M17 11h5v5h-5a2.5 2.5 0 0 1 0-5z"/></svg>',
+  coins: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="9" cy="6" rx="6" ry="3"/><path d="M3 6v4c0 1.7 2.7 3 6 3s6-1.3 6-3V6M3 10v4c0 1.7 2.7 3 6 3 1.2 0 2.4-.2 3.3-.5"/><path d="M14 13c3.3 0 6 1.3 6 3s-2.7 3-6 3-6-1.3-6-3"/></svg>',
+  droplet: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2s7 7.2 7 13a7 7 0 0 1-14 0C5 9.2 12 2 12 2z"/></svg>',
+  flame: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4 0 7-3 7-7 0-5-4-8-7-13-1 5-7 7-7 13 0 4 3 7 7 7z"/><path d="M12 22c2 0 3.5-1.5 3.5-3.5 0-2.5-2-4-3.5-6.5-1 2.5-3.5 4-3.5 6.5C8.5 20.5 10 22 12 22z"/></svg>',
+  bell: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>',
+  subscription: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-6V1"/><path d="M20 7a9 9 0 1 0 1 8"/><path d="M8 12h8M12 8v8"/></svg>',
   tag: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 12.6 12.6 20.6a2 2 0 0 1-2.83 0L2.6 13.4a2 2 0 0 1 0-2.83l8-8A2 2 0 0 1 12 2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-.4 1.2Z"/><circle cx="16.5" cy="7.5" r="1"/></svg>',
 };
-var CAT_ICON_ORDER = ["tag","fork","chefhat","cloche","coffee","basket","apple","cart","bag","phone","handset","shirt","house","key","bank","wrench","sparkles","bucket","spray","car","fuel","parking","tollgate","shield","plug","wifi","bolt","heart","cross","pill","dumbbell","kettlebell","leaf","film","music","ticket","layers","book","gift","handheart","receipt","plane"];
+var CAT_ICON_ORDER = ["tag","fork","chefhat","cloche","coffee","basket","apple","cart","bag","card","wallet","coins","phone","handset","shirt","scissors","house","key","sofa","bed","bank","briefcase","graduation","baby","stroller","paw","wrench","sparkles","bucket","spray","car","taxi","train","fuel","parking","tollgate","shield","umbrella","plug","wifi","bolt","droplet","flame","heart","cross","pill","dumbbell","kettlebell","ball","leaf","film","music","controller","ticket","subscription","bell","layers","book","gift","handheart","receipt","plane"];
 var CATEGORY_STYLES = {
   "Food & Dining": { icon:"fork", color:"#D4614A" },
   "Groceries": { icon:"basket", color:"#5EA05E" },
@@ -2797,8 +2830,11 @@ function renderPieChart(slices, T, selectedLabel, centerLabel, centerValue, tapA
   var nameRaw = selSlice ? selSlice.label : (centerLabel || "All");
   var name = nameRaw.length > 16 ? nameRaw.slice(0,15)+"…" : nameRaw;
   var valueForCenter = selSlice ? selSlice.value : (centerValue || 0);
+  var centerValueText = fmt(Math.round(valueForCenter),0)+' AED';
+  /* Keep large five/six-digit totals comfortably inside the donut hole. */
+  var valueFontSize = centerValueText.length >= 11 ? 15 : centerValueText.length >= 10 ? 17 : centerValueText.length >= 9 ? 19 : 22;
   var centerSvg = '<text x="'+cx+'" y="'+(cy-8)+'" font-size="15" fill="'+T.textMuted+'" text-anchor="middle">'+esc(name)+'</text>'
-    + '<text x="'+cx+'" y="'+(cy+21)+'" font-size="22" font-weight="700" fill="'+T.text+'" text-anchor="middle" font-family="var(--f-num)">'+fmt(Math.round(valueForCenter),0)+' AED</text>';
+    + '<text x="'+cx+'" y="'+(cy+20)+'" font-size="'+valueFontSize+'" font-weight="700" fill="'+T.text+'" text-anchor="middle" font-family="var(--f-num)">'+centerValueText+'</text>';
   return '<svg viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'">'+paths+centerSvg+'</svg>';
 }
 
@@ -3594,116 +3630,108 @@ function ruleLoggedAmount(rule) {
 function renderPlansBody() {
   var rules = state.settings.recurringRules || [];
   var today = todayStr();
-  var h = "";
-  h += '<div class="eyebrow" style="margin-bottom:4px;">Plans</div>';
-  h += '<div class="muted caption" style="margin-bottom:14px;">Recurring payments and spread-out costs. Each one logs itself when its day arrives \u2014 including catching up on anything missed while the app was closed.</div>';
+  var horizon = toStr(addDays(parseD(today), 30));
+  var activeRules = rules.filter(function(r){ return !ruleIsComplete(r) && r.active; });
+  var pausedRules = rules.filter(function(r){ return !ruleIsComplete(r) && !r.active; });
+  var doneRules = rules.filter(function(r){ return ruleIsComplete(r); });
 
-  function ruleCard(rule) {
-    var complete = ruleIsComplete(rule);
-    var paused = !rule.active && !complete;
-    var isIncomeRule = rule.entryKind === "income";
-    var freqLabel = rule.frequency === "daily" ? "Daily" : rule.frequency === "weekly" ? "Every week" : "Every month";
-    var logged = rule.occurrencesLogged || 0;
-    var s = '<div class="card card-pad" style="margin-bottom:8px;'+(paused?" opacity:0.6;":"")+'">';
-    s += '<div class="row between" style="align-items:flex-start;">';
-    s += '<div class="row gap2" style="align-items:center; min-width:0;">';
-    s += isIncomeRule
-      ? '<span style="width:32px; height:32px; border-radius:50%; background:var(--positive); color:white; display:flex; align-items:center; justify-content:center; flex-shrink:0;">'+ICONS.plus+'</span>'
-      : catIconCircle(rule.category);
-    s += '<div style="min-width:0;">';
-    s += '<div style="font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">'+esc(rule.note || rule.category || (rule.kind==="split"?"Spread":(isIncomeRule?"Recurring income":"Recurring payment")))+'</div>';
-    var metaBits = [];
-    if (rule.kind === "split") metaBits.push("Spread over "+rule.occurrencesTotal+" days");
-    else metaBits.push(freqLabel);
-    metaBits.push((isIncomeRule?"+":"")+fmt(rule.amount,2)+" AED"+(rule.kind==="split"?"/day":""));
-    s += '<div class="muted caption" style="margin-top:2px;'+(isIncomeRule?" color:var(--positive);":"")+'">'+esc(metaBits.join(" \u00b7 "))+'</div>';
-    s += '</div></div>';
-    s += '<div class="row gap2" style="flex-shrink:0;">';
-    if (!complete) s += '<button data-action="toggle-recurring-active" data-id="'+esc(rule.id)+'" style="background:none;border:none;padding:5px;color:var(--text-muted);" aria-label="'+(rule.active?"Pause":"Resume")+'">'+(rule.active?ICONS.pause:ICONS.play)+'</button>';
-    s += '<button data-action="delete-recurring" data-id="'+esc(rule.id)+'" style="background:none;border:none;padding:5px;color:var(--text-muted);" aria-label="Delete">'+ICONS.trash+'</button>';
-    s += '</div></div>';
-
-    s += '<div class="hairline-top" style="margin-top:10px; padding-top:10px;">';
-    if (rule.occurrencesTotal != null) {
-      var pct = Math.round((logged/rule.occurrencesTotal)*100);
-      s += '<div class="row between" style="margin-bottom:6px;"><span class="muted caption">'+logged+' of '+rule.occurrencesTotal+' logged</span>';
-      if (rule.kind === "split") {
-        var remaining = round2(rule.splitTotal - ruleLoggedAmount(rule));
-        s += '<span class="mono caption">'+fmt(remaining,2)+' AED left</span>';
+  function nextOccurrence(rule) {
+    if (!rule.active || ruleIsComplete(rule)) return null;
+    var n = rule.occurrencesLogged || 0;
+    if (rule.occurrencesTotal != null && n >= rule.occurrencesTotal) return null;
+    var due = recurringOccurrenceDate(rule, n);
+    if (rule.endDate && due > rule.endDate) return null;
+    return { rule:rule, due:due, amount:ruleOccurrenceAmount(rule,n) };
+  }
+  function next30Totals() {
+    var expense=0, income=0;
+    activeRules.forEach(function(rule){
+      var n=rule.occurrencesLogged||0, guard=0;
+      while(guard<60) {
+        if(rule.occurrencesTotal!=null && n>=rule.occurrencesTotal) break;
+        var due=recurringOccurrenceDate(rule,n);
+        if(due>horizon || (rule.endDate && due>rule.endDate)) break;
+        if(due>=today) {
+          var amt=ruleOccurrenceAmount(rule,n);
+          if(rule.entryKind==='income') income+=amt; else expense+=amt;
+        }
+        n++; guard++;
       }
-      s += '</div>';
-      s += '<div style="background:var(--fill); border-radius:999px; height:6px; overflow:hidden;"><div style="width:'+pct+'%; height:100%; background:'+(complete?"var(--positive)":"var(--accent)")+';"></div></div>';
-    } else {
-      s += '<div class="muted caption">'+logged+' logged so far \u00b7 ongoing</div>';
+    });
+    return {expense:round2(expense),income:round2(income)};
+  }
+  function relativeDue(ds) {
+    var n=daysBetween(today,ds);
+    if(n===0) return 'Today';
+    if(n===1) return 'Tomorrow';
+    if(n<7) return parseD(ds).toLocaleDateString('en-GB',{weekday:'long'});
+    return shortLabel(ds);
+  }
+  function planName(rule) { return rule.note || rule.category || (rule.kind==='split'?'Spread cost':(rule.entryKind==='income'?'Recurring income':'Recurring expense')); }
+  function planMeta(rule) {
+    var bits=[];
+    if(rule.kind==='split') bits.push('Spread over '+rule.occurrencesTotal+' days');
+    else bits.push(rule.frequency==='daily'?'Daily':rule.frequency==='weekly'?'Weekly':'Monthly');
+    if(rule.category) {
+      var parent=categoryGroupOf(rule.category);
+      bits.push(parent ? parent+' · '+rule.category : rule.category);
     }
-    var statusLine;
-    if (complete) statusLine = rule.occurrencesTotal != null ? "Finished" : "Ended "+shortLabel(rule.endDate);
-    else if (paused) statusLine = "Paused";
-    else {
-      var nextDue = recurringOccurrenceDate(rule, logged);
-      statusLine = (nextDue <= today ? "Due now" : "Next on "+shortLabel(nextDue));
-      if (rule.endDate) statusLine += " \u00b7 until "+shortLabel(rule.endDate);
+    if(rule.person) bits.push(rule.person);
+    return bits.join(' · ');
+  }
+  function planIcon(rule) {
+    return rule.entryKind==='income'
+      ? '<span style="width:38px;height:38px;border-radius:12px;background:var(--positive-wash);color:var(--positive);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+ICONS.plus+'</span>'
+      : '<span style="transform:scale(1.12);display:flex;">'+catIconCircle(rule.category)+'</span>';
+  }
+  function planCard(rule) {
+    var complete=ruleIsComplete(rule), paused=!rule.active&&!complete, logged=rule.occurrencesLogged||0, next=nextOccurrence(rule), isIncome=rule.entryKind==='income';
+    var s='<div class="card card-pad" style="margin-bottom:8px;'+(paused?'opacity:.72;':'')+'">';
+    s+='<div class="row" style="align-items:center;gap:11px;">'+planIcon(rule)+'<div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(planName(rule))+'</div><div class="muted caption" style="margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(planMeta(rule))+'</div></div>';
+    s+='<div style="text-align:right;flex-shrink:0;"><div class="mono" style="font-size:16px;font-weight:700;color:'+(isIncome?'var(--positive)':'var(--text)')+';">'+(isIncome?'+':'−')+fmt(rule.kind==='split'?(rule.splitTotal||rule.amount):rule.amount,2)+'</div><div class="caption" style="margin-top:2px;color:'+(complete?'var(--positive)':paused?'var(--text-muted)':'var(--accent)')+';">'+(complete?'Finished':paused?'Paused':(next?relativeDue(next.due):'No next date'))+'</div></div></div>';
+    if(rule.occurrencesTotal!=null) {
+      var pct=Math.max(0,Math.min(100,Math.round(logged/rule.occurrencesTotal*100)));
+      s+='<div style="margin-top:11px;"><div class="row between"><span class="muted caption">'+logged+' of '+rule.occurrencesTotal+' logged</span>';
+      if(rule.kind==='split') { var rem=round2((rule.splitTotal||0)-ruleLoggedAmount(rule)); s+='<span class="mono caption">'+fmt(Math.max(0,rem),2)+' AED left</span>'; }
+      s+='</div><div style="height:5px;background:var(--fill);border-radius:999px;overflow:hidden;margin-top:6px;"><div style="height:100%;width:'+pct+'%;background:'+(complete?'var(--positive)':'var(--accent)')+';"></div></div></div>';
     }
-    s += '<div class="caption" style="margin-top:8px; color:'+(complete?"var(--positive)":(paused?"var(--text-muted)":"var(--accent)"))+';">'+esc(statusLine)+'</div>';
-    s += '</div></div>';
+    s+='<div class="row between hairline-top" style="margin-top:11px;padding-top:9px;"><span class="muted caption">'+(next&&!paused?'Next '+shortLabel(next.due)+(rule.endDate?' · ends '+shortLabel(rule.endDate):''):(complete?'Completed':paused?'Automatic logging paused':'Ongoing'))+'</span><span class="row gap2">';
+    if(!complete) s+='<button data-action="toggle-recurring-active" data-id="'+esc(rule.id)+'" class="btn-outline" style="padding:6px 9px;font-size:11px;">'+(rule.active?'Pause':'Resume')+'</button>';
+    s+='<button data-action="delete-recurring" data-id="'+esc(rule.id)+'" class="icon-btn" style="padding:7px;color:var(--rust);" aria-label="Delete">'+ICONS.trash+'</button></span></div></div>';
     return s;
   }
 
-  var activeRules = rules.filter(function(r){ return !ruleIsComplete(r); });
-  var doneRules = rules.filter(function(r){ return ruleIsComplete(r); });
+  var totals=next30Totals();
+  var upcoming=activeRules.map(nextOccurrence).filter(Boolean).sort(function(a,b){return a.due<b.due?-1:a.due>b.due?1:0;}).slice(0,5);
+  var h='<div class="row between" style="margin-bottom:12px;align-items:center;"><div><div class="title2">Plans</div><div class="muted caption" style="margin-top:2px;">Recurring money and spread-out costs</div></div><button data-action="toggle-plan-create" class="btn-accent" style="padding:9px 12px;font-size:13px;">'+(state.plansCreateOpen?'Close':'New plan')+'</button></div>';
 
-  if (!rules.length) {
-    h += '<div class="card card-pad" style="margin-bottom:16px;"><div class="muted" style="font-size:13px;">Nothing scheduled yet. Add a recurring payment below, or use \u201cSplit across days\u201d when adding a transaction to spread one cost out.</div></div>';
-  }
-  if (activeRules.length) {
-    h += '<div class="eyebrow" style="margin-bottom:8px;">Active</div>';
-    activeRules.forEach(function(r){ h += ruleCard(r); });
-  }
-  if (doneRules.length) {
-    h += '<div class="eyebrow" style="margin:16px 0 8px;">Finished</div>';
-    doneRules.forEach(function(r){ h += ruleCard(r); });
+  h+='<div class="card card-pad" style="margin-bottom:14px;"><div class="eyebrow" style="margin-bottom:10px;">NEXT 30 DAYS</div><div class="stat-grid">'+statBlock('Scheduled expenses',fmt(totals.expense,0)+' AED',totals.expense?'var(--rust)':'var(--text)')+statBlock('Scheduled income',fmt(totals.income,0)+' AED',totals.income?'var(--positive)':'var(--text)')+statBlock('Active plans',String(activeRules.length),'var(--text)')+statBlock('Paused',String(pausedRules.length),'var(--text-muted)')+'</div></div>';
+
+  if(upcoming.length) {
+    h+='<div class="card card-pad" style="margin-bottom:14px;"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Upcoming</span><span class="muted caption">Next due date per plan</span></div>';
+    upcoming.forEach(function(x,i){ var r=x.rule,isIncome=r.entryKind==='income'; h+='<div class="row" style="gap:10px;align-items:center;padding:9px 0;'+(i?'border-top:1px solid var(--sep);':'')+'">'+planIcon(r)+'<div style="flex:1;min-width:0;"><div class="subhead" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(planName(r))+'</div><div class="muted caption">'+relativeDue(x.due)+' · '+shortLabel(x.due)+'</div></div><div class="mono subhead" style="font-weight:650;color:'+(isIncome?'var(--positive)':'var(--text)')+';">'+(isIncome?'+':'−')+fmt(x.amount,2)+'</div></div>'; });
+    h+='</div>';
   }
 
-  h += '<div class="card card-pad" style="margin-top:16px; margin-bottom:16px;">';
-  h += '<div class="eyebrow" style="margin-bottom:10px;">Add recurring payment</div>';
-  var recKind = state.recurringKindDraft || "expense";
-  h += '<div class="seg" style="margin-bottom:8px;">';
-  h += '<button class="seg-btn" role="tab" aria-selected="'+(recKind==="expense")+'" data-action="set-recurring-kind" data-kind="expense">Expense</button>';
-  h += '<button class="seg-btn" role="tab" aria-selected="'+(recKind==="income")+'" data-action="set-recurring-kind" data-kind="income">Income</button>';
-  h += '</div>';
-  h += '<div style="position:relative; margin-bottom:8px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
-  h += '<input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="Amount" value="'+(state.recurringAmountDraft != null ? esc(state.recurringAmountDraft) : "")+'" /></div>';
-  if (recKind === "expense") {
-    h += '<select id="recurringCategoryInput" class="field" style="margin-bottom:8px;"><option value=""'+(!state.recurringCategoryDraft?" selected":"")+'>No category</option>';
-    (state.settings.categories||[]).forEach(function(c){ h += '<option value="'+esc(c)+'"'+(state.recurringCategoryDraft===c?" selected":"")+'>'+esc(c)+'</option>'; });
-    h += '</select>';
+  if(state.plansCreateOpen) {
+    var recKind=state.recurringKindDraft||'expense', limitMode=state.recurringLimitMode||'ongoing';
+    h+='<div id="newPlanCard" class="card card-pad" style="margin-bottom:14px;"><div class="title2" style="font-size:18px;margin-bottom:12px;">New recurring plan</div>';
+    h+='<div class="seg" style="margin-bottom:10px;"><button class="seg-btn" role="tab" aria-selected="'+(recKind==='expense')+'" data-action="set-recurring-kind" data-kind="expense">Expense</button><button class="seg-btn" role="tab" aria-selected="'+(recKind==='income')+'" data-action="set-recurring-kind" data-kind="income">Income</button></div>';
+    h+='<label class="eyebrow">Amount</label><div style="position:relative;margin:6px 0 10px;"><span class="muted" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;">AED</span><input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="0.00" value="'+(state.recurringAmountDraft!=null?esc(state.recurringAmountDraft):'')+'" /></div>';
+    if(recKind==='expense') { h+='<label class="eyebrow">Subcategory</label><select id="recurringCategoryInput" class="field" style="margin:6px 0 10px;"><option value="">No subcategory</option>'; (state.settings.categories||[]).forEach(function(c){ var g=categoryGroupOf(c); h+='<option value="'+esc(c)+'"'+(state.recurringCategoryDraft===c?' selected':'')+'>'+esc(g?g+' — '+c:c)+'</option>'; }); h+='</select>'; }
+    if((state.settings.people||[]).length) { var rp=state.recurringPersonDraft!=null?state.recurringPersonDraft:(state.settings.defaultPerson||''); h+='<label class="eyebrow">For</label><select id="recurringPersonInput" class="field" style="margin:6px 0 10px;"><option value="">Unassigned</option>'; (state.settings.people||[]).forEach(function(p){ h+='<option value="'+esc(p)+'"'+(rp===p?' selected':'')+'>'+esc(p)+'</option>'; }); h+='</select>'; }
+    h+='<label class="eyebrow">Name</label><input id="recurringNoteInput" type="text" class="field" style="margin:6px 0 10px;" placeholder="'+(recKind==='income'?'Salary, freelance…':'Rent, subscription…')+'" value="'+(state.recurringNoteDraft!=null?esc(state.recurringNoteDraft):'')+'" />';
+    h+='<div class="row gap2" style="margin-bottom:10px;"><div style="flex:1;"><label class="eyebrow">Repeats</label><select id="recurringFrequencyInput" class="field" style="margin-top:6px;"><option value="weekly"'+(state.recurringFrequencyDraft!=='monthly'?' selected':'')+'>Weekly</option><option value="monthly"'+(state.recurringFrequencyDraft==='monthly'?' selected':'')+'>Monthly</option></select></div><div style="flex:1;"><label class="eyebrow">Starts</label><input id="recurringStartDateInput" type="date" class="field mono" style="margin-top:6px;" value="'+(state.recurringStartDateDraft||today)+'" /></div></div>';
+    h+='<label class="eyebrow">Ends</label><div class="seg" style="margin:6px 0 10px;">'; [['ongoing','Ongoing'],['count','After #'],['until','On date']].forEach(function(o){h+='<button class="seg-btn" role="tab" aria-selected="'+(limitMode===o[0])+'" data-action="set-recurring-limit-mode" data-mode="'+o[0]+'">'+o[1]+'</button>';}); h+='</div>';
+    if(limitMode==='count') h+='<input id="recurringCountInput" type="number" inputmode="numeric" min="1" step="1" class="field" style="margin-bottom:10px;" placeholder="Number of payments" value="'+(state.recurringCountDraft!=null?esc(state.recurringCountDraft):'')+'" />';
+    else if(limitMode==='until') h+='<input id="recurringEndDateInput" type="date" class="field mono" style="margin-bottom:10px;" value="'+(state.recurringEndDateDraft||'')+'" />';
+    h+='<button data-action="add-recurring" class="btn-accent" style="width:100%;">Create '+(recKind==='income'?'income':'expense')+' plan</button></div>';
   }
-  if ((state.settings.people||[]).length) {
-    var recDefaultPerson = state.recurringPersonDraft != null ? state.recurringPersonDraft : (state.settings.defaultPerson||"");
-    h += '<select id="recurringPersonInput" class="field" style="margin-bottom:8px;"><option value=""'+(recDefaultPerson===""?" selected":"")+'>Who\u2019s this for? (optional)</option>';
-    (state.settings.people||[]).forEach(function(p){ h += '<option value="'+esc(p)+'"'+(recDefaultPerson===p?" selected":"")+'>'+esc(p)+'</option>'; });
-    h += '</select>';
-  }
-  h += '<input id="recurringNoteInput" type="text" class="field" style="margin-bottom:8px;" placeholder="'+(recKind==="income"?"What\u2019s it for? (e.g. Salary)":"What\u2019s it for? (e.g. Rent)")+'" value="'+(state.recurringNoteDraft != null ? esc(state.recurringNoteDraft) : "")+'" />';
-  h += '<div class="row gap2" style="margin-bottom:8px;">';
-  h += '<select id="recurringFrequencyInput" class="field" style="flex:1;"><option value="weekly"'+(state.recurringFrequencyDraft!=="monthly"?" selected":"")+'>Every week</option><option value="monthly"'+(state.recurringFrequencyDraft==="monthly"?" selected":"")+'>Every month</option></select>';
-  h += '<input id="recurringStartDateInput" type="date" class="field mono" style="flex:1;" value="'+(state.recurringStartDateDraft || today)+'" />';
-  h += '</div>';
-  h += '<div class="muted caption" style="margin-bottom:10px;">Starts on that date, then repeats on the same day each week or month.</div>';
-  var limitMode = state.recurringLimitMode || "ongoing";
-  h += '<div class="seg" style="margin-bottom:8px;">';
-  [["ongoing","Ongoing"],["count","Set number"],["until","Until date"]].forEach(function(opt){
-    h += '<button class="seg-btn" role="tab" aria-selected="'+(limitMode===opt[0])+'" data-action="set-recurring-limit-mode" data-mode="'+opt[0]+'">'+opt[1]+'</button>';
-  });
-  h += '</div>';
-  if (limitMode === "count") {
-    h += '<input id="recurringCountInput" type="number" inputmode="numeric" min="1" step="1" class="field" style="margin-bottom:8px;" placeholder="Number of times" value="'+(state.recurringCountDraft != null ? esc(state.recurringCountDraft) : "")+'" />';
-  } else if (limitMode === "until") {
-    h += '<input id="recurringEndDateInput" type="date" class="field mono" style="margin-bottom:8px;" value="'+(state.recurringEndDateDraft || "")+'" />';
-    h += '<div class="muted caption" style="margin-bottom:8px;">Stops after this date.</div>';
-  }
-  h += '<button data-action="add-recurring" class="btn-accent" style="width:100%;">Add recurring '+(recKind==="income"?"income":"payment")+'</button>';
-  h += '</div>';
+
+  if(activeRules.length) { h+='<div class="eyebrow" style="margin:18px 0 8px;">Active plans</div>'; activeRules.forEach(function(r){h+=planCard(r);}); }
+  if(pausedRules.length) { h+='<div class="eyebrow" style="margin:18px 0 8px;">Paused</div>'; pausedRules.forEach(function(r){h+=planCard(r);}); }
+  if(doneRules.length) { h+='<button data-action="toggle-finished-plans" class="row between card" style="width:100%;border:none;padding:13px 16px;margin-top:14px;text-align:left;"><span class="subhead" style="font-weight:600;">Finished plans</span><span class="row gap2"><span class="muted caption">'+doneRules.length+'</span><span style="display:flex;transform:rotate('+(state.plansShowFinished?'90':'0')+'deg);">'+ICONS.chevronRight+'</span></span></button>'; if(state.plansShowFinished) { h+='<div style="margin-top:8px;">'; doneRules.forEach(function(r){h+=planCard(r);}); h+='</div>'; } }
+  if(!rules.length && !state.plansCreateOpen) h+='<div class="card card-pad" style="margin-top:12px;text-align:center;"><div style="font-size:28px;margin-bottom:8px;">↻</div><div class="headline">Nothing scheduled yet</div><div class="muted subhead" style="margin:5px 0 12px;">Create a recurring expense or income plan. Spread costs created from a transaction will also appear here.</div><button data-action="toggle-plan-create" class="btn-accent">Create your first plan</button></div>';
   return h;
 }
 
@@ -4111,6 +4139,7 @@ function handleRestore() {
     var nextSettings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings||{});
     nextSettings.analysisSectionOrder = normalizeAnalysisOrder(nextSettings.analysisSectionOrder);
     nextSettings.analysisHiddenSections = normalizeHiddenSections(nextSettings.analysisHiddenSections);
+    nextSettings.homeSectionOrder = normalizeHomeOrder(nextSettings.homeSectionOrder);
     nextSettings.incomeHistory = normalizeIncomeHistory(nextSettings.incomeHistory);
     nextSettings.monthlyBudgetHistory = normalizeMonthlyBudgetHistory(nextSettings.monthlyBudgetHistory);
     nextSettings.categoryStyles = normalizeCategoryStyles(nextSettings.categoryStyles, nextSettings.categories);
@@ -4440,6 +4469,7 @@ document.addEventListener("click", function(e) {
       state.recurringEndDateDraft = null;
       showToast(recKindForRule === "income" ? "Recurring income added" : "Recurring payment added");
       state.recurringKindDraft = "expense";
+      state.plansCreateOpen = false;
       render();
       break;
     case "toggle-recurring-active":
@@ -4669,6 +4699,29 @@ document.addEventListener("click", function(e) {
         persistAll(movedSettings, state.entries, "your settings");
         render();
       }
+      break;
+    case "toggle-home-reorder":
+      state.homeReorderMode = !state.homeReorderMode;
+      render();
+      break;
+    case "move-home-card":
+      var homeOrder = normalizeHomeOrder(state.settings.homeSectionOrder);
+      var homeId = el.dataset.id, homeDir = parseInt(el.dataset.dir,10);
+      var homeIdx = homeOrder.indexOf(homeId), homeSwap = homeIdx + homeDir;
+      if (homeIdx >= 0 && homeSwap >= 0 && homeSwap < homeOrder.length) {
+        var homeTmp = homeOrder[homeIdx]; homeOrder[homeIdx] = homeOrder[homeSwap]; homeOrder[homeSwap] = homeTmp;
+        persistAll(Object.assign({}, state.settings, { homeSectionOrder: homeOrder }), state.entries, "home layout");
+      }
+      render();
+      break;
+    case "toggle-plan-create":
+      preserveRecurringFormDraft();
+      state.plansCreateOpen = !state.plansCreateOpen;
+      render();
+      break;
+    case "toggle-finished-plans":
+      state.plansShowFinished = !state.plansShowFinished;
+      render();
       break;
     case "toggle-analysis-reorder":
       state.analysisReorderMode = !state.analysisReorderMode;
