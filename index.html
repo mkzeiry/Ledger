@@ -329,7 +329,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v37";
+var APP_VERSION = "v38";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -2463,7 +2463,10 @@ function liveBudgetPacing() {
       /* projectedSpend contains actual through now + any remaining-today
          expectation + spend after today. Safe-to-spend IS the rest-of-today
          allowance, so only reserve dates after today. */
-      futureReserve = round2(Math.max(0, fc.projectedSpend - fc.actualSpentSoFar - (fc.remainingVariableToday || 0)));
+      /* Forecast cards use probability-weighted expected value. Safe-to-Spend
+         uses the more conservative reserve returned by the same model: highly
+         likely cadence events reserve close to their full likely transaction. */
+      futureReserve = round2(Math.max(0, fc.safeReserveFuture!=null ? fc.safeReserveFuture : (fc.projectedSpend - fc.actualSpentSoFar - (fc.remainingVariableToday || 0))));
       rawSafe = round2(per.target - stats.spent - futureReserve);
       safe = round2(Math.max(0, rawSafe));
       adjustmentNeeded = round2(Math.max(0, -rawSafe));
@@ -3827,7 +3830,7 @@ function fallbackSubcategoryWeights(scope, modeledSet, asOfDate) {
    as likely subcategory EVENTS (learned repeat interval × typical amount).
    New/very-frequent subcategories fall back to the robust weekday-aware pace
    model, so the engine degrades gracefully when history is sparse. */
-/* ---------------- v37 behavioral short-horizon forecast ----------------
+/* ---------------- v38 behavioral short-horizon forecast ----------------
    A short personal-finance horizon should not allocate generic "pace" money to
    every category that happened once earlier in the month. The model now
    classifies each unscheduled subcategory explicitly:
@@ -3915,7 +3918,7 @@ function cadenceEventForecast(profile, fromStr, throughStr) {
   var daysSince=Math.max(0,daysBetween(profile.lastDate,fromStr)), horizon=Math.max(0,daysBetween(fromStr,throughStr));
   if(horizon<=0) return {byDate:byDate,total:0,variance:0,probability:0,reason:"No future days"};
 
-  /* v37 uses a conditional renewal / hazard view instead of looking only at
+  /* v38 uses a conditional renewal / hazard view instead of looking only at
      the first expected date after the last transaction. This matters when a
      transaction is deleted or simply has not happened yet: if Fuel was last
      seen 9 days ago and normally repeats around 5-7 days, the model should
@@ -3937,9 +3940,13 @@ function cadenceEventForecast(profile, fromStr, throughStr) {
     return {byDate:byDate,total:0,variance:0,probability:0,reason:"Pattern stale",expectedDate:expectedDate};
   }
 
+  /* Do not punish a regular event merely because it is a little overdue.
+     For Fuel-like behavior, being overdue should INCREASE near-term hazard.
+     Staleness only starts much later; irregular-amount events decay sooner. */
   var staleFactor=1;
-  if(overdueRatio>1.25) staleFactor=Math.exp(-.42*(overdueRatio-1.25));
-  if(overdueRatio>3.2) staleFactor*=.35;
+  var staleStart=(amountCv!=null && amountCv<=.20)?2.0:1.55;
+  if(overdueRatio>staleStart) staleFactor=Math.exp(-.55*(overdueRatio-staleStart));
+  if(overdueRatio>3.4) staleFactor*=.35;
 
   /* Wider observed gaps mean wider timing uncertainty, not automatic zero.
      We condition on the event NOT having happened through today, then ask how
@@ -3955,10 +3962,20 @@ function cadenceEventForecast(profile, fromStr, throughStr) {
   if(survival<=1e-9 || periodMass<=1e-9) return {byDate:byDate,total:0,variance:0,probability:0,reason:(profile.lastDate===fromStr?"Recently satisfied":"Outside horizon"),expectedDate:expectedDate};
 
   var conditionalProb=Math.min(1,periodMass/survival);
-  var reliability=(profile.activeDays||0)>=8?1:((profile.activeDays||0)>=5?.92:.82);
-  if(amountCv!=null) reliability*=Math.max(.72,Math.min(1,1-amountCv*.35));
-  var periodProb=Math.max(0,Math.min(1,conditionalProb*staleFactor*reliability));
-  if(periodProb<=.01) return {byDate:byDate,total:0,variance:0,probability:periodProb,reason:"Very unlikely",expectedDate:expectedDate};
+
+  /* Confidence and probability are different concepts. v37 multiplied the
+     probability by a low-history reliability factor, which made a clearly
+     overdue, highly regular Fuel pattern look only ~70% likely. Instead we
+     shrink uncertain estimates toward a neutral 50% prior. With only three
+     observations the UI can still say Low confidence, while the event itself
+     may correctly be 80-90% likely in a short overdue window. */
+  var evidenceReliability=(profile.activeDays||0)>=8?.97:((profile.activeDays||0)>=5?.90:.78);
+  if(amountCv!=null) evidenceReliability*=Math.max(.68,Math.min(1,1-amountCv*.45));
+  var rawProb=Math.max(0,Math.min(1,conditionalProb*staleFactor));
+  var neutralPrior=.50;
+  var periodProb=Math.max(0,Math.min(1,neutralPrior+evidenceReliability*(rawProb-neutralPrior)));
+  if(rawProb<.08) periodProb=Math.min(periodProb,rawProb);
+  if(periodProb<=.01) return {byDate:byDate,total:0,variance:0,probability:periodProb,safeReserve:0,reason:"Very unlikely",expectedDate:expectedDate};
 
   weights.forEach(function(x){
     if(x.age<=daysSince || x.age>daysSince+horizon) return;
@@ -3968,10 +3985,17 @@ function cadenceEventForecast(profile, fromStr, throughStr) {
     byDate[ds]=(byDate[ds]||0)+amt; total+=amt;
     variance+=prob*(1-prob)*profile.typicalAmount*profile.typicalAmount;
   });
-  return {byDate:byDate,total:total,variance:variance,probability:periodProb,reason:"Cadence probability",expectedDate:expectedDate};
+  /* Expected-value forecast remains probability × likely transaction amount.
+     Safe-to-Spend is intentionally more conservative: once an event is highly
+     likely, reserve close to (or all of) the full likely transaction amount. */
+  var reserveProb=periodProb;
+  if(periodProb>=.75) reserveProb=1;
+  else if(periodProb>=.50) reserveProb=periodProb+(1-periodProb)*.50;
+  var safeReserve=reserveProb*profile.typicalAmount;
+  return {byDate:byDate,total:total,variance:variance,probability:periodProb,safeReserve:safeReserve,reason:"Cadence probability",expectedDate:expectedDate};
 }
 function buildBehavioralForecast(scope, fromStr, throughStr) {
-  var profiles=forecastCategoryProfiles(scope,fromStr), byDate={}, bySub={}, varianceByDate={}, suppressed=[];
+  var profiles=forecastCategoryProfiles(scope,fromStr), byDate={}, bySub={}, varianceByDate={}, suppressed=[], safeReserveTotal=0;
   Object.keys(profiles).forEach(function(k){
     var p=profiles[k];
     if(p.mode==="frequent"){
@@ -3981,19 +4005,22 @@ function buildBehavioralForecast(scope, fromStr, throughStr) {
         if(amt>0){byDate[ds]=(byDate[ds]||0)+amt;varianceByDate[ds]=(varianceByDate[ds]||0)+(e.dev||0)*(e.dev||0);total+=amt;}
         d=addDays(d,1);
       }
-      if(total>0) bySub[k]={amount:total,kind:"frequent",profile:p};
+      if(total>0) { bySub[k]={amount:total,kind:"frequent",profile:p,safeReserve:total}; safeReserveTotal+=total; }
     } else if(p.mode==="cadence"){
       var c=cadenceEventForecast(p,fromStr,throughStr), totalC=0;
       Object.keys(c.byDate).forEach(function(ds){var a=c.byDate[ds];byDate[ds]=(byDate[ds]||0)+a;totalC+=a;});
       if(c.variance>0){
         var dates=Object.keys(c.byDate); if(dates.length){var share=c.variance/dates.length;dates.forEach(function(ds){varianceByDate[ds]=(varianceByDate[ds]||0)+share;});}
       }
-      if(totalC>0.005) bySub[k]={amount:totalC,kind:"cadence",profile:p,probability:c.probability||0,reason:c.reason||""};
-      if(p.lastDate===fromStr || totalC<=0.005) { p._forecastReason=c.reason||""; p._forecastProbability=c.probability||0; suppressed.push(p); }
+      if(totalC>0.005) {
+        bySub[k]={amount:totalC,kind:"cadence",profile:p,probability:c.probability||0,reason:c.reason||"",likelyAmount:p.typicalAmount||0,safeReserve:c.safeReserve||totalC};
+        safeReserveTotal+=(c.safeReserve||totalC);
+      }
+      if(p.lastDate===fromStr || totalC<=0.005) { p._forecastReason=c.reason||""; p._forecastProbability=c.probability||0; p._forecastSafeReserve=c.safeReserve||0; suppressed.push(p); }
     }
     /* Sparse is intentionally zero. */
   });
-  return {profiles:profiles,byDate:byDate,bySubcategory:bySub,varianceByDate:varianceByDate,suppressed:suppressed};
+  return {profiles:profiles,byDate:byDate,bySubcategory:bySub,varianceByDate:varianceByDate,suppressed:suppressed,safeReserveTotal:round2(safeReserveTotal)};
 }
 function forecastProfileMetaText(p, kind, probability, reason) {
   if(!p) return kind==="scheduled"?"Scheduled plan":"";
@@ -4005,12 +4032,11 @@ function forecastProfileMetaText(p, kind, probability, reason) {
     var expected=toStr(addDays(parseD(p.lastDate),Math.max(1,Math.round(p.gap))));
     if(expected<todayStr()) parts.push("expected ~"+shortLabel(expected)); else parts.push("next ~"+shortLabel(expected));
   }
-  if(probability!=null && kind==="cadence") parts.push(Math.round(Math.max(0,Math.min(1,probability))*100)+"% chance in period");
-  if(p.typicalAmount>0) parts.push("typical "+fmt(p.typicalAmount,0)+" AED");
   if(reason&&reason!=="Cadence probability") parts.push(reason);
   parts.push(p.confidence+" confidence");
   return parts.join(" · ");
 }
+
 
 function computeForecastNumbers(rows, totalDays, periodStart, scope) {
   if(!rows.length) return null;
@@ -4021,11 +4047,12 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
   var pastSpent=pastRows.reduce(function(s,r){return s+rowSpentForScope(r,scope);},0);
   var periodEnd=toStr(addDays(parseD(periodStart),totalDays-1));
 
-  /* v37: all unscheduled future spend comes from an explicit subcategory
+  /* v38: all unscheduled future spend comes from an explicit subcategory
      behavior model. There is no pooled "other pace" fallback. */
   var behavioral=buildBehavioralForecast(scope,today,periodEnd);
   var futureScheduledByDate=scheduledExpenseByDate(today,periodEnd,scope);
   var scheduledUpcoming=0;Object.keys(futureScheduledByDate).forEach(function(k){scheduledUpcoming+=futureScheduledByDate[k];});scheduledUpcoming=round2(scheduledUpcoming);
+  var safeReserveFuture=round2((behavioral.safeReserveTotal||0)+scheduledUpcoming);
 
   /* We started collecting time-of-day in v36, but old history has no timestamps.
      Until enough timed observations accumulate, today itself is NOT padded with
@@ -4057,7 +4084,7 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
   var breakdown=[];
   Object.keys(behavioral.bySubcategory||{}).forEach(function(k){
     var x=behavioral.bySubcategory[k],p=x.profile;
-    breakdown.push({label:p.label,amount:round2(x.amount),kind:x.kind,metaText:forecastProfileMetaText(p,x.kind,x.probability,x.reason),profile:p});
+    breakdown.push({label:p.label,amount:round2(x.amount),expectedAmount:round2(x.amount),likelyAmount:round2(x.likelyAmount||p.typicalAmount||0),safeReserve:round2(x.safeReserve||x.amount),probability:x.probability==null?null:x.probability,kind:x.kind,metaText:forecastProfileMetaText(p,x.kind,x.probability,x.reason),profile:p});
   });
   var scheduledBreakdown=scheduledExpenseBreakdown(today,periodEnd,scope);
   Object.keys(scheduledBreakdown).forEach(function(k){
@@ -4068,14 +4095,14 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
   var suppressed=[],seen={};
   (behavioral.suppressed||[]).forEach(function(p){
     if(!p||seen[p.key])return;seen[p.key]=1;
-    suppressed.push({label:p.label,amount:0,gap:p.gap,nextDate:p.lastDate&&p.gap!=null?toStr(addDays(parseD(p.lastDate),Math.max(1,Math.round(p.gap)))):null,metaText:forecastProfileMetaText(p,"cadence",p._forecastProbability||0,p._forecastReason||"" )});
+    suppressed.push({label:p.label,amount:0,expectedAmount:0,likelyAmount:round2(p.typicalAmount||0),safeReserve:round2(p._forecastSafeReserve||0),probability:p._forecastProbability||0,gap:p.gap,nextDate:p.lastDate&&p.gap!=null?toStr(addDays(parseD(p.lastDate),Math.max(1,Math.round(p.gap)))):null,metaText:forecastProfileMetaText(p,"cadence",p._forecastProbability||0,p._forecastReason||"" )});
   });
 
   return {
     todayIncluded:todayIncluded,pastDays:completedDays,pastSpent:round2(pastSpent),pastDiscretionary:0,
     actualSpentSoFar:round2(actualSpentSoFar),knownSpent:round2(actualSpentSoFar),
     avgSpentPerDay:futureDays>0?expectedFutureTotal/futureDays:null,stillBlending:false,currentWeight:1,historyDays:0,
-    daysToEstimate:futureDays,scheduledUpcoming:scheduledUpcoming,remainingVariableToday:0,
+    daysToEstimate:futureDays,scheduledUpcoming:scheduledUpcoming,remainingVariableToday:0,safeReserveFuture:safeReserveFuture,
     hasForecast:hasForecast,projectedSpend:projectedSpend,forecastValues:forecastValues,
     rangeLow:rangeLow==null?null:round2(rangeLow),rangeHigh:rangeHigh==null?null:round2(rangeHigh),
     remainingForecast:round2(Math.max(0,projectedSpend-actualSpentSoFar)),forecastBreakdown:breakdown,
@@ -4160,11 +4187,18 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
       detailRows.forEach(function(x,i){
         var tag=x.kind==='scheduled'?'Scheduled':(x.kind==='cadence'?'Cadence':(x.kind==='frequent'?'Frequent':'Behavior'));
         var evidence=x.metaText?('<div class="muted caption" style="margin-top:2px;white-space:normal;">'+esc(x.metaText)+'</div>'):'';
-        s += '<div class="row between" style="padding:9px 0;gap:12px;'+(i?'border-top:1px solid var(--sep);':'')+'"><div style="min-width:0;flex:1;"><div class="subhead" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.label)+'</div><div class="muted caption">'+tag+'</div>'+evidence+'</div><div class="mono subhead" style="font-weight:650;flex-shrink:0;">'+fmt(x.amount,0)+' AED</div></div>';
+        var cadenceMetrics='';
+        if(x.kind==='cadence'){
+          cadenceMetrics='<div class="row gap2" style="margin-top:5px;flex-wrap:wrap;"><span class="caption" style="font-weight:650;">'+Math.round(Math.max(0,Math.min(1,x.probability||0))*100)+'% chance</span><span class="muted caption">·</span><span class="caption">Likely txn '+fmt(x.likelyAmount||0,0)+' AED</span></div>';
+        }
+        var rightLabel=x.kind==='cadence'?'<div class="muted caption" style="text-align:right;margin-top:1px;">expected</div>':'';
+        s += '<div class="row between" style="padding:9px 0;gap:12px;'+(i?'border-top:1px solid var(--sep);':'')+'"><div style="min-width:0;flex:1;"><div class="subhead" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.label)+'</div><div class="muted caption">'+tag+'</div>'+evidence+cadenceMetrics+'</div><div style="flex-shrink:0;"><div class="mono subhead" style="font-weight:650;text-align:right;">'+fmt(x.amount,0)+' AED</div>'+rightLabel+'</div></div>';
       });
       satisfiedRows.forEach(function(x){
         if ((x.amount||0) >= 5) return;
-        s += '<div class="row between" style="padding:9px 0;gap:12px;border-top:1px solid var(--sep);"><div style="min-width:0;flex:1;"><div class="subhead" style="font-weight:600;">'+esc(x.label)+'</div><div class="muted caption" style="white-space:normal;">'+esc(x.metaText||('Recent event · typical repeat '+Number(x.gap).toFixed(1)+' days'))+'</div></div><div class="mono subhead muted">0 AED</div></div>';
+        var pPct=Math.round(Math.max(0,Math.min(1,x.probability||0))*100);
+        var extra=(x.likelyAmount||0)>0?('<div class="row gap2" style="margin-top:5px;flex-wrap:wrap;"><span class="caption" style="font-weight:650;">'+pPct+'% chance</span><span class="muted caption">·</span><span class="caption">Likely txn '+fmt(x.likelyAmount,0)+' AED</span></div>'):'';
+        s += '<div class="row between" style="padding:9px 0;gap:12px;border-top:1px solid var(--sep);"><div style="min-width:0;flex:1;"><div class="subhead" style="font-weight:600;">'+esc(x.label)+'</div><div class="muted caption" style="white-space:normal;">'+esc(x.metaText||('Recent event · typical repeat '+Number(x.gap).toFixed(1)+' days'))+'</div>'+extra+'</div><div><div class="mono subhead muted" style="text-align:right;">0 AED</div><div class="muted caption" style="text-align:right;">expected</div></div></div>';
       });
       s += '</div>';
     }
