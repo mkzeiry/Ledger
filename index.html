@@ -1073,57 +1073,108 @@ function expenseCountsForScope(it, scope) {
 function rowSpentForScope(r, scope) {
   return (r.items||[]).reduce(function(s,it){ return expenseCountsForScope(it, scope) ? s+it.amount : s; }, 0);
 }
+function discretionarySpentInRow(r, scope) {
+  return (r && r.items ? r.items : []).reduce(function(sum,it){
+    return (expenseCountsForScope(it, scope) && !it.recurringId) ? sum + it.amount : sum;
+  }, 0);
+}
 function discretionarySpentInRows(rows, scope) {
-  var sum = 0;
-  (rows||[]).forEach(function(r){
-    (r.items||[]).forEach(function(it){
-      if (expenseCountsForScope(it, scope) && !it.recurringId) sum += it.amount;
-    });
-  });
-  return sum;
+  return (rows||[]).reduce(function(sum,r){ return sum + discretionarySpentInRow(r, scope); }, 0);
 }
 
-/* Total of all plan occurrences falling after `afterStr` and on/through
-   `throughStr` — i.e. money already committed but not yet logged. Paused
-   plans are excluded since they won't fire. Capped defensively like the
-   catch-up loop so a daily plan over a long horizon can't spin. */
-function scheduledAmountInRange(afterStr, throughStr, scope) {
-  var rules = state.settings.recurringRules || [];
-  var total = 0;
-  rules.forEach(function(rule){
+/* Future recurring expenses are deterministic, so keep them on their real due
+   dates instead of smearing them into the variable-spend pace. This is used by
+   both the point forecast and the chart's future cumulative path. */
+function scheduledExpenseByDate(afterStr, throughStr, scope) {
+  var out = {};
+  (state.settings.recurringRules||[]).forEach(function(rule){
     if (!rule.active || rule.entryKind === "income") return;
     if (scope === "budget" && categoryExcludedFromBudget(rule.category)) return;
-    var n = rule.occurrencesLogged || 0;
-    var guard = 0;
+    var n = rule.occurrencesLogged || 0, guard = 0;
     while (guard < 500) {
       if (rule.occurrencesTotal != null && n >= rule.occurrencesTotal) break;
       var due = recurringOccurrenceDate(rule, n);
       if (due > throughStr) break;
       if (rule.endDate && due > rule.endDate) break;
-      if (due > afterStr) total += ruleOccurrenceAmount(rule, n);
+      if (due > afterStr) out[due] = round2((out[due]||0) + ruleOccurrenceAmount(rule,n));
       n++; guard++;
     }
   });
+  return out;
+}
+function scheduledAmountInRange(afterStr, throughStr, scope) {
+  var m = scheduledExpenseByDate(afterStr, throughStr, scope), total = 0;
+  Object.keys(m).forEach(function(k){ total += m[k]; });
   return round2(total);
 }
 
-/* Average daily discretionary spend over recent history — the fallback/blending
-   pace for forecasting when a new period doesn't have (much) local data yet.
-   Capped to the last 60 days rather than all of tracked history: an old,
-   long-unused stretch (say, trackingStartDate set months before regular use
-   began) shouldn't drag today's forecast toward a near-zero pace that no
-   longer reflects anything real. */
-function overallAvgDailySpend(scope) {
-  var entryDatesAll = Object.keys(state.entries).sort();
-  var firstEntry = entryDatesAll.length ? entryDatesAll[0] : todayStr();
-  var naturalAnchor = scope === "budget" ? (state.settings.trackingStartDate || firstEntry) : firstEntry;
-  var yesterday = toStr(addDays(parseD(todayStr()), -1));
-  if (naturalAnchor > yesterday) return null;
-  var windowFloor = toStr(addDays(parseD(yesterday), -59));
-  var anchor = naturalAnchor > windowFloor ? naturalAnchor : windowFloor;
-  var histStats = periodStatsOverall(anchor, yesterday);
-  if (histStats.elapsedDays <= 0 || histStats.loggedCount <= 0) return null;
-  return discretionarySpentInRows(histStats.rows, scope || "overall") / histStats.elapsedDays;
+/* Robust weighted stats for daily variable spend. The outer 10% is winsorised
+   when enough observations exist, which prevents one large phone/furniture/etc.
+   purchase from teaching the forecast that every future day will look like it.
+   Weighting is then applied after clipping, so recent observations can matter
+   more without restoring the influence of the outlier. */
+function robustWeightedStats(samples) {
+  var a = (samples||[]).filter(function(s){ return s && isFinite(s.value) && s.value >= 0; });
+  if (!a.length) return null;
+  var sorted = a.map(function(s){return s.value;}).sort(function(x,y){return x-y;});
+  var lo = sorted[0], hi = sorted[sorted.length-1];
+  if (sorted.length >= 5) {
+    lo = sorted[Math.floor((sorted.length-1)*0.10)];
+    hi = sorted[Math.ceil((sorted.length-1)*0.90)];
+  }
+  var wt=0, sum=0, clipped=[];
+  a.forEach(function(s){
+    var v=Math.max(lo,Math.min(hi,s.value));
+    var w=(s.weight!=null && s.weight>0)?s.weight:1;
+    clipped.push({value:v,weight:w}); wt+=w; sum+=v*w;
+  });
+  if (wt<=0) return null;
+  var mean=sum/wt, absDev=0;
+  clipped.forEach(function(s){ absDev += Math.abs(s.value-mean)*s.weight; });
+  absDev/=wt;
+  return { mean:mean, dev:absDev*1.25, count:a.length };
+}
+
+/* Eight weeks of history before the CURRENT period provide weekday-specific
+   baselines. Recency has a 28-day half-life, so last week's Friday matters more
+   than a Friday seven weeks ago. The current period is intentionally excluded
+   here because it gets its own explicit weight in the blend below. */
+function historicalVariableProfile(scope, periodStart) {
+  scope = scope || "overall";
+  var entryDatesAll=Object.keys(state.entries).sort();
+  var firstEntry=entryDatesAll.length?entryDatesAll[0]:todayStr();
+  var naturalAnchor=scope==="budget"?(state.settings.trackingStartDate||firstEntry):firstEntry;
+  var histEnd=toStr(addDays(parseD(periodStart),-1));
+  if (naturalAnchor>histEnd) return {overall:null,byDow:[null,null,null,null,null,null,null],days:0};
+  var floor=toStr(addDays(parseD(histEnd),-55));
+  var histStart=naturalAnchor>floor?naturalAnchor:floor;
+  var rows=periodStatsOverall(histStart,histEnd).rows;
+  var all=[], byDow=[[],[],[],[],[],[],[]];
+  rows.forEach(function(r){
+    var age=Math.max(0,daysBetween(r.date,histEnd));
+    var weight=Math.pow(0.5,age/28);
+    var sample={value:discretionarySpentInRow(r,scope),weight:weight};
+    all.push(sample); byDow[parseD(r.date).getDay()].push(sample);
+  });
+  return {
+    overall:robustWeightedStats(all),
+    byDow:byDow.map(function(x){var st=robustWeightedStats(x);return st&&st.count>=2?st:null;}),
+    days:rows.length
+  };
+}
+
+/* Returns the expected unscheduled spend for one future date. Current-period
+   behavior gains weight naturally as completed days accumulate; seven prior
+   days are the intuitive amount of evidence needed for a 50/50 split. */
+function expectedVariableForDate(ds, currentStats, currentWeight, historyProfile) {
+  var hist=(historyProfile.byDow&&historyProfile.byDow[parseD(ds).getDay()])||historyProfile.overall;
+  if (currentStats && hist) return {
+    mean:currentStats.mean*currentWeight + hist.mean*(1-currentWeight),
+    dev:currentStats.dev*currentWeight + hist.dev*(1-currentWeight)
+  };
+  if (currentStats) return {mean:currentStats.mean,dev:currentStats.dev};
+  if (hist) return {mean:hist.mean,dev:hist.dev};
+  return null;
 }
 
 /* The real start of a range once trackingStartDate clips it — e.g. a "This
@@ -2962,7 +3013,7 @@ function renderDailyBarChart(buckets, getValue, getColor, T, refLine, selectedKe
 
 /* Shared by renderForecastChart and wireForecastChart, mirroring
    balanceChartGeom's role for the Home page chart. */
-function forecastChartGeom(rows, totalDays, target, projectedSpend, compareValues, pastDays) {
+function forecastChartGeom(rows, totalDays, target, projectedSpend, compareValues, pastDays, forecastValues) {
   var w=340, h=190, padL=44, padR=8, padT=24, padB=20;
   var plotW=w-padL-padR, plotH=h-padT-padB;
   var n = Math.max(totalDays, 2);
@@ -2971,7 +3022,8 @@ function forecastChartGeom(rows, totalDays, target, projectedSpend, compareValue
   rows.forEach(function(r){ acc += r.spent; actualVals.push(acc); });
   var compareMax = (compareValues && compareValues.length) ? Math.max.apply(null, compareValues) : 0;
   var targetVal = target == null ? 0 : target;
-  var maxY = Math.max(targetVal, projectedSpend, actualVals.length ? Math.max.apply(null, actualVals) : 0, compareMax, 1);
+  var forecastMax = (forecastValues && forecastValues.length) ? Math.max.apply(null, forecastValues.filter(function(v){return v!=null;})) : 0;
+  var maxY = Math.max(targetVal, projectedSpend, actualVals.length ? Math.max.apply(null, actualVals) : 0, compareMax, forecastMax, 1);
   function yAt(v){ return padT + plotH - (v/maxY)*plotH; }
   var lastIdx = actualVals.length - 1;
   var lastVal = actualVals.length ? actualVals[actualVals.length-1] : 0;
@@ -2987,8 +3039,9 @@ function forecastChartGeom(rows, totalDays, target, projectedSpend, compareValue
    interpolated along the straight projected segment beyond it — lets the
    scrub tooltip report a sensible number no matter where on the axis the
    finger lands. */
-function forecastValueAt(g, idx, projectedSpend) {
+function forecastValueAt(g, idx, projectedSpend, forecastValues) {
   if (idx <= g.lastIdx && g.actualVals.length) return g.actualVals[Math.max(0,idx)];
+  if (forecastValues && forecastValues[idx] != null) return forecastValues[idx];
   if (g.n-1 === g.knownIdx) return g.knownVal;
   var frac = (idx - g.knownIdx) / ((g.n-1) - g.knownIdx);
   return g.knownVal + (projectedSpend - g.knownVal) * frac;
@@ -3001,17 +3054,25 @@ function forecastValueAt(g, idx, projectedSpend) {
    projection (as some budget apps show) would imply spending stops entirely;
    a straight line to the real forecast total is the honest version of the
    same picture. */
-function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel, compareValues, pastDays, hasForecast) {
-  var g = forecastChartGeom(rows, totalDays, target, projectedSpend, compareValues, pastDays);
+function renderForecastChart(rows, totalDays, target, projectedSpend, T, refLabel, compareValues, pastDays, hasForecast, forecastValues) {
+  var g = forecastChartGeom(rows, totalDays, target, projectedSpend, compareValues, pastDays, forecastValues);
   var w=g.w, h=g.h, padL=g.padL, padR=g.padR, padT=g.padT, padB=g.padB, n=g.n;
   var xAt=g.xAt, yAt=g.yAt, maxY=g.maxY, actualVals=g.actualVals, lastIdx=g.lastIdx;
   var actualPts = actualVals.map(function(v,i){ return [xAt(i), yAt(v)]; });
   var curveD = actualPts.length >= 2 ? smoothPathD(actualPts) : (actualPts.length===1 ? ("M "+actualPts[0][0]+","+actualPts[0][1]) : "");
   var areaD = curveD ? (curveD+" L "+xAt(Math.max(0,lastIdx))+","+yAt(0)+" L "+xAt(0)+","+yAt(0)+" Z") : "";
   var forecastD = "", todayMarker = "";
-  var daysToEstimateLocal = totalDays - (pastDays||0);
-  if (rows.length > 0 && daysToEstimateLocal > 0) {
-    if (hasForecast) forecastD = 'M '+xAt(g.knownIdx)+','+yAt(g.knownVal)+' L '+xAt(n-1)+','+yAt(projectedSpend);
+  var daysToEstimateLocal = totalDays - rows.length;
+  if (rows.length > 0 && (daysToEstimateLocal > 0 || hasForecast)) {
+    if (hasForecast) {
+      var fp=[];
+      if (lastIdx>=0) fp.push([xAt(lastIdx),yAt(actualVals[lastIdx]||0)]);
+      for (var fpi=lastIdx+1; fpi<n; fpi++) {
+        var fv=(forecastValues&&forecastValues[fpi]!=null)?forecastValues[fpi]:forecastValueAt(g,fpi,projectedSpend,forecastValues);
+        fp.push([xAt(fpi),yAt(fv)]);
+      }
+      if (fp.length>=2) forecastD=fp.reduce(function(d,p,i){return d+(i===0?'M ':' L ')+p[0]+','+p[1];},'');
+    }
     todayMarker = '<line x1="'+xAt(lastIdx)+'" x2="'+xAt(lastIdx)+'" y1="'+padT+'" y2="'+(h-padB)+'" stroke="'+T.hairline+'" stroke-dasharray="2,2"/>'
       + '<text x="'+xAt(lastIdx)+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="middle">Today</text>';
   }
@@ -3055,7 +3116,7 @@ function wireForecastChart(data) {
   var dot = document.getElementById("forecastChartDot");
   var tip = document.getElementById("forecastChartTip");
   if (!svg || !hit || !crosshair || !dot || !tip || !data) return;
-  var g = forecastChartGeom(data.rows, data.totalDays, data.target, data.projectedSpend, data.compareValues, data.pastDays);
+  var g = forecastChartGeom(data.rows, data.totalDays, data.target, data.projectedSpend, data.compareValues, data.pastDays, data.forecastValues);
   if (g.n < 2) return;
 
   function indexAt(clientX) {
@@ -3067,7 +3128,7 @@ function wireForecastChart(data) {
     return Math.max(0, Math.min(g.n-1, idx));
   }
   function showAt(idx) {
-    var val = forecastValueAt(g, idx, data.projectedSpend);
+    var val = forecastValueAt(g, idx, data.projectedSpend, data.forecastValues);
     var px = g.xAt(idx), py = g.yAt(val);
     crosshair.setAttribute("x1", px); crosshair.setAttribute("x2", px); crosshair.setAttribute("opacity", "1");
     dot.setAttribute("cx", px); dot.setAttribute("cy", py); dot.setAttribute("opacity", "1");
@@ -3219,14 +3280,10 @@ function buildAnalysisForecastCard(info, cs, T) {
   );
 }
 
-/* Single source of truth for the forecast's pace/projection math — shared
-   by the Forecasted Spend card and the Spend Trend chart's current-period
-   classification, so the two can never disagree about whether today is
-   genuinely trending over budget. Today is treated as a day still being
-   estimated, not a completed one: its spend-so-far isn't mistaken for its
-   final number, so a period's first day (no completed local days yet) is
-   projected purely from historical pace rather than a raw, unblended,
-   small-sample average of whatever's happened so far this period. */
+/* Single source of truth for the forecast. Actual spend to date is always
+   preserved exactly. Only the unscheduled remainder is estimated, using
+   weekday-aware recent history plus the current period's robust daily pace;
+   future recurring expenses are then added separately on their due dates. */
 function computeForecastNumbers(rows, totalDays, periodStart, scope) {
   if (!rows.length) return null;
   scope = scope || "overall";
@@ -3234,42 +3291,96 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
   var todayIncluded = rows[rows.length-1].date === today;
   var todayRow = todayIncluded ? rows[rows.length-1] : null;
   var pastRows = todayIncluded ? rows.slice(0, rows.length-1) : rows.slice();
-  var pastDays = pastRows.length;
-  var pastSpent = pastRows.reduce(function(s,r){ return s+rowSpentForScope(r,scope); }, 0);
-  var pastDiscretionary = discretionarySpentInRows(pastRows, scope);
-  var todayScheduledSpent = todayRow ? (todayRow.items||[]).reduce(function(s,it){
-    return (expenseCountsForScope(it,scope) && it.recurringId) ? s+it.amount : s;
-  }, 0) : 0;
-  var actualSpentSoFar = pastSpent + (todayRow ? rowSpentForScope(todayRow,scope) : 0);
-  var knownSpent = pastSpent + todayScheduledSpent;
-  var historicalAvg = overallAvgDailySpend(scope);
-  var BLEND_K = historicalAvg !== null ? 3 : 0;
-  var blendDenom = pastDays + BLEND_K;
-  var avgSpentPerDay = blendDenom > 0 ? ((pastDiscretionary + (historicalAvg !== null ? historicalAvg*BLEND_K : 0)) / blendDenom) : null;
-  var stillBlending = historicalAvg !== null && pastDays < BLEND_K;
-  var daysToEstimate = Math.max(0, totalDays - pastDays);
-  var periodEnd = toStr(addDays(parseD(periodStart), totalDays-1));
-  var scheduledUpcoming = daysToEstimate > 0 ? scheduledAmountInRange(toStr(addDays(parseD(today), -1)), periodEnd, scope) : 0;
-  var hasForecast = daysToEstimate > 0 && (avgSpentPerDay !== null || scheduledUpcoming > 0);
-  var projectedSpend = hasForecast ? (knownSpent + (avgSpentPerDay || 0) * daysToEstimate + scheduledUpcoming) : actualSpentSoFar;
+  var completedDays = pastRows.length;
+  var actualSpentSoFar = rows.reduce(function(s,r){ return s+rowSpentForScope(r,scope); },0);
+  var pastSpent = pastRows.reduce(function(s,r){ return s+rowSpentForScope(r,scope); },0);
+  var pastDiscretionary = discretionarySpentInRows(pastRows,scope);
+
+  /* Current-period pace is itself robust to outlier days. History is the prior
+     eight weeks, weekday-aware and recency-weighted. As completed days build up,
+     current behavior naturally takes over: days/(days+7). */
+  var currentStats = robustWeightedStats(pastRows.map(function(r){ return {value:discretionarySpentInRow(r,scope),weight:1}; }));
+  var currentWeight = currentStats ? completedDays/(completedDays+7) : 0;
+  var historyProfile = historicalVariableProfile(scope,periodStart);
+
+  var periodEnd=toStr(addDays(parseD(periodStart),totalDays-1));
+  var futureScheduledByDate = scheduledExpenseByDate(today,periodEnd,scope);
+  var scheduledUpcoming=0;
+  Object.keys(futureScheduledByDate).forEach(function(k){scheduledUpcoming+=futureScheduledByDate[k];});
+  scheduledUpcoming=round2(scheduledUpcoming);
+
+  var futureDays=Math.max(0,totalDays-rows.length);
+  var todayVariableActual=todayRow?discretionarySpentInRow(todayRow,scope):0;
+  var todayExpected=todayIncluded?expectedVariableForDate(today,currentStats,currentWeight,historyProfile):null;
+  var remainingVariableToday=(todayExpected&&todayExpected.mean>todayVariableActual)?todayExpected.mean-todayVariableActual:0;
+
+  var projectedSpend=actualSpentSoFar+remainingVariableToday;
+  var uncertaintySq=0, expectedFutureTotal=remainingVariableToday;
+  if (todayExpected && remainingVariableToday>0) uncertaintySq+=todayExpected.dev*todayExpected.dev;
+
+  /* Build a cumulative future path so scheduled bills land on their actual date
+     instead of the chart drawing a generic straight line to the final number. */
+  var forecastValues=[];
+  var running=0;
+  rows.forEach(function(r,i){ running+=rowSpentForScope(r,scope); forecastValues[i]=round2(running); });
+  var futureRunning=actualSpentSoFar+remainingVariableToday;
+  for (var fi=rows.length; fi<totalDays; fi++) {
+    var ds=toStr(addDays(parseD(periodStart),fi));
+    var exp=expectedVariableForDate(ds,currentStats,currentWeight,historyProfile);
+    var variable=exp?Math.max(0,exp.mean):0;
+    var scheduled=futureScheduledByDate[ds]||0;
+    expectedFutureTotal+=variable;
+    futureRunning+=variable+scheduled;
+    if(exp) uncertaintySq+=exp.dev*exp.dev;
+    forecastValues[fi]=round2(futureRunning);
+  }
+  if (futureDays>0) projectedSpend=futureRunning+0;
+  else projectedSpend=actualSpentSoFar+remainingVariableToday;
+  projectedSpend=round2(projectedSpend);
+
+  var hasPace=!!(currentStats||historyProfile.overall);
+  var hasForecast=(todayIncluded||futureDays>0) && (hasPace||scheduledUpcoming>0||remainingVariableToday>0);
+  if(!hasForecast) projectedSpend=actualSpentSoFar;
+
+  /* The subtle likely range is deliberately not presented as a statistical
+     confidence interval. It is a practical variability band based on the
+     robust day-to-day deviations of the remaining variable-spend days. */
+  var uncertainty=Math.sqrt(Math.max(0,uncertaintySq));
+  var rangeReady=uncertainty>0 && ((historyProfile.overall&&historyProfile.overall.count>=7)||(currentStats&&currentStats.count>=5));
+  var exactFloor=actualSpentSoFar+scheduledUpcoming;
+  var rangeLow=rangeReady?Math.max(exactFloor,projectedSpend-1.25*uncertainty):null;
+  var rangeHigh=rangeReady?projectedSpend+1.25*uncertainty:null;
+
+  var remainingEstimateDays=futureDays+(todayIncluded?1:0);
+  var avgSpentPerDay=remainingEstimateDays>0?expectedFutureTotal/remainingEstimateDays:(currentStats?currentStats.mean:(historyProfile.overall?historyProfile.overall.mean:null));
+  var stillBlending=!!(currentStats&&historyProfile.overall&&currentWeight<0.7);
+
   return {
-    todayIncluded:todayIncluded, pastDays:pastDays, pastSpent:pastSpent,
-    pastDiscretionary:pastDiscretionary, actualSpentSoFar:actualSpentSoFar,
-    knownSpent:knownSpent, avgSpentPerDay:avgSpentPerDay, stillBlending:stillBlending,
-    daysToEstimate:daysToEstimate, scheduledUpcoming:scheduledUpcoming,
-    hasForecast:hasForecast, projectedSpend:projectedSpend
+    todayIncluded:todayIncluded,
+    pastDays:completedDays,
+    pastSpent:pastSpent,
+    pastDiscretionary:pastDiscretionary,
+    actualSpentSoFar:round2(actualSpentSoFar),
+    knownSpent:round2(actualSpentSoFar),
+    avgSpentPerDay:avgSpentPerDay,
+    stillBlending:stillBlending,
+    currentWeight:currentWeight,
+    historyDays:historyProfile.days,
+    daysToEstimate:remainingEstimateDays,
+    scheduledUpcoming:scheduledUpcoming,
+    remainingVariableToday:round2(remainingVariableToday),
+    hasForecast:hasForecast,
+    projectedSpend:projectedSpend,
+    forecastValues:forecastValues,
+    rangeLow:rangeLow==null?null:round2(rangeLow),
+    rangeHigh:rangeHigh==null?null:round2(rangeHigh)
   };
 }
 
-/* Builds the entire Forecasted Spend card — header, badge, chart, and any
-   footnote — shared by Home and Analysis so the two can't drift apart or
-   disagree on a number. Pace blends this period's own elapsed days with the
-   overall historical daily average, weighted by a simple shrinkage estimator:
-   avg = (local spend + historicalAvg*K) / (local days + K). On day 1 that's
-   pure history (0 local days); as local days accumulate they count for more,
-   and once local days reach K the historical average barely matters anymore.
-   This avoids both a flat, useless day-1 projection AND an abrupt full
-   switchover the moment a single local day exists. */
+/* Builds the shared forecast card. Variable spending is estimated with an
+   explainable hybrid: recent same-weekday history (8 weeks, recency weighted
+   and outlier-resistant) blended with the current period's completed-day pace.
+   Scheduled expenses remain exact and land on their real dates. */
 function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, periodWord, compareRows, scope) {
   if (!rows.length) return "";
   scope = scope || "overall";
@@ -3280,7 +3391,8 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   var fc = computeForecastNumbers(rows, totalDays, periodStart, scope);
   var todayIncluded = fc.todayIncluded, pastDays = fc.pastDays, pastDiscretionary = fc.pastDiscretionary,
       avgSpentPerDay = fc.avgSpentPerDay, stillBlending = fc.stillBlending, daysToEstimate = fc.daysToEstimate,
-      scheduledUpcoming = fc.scheduledUpcoming, hasForecast = fc.hasForecast, projectedSpend = fc.projectedSpend;
+      scheduledUpcoming = fc.scheduledUpcoming, hasForecast = fc.hasForecast, projectedSpend = fc.projectedSpend,
+      forecastValues = fc.forecastValues, rangeLow = fc.rangeLow, rangeHigh = fc.rangeHigh;
   var hasTarget = target != null;
   var projectedSaved = hasTarget ? target - projectedSpend : null;
   var actualSoFar = fc.actualSpentSoFar;
@@ -3308,7 +3420,9 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   var s = '<div class="card card-pad" style="margin-bottom:16px;">';
   s += '<div class="eyebrow" style="margin-bottom:10px;">Forecasted '+(scope==="budget"?"budget spend":"total spend")+'</div>';
   s += '<div class="row between" style="align-items:flex-start; margin-bottom:14px;">';
-  s += '<div><div class="muted caption">THIS '+esc(periodWord.toUpperCase())+'</div><div class="mono" style="font-size:22px; font-weight:700; margin-top:2px;">'+fmt(projectedSpend,0)+' AED</div></div>';
+  s += '<div><div class="muted caption">THIS '+esc(periodWord.toUpperCase())+'</div><div class="mono" style="font-size:22px; font-weight:700; margin-top:2px;">'+fmt(projectedSpend,0)+' AED</div>';
+  if (rangeLow != null && rangeHigh != null) s += '<div class="muted caption" style="margin-top:3px;">Likely range '+fmt(rangeLow,0)+'–'+fmt(rangeHigh,0)+' AED</div>';
+  s += '</div>';
   if (hasTarget) {
     s += '<div style="text-align:right;"><div class="muted caption">VS '+esc((refLabel||"Budget").toUpperCase())+'</div>';
     s += '<div class="chip" style="margin-top:4px; background:'+forecastStatusBg+'; color:'+forecastStatusColor+'; font-weight:700;">'+(vsBudgetPct>=0?'+':'')+vsBudgetPct+'%</div>';
@@ -3322,7 +3436,7 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   s += '</div>';
   s += '<div id="forecastChartWrap" style="position:relative;">';
   s += '<div id="forecastChartTip" class="mono footnote" style="position:absolute; top:0; left:0; background:var(--fill); border-radius:8px; padding:4px 9px; max-width:250px; opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:2;"></div>';
-  s += renderForecastChart(scopedRows, totalDays, target, projectedSpend, T, refLabel, compareValues, pastDays, hasForecast);
+  s += renderForecastChart(scopedRows, totalDays, target, projectedSpend, T, refLabel, compareValues, pastDays, hasForecast, forecastValues);
   s += '</div>';
   if (compareValues) {
     s += '<div class="row gap2" style="margin-top:10px; flex-wrap:wrap;">'+legendSwatch(T.positive,"Actual")+legendSwatch(T.accent,"Projected")+legendSwatch(T.textMuted,compareLabel)+'</div>';
@@ -3331,13 +3445,13 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   if (compareUnavailableNote) notes.push(compareUnavailableNote);
   if (!hasForecast) notes.push(daysToEstimate<=0 ? "Period is complete — nothing left to forecast." : "Log a few days to start forecasting.");
   else {
-    if (todayIncluded) notes.push("Today isn't finished yet, so it is estimated from your pace rather than today's spend so far.");
-    if (scheduledUpcoming > 0) notes.push("Includes "+fmt(scheduledUpcoming,0)+" AED of scheduled expenses still to come.");
-    if (stillBlending) notes.push(pastDiscretionary>0 ? "Day-to-day pace is blended with your recent average for now." : "No day-to-day spending logged yet this "+periodWord+" — pace blended from your recent average.");
+    if (todayIncluded) notes.push("Today uses actual spend so far; only the remaining variable portion is estimated.");
+    if (scheduledUpcoming > 0) notes.push("Includes "+fmt(scheduledUpcoming,0)+" AED of scheduled expenses on their actual due dates.");
+    if (stillBlending) notes.push("Variable spend blends this "+periodWord+"'s pace with recent same-weekday history.");
   }
   notes.forEach(function(n){ s += '<div class="muted caption" style="margin-top:8px;">'+esc(n)+'</div>'; });
   s += '</div>';
-  lastForecastChartData = { rows:scopedRows, totalDays:totalDays, target:target, projectedSpend:projectedSpend, start:periodStart, compareValues:compareValues, compareLabel:compareLabel, pastDays:pastDays };
+  lastForecastChartData = { rows:scopedRows, totalDays:totalDays, target:target, projectedSpend:projectedSpend, start:periodStart, compareValues:compareValues, compareLabel:compareLabel, pastDays:pastDays, forecastValues:forecastValues };
   return s;
 }
 
