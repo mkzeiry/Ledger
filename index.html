@@ -33,17 +33,29 @@
   #root { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; min-height: var(--vh100, 100dvh); }
   .wrap {
     flex: 1 0 auto; max-width: 460px; width: 100%; margin: 0 auto; box-sizing: border-box;
-    padding: calc(env(safe-area-inset-top, 0px) + 8px) 16px calc(env(safe-area-inset-bottom, 0px) + 92px);
+    /* The primary sticky header owns the top safe area. Keeping the wrapper at
+       zero top padding prevents scrolled page content from ever appearing
+       above the header under the iPhone status bar. */
+    padding: 0 16px calc(env(safe-area-inset-bottom, 0px) + 92px);
   }
-  /* Persistent app chrome on the primary tabs. It remains below the iOS
-     status area while the content scrolls beneath it. */
+  /* Persistent app chrome on the primary tabs. It covers the complete iOS
+     safe-area/status-bar region, while the visible controls sit below it. */
   .app-topbar {
-    position:sticky; top:env(safe-area-inset-top, 0px); z-index:38;
-    margin:-8px -16px 14px; padding:8px 16px 10px; min-height:58px;
-    display:flex; align-items:center; justify-content:space-between; gap:12px;
-    background:color-mix(in srgb, var(--bg) 90%, transparent);
-    -webkit-backdrop-filter:saturate(180%) blur(18px); backdrop-filter:saturate(180%) blur(18px);
+    position:sticky; top:0; z-index:38;
+    margin:0 -16px 14px;
+    padding:calc(env(safe-area-inset-top, 0px) + 8px) 16px 10px;
+    min-height:calc(env(safe-area-inset-top, 0px) + 66px);
+    display:flex; align-items:flex-end; justify-content:space-between; gap:12px;
+    background:color-mix(in srgb, var(--bg) 96%, transparent);
+    -webkit-backdrop-filter:saturate(180%) blur(22px); backdrop-filter:saturate(180%) blur(22px);
     border-bottom:1px solid color-mix(in srgb, var(--sep) 70%, transparent);
+    isolation:isolate;
+  }
+  /* Opaque safe-area cap: Safari can otherwise reveal scrolled content through
+     the translucent portion behind the status bar during momentum scrolling. */
+  .app-topbar::before {
+    content:""; position:absolute; z-index:-1; left:0; right:0; top:0;
+    height:env(safe-area-inset-top, 0px); background:var(--bg);
   }
   @supports not (background: color-mix(in srgb, black, white)) { .app-topbar { background:var(--bg); } }
   .row { display: flex; align-items: center; }
