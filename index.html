@@ -118,26 +118,16 @@
   }
   .field:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  /* Light mode needs stronger surface separation than dark mode. The darker
-     fill token does most of the work; these hairlines add just enough edge
-     definition for large amount/date fields and grouped controls without
-     turning the UI into a boxy web form. */
-  :root[data-theme="light"] .field { border:1px solid var(--hairline); }
-  :root[data-theme="light"] .card,
-  :root[data-theme="light"] .settings-list,
-  :root[data-theme="light"] .taxonomy-list,
-  :root[data-theme="light"] .taxonomy-hero,
-  :root[data-theme="light"] .taxonomy-form-card {
-    box-shadow:0 0 0 1px rgba(17,19,26,0.035);
-  }
+  /* Light mode uses fill contrast rather than outlines. The stronger light
+     fill/raised tokens keep controls visible while preserving the clean,
+     borderless iOS-style surfaces used by dark mode. */
+  :root[data-theme="light"] .field,
   :root[data-theme="light"] .seg,
   :root[data-theme="light"] .icon-btn,
   :root[data-theme="light"] .btn-outline,
   :root[data-theme="light"] .txn-entry-back,
   :root[data-theme="light"] .settings-back,
-  :root[data-theme="light"] .settings-header-action {
-    box-shadow:inset 0 0 0 1px rgba(17,19,26,0.045);
-  }
+  :root[data-theme="light"] .settings-header-action { border:none; box-shadow:none; }
 
   .btn-accent { background: var(--accent); color: var(--accent-ink); font-weight:700; letter-spacing:-0.015em; border:none; border-radius:13px; padding:13px 16px; font-size:16px; }
   .btn-accent:disabled { opacity:0.4; }
@@ -1160,7 +1150,7 @@ function robustWeightedStats(samples) {
    baselines. Recency has a 28-day half-life, so last week's Friday matters more
    than a Friday seven weeks ago. The current period is intentionally excluded
    here because it gets its own explicit weight in the blend below. */
-function historicalVariableProfile(scope, periodStart) {
+function historicalVariableProfile(scope, periodStart, excludedSet) {
   scope = scope || "overall";
   var entryDatesAll=Object.keys(state.entries).sort();
   var firstEntry=entryDatesAll.length?entryDatesAll[0]:todayStr();
@@ -1174,7 +1164,7 @@ function historicalVariableProfile(scope, periodStart) {
   rows.forEach(function(r){
     var age=Math.max(0,daysBetween(r.date,histEnd));
     var weight=Math.pow(0.5,age/28);
-    var sample={value:discretionarySpentInRow(r,scope),weight:weight};
+    var sample={value:discretionarySpentInRowExcluding(r,scope,excludedSet),weight:weight};
     all.push(sample); byDow[parseD(r.date).getDay()].push(sample);
   });
   return {
@@ -1196,6 +1186,211 @@ function expectedVariableForDate(ds, currentStats, currentWeight, historyProfile
   if (currentStats) return {mean:currentStats.mean,dev:currentStats.dev};
   if (hist) return {mean:hist.mean,dev:hist.dev};
   return null;
+}
+
+
+/* ---------------- transaction-frequency intelligence ----------------
+   Personal spending is event-like as well as pace-like. Fuel, haircuts and
+   maintenance should not be forecast as though they repeat every day just
+   because one happened recently. These helpers learn the spacing between
+   ACTIVE DAYS for each subcategory and a robust typical amount per occurrence.
+   Planned/recurring items are excluded from this model because their future
+   dates are already known exactly by scheduledExpenseByDate(). */
+function medianNumber(values) {
+  var a=(values||[]).filter(function(v){return isFinite(v);}).slice().sort(function(x,y){return x-y;});
+  if(!a.length) return null;
+  var m=Math.floor(a.length/2);
+  return a.length%2?a[m]:(a[m-1]+a[m])/2;
+}
+function subcategoryKey(it){ return (it && it.category) ? it.category : "__uncategorised__"; }
+/* Forecast person bucket: a split transaction is intentionally ONE shared
+   occurrence event rather than one event per person. This prevents a 50/50
+   grocery purchase from teaching the model that two grocery trips happened.
+   Non-split transactions keep their assigned person so repeat timing and
+   typical amount can become person-aware when enough history exists. */
+function forecastPersonBucket(it) {
+  if (it && it.personSplit && it.personSplit.length) return "__shared__";
+  return (it && it.person) ? it.person : "__unassigned__";
+}
+function forecastPairKey(it) { return subcategoryKey(it)+"||"+forecastPersonBucket(it); }
+function eventModelExcludesItem(it, exclusion) {
+  if (!exclusion) return false;
+  var sub=subcategoryKey(it);
+  if (exclusion.allSubcategories && exclusion.allSubcategories[sub]) return true;
+  if (exclusion.pairSet && exclusion.pairSet[forecastPairKey(it)]) return true;
+  /* Backward-compatible flat set shape. */
+  return exclusion[sub] === true;
+}
+function discretionarySpentInRowExcluding(r, scope, excludedSet) {
+  return (r && r.items ? r.items : []).reduce(function(sum,it){
+    return (expenseCountsForScope(it,scope) && !it.recurringId && !eventModelExcludesItem(it,excludedSet)) ? sum+it.amount : sum;
+  },0);
+}
+function buildOccurrenceProfile(key, label, daily, txnCount, meta) {
+  var dates=Object.keys(daily||{}).sort(), gaps=[];
+  for(var i=1;i<dates.length;i++){
+    var g=daysBetween(dates[i-1],dates[i]);
+    if(g>0) gaps.push(g);
+  }
+  var gap=medianNumber(gaps);
+  var deviations=gap==null?[]:gaps.map(function(g){return Math.abs(g-gap);});
+  var mad=medianNumber(deviations);
+  var amounts=dates.map(function(d){return daily[d];});
+  var typicalAmount=medianNumber(amounts);
+  var p={
+    key:key,label:label,activeDates:dates,activeDays:dates.length,txnCount:txnCount||0,
+    gap:gap,gapDev:mad==null?null:mad*1.4826,typicalAmount:typicalAmount||0,
+    lastDate:dates.length?dates[dates.length-1]:null,
+    eventMode:dates.length>=4 && (txnCount||0)>=4 && gaps.length>=3 && gap!=null && gap>=1.75 && typicalAmount>0
+  };
+  if(meta) Object.keys(meta).forEach(function(k){p[k]=meta[k];});
+  return p;
+}
+/* Builds a partitioned occurrence model. Preferred hierarchy:
+     1) Subcategory + person, when that pair has enough history.
+     2) A pooled residual profile for the remaining people, when THAT pool has
+        enough history.
+     3) Overall subcategory profile when no person-specific pair is mature.
+     4) Otherwise leave the spend to the general weekday/pace fallback.
+   This makes the model person-aware without double-counting a subcategory. */
+function variableOccurrenceProfiles(scope, asOfDate) {
+  scope=scope||"overall";
+  asOfDate=asOfDate||todayStr();
+  var entryDates=Object.keys(state.entries).sort();
+  var firstEntry=entryDates.length?entryDates[0]:asOfDate;
+  var naturalAnchor=scope==="budget"?(state.settings.trackingStartDate||firstEntry):firstEntry;
+  var floor=toStr(addDays(parseD(asOfDate),-364));
+  var start=naturalAnchor>floor?naturalAnchor:floor;
+  var maps={};
+  Object.keys(state.entries).forEach(function(ds){
+    if(ds<start||ds>asOfDate) return;
+    (state.entries[ds].items||[]).forEach(function(it){
+      if(!expenseCountsForScope(it,scope)||it.recurringId) return;
+      var sub=subcategoryKey(it), bucket=forecastPersonBucket(it);
+      if(!maps[sub]) maps[sub]={daily:{},txnCount:0,byPerson:{}};
+      maps[sub].daily[ds]=(maps[sub].daily[ds]||0)+it.amount;
+      maps[sub].txnCount++;
+      if(!maps[sub].byPerson[bucket]) maps[sub].byPerson[bucket]={daily:{},txnCount:0};
+      maps[sub].byPerson[bucket].daily[ds]=(maps[sub].byPerson[bucket].daily[ds]||0)+it.amount;
+      maps[sub].byPerson[bucket].txnCount++;
+    });
+  });
+
+  var selected=[], exclusions={allSubcategories:{},pairSet:{}}, allProfiles={}, personModeledCount=0, overallModeledCount=0;
+  Object.keys(maps).forEach(function(sub){
+    var m=maps[sub], label=sub==="__uncategorised__"?"Uncategorised":sub;
+    var overall=buildOccurrenceProfile(sub,label,m.daily,m.txnCount,{subcategory:sub,modelLevel:"subcategory"});
+    allProfiles[sub]={overall:overall,persons:{}};
+    var qualified=[], unqualifiedBuckets=[];
+    Object.keys(m.byPerson).forEach(function(bucket){
+      var pm=m.byPerson[bucket];
+      var prof=buildOccurrenceProfile(sub+"||"+bucket,label,pm.daily,pm.txnCount,{subcategory:sub,personBucket:bucket,modelLevel:"person"});
+      allProfiles[sub].persons[bucket]=prof;
+      if(prof.eventMode) qualified.push(prof); else unqualifiedBuckets.push(bucket);
+    });
+
+    if(qualified.length){
+      qualified.forEach(function(prof){
+        selected.push(prof); exclusions.pairSet[sub+"||"+prof.personBucket]=true; personModeledCount++;
+      });
+      /* Pool only the not-yet-mature person buckets. If that residual group is
+         itself repeatable, model it once. Otherwise those transactions remain
+         available to the weekday/pace fallback. */
+      if(unqualifiedBuckets.length){
+        var rd={}, rt=0;
+        unqualifiedBuckets.forEach(function(bucket){
+          var pm=m.byPerson[bucket]; rt+=pm.txnCount;
+          Object.keys(pm.daily).forEach(function(ds){rd[ds]=(rd[ds]||0)+pm.daily[ds];});
+        });
+        var residual=buildOccurrenceProfile(sub+"||__residual__",label,rd,rt,{subcategory:sub,personBucket:"__residual__",modelLevel:"residual"});
+        if(residual.eventMode){
+          selected.push(residual); overallModeledCount++;
+          unqualifiedBuckets.forEach(function(bucket){exclusions.pairSet[sub+"||"+bucket]=true;});
+        }
+      }
+    } else if(overall.eventMode) {
+      selected.push(overall); exclusions.allSubcategories[sub]=true; overallModeledCount++;
+    }
+  });
+  return {selected:selected,exclusions:exclusions,profiles:allProfiles,personModeledCount:personModeledCount,overallModeledCount:overallModeledCount};
+}
+
+/* Expected event spend by future date. Each selected profile is represented
+   as a probability distribution around its learned interval rather than a hard
+   exact next date. Person-specific profiles are used only when mature enough;
+   otherwise the hierarchy above falls back cleanly without duplicate events. */
+function expectedEventSpendByDate(scope, fromStr, throughStr) {
+  var model=variableOccurrenceProfiles(scope,fromStr), byDate={}, varianceByDate={}, modeledCount=0;
+  var horizonStart=parseD(fromStr), horizonEnd=parseD(throughStr);
+  (model.selected||[]).forEach(function(p){
+    if(!p.eventMode||!p.lastDate) return;
+    modeledCount++;
+    var gap=Math.max(1.75,p.gap), sigma=Math.max(.8,p.gapDev||0,gap*.18), radius=Math.ceil(3*sigma);
+    var center=addDays(parseD(p.lastDate),Math.max(1,Math.round(gap)));
+    if(toStr(center)<fromStr) center=parseD(fromStr);
+    var guard=0;
+    while(center<=addDays(horizonEnd,radius) && guard<200){
+      var denom=0, offsets=[];
+      for(var off=-radius;off<=radius;off++){
+        var w=Math.exp(-.5*Math.pow(off/sigma,2)); offsets.push({off:off,w:w}); denom+=w;
+      }
+      offsets.forEach(function(o){
+        var d=addDays(center,o.off), ds=toStr(d);
+        if(d<horizonStart||d>horizonEnd) return;
+        var prob=o.w/Math.max(denom,1e-9), amt=prob*p.typicalAmount;
+        byDate[ds]=(byDate[ds]||0)+amt;
+        varianceByDate[ds]=(varianceByDate[ds]||0)+prob*(1-prob)*p.typicalAmount*p.typicalAmount;
+      });
+      center=addDays(center,Math.max(1,Math.round(gap))); guard++;
+    }
+  });
+  return {
+    byDate:byDate,varianceByDate:varianceByDate,modeledSet:model.exclusions,modeledCount:modeledCount,
+    profiles:model.profiles,personModeledCount:model.personModeledCount||0,overallModeledCount:model.overallModeledCount||0
+  };
+}
+
+/* Frequency analytics shown in Analysis. This intentionally includes real
+   recurring-generated transactions because the question here is descriptive:
+   "how often does this category actually happen?" Forecasting still excludes
+   those same items from statistical inference because their future is known. */
+function activityFrequencyStats(opts, asOfDate) {
+  opts=opts||{}; asOfDate=asOfDate||todayStr();
+  var datesAll=Object.keys(state.entries).sort(), first=datesAll.length?datesAll[0]:asOfDate;
+  var floor=toStr(addDays(parseD(asOfDate),-364)), start=first>floor?first:floor;
+  var daily={}, txnCount=0;
+  Object.keys(state.entries).forEach(function(ds){
+    if(ds<start||ds>asOfDate) return;
+    (state.entries[ds].items||[]).forEach(function(it){
+      if(!isExpenseItem(it)) return;
+      if(opts.subcategory!=null && (it.category||"Uncategorised")!==opts.subcategory) return;
+      if(opts.group!=null && (categoryGroupOf(it.category)||"Ungrouped")!==opts.group) return;
+      if(opts.person && !itemMatchesPersonFilter(it,opts.person)) return;
+      /* Frequency counts the real transaction once. When a person filter is
+         active, the typical amount is that person's attributed share. */
+      var amt=opts.person?personScopedAmount(it,opts.person):it.amount;
+      daily[ds]=(daily[ds]||0)+amt; txnCount++;
+    });
+  });
+  var dates=Object.keys(daily).sort(), gaps=[];
+  for(var i=1;i<dates.length;i++){var g=daysBetween(dates[i-1],dates[i]);if(g>0)gaps.push(g);}
+  return {
+    activeDays:dates.length,
+    txnCount:txnCount,
+    gap:medianNumber(gaps),
+    typicalAmount:medianNumber(dates.map(function(d){return daily[d];}))||0,
+    lastDate:dates.length?dates[dates.length-1]:null,
+    enough:gaps.length>=2,
+    person:opts.person||null
+  };
+}
+function frequencyLabel(st) {
+  if(!st||!st.enough||st.gap==null) return "Not enough history";
+  var g=st.gap;
+  if(g<=1.15) return "About daily";
+  if(g<2) return "Every ~"+g.toFixed(1)+" days";
+  if(g>=27&&g<=33) return "About monthly";
+  return "Every ~"+(g<10?g.toFixed(g%1?1:0):Math.round(g))+" days";
 }
 
 /* The real start of a range once trackingStartDate clips it — e.g. a "This
@@ -3302,10 +3497,11 @@ function buildAnalysisForecastCard(info, cs, T) {
   );
 }
 
-/* Single source of truth for the forecast. Actual spend to date is always
-   preserved exactly. Only the unscheduled remainder is estimated, using
-   weekday-aware recent history plus the current period's robust daily pace;
-   future recurring expenses are then added separately on their due dates. */
+/* Single source of truth for the forecast. Actual spend remains exact;
+   deterministic plans remain exact; variable spending is forecast primarily
+   as likely subcategory EVENTS (learned repeat interval × typical amount).
+   New/very-frequent subcategories fall back to the robust weekday-aware pace
+   model, so the engine degrades gracefully when history is sparse. */
 function computeForecastNumbers(rows, totalDays, periodStart, scope) {
   if (!rows.length) return null;
   scope = scope || "overall";
@@ -3317,58 +3513,59 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
   var actualSpentSoFar = rows.reduce(function(s,r){ return s+rowSpentForScope(r,scope); },0);
   var pastSpent = pastRows.reduce(function(s,r){ return s+rowSpentForScope(r,scope); },0);
   var pastDiscretionary = discretionarySpentInRows(pastRows,scope);
-
-  /* Current-period pace is itself robust to outlier days. History is the prior
-     eight weeks, weekday-aware and recency-weighted. As completed days build up,
-     current behavior naturally takes over: days/(days+7). */
-  var currentStats = robustWeightedStats(pastRows.map(function(r){ return {value:discretionarySpentInRow(r,scope),weight:1}; }));
-  var currentWeight = currentStats ? completedDays/(completedDays+7) : 0;
-  var historyProfile = historicalVariableProfile(scope,periodStart);
-
   var periodEnd=toStr(addDays(parseD(periodStart),totalDays-1));
+
+  /* Event model first, because it tells the daily fallback which established
+     subcategories it should NOT smear into an average pace. */
+  var eventModel=expectedEventSpendByDate(scope,today,periodEnd);
+  var modeledSet=eventModel.modeledSet||{};
+
+  var currentStats = robustWeightedStats(pastRows.map(function(r){
+    return {value:discretionarySpentInRowExcluding(r,scope,modeledSet),weight:1};
+  }));
+  var currentWeight = currentStats ? completedDays/(completedDays+7) : 0;
+  var historyProfile = historicalVariableProfile(scope,periodStart,modeledSet);
+
   var futureScheduledByDate = scheduledExpenseByDate(today,periodEnd,scope);
   var scheduledUpcoming=0;
   Object.keys(futureScheduledByDate).forEach(function(k){scheduledUpcoming+=futureScheduledByDate[k];});
   scheduledUpcoming=round2(scheduledUpcoming);
 
   var futureDays=Math.max(0,totalDays-rows.length);
-  var todayVariableActual=todayRow?discretionarySpentInRow(todayRow,scope):0;
-  var todayExpected=todayIncluded?expectedVariableForDate(today,currentStats,currentWeight,historyProfile):null;
-  var remainingVariableToday=(todayExpected&&todayExpected.mean>todayVariableActual)?todayExpected.mean-todayVariableActual:0;
+  var todayFallbackActual=todayRow?discretionarySpentInRowExcluding(todayRow,scope,modeledSet):0;
+  var todayFallbackExpected=todayIncluded?expectedVariableForDate(today,currentStats,currentWeight,historyProfile):null;
+  var remainingFallbackToday=(todayFallbackExpected&&todayFallbackExpected.mean>todayFallbackActual)?todayFallbackExpected.mean-todayFallbackActual:0;
+  var eventToday=todayIncluded?(eventModel.byDate[today]||0):0;
+  var remainingVariableToday=remainingFallbackToday+eventToday;
 
   var projectedSpend=actualSpentSoFar+remainingVariableToday;
-  var uncertaintySq=0, expectedFutureTotal=remainingVariableToday;
-  if (todayExpected && remainingVariableToday>0) uncertaintySq+=todayExpected.dev*todayExpected.dev;
+  var uncertaintySq=(eventModel.varianceByDate[today]||0), expectedFutureTotal=remainingVariableToday;
+  if(todayFallbackExpected&&remainingFallbackToday>0) uncertaintySq+=todayFallbackExpected.dev*todayFallbackExpected.dev;
 
-  /* Build a cumulative future path so scheduled bills land on their actual date
-     instead of the chart drawing a generic straight line to the final number. */
-  var forecastValues=[];
-  var running=0;
+  var forecastValues=[], running=0;
   rows.forEach(function(r,i){ running+=rowSpentForScope(r,scope); forecastValues[i]=round2(running); });
   var futureRunning=actualSpentSoFar+remainingVariableToday;
   for (var fi=rows.length; fi<totalDays; fi++) {
     var ds=toStr(addDays(parseD(periodStart),fi));
-    var exp=expectedVariableForDate(ds,currentStats,currentWeight,historyProfile);
-    var variable=exp?Math.max(0,exp.mean):0;
+    var fallback=expectedVariableForDate(ds,currentStats,currentWeight,historyProfile);
+    var fallbackAmt=fallback?Math.max(0,fallback.mean):0;
+    var eventAmt=eventModel.byDate[ds]||0;
     var scheduled=futureScheduledByDate[ds]||0;
-    expectedFutureTotal+=variable;
-    futureRunning+=variable+scheduled;
-    if(exp) uncertaintySq+=exp.dev*exp.dev;
+    expectedFutureTotal+=fallbackAmt+eventAmt;
+    futureRunning+=fallbackAmt+eventAmt+scheduled;
+    if(fallback) uncertaintySq+=fallback.dev*fallback.dev;
+    uncertaintySq+=(eventModel.varianceByDate[ds]||0);
     forecastValues[fi]=round2(futureRunning);
   }
-  if (futureDays>0) projectedSpend=futureRunning+0;
-  else projectedSpend=actualSpentSoFar+remainingVariableToday;
-  projectedSpend=round2(projectedSpend);
+  projectedSpend=round2(futureDays>0?futureRunning:(actualSpentSoFar+remainingVariableToday));
 
-  var hasPace=!!(currentStats||historyProfile.overall);
-  var hasForecast=(todayIncluded||futureDays>0) && (hasPace||scheduledUpcoming>0||remainingVariableToday>0);
+  var hasPace=!!(currentStats||historyProfile.overall||eventModel.modeledCount>0);
+  var hasForecast=(todayIncluded||futureDays>0)&&(hasPace||scheduledUpcoming>0||remainingVariableToday>0);
   if(!hasForecast) projectedSpend=actualSpentSoFar;
 
-  /* The subtle likely range is deliberately not presented as a statistical
-     confidence interval. It is a practical variability band based on the
-     robust day-to-day deviations of the remaining variable-spend days. */
   var uncertainty=Math.sqrt(Math.max(0,uncertaintySq));
-  var rangeReady=uncertainty>0 && ((historyProfile.overall&&historyProfile.overall.count>=7)||(currentStats&&currentStats.count>=5));
+  var historyEnough=(historyProfile.overall&&historyProfile.overall.count>=7)||(currentStats&&currentStats.count>=5)||eventModel.modeledCount>=2;
+  var rangeReady=uncertainty>0&&historyEnough;
   var exactFloor=actualSpentSoFar+scheduledUpcoming;
   var rangeLow=rangeReady?Math.max(exactFloor,projectedSpend-1.25*uncertainty):null;
   var rangeHigh=rangeReady?projectedSpend+1.25*uncertainty:null;
@@ -3378,24 +3575,13 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
   var stillBlending=!!(currentStats&&historyProfile.overall&&currentWeight<0.7);
 
   return {
-    todayIncluded:todayIncluded,
-    pastDays:completedDays,
-    pastSpent:pastSpent,
-    pastDiscretionary:pastDiscretionary,
-    actualSpentSoFar:round2(actualSpentSoFar),
-    knownSpent:round2(actualSpentSoFar),
-    avgSpentPerDay:avgSpentPerDay,
-    stillBlending:stillBlending,
-    currentWeight:currentWeight,
-    historyDays:historyProfile.days,
-    daysToEstimate:remainingEstimateDays,
-    scheduledUpcoming:scheduledUpcoming,
-    remainingVariableToday:round2(remainingVariableToday),
-    hasForecast:hasForecast,
-    projectedSpend:projectedSpend,
-    forecastValues:forecastValues,
-    rangeLow:rangeLow==null?null:round2(rangeLow),
-    rangeHigh:rangeHigh==null?null:round2(rangeHigh)
+    todayIncluded:todayIncluded,pastDays:completedDays,pastSpent:pastSpent,pastDiscretionary:pastDiscretionary,
+    actualSpentSoFar:round2(actualSpentSoFar),knownSpent:round2(actualSpentSoFar),avgSpentPerDay:avgSpentPerDay,
+    stillBlending:stillBlending,currentWeight:currentWeight,historyDays:historyProfile.days,
+    daysToEstimate:remainingEstimateDays,scheduledUpcoming:scheduledUpcoming,
+    remainingVariableToday:round2(remainingVariableToday),hasForecast:hasForecast,projectedSpend:projectedSpend,
+    forecastValues:forecastValues,rangeLow:rangeLow==null?null:round2(rangeLow),rangeHigh:rangeHigh==null?null:round2(rangeHigh),
+    eventModeledCount:eventModel.modeledCount||0,personModeledCount:eventModel.personModeledCount||0,overallModeledCount:eventModel.overallModeledCount||0
   };
 }
 
@@ -3469,7 +3655,8 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   else {
     if (todayIncluded) notes.push("Today uses actual spend so far; only the remaining variable portion is estimated.");
     if (scheduledUpcoming > 0) notes.push("Includes "+fmt(scheduledUpcoming,0)+" AED of scheduled expenses on their actual due dates.");
-    if (stillBlending) notes.push("Variable spend blends this "+periodWord+"'s pace with recent same-weekday history.");
+    if (fc.eventModeledCount > 0) notes.push("Repeat timing is learned by subcategory and, when there is enough history, by person too. A recent fuel or grocery event is not automatically repeated every day.");
+    if (stillBlending) notes.push("New or very frequent subcategories fall back to this "+periodWord+"'s pace plus recent same-weekday history.");
   }
   notes.forEach(function(n){ s += '<div class="muted caption" style="margin-top:8px;">'+esc(n)+'</div>'; });
   s += '</div>';
@@ -3888,7 +4075,38 @@ function renderAnalysisBody(T) {
   sectionHtml.forecastedSpend=function(){if(catFilter||personFilter||groupFilter)return'';return buildAnalysisForecastCard(info,cs,T);};
   sectionHtml.balance=function(){if(catFilter||personFilter||groupFilter)return'';return buildCashBalanceCard(info,cs,T);};
   sectionHtml.spendTrend=function(){if(catFilter||personFilter||groupFilter)return'';return buildOverallTrendCard(info,cs,T);};
-  sectionHtml.category=function(){var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemPerson(it))return;var k=itemCatOf(it);totals[k]=(totals[k]||0)+personScopedAmount(it,personFilter);});});if(!Object.keys(totals).length)return'';var groups=state.settings.categoryGroups||[],selected=state.analysisSelectedGroup,showGroups=groups.length>0&&!selected&&!catFilter,s='<div id="analysisCategoryCard" class="card card-pad" style="margin-bottom:16px;">';if(showGroups){var gt={};Object.keys(totals).forEach(function(c){var g=categoryGroupOf(c)||'Ungrouped';gt[g]=(gt[g]||0)+totals[c];});var gs=Object.keys(gt).map(function(g){return{label:g,value:gt[g],color:g==="Ungrouped"?"#8595B5":categoryGroupStyle(g).color};}).sort(function(a,b){return b.value-a.value;}),gTotal=gs.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by category</span><span class="muted caption">Tap to drill in</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(gs,T,null,'All',gTotal,'drill-analysis-group','group')+'</div>';gs.forEach(function(sl,i){var p=gTotal?sl.value/gTotal*100:0;s+='<button data-action="drill-analysis-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="subhead">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span>'+ICONS.chevronRight+'</span></button>';});}else{var names=selected?Object.keys(totals).filter(function(c){return(categoryGroupOf(c)||'Ungrouped')===selected;}):Object.keys(totals),slices=names.map(function(k){return{label:k,value:totals[k],color:selected?subcategoryShade(selected,k):categoryStyle(k).color};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);s+='<div class="row between" style="margin-bottom:10px;">'+(selected?'<button data-action="clear-analysis-group" class="btn-plain">← '+esc(selected)+'</button>':'<span class="eyebrow">Spend by category</span>')+'<span class="muted caption">'+(catFilter?'Tap to clear':'Tap to filter')+'</span></div>';if(slices.length)s+='<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,catFilter||null,'All',total)+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=catFilter===sl.label;s+='<button data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(catFilter&&!isSel?'opacity:.45;':'')+'"><span class="subhead" style="'+(isSel?'font-weight:600;':'')+'">'+esc(sl.label)+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});}return s+'</div>';};
+  sectionHtml.category=function(){
+    var totals={}, asOf=minStr(info.end,todayStr());
+    cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemPerson(it))return;var k=itemCatOf(it);totals[k]=(totals[k]||0)+personScopedAmount(it,personFilter);});});
+    if(!Object.keys(totals).length)return'';
+    var groups=state.settings.categoryGroups||[],selected=state.analysisSelectedGroup,showGroups=groups.length>0&&!selected&&!catFilter;
+    var s='<div id="analysisCategoryCard" class="card card-pad" style="margin-bottom:16px;">';
+    if(showGroups){
+      var gt={};Object.keys(totals).forEach(function(c){var g=categoryGroupOf(c)||'Ungrouped';gt[g]=(gt[g]||0)+totals[c];});
+      var gs=Object.keys(gt).map(function(g){return{label:g,value:gt[g],color:g==='Ungrouped'?'#8595B5':categoryGroupStyle(g).color};}).sort(function(a,b){return b.value-a.value;}),gTotal=gs.reduce(function(t,x){return t+x.value;},0);
+      s+='<div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by category</span><span class="muted caption">Tap to drill in</span></div>';
+      s+='<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(gs,T,null,'All',gTotal,'drill-analysis-group','group')+'</div>';
+      gs.forEach(function(sl,i){
+        var p=gTotal?sl.value/gTotal*100:0, freq=activityFrequencyStats({group:sl.label,person:personFilter||null},asOf), fLabel=frequencyLabel(freq);
+        s+='<button data-action="drill-analysis-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:9px 0;'+(i?'border-top:1px solid var(--sep);':'')+'">';
+        s+='<span style="text-align:left;min-width:0;"><span class="subhead">'+esc(sl.label==='Ungrouped'?'Uncategorized':sl.label)+'</span><span class="muted caption" style="display:block;margin-top:2px;">'+esc(fLabel)+(freq.txnCount?' · '+freq.txnCount+' txns':'')+'</span></span>';
+        s+='<span class="row" style="gap:10px;flex-shrink:0;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span>'+ICONS.chevronRight+'</span></button>';
+      });
+    }else{
+      var names=selected?Object.keys(totals).filter(function(c){return(categoryGroupOf(c)||'Ungrouped')===selected;}):Object.keys(totals);
+      var slices=names.map(function(k){return{label:k,value:totals[k],color:selected?subcategoryShade(selected,k):categoryStyle(k).color};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);
+      s+='<div class="row between" style="margin-bottom:10px;">'+(selected?'<button data-action="clear-analysis-group" class="btn-plain">← '+esc(selected)+'</button>':'<span class="eyebrow">Spend by subcategory</span>')+'<span class="muted caption">'+(catFilter?'Tap to clear':'Tap to filter')+'</span></div>';
+      if(slices.length)s+='<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,catFilter||null,'All',total)+'</div>';
+      slices.forEach(function(sl,i){
+        var p=total?sl.value/total*100:0,isSel=catFilter===sl.label,freq=activityFrequencyStats({subcategory:sl.label,person:personFilter||null},asOf),fLabel=frequencyLabel(freq);
+        var detail=fLabel+(freq.typicalAmount>0?' · typical '+fmt(freq.typicalAmount,0)+' AED':'')+(freq.txnCount?' · '+freq.txnCount+' txns':'');
+        s+='<button data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:9px 0;'+(i?'border-top:1px solid var(--sep);':'')+(catFilter&&!isSel?'opacity:.45;':'')+'">';
+        s+='<span style="text-align:left;min-width:0;"><span class="subhead" style="'+(isSel?'font-weight:700;':'')+'">'+esc(sl.label)+'</span><span class="muted caption" style="display:block;margin-top:2px;white-space:normal;">'+esc(detail)+'</span></span>';
+        s+='<span class="row" style="gap:10px;flex-shrink:0;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';
+      });
+    }
+    return s+'</div>';
+  };
   sectionHtml.person=function(){if(!(state.settings.people||[]).length)return'';var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemCategoryOnly(it))return;if(it.personSplit&&it.personSplit.length)it.personSplit.forEach(function(ps){totals[ps.person]=(totals[ps.person]||0)+round2(it.amount*ps.pct/100);});else{var k=it.person||'Unassigned';totals[k]=(totals[k]||0)+it.amount;}});});var slices=Object.keys(totals).map(function(k){return{label:k,value:totals[k]};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);if(!slices.length)return'';slices.forEach(function(sl){sl.color=sl.label==='Unassigned'?'#8595B5':personColor(sl.label);});var s='<div id="analysisPersonCard" class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by person</span><span class="muted caption">'+(personFilter?'Tap to clear':'Tap to filter')+'</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,personFilter||null,'All',total,'filter-analysis-person','person')+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=personFilter===sl.label;s+='<button data-action="filter-analysis-person" data-person="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(personFilter&&!isSel?'opacity:.45;':'')+'"><span>'+ (sl.label==='Unassigned'?'<span class="subhead">Unassigned</span>':personChip(sl.label))+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});return s+'</div>';};
   sectionHtml.dow=function(){return'';}
   sectionHtml.topTransactions=function(){var all=[];cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(keepItem(it))all.push({date:r.date,it:it,amount:personScopedAmount(it,personFilter)});});});all.sort(function(a,b){return b.amount-a.amount;});var top=all.slice(0,5),s='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow" style="margin-bottom:10px;">Biggest transactions</div>';if(!top.length)s+='<div class="muted subhead">Nothing logged in this period.</div>';else top.forEach(function(x,i){s+='<div class="row" style="gap:10px;align-items:center;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'">'+catIconCircle(x.it.category)+'<div style="flex:1;min-width:0;"><div class="subhead">'+esc(x.it.note||x.it.category||'Spent')+'</div><div class="muted caption">'+esc(dayLabel(x.date)+(x.it.category?' · '+x.it.category:''))+'</div></div><div class="mono subhead">'+fmt(x.amount,2)+' AED</div></div>';});return s+'</div>';};
