@@ -329,7 +329,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v35";
+var APP_VERSION = "v36";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -644,6 +644,17 @@ function effectivePalette() {
 function toStr(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function parseD(s){ return new Date(s+"T00:00:00"); }
 function todayStr(){ return toStr(new Date()); }
+function currentTimeStr(){
+  var d=new Date();
+  return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+}
+function formatTxnTime(t){
+  if(!t || !/^\d{2}:\d{2}$/.test(t)) return "";
+  var p=t.split(":"), h=Number(p[0]), m=Number(p[1]);
+  if(!isFinite(h)||!isFinite(m)) return "";
+  var ap=h>=12?"PM":"AM", hh=h%12||12;
+  return hh+":"+String(m).padStart(2,"0")+" "+ap;
+}
 function minStr(a,b){ return a<b?a:b; }
 function round2(n){ return Math.round(n*100)/100; }
 function startOfWeek(d){ var x=new Date(d.getFullYear(),d.getMonth(),d.getDate()); var day=x.getDay(); var back=day===0?6:day-1; x.setDate(x.getDate()-back); return x; }
@@ -978,6 +989,7 @@ var state = {
   forecastCompareMode: "previous",
   budgetForecastDetailsOpen: false,
   analysisForecastDetailsOpen: false,
+  entryTimeDraft: null,
   incomeDraftMode: null,
   incomeDraftAmount: null,
   categoryStyleEditing: null,
@@ -2919,6 +2931,7 @@ function renderAddTxnPage() {
     if (origDay) editingItem = origDay.items.find(function(i){ return i.id === state.editingItemId; }) || null;
   }
   var formDate = state.entryDate || todayStr();
+  var selectedTime = state.entryTimeDraft != null ? state.entryTimeDraft : (editingItem ? (editingItem.time||"") : currentTimeStr());
   var cats = state.settings.categories || [];
   var txnKind = state.txnKind != null ? state.txnKind : (editingItem && editingItem.kind === "income" ? "income" : "expense");
   var splitMode = state.txnSplitMode || "single";
@@ -2980,9 +2993,9 @@ function renderAddTxnPage() {
 
   /* Date is part of the primary entry flow: most entries default to Today,
      but a backdated transaction should never require opening More options. */
-  h += '<div class="row between" style="margin-bottom:14px;align-items:center;gap:12px;">';
-  h += '<label class="eyebrow" for="entryDateInput" style="flex-shrink:0;">Date</label>';
-  h += '<input id="entryDateInput" type="date" class="field mono" style="width:auto;min-width:156px;flex:0 1 190px;padding:9px 10px;font-size:14px;" value="'+formDate+'" max="'+todayStr()+'" />';
+  h += '<div class="row" style="margin-bottom:14px;align-items:flex-end;gap:10px;">';
+  h += '<label style="flex:1;min-width:0;"><span class="eyebrow" style="display:block;margin-bottom:6px;">Date</span><input id="entryDateInput" type="date" class="field mono" style="width:100%;padding:9px 10px;font-size:14px;" value="'+formDate+'" max="'+todayStr()+'" /></label>';
+  h += '<label style="width:122px;flex:0 0 122px;"><span class="eyebrow" style="display:block;margin-bottom:6px;">Time</span><input id="entryTimeInput" type="time" class="field mono" style="width:100%;padding:9px 10px;font-size:14px;" value="'+esc(selectedTime)+'" /></label>';
   h += '</div>';
 
   if (txnKind === "expense") {
@@ -3184,6 +3197,7 @@ function renderTxnRow(date, it) {
   var income=isIncomeItem(it);
   var primary=it.note||(income?"Income":(it.category||"Expense"));
   var secondary=[];
+  if(it.time) secondary.push(formatTxnTime(it.time));
   if(it.note&&it.category)secondary.push(it.category);
   if(!income&&it.category&&categoryGroupOf(it.category))secondary.push(categoryGroupOf(it.category));
   if(income&&!it.note)secondary.push("Money received");
@@ -3813,141 +3827,218 @@ function fallbackSubcategoryWeights(scope, modeledSet, asOfDate) {
    as likely subcategory EVENTS (learned repeat interval × typical amount).
    New/very-frequent subcategories fall back to the robust weekday-aware pace
    model, so the engine degrades gracefully when history is sparse. */
+/* ---------------- v36 behavioral short-horizon forecast ----------------
+   A short personal-finance horizon should not allocate generic "pace" money to
+   every category that happened once earlier in the month. The model now
+   classifies each unscheduled subcategory explicitly:
+
+     FREQUENT  -> enough active days and a short repeat gap. Forecast each
+                  future calendar day from that subcategory's own recent daily
+                  history, with same-weekday behavior weighted most heavily.
+     CADENCE   -> repeat-type events such as Fuel/Baby Gear. Forecast only near
+                  the learned next-occurrence window. A fresh occurrence resets
+                  the clock; missed cycles become stale instead of "due now".
+     SPARSE    -> too little evidence. Forecast zero unless there is an actual
+                  recurring Plan, which is handled separately and exactly.
+
+   This deliberately removes the old pooled fallback that produced artificial
+   weekend allocations for Health, Gifts, Home Maintenance, etc. */
+function forecastWeightedMean(samples) {
+  var good=(samples||[]).filter(function(x){return x&&isFinite(x.value)&&isFinite(x.weight)&&x.weight>0;});
+  if(!good.length) return null;
+  var sw=0, sv=0; good.forEach(function(x){sw+=x.weight;sv+=x.value*x.weight;});
+  return sw>0?sv/sw:null;
+}
+function forecastCategoryProfiles(scope, asOfDate) {
+  scope=scope||"overall"; asOfDate=asOfDate||todayStr();
+  var allDates=Object.keys(state.entries).sort(), first=allDates.length?allDates[0]:asOfDate;
+  var natural=scope==="budget"?(state.settings.trackingStartDate||first):first;
+  var floor=toStr(addDays(parseD(asOfDate),-364));
+  var start=natural>floor?natural:floor, maps={};
+  Object.keys(state.entries).forEach(function(ds){
+    if(ds<start||ds>asOfDate) return;
+    (state.entries[ds].items||[]).forEach(function(it){
+      if(!expenseCountsForScope(it,scope)||it.recurringId) return;
+      var k=subcategoryKey(it);
+      if(!maps[k]) maps[k]={daily:{},txnCount:0,timedCount:0};
+      maps[k].daily[ds]=(maps[k].daily[ds]||0)+it.amount;
+      maps[k].txnCount++;
+      if(it.time) maps[k].timedCount++;
+    });
+  });
+  var out={};
+  Object.keys(maps).forEach(function(k){
+    var m=maps[k], dates=Object.keys(m.daily).sort(), gaps=[];
+    for(var i=1;i<dates.length;i++){var g=daysBetween(dates[i-1],dates[i]);if(g>0)gaps.push(g);}
+    var gap=medianNumber(gaps), span=dates.length?Math.max(1,daysBetween(dates[0],asOfDate)+1):1;
+    var activeRate=dates.length/span, typicalAmount=medianNumber(dates.map(function(d){return m.daily[d];}))||0;
+    var frequent=dates.length>=6 && gap!=null && (gap<=2.2 || activeRate>=0.34);
+    var cadence=!frequent && dates.length>=3 && gaps.length>=2 && gap!=null && gap>=2.0 && typicalAmount>0;
+    var confidence=dates.length>=10?"High":(dates.length>=5?"Medium":"Low");
+    out[k]={
+      key:k,label:k==="__uncategorised__"?"Uncategorised":k,daily:m.daily,txnCount:m.txnCount,
+      timedCount:m.timedCount,activeDates:dates,activeDays:dates.length,gap:gap,typicalAmount:typicalAmount,
+      lastDate:dates.length?dates[dates.length-1]:null,spanDays:span,activeRate:activeRate,historyStart:start,
+      mode:frequent?"frequent":(cadence?"cadence":"sparse"),confidence:confidence
+    };
+  });
+  return out;
+}
+function expectedFrequentCategoryForDate(profile, ds, asOfDate) {
+  if(!profile||profile.mode!=="frequent") return {mean:0,dev:0,count:0};
+  var floor=toStr(addDays(parseD(asOfDate),-55)), start=(profile.historyStart&&profile.historyStart>floor)?profile.historyStart:floor, targetDow=parseD(ds).getDay(), same=[], recent=[];
+  var d=parseD(start), end=parseD(asOfDate);
+  while(d<=end){
+    var key=toStr(d), age=Math.max(0,daysBetween(key,asOfDate)), w=Math.pow(.5,age/21), v=profile.daily[key]||0;
+    recent.push({value:v,weight:w});
+    if(d.getDay()===targetDow) same.push({value:v,weight:w});
+    d=addDays(d,1);
+  }
+  var sameStats=same.length>=2?robustWeightedStats(same):null;
+  var recentStats=robustWeightedStats(recent);
+  var mean=0, dev=0;
+  if(sameStats&&recentStats){ mean=sameStats.mean*.72+recentStats.mean*.28; dev=sameStats.dev*.72+recentStats.dev*.28; }
+  else if(sameStats){mean=sameStats.mean;dev=sameStats.dev;}
+  else if(recentStats){mean=recentStats.mean;dev=recentStats.dev;}
+  return {mean:Math.max(0,mean||0),dev:Math.max(0,dev||0),count:same.length};
+}
+function cadenceEventForecast(profile, fromStr, throughStr) {
+  var byDate={}, total=0, variance=0;
+  if(!profile||profile.mode!=="cadence"||!profile.lastDate||!profile.gap) return {byDate:byDate,total:0,variance:0};
+  var gap=Math.max(2,profile.gap), last=parseD(profile.lastDate), from=parseD(fromStr), through=parseD(throughStr);
+  var daysSince=Math.max(0,daysBetween(profile.lastDate,fromStr));
+  /* If an expected cycle has already been missed by a wide margin, the old
+     pattern is stale. Do not shift the missed event forward to "today". */
+  var staleFactor=1;
+  if(daysSince>gap*1.55) staleFactor=Math.max(0,1-(daysSince-gap*1.55)/(gap*.7));
+  if(staleFactor<=0.02) return {byDate:byDate,total:0,variance:0};
+  var minAge=Math.max(1,Math.ceil(gap*.70));
+  var maxAge=Math.max(minAge,Math.ceil(gap*1.35));
+  var center=gap, sigma=Math.max(.65,gap*.18), weights=[], denom=0;
+  for(var age=minAge;age<=maxAge;age++){
+    var w=Math.exp(-.5*Math.pow((age-center)/sigma,2)); weights.push({age:age,w:w}); denom+=w;
+  }
+  weights.forEach(function(x){
+    var d=addDays(last,x.age), ds=toStr(d);
+    if(d<from||d>through) return;
+    var prob=staleFactor*x.w/Math.max(denom,1e-9), amt=prob*profile.typicalAmount;
+    byDate[ds]=(byDate[ds]||0)+amt; total+=amt;
+    variance+=prob*(1-prob)*profile.typicalAmount*profile.typicalAmount;
+  });
+  return {byDate:byDate,total:total,variance:variance};
+}
+function buildBehavioralForecast(scope, fromStr, throughStr) {
+  var profiles=forecastCategoryProfiles(scope,fromStr), byDate={}, bySub={}, varianceByDate={}, suppressed=[];
+  Object.keys(profiles).forEach(function(k){
+    var p=profiles[k];
+    if(p.mode==="frequent"){
+      var d=addDays(parseD(fromStr),1), end=parseD(throughStr), total=0;
+      while(d<=end){
+        var ds=toStr(d), e=expectedFrequentCategoryForDate(p,ds,fromStr), amt=e.mean||0;
+        if(amt>0){byDate[ds]=(byDate[ds]||0)+amt;varianceByDate[ds]=(varianceByDate[ds]||0)+(e.dev||0)*(e.dev||0);total+=amt;}
+        d=addDays(d,1);
+      }
+      if(total>0) bySub[k]={amount:total,kind:"frequent",profile:p};
+    } else if(p.mode==="cadence"){
+      var c=cadenceEventForecast(p,fromStr,throughStr), totalC=0;
+      Object.keys(c.byDate).forEach(function(ds){var a=c.byDate[ds];byDate[ds]=(byDate[ds]||0)+a;totalC+=a;});
+      if(c.variance>0){
+        var dates=Object.keys(c.byDate); if(dates.length){var share=c.variance/dates.length;dates.forEach(function(ds){varianceByDate[ds]=(varianceByDate[ds]||0)+share;});}
+      }
+      if(totalC>0.005) bySub[k]={amount:totalC,kind:"cadence",profile:p};
+      if(p.lastDate===fromStr || totalC<=0.005) suppressed.push(p);
+    }
+    /* Sparse is intentionally zero. */
+  });
+  return {profiles:profiles,byDate:byDate,bySubcategory:bySub,varianceByDate:varianceByDate,suppressed:suppressed};
+}
+function forecastProfileMetaText(p, kind) {
+  if(!p) return kind==="scheduled"?"Scheduled plan":"";
+  var parts=[];
+  if(p.txnCount!=null) parts.push(p.txnCount+" txn"+(p.txnCount===1?"":"s"));
+  if(p.gap!=null) parts.push("every "+Number(p.gap).toFixed(1)+" days");
+  if(p.lastDate) parts.push("last "+(p.lastDate===todayStr()?"Today":shortLabel(p.lastDate)));
+  if(kind==="cadence"&&p.lastDate&&p.gap!=null) parts.push("next ~"+shortLabel(toStr(addDays(parseD(p.lastDate),Math.max(1,Math.round(p.gap))))));
+  if(p.typicalAmount>0) parts.push("typical "+fmt(p.typicalAmount,0)+" AED");
+  parts.push(p.confidence+" confidence");
+  return parts.join(" · ");
+}
+
 function computeForecastNumbers(rows, totalDays, periodStart, scope) {
-  if (!rows.length) return null;
-  scope = scope || "overall";
-  var today = todayStr();
-  var todayIncluded = rows[rows.length-1].date === today;
-  var todayRow = todayIncluded ? rows[rows.length-1] : null;
-  var pastRows = todayIncluded ? rows.slice(0, rows.length-1) : rows.slice();
-  var completedDays = pastRows.length;
-  var actualSpentSoFar = rows.reduce(function(s,r){ return s+rowSpentForScope(r,scope); },0);
-  var pastSpent = pastRows.reduce(function(s,r){ return s+rowSpentForScope(r,scope); },0);
-  var pastDiscretionary = discretionarySpentInRows(pastRows,scope);
+  if(!rows.length) return null;
+  scope=scope||"overall";
+  var today=todayStr(), todayIncluded=rows[rows.length-1].date===today;
+  var pastRows=todayIncluded?rows.slice(0,-1):rows.slice(), completedDays=pastRows.length;
+  var actualSpentSoFar=rows.reduce(function(s,r){return s+rowSpentForScope(r,scope);},0);
+  var pastSpent=pastRows.reduce(function(s,r){return s+rowSpentForScope(r,scope);},0);
   var periodEnd=toStr(addDays(parseD(periodStart),totalDays-1));
 
-  /* Event model first, because it tells the daily fallback which established
-     subcategories it should NOT smear into an average pace. */
-  var eventModel=expectedEventSpendByDate(scope,today,periodEnd);
-  var modeledSet=eventModel.modeledSet||{};
+  /* v36: all unscheduled future spend comes from an explicit subcategory
+     behavior model. There is no pooled "other pace" fallback. */
+  var behavioral=buildBehavioralForecast(scope,today,periodEnd);
+  var futureScheduledByDate=scheduledExpenseByDate(today,periodEnd,scope);
+  var scheduledUpcoming=0;Object.keys(futureScheduledByDate).forEach(function(k){scheduledUpcoming+=futureScheduledByDate[k];});scheduledUpcoming=round2(scheduledUpcoming);
 
-  var currentStats = robustWeightedStats(pastRows.map(function(r){
-    return {value:discretionarySpentInRowExcluding(r,scope,modeledSet),weight:1};
-  }));
-  var currentWeight = currentStats ? completedDays/(completedDays+7) : 0;
-  var historyProfile = historicalVariableProfile(scope,periodStart,modeledSet);
-
-  var futureScheduledByDate = scheduledExpenseByDate(today,periodEnd,scope);
-  var scheduledUpcoming=0;
-  Object.keys(futureScheduledByDate).forEach(function(k){scheduledUpcoming+=futureScheduledByDate[k];});
-  scheduledUpcoming=round2(scheduledUpcoming);
-
-  var futureDays=Math.max(0,totalDays-rows.length);
-  var todayFallbackActual=todayRow?discretionarySpentInRowExcluding(todayRow,scope,modeledSet):0;
-  var todayFallbackExpected=todayIncluded?expectedVariableForDate(today,currentStats,currentWeight,historyProfile):null;
-  var remainingFallbackToday=(todayFallbackExpected&&todayFallbackExpected.mean>todayFallbackActual)?todayFallbackExpected.mean-todayFallbackActual:0;
-  var eventToday=todayIncluded?(eventModel.byDate[today]||0):0;
-  var remainingVariableToday=remainingFallbackToday+eventToday;
-
-  var projectedSpend=actualSpentSoFar+remainingVariableToday;
-  var fallbackFutureTotal=remainingFallbackToday;
-  var uncertaintySq=(eventModel.varianceByDate[today]||0), expectedFutureTotal=remainingVariableToday;
-  if(todayFallbackExpected&&remainingFallbackToday>0) uncertaintySq+=todayFallbackExpected.dev*todayFallbackExpected.dev;
-
+  /* We start collecting time-of-day in v36, but old history has no timestamps.
+     Until enough timed observations accumulate, today itself is NOT padded with
+     an invented intraday forecast. Safe to Spend therefore means what can still
+     be spent today after reserving future calendar dates. */
+  var remainingVariableToday=0;
   var forecastValues=[], running=0;
-  rows.forEach(function(r,i){ running+=rowSpentForScope(r,scope); forecastValues[i]=round2(running); });
-  var futureRunning=actualSpentSoFar+remainingVariableToday;
-  for (var fi=rows.length; fi<totalDays; fi++) {
+  rows.forEach(function(r,i){running+=rowSpentForScope(r,scope);forecastValues[i]=round2(running);});
+  var futureRunning=actualSpentSoFar, uncertaintySq=0, expectedFutureTotal=0;
+  for(var fi=rows.length;fi<totalDays;fi++){
     var ds=toStr(addDays(parseD(periodStart),fi));
-    var fallback=expectedVariableForDate(ds,currentStats,currentWeight,historyProfile);
-    var fallbackAmt=fallback?Math.max(0,fallback.mean):0;
-    var eventAmt=eventModel.byDate[ds]||0;
-    var scheduled=futureScheduledByDate[ds]||0;
-    expectedFutureTotal+=fallbackAmt+eventAmt;
-    fallbackFutureTotal+=fallbackAmt;
-    futureRunning+=fallbackAmt+eventAmt+scheduled;
-    if(fallback) uncertaintySq+=fallback.dev*fallback.dev;
-    uncertaintySq+=(eventModel.varianceByDate[ds]||0);
+    var variable=behavioral.byDate[ds]||0, scheduled=futureScheduledByDate[ds]||0;
+    futureRunning+=variable+scheduled; expectedFutureTotal+=variable+scheduled;
+    uncertaintySq+=(behavioral.varianceByDate[ds]||0);
     forecastValues[fi]=round2(futureRunning);
   }
-  projectedSpend=round2(futureDays>0?futureRunning:(actualSpentSoFar+remainingVariableToday));
-
-  var hasPace=!!(currentStats||historyProfile.overall||eventModel.modeledCount>0);
-  var hasForecast=(todayIncluded||futureDays>0)&&(hasPace||scheduledUpcoming>0||remainingVariableToday>0);
-  if(!hasForecast) projectedSpend=actualSpentSoFar;
+  var futureDays=Math.max(0,totalDays-rows.length), projectedSpend=round2(futureDays>0?futureRunning:actualSpentSoFar);
+  var hasBehavior=Object.keys(behavioral.bySubcategory||{}).length>0;
+  var hasForecast=(futureDays>0)&&(hasBehavior||scheduledUpcoming>0);
+  if(!hasForecast) projectedSpend=round2(actualSpentSoFar);
 
   var uncertainty=Math.sqrt(Math.max(0,uncertaintySq));
-  var historyEnough=(historyProfile.overall&&historyProfile.overall.count>=7)||(currentStats&&currentStats.count>=5)||eventModel.modeledCount>=2;
-  var rangeReady=uncertainty>0&&historyEnough;
+  var evidenceCount=Object.keys(behavioral.profiles||{}).filter(function(k){return behavioral.profiles[k].mode!=="sparse";}).length;
+  var rangeReady=uncertainty>0&&evidenceCount>=2;
   var exactFloor=actualSpentSoFar+scheduledUpcoming;
-  var rangeLow=rangeReady?Math.max(exactFloor,projectedSpend-1.25*uncertainty):null;
-  var rangeHigh=rangeReady?projectedSpend+1.25*uncertainty:null;
+  var rangeLow=rangeReady?Math.max(exactFloor,projectedSpend-1.15*uncertainty):null;
+  var rangeHigh=rangeReady?projectedSpend+1.15*uncertainty:null;
 
-  var remainingEstimateDays=futureDays+(todayIncluded?1:0);
-  var avgSpentPerDay=remainingEstimateDays>0?expectedFutureTotal/remainingEstimateDays:(currentStats?currentStats.mean:(historyProfile.overall?historyProfile.overall.mean:null));
-  var stillBlending=!!(currentStats&&historyProfile.overall&&currentWeight<0.7);
+  var breakdown=[];
+  Object.keys(behavioral.bySubcategory||{}).forEach(function(k){
+    var x=behavioral.bySubcategory[k],p=x.profile;
+    breakdown.push({label:p.label,amount:round2(x.amount),kind:x.kind,metaText:forecastProfileMetaText(p,x.kind),profile:p});
+  });
+  var scheduledBreakdown=scheduledExpenseBreakdown(today,periodEnd,scope);
+  Object.keys(scheduledBreakdown).forEach(function(k){
+    breakdown.push({label:k,amount:round2(scheduledBreakdown[k]),kind:"scheduled",metaText:"Scheduled plan"});
+  });
+  breakdown.sort(function(a,b){return b.amount-a.amount;});
 
-  /* Explain the remaining forecast without changing it: exact plans, learned
-     repeat events, then the pooled fallback pace allocated to the recent
-     unmodeled subcategories that generated that pace. */
-  var breakdownMap = {};
-  function addBreakdown(label, amount, kind) {
-    amount = Number(amount)||0;
-    if (amount <= 0.005) return;
-    label = label === "__uncategorised__" ? "Uncategorised" : label;
-    if (!breakdownMap[label]) breakdownMap[label] = {label:label,amount:0,kinds:{}};
-    breakdownMap[label].amount += amount;
-    breakdownMap[label].kinds[kind] = true;
-  }
-  Object.keys(eventModel.bySubcategory||{}).forEach(function(k){ addBreakdown(k,eventModel.bySubcategory[k],"cadence"); });
-  var scheduledBreakdown = scheduledExpenseBreakdown(today,periodEnd,scope);
-  Object.keys(scheduledBreakdown).forEach(function(k){ addBreakdown(k,scheduledBreakdown[k],"scheduled"); });
-  var fw = fallbackSubcategoryWeights(scope,modeledSet,today);
-  if (fallbackFutureTotal > 0.005) {
-    if (fw.total > 0) {
-      Object.keys(fw.totals).forEach(function(k){ addBreakdown(k,fallbackFutureTotal*(fw.totals[k]/fw.total),"pace"); });
-    } else addBreakdown("Other variable spending",fallbackFutureTotal,"pace");
-  }
-  var forecastBreakdown = Object.keys(breakdownMap).map(function(k){
-    var x=breakdownMap[k], kinds=Object.keys(x.kinds);
-    return {label:x.label,amount:round2(x.amount),kind:kinds.length>1?"mixed":kinds[0]};
-  }).sort(function(a,b){return b.amount-a.amount;});
-  var remainingForecast = round2(Math.max(0,projectedSpend-actualSpentSoFar));
-  var explained = round2(forecastBreakdown.reduce(function(t,x){return t+x.amount;},0));
-  var explainDelta = round2(remainingForecast-explained);
-  if (Math.abs(explainDelta) > 0.02) addBreakdown("Other",explainDelta,"pace");
-  if (Math.abs(explainDelta) > 0.02) forecastBreakdown = Object.keys(breakdownMap).map(function(k){
-    var x=breakdownMap[k], kinds=Object.keys(x.kinds);
-    return {label:x.label,amount:round2(x.amount),kind:kinds.length>1?"mixed":kinds[0]};
-  }).sort(function(a,b){return b.amount-a.amount;});
-
-  var recentlySatisfied = [];
-  var satSeen = {};
-  (eventModel.selectedProfiles||[]).forEach(function(p){
-    if (!p || p.lastDate !== today || !p.gap) return;
-    var label = p.subcategory === "__uncategorised__" ? "Uncategorised" : p.subcategory;
-    if (satSeen[label]) return;
-    satSeen[label]=true;
-    var amt=(eventModel.bySubcategory&&eventModel.bySubcategory[p.subcategory])||0;
-    recentlySatisfied.push({label:label,amount:round2(amt),gap:p.gap,nextDate:toStr(addDays(parseD(today),Math.max(1,Math.round(p.gap))))});
+  var suppressed=[],seen={};
+  (behavioral.suppressed||[]).forEach(function(p){
+    if(!p||seen[p.key])return;seen[p.key]=1;
+    suppressed.push({label:p.label,amount:0,gap:p.gap,nextDate:p.lastDate&&p.gap!=null?toStr(addDays(parseD(p.lastDate),Math.max(1,Math.round(p.gap)))):null,metaText:forecastProfileMetaText(p,"cadence")});
   });
 
   return {
-    todayIncluded:todayIncluded,pastDays:completedDays,pastSpent:pastSpent,pastDiscretionary:pastDiscretionary,
-    actualSpentSoFar:round2(actualSpentSoFar),knownSpent:round2(actualSpentSoFar),avgSpentPerDay:avgSpentPerDay,
-    stillBlending:stillBlending,currentWeight:currentWeight,historyDays:historyProfile.days,
-    daysToEstimate:remainingEstimateDays,scheduledUpcoming:scheduledUpcoming,
-    remainingVariableToday:round2(remainingVariableToday),hasForecast:hasForecast,projectedSpend:projectedSpend,
-    forecastValues:forecastValues,rangeLow:rangeLow==null?null:round2(rangeLow),rangeHigh:rangeHigh==null?null:round2(rangeHigh),
-    remainingForecast:remainingForecast,forecastBreakdown:forecastBreakdown,recentlySatisfied:recentlySatisfied,
-    eventModeledCount:eventModel.modeledCount||0,personModeledCount:eventModel.personModeledCount||0,overallModeledCount:eventModel.overallModeledCount||0
+    todayIncluded:todayIncluded,pastDays:completedDays,pastSpent:round2(pastSpent),pastDiscretionary:0,
+    actualSpentSoFar:round2(actualSpentSoFar),knownSpent:round2(actualSpentSoFar),
+    avgSpentPerDay:futureDays>0?expectedFutureTotal/futureDays:null,stillBlending:false,currentWeight:1,historyDays:0,
+    daysToEstimate:futureDays,scheduledUpcoming:scheduledUpcoming,remainingVariableToday:0,
+    hasForecast:hasForecast,projectedSpend:projectedSpend,forecastValues:forecastValues,
+    rangeLow:rangeLow==null?null:round2(rangeLow),rangeHigh:rangeHigh==null?null:round2(rangeHigh),
+    remainingForecast:round2(Math.max(0,projectedSpend-actualSpentSoFar)),forecastBreakdown:breakdown,
+    recentlySatisfied:suppressed,eventModeledCount:evidenceCount,personModeledCount:0,overallModeledCount:evidenceCount
   };
 }
 
 /* Builds the shared forecast card. Repeat-type subcategories are forecast as
    conditional events first; a transaction today resets that subcategory's
-   repeat clock. Only genuinely frequent or history-poor spending falls back to
-   the recency-weighted weekday pace. Scheduled expenses remain exact. */
+   repeat clock. Frequent subcategories use their own recency-weighted weekday behavior;
+   sparse subcategories forecast zero. Scheduled expenses remain exact. */
 function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, periodWord, compareRows, scope) {
   if (!rows.length) return "";
   scope = scope || "overall";
@@ -4019,12 +4110,13 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
     if (detailsOpen) {
       s += '<div style="margin-top:8px;">';
       detailRows.forEach(function(x,i){
-        var tag=x.kind==='scheduled'?'Scheduled':(x.kind==='cadence'?'Cadence':(x.kind==='mixed'?'Mixed':'Pace'));
-        s += '<div class="row between" style="padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><div style="min-width:0;"><div class="subhead" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.label)+'</div><div class="muted caption">'+tag+'</div></div><div class="mono subhead" style="font-weight:650;">'+fmt(x.amount,0)+' AED</div></div>';
+        var tag=x.kind==='scheduled'?'Scheduled':(x.kind==='cadence'?'Cadence':(x.kind==='frequent'?'Frequent':'Behavior'));
+        var evidence=x.metaText?('<div class="muted caption" style="margin-top:2px;white-space:normal;">'+esc(x.metaText)+'</div>'):'';
+        s += '<div class="row between" style="padding:9px 0;gap:12px;'+(i?'border-top:1px solid var(--sep);':'')+'"><div style="min-width:0;flex:1;"><div class="subhead" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.label)+'</div><div class="muted caption">'+tag+'</div>'+evidence+'</div><div class="mono subhead" style="font-weight:650;flex-shrink:0;">'+fmt(x.amount,0)+' AED</div></div>';
       });
       satisfiedRows.forEach(function(x){
         if ((x.amount||0) >= 5) return;
-        s += '<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><div style="min-width:0;"><div class="subhead" style="font-weight:600;">'+esc(x.label)+'</div><div class="muted caption">Occurred today · typical repeat '+Number(x.gap).toFixed(1)+' days</div></div><div class="mono subhead muted">'+fmt(x.amount||0,0)+' AED</div></div>';
+        s += '<div class="row between" style="padding:9px 0;gap:12px;border-top:1px solid var(--sep);"><div style="min-width:0;flex:1;"><div class="subhead" style="font-weight:600;">'+esc(x.label)+'</div><div class="muted caption" style="white-space:normal;">'+esc(x.metaText||('Recent event · typical repeat '+Number(x.gap).toFixed(1)+' days'))+'</div></div><div class="mono subhead muted">0 AED</div></div>';
       });
       s += '</div>';
     }
@@ -4719,6 +4811,8 @@ function handleAddTransaction() {
   var noteEl = document.getElementById("entryNoteInput");
   var catEl = document.getElementById("entryCategoryInput");
   var date = dateEl ? dateEl.value : todayStr();
+  var timeEl = document.getElementById("entryTimeInput");
+  var txnTime = timeEl ? timeEl.value : "";
   var originalAmt = parseFloat(amtEl ? amtEl.value : "");
   if (isNaN(originalAmt) || originalAmt < 0 || !date) return;
   var currencyEl = document.getElementById("entryCurrencyInput");
@@ -4781,7 +4875,8 @@ function handleAddTransaction() {
     }
     /* Preserve recurringId/seq metadata when editing an occurrence so deleting
        its plan later can still find and remove that occurrence. */
-    var updatedItem = Object.assign({}, origItemForKind || {}, fxMeta, { id: state.editingItemId, amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind });
+    var updatedItem = Object.assign({}, origItemForKind || {}, fxMeta, { id: state.editingItemId, amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind, time: txnTime||undefined });
+    if(!txnTime) delete updatedItem.time;
     if (currency===BASE_CURRENCY) { delete updatedItem.originalAmount; delete updatedItem.fxRate; delete updatedItem.fxDate; updatedItem.fxSource="Base currency"; }
     var destDay = nextEntries[date];
     var nextDest = destDay ? Object.assign({}, destDay, { items: destDay.items.concat([updatedItem]) }) : { allowance: allowanceForDate(date), items: [updatedItem] };
@@ -4792,7 +4887,8 @@ function handleAddTransaction() {
     state.txnEntryRestoreScroll = true;
   } else {
     var existing = nextEntries[date];
-    var newItem = Object.assign({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind }, fxMeta);
+    var newItem = Object.assign({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind, time: txnTime||undefined }, fxMeta);
+    if(!txnTime) delete newItem.time;
     nextEntries[date] = existing ? Object.assign({}, existing, { items: existing.items.concat([newItem]) }) : { allowance: allowanceForDate(date), items: [newItem] };
     state.showAddTxn = false;
     state.txnEntryRestoreScroll = true;
@@ -4979,7 +5075,7 @@ function handleEditTxn(date, id) {
   state.entryPersonSplitDraft = null;
   state.entryCategoryDraft = null;
   state.entryPersonDraft = null;
-  state.entryCurrencyDraft = null; state.entryFxRateDraft = null; state.entryFxSourceDraft = null; state.entryFxDateDraft = null;
+  state.entryCurrencyDraft = null; state.entryFxRateDraft = null; state.entryFxSourceDraft = null; state.entryFxDateDraft = null; state.entryTimeDraft = null;
   var editDay = state.entries[date];
   var editItem = editDay ? editDay.items.find(function(i){ return i.id === id; }) : null;
   state.txnPersonSplitMode = (editItem && editItem.personSplit && editItem.personSplit.length) ? "split" : "single";
@@ -5035,6 +5131,7 @@ function preserveRecurringFormDraft() {
 function preserveTxnFormDraft() {
   var amtEl = document.getElementById("entryAmountInput");
   var noteEl = document.getElementById("entryNoteInput");
+  var timeEl = document.getElementById("entryTimeInput");
   var daysEl = document.getElementById("splitDaysInput");
   var catEl = document.getElementById("entryCategoryInput");
   var personEl = document.getElementById("entryPersonInput");
@@ -5042,6 +5139,7 @@ function preserveTxnFormDraft() {
   var fxRateEl = document.getElementById("entryFxRateInput");
   var fxSourceEl = document.getElementById("entryFxSourceInput");
   if (amtEl) state.entryAmountDraft = amtEl.value;
+  if (timeEl) state.entryTimeDraft = timeEl.value;
   if (currencyEl) state.entryCurrencyDraft = currencyEl.value;
   if (fxRateEl) state.entryFxRateDraft = fxRateEl.value;
   if (fxSourceEl) state.entryFxSourceDraft = fxSourceEl.value;
@@ -5234,7 +5332,7 @@ document.addEventListener("click", function(e) {
       state.entryPersonSplitDraft = null;
       state.entryCategoryDraft = null;
       state.entryPersonDraft = null;
-      state.entryCurrencyDraft = null; state.entryFxRateDraft = null; state.entryFxSourceDraft = null; state.entryFxDateDraft = null;
+      state.entryCurrencyDraft = null; state.entryFxRateDraft = null; state.entryFxSourceDraft = null; state.entryFxDateDraft = null; state.entryTimeDraft = null;
       render();
       break;
     case "close-add-txn":
@@ -5254,7 +5352,7 @@ document.addEventListener("click", function(e) {
       state.entryPersonSplitDraft = null;
       state.entryCategoryDraft = null;
       state.entryPersonDraft = null;
-      state.entryCurrencyDraft = null; state.entryFxRateDraft = null; state.entryFxSourceDraft = null; state.entryFxDateDraft = null;
+      state.entryCurrencyDraft = null; state.entryFxRateDraft = null; state.entryFxSourceDraft = null; state.entryFxDateDraft = null; state.entryTimeDraft = null;
       render();
       break;
     case "go-page":
@@ -5989,6 +6087,10 @@ document.addEventListener("input", function(e) {
     }
     return;
   }
+  if (e.target && e.target.id === "entryTimeInput") {
+    state.entryTimeDraft = e.target.value;
+    return;
+  }
   if (e.target && e.target.id === "entryAmountInput") {
     state.entryAmountDraft = e.target.value;
     var addBtn = document.getElementById("addTxnBtn");
@@ -6101,6 +6203,7 @@ document.addEventListener("change", function(e) {
     return;
   }
   if (e.target && e.target.id === "entryDateInput") { handleQuickDate(e.target.value); var fxCur=document.getElementById("entryCurrencyInput"); if(fxCur&&fxCur.value!==BASE_CURRENCY) refreshEntryFxRate(false); }
+  if (e.target && e.target.id === "entryTimeInput") { state.entryTimeDraft=e.target.value; }
   if (e.target && e.target.id === "entryCategoryInput" && e.target.tagName === "SELECT") { state.entryCategoryDraft = e.target.value; }
   if (e.target && e.target.id === "txnGroupFilterSelect") {
     var newTxnGroup = e.target.value;
