@@ -209,6 +209,8 @@
   .settings-nav-edge-hint { position:fixed; left:0; top:0; bottom:0; width:22px; z-index:119; pointer-events:none; }
   .taxonomy-list { overflow:hidden; border-radius:16px; background:var(--card); }
   .taxonomy-row { width:100%; min-height:68px; display:flex; align-items:center; gap:12px; padding:10px 14px; background:none; border:none; text-align:left; }
+  .taxonomy-row[data-action] { cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .taxonomy-row[data-action]:active { background:var(--fill); }
   .taxonomy-row + .taxonomy-row { border-top:1px solid var(--sep); }
   .taxonomy-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
   .taxonomy-name { font-size:17px; font-weight:600; letter-spacing:-0.018em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -2529,7 +2531,7 @@ function renderSettingsPage() {
       h += '<div class="taxonomy-list">';
       groupList.forEach(function(g,gi){
         var members = catListAll.filter(function(c){ return categoryGroupOf(c)===g; });
-        h += '<div class="taxonomy-row">'+categoryGroupIconCircle(g);
+        h += '<div class="taxonomy-row" data-action="open-settings-category" data-group="'+esc(g)+'">'+categoryGroupIconCircle(g);
         h += '<button data-action="open-settings-category" data-group="'+esc(g)+'" class="taxonomy-main" style="background:none;border:none;text-align:left;padding:0;color:inherit;">';
         h += '<span class="taxonomy-name">'+esc(g)+'</span><span class="taxonomy-meta">'+members.length+' subcategor'+(members.length===1?'y':'ies')+'</span></button>';
         if (state.settingsCategoryEditMode) {
@@ -2542,7 +2544,7 @@ function renderSettingsPage() {
       });
       var ungrouped = catListAll.filter(function(c){ return !categoryGroupOf(c); });
       if (ungrouped.length) {
-        h += '<div class="taxonomy-row"><span class="taxonomy-icon" style="background:#8595B5;">'+CAT_ICON_SVGS.tag+'</span>';
+        h += '<div class="taxonomy-row" data-action="open-settings-category" data-group="__ungrouped__"><span class="taxonomy-icon" style="background:#8595B5;">'+CAT_ICON_SVGS.tag+'</span>';
         h += '<button data-action="open-settings-category" data-group="__ungrouped__" class="taxonomy-main" style="background:none;border:none;text-align:left;padding:0;color:inherit;"><span class="taxonomy-name">Uncategorized</span><span class="taxonomy-meta">'+ungrouped.length+' subcategor'+(ungrouped.length===1?'y':'ies')+'</span></button><span class="muted">'+ICONS.chevronRight+'</span></div>';
       }
       if (!groupList.length && !ungrouped.length) h += '<div class="muted subhead" style="padding:20px 16px;">No categories yet.</div>';
@@ -2581,7 +2583,7 @@ function renderSettingsPage() {
       h += '<div class="taxonomy-section-label">Subcategories</div><div class="taxonomy-list">';
       members.forEach(function(c,ci){
         var st=categoryStyle(c), excluded=categoryExcludedFromBudget(c);
-        h += '<div class="taxonomy-row"><span class="taxonomy-icon" style="background:'+st.color+';">'+CAT_ICON_SVGS[st.icon]+'</span><button data-action="open-settings-subcategory" data-cat="'+esc(c)+'" class="taxonomy-main" style="background:none;border:none;text-align:left;padding:0;color:inherit;"><span class="taxonomy-name">'+esc(c)+'</span><span class="taxonomy-meta">'+(excluded?'Outside budget':'Included in budget')+'</span></button><span class="taxonomy-badge '+(excluded?'out':'in')+'">'+(excluded?'Excluded':'Included')+'</span>';
+        h += '<div class="taxonomy-row" data-action="open-settings-subcategory" data-cat="'+esc(c)+'"><span class="taxonomy-icon" style="background:'+st.color+';">'+CAT_ICON_SVGS[st.icon]+'</span><div class="taxonomy-main"><span class="taxonomy-name">'+esc(c)+'</span><span class="taxonomy-meta">'+(excluded?'Outside budget':'Included in budget')+'</span></div><span class="taxonomy-badge '+(excluded?'out':'in')+'">'+(excluded?'Excluded':'Included')+'</span>';
         if (state.settingsCategoryEditMode) h += '<div class="taxonomy-edit-actions"><button data-action="move-category" data-cat="'+esc(c)+'" data-dir="-1" '+(ci===0?'disabled':'')+' style="'+(ci===0?'opacity:.3;':'')+'">'+ICONS.chevronUp+'</button><button data-action="move-category" data-cat="'+esc(c)+'" data-dir="1" '+(ci===members.length-1?'disabled':'')+' style="'+(ci===members.length-1?'opacity:.3;':'')+'">'+ICONS.chevronDown+'</button></div>';
         else h += '<span class="muted">'+ICONS.chevronRight+'</span>';
         h += '</div>';
@@ -3670,16 +3672,8 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   if (compareValues) {
     s += '<div class="row gap2" style="margin-top:10px; flex-wrap:wrap;">'+legendSwatch(T.positive,"Actual")+legendSwatch(T.accent,"Projected")+legendSwatch(T.textMuted,compareLabel)+'</div>';
   }
-  var notes = [];
-  if (compareUnavailableNote) notes.push(compareUnavailableNote);
-  if (!hasForecast) notes.push(daysToEstimate<=0 ? "Period is complete — nothing left to forecast." : "Log a few days to start forecasting.");
-  else {
-    if (todayIncluded) notes.push("Today uses actual spend so far; only the remaining variable portion is estimated.");
-    if (scheduledUpcoming > 0) notes.push("Includes "+fmt(scheduledUpcoming,0)+" AED of scheduled expenses on their actual due dates.");
-    if (fc.eventModeledCount > 0) notes.push("Repeat timing is learned by subcategory and, when there is enough history, by person too. A recent fuel or grocery event is not automatically repeated every day.");
-    if (stillBlending) notes.push("New or very frequent subcategories fall back to this "+periodWord+"'s pace plus recent same-weekday history.");
-  }
-  notes.forEach(function(n){ s += '<div class="muted caption" style="margin-top:8px;">'+esc(n)+'</div>'; });
+  /* Keep the forecast card visual-first. The methodology is intentionally not
+     repeated as paragraphs under every chart. */
   s += '</div>';
   lastForecastChartData = { rows:scopedRows, totalDays:totalDays, target:target, projectedSpend:projectedSpend, start:periodStart, compareValues:compareValues, compareLabel:compareLabel, pastDays:pastDays, forecastValues:forecastValues };
   return s;
