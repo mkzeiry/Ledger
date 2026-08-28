@@ -3180,29 +3180,43 @@ function wireAnalysisForecastChart(data){
   function move(x){show(idxAt(x));}
   hit.addEventListener('touchstart',function(e){move(e.touches[0].clientX);},{passive:true});hit.addEventListener('touchmove',function(e){move(e.touches[0].clientX);e.preventDefault();},{passive:false});hit.addEventListener('touchend',hide);hit.addEventListener('touchcancel',hide);hit.addEventListener('mousedown',function(e){move(e.clientX);});hit.addEventListener('mousemove',function(e){if(e.buttons===1)move(e.clientX);});hit.addEventListener('mouseleave',hide);hit.addEventListener('mouseup',hide);
 }
-function buildAnalysisForecastCard(info,cs,T){
-  if(!cs.rows.length)return'';
-  var totalDays=info.days||daysBetween(info.start,info.end)+1;
-  var fc=computeForecastNumbers(cs.rows,totalDays,info.start,'overall');
-  var futureIncomeMap=info.isCurrent?scheduledIncomeByDate(todayStr(),info.end):{};
-  var incomeValues=[],incomeAcc=0;
-  for(var i=0;i<totalDays;i++){
-    var ds=toStr(addDays(parseD(info.start),i));
-    if(i<cs.rows.length) incomeAcc+=cs.rows[i].income||0;
-    else incomeAcc+=futureIncomeMap[ds]||0;
-    incomeValues.push(round2(incomeAcc));
-  }
-  var projectedIncome=incomeValues.length?incomeValues[incomeValues.length-1]:cs.income;
-  var projectedSpend=fc.projectedSpend,projectedSaving=round2(projectedIncome-projectedSpend),savingPct=projectedIncome>0?Math.round(projectedSaving/projectedIncome*100):null;
-  var spendActual=[],sp=0;cs.rows.forEach(function(r){sp+=r.spent;spendActual.push(round2(sp));});
-  var color=projectedSaving>=0?'var(--positive)':'var(--rust)';
-  var s='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow">Forecast & projected saving</div><div class="row between" style="align-items:flex-start;margin:8px 0 10px;"><div><div class="muted caption">PROJECTED SPEND</div><div class="mono" style="font-size:23px;font-weight:720;margin-top:2px;">'+fmt(projectedSpend,0)+' AED</div><div class="muted caption" style="margin-top:4px;">Projected income '+fmt(projectedIncome,0)+' AED</div></div><div style="text-align:right;"><div class="muted caption">PROJECTED SAVING</div><div class="mono" style="font-size:21px;font-weight:720;color:'+color+';margin-top:2px;">'+(projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'+(savingPct==null?'':' ('+(savingPct>=0?'+':'')+savingPct+'%)')+'</div></div></div>';
-  s+='<div id="analysisForecastWrap" style="position:relative;"><div id="analysisForecastTip" class="mono footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:8px;padding:5px 9px;max-width:260px;opacity:0;pointer-events:none;z-index:2;"></div>'+renderAnalysisForecastChart({totalDays:totalDays,projectedSpend:projectedSpend,projectedIncome:projectedIncome,projectedSaving:projectedSaving,spendActual:spendActual,incomeValues:incomeValues,pastDays:fc.pastDays,rowsLength:cs.rows.length,isCurrent:info.isCurrent,hasForecast:fc.hasForecast,start:info.start},T)+'</div>';
-  s+='<div class="row gap2" style="margin-top:8px;flex-wrap:wrap;">'+legendSwatch(T.accent,'Spend / forecast')+legendSwatch(T.positive,'Income')+'</div>';
-  if(info.isCurrent&&scheduledIncomeInRange(todayStr(),info.end)>0)s+='<div class="muted caption" style="margin-top:8px;">Future income includes active recurring income plans due before this period ends.</div>';
-  s+='</div>';
-  lastAnalysisForecastChartData={totalDays:totalDays,projectedSpend:projectedSpend,projectedIncome:projectedIncome,projectedSaving:projectedSaving,spendActual:spendActual,incomeValues:incomeValues,pastDays:fc.pastDays,rowsLength:cs.rows.length,isCurrent:info.isCurrent,hasForecast:fc.hasForecast,start:info.start};
-  return s;
+function buildAnalysisForecastCard(info, cs, T) {
+  if (!cs.rows.length) return "";
+
+  /* Analysis uses the exact same forecast component as Budget. The only
+     difference is the reference line: Budget compares projected spend to the
+     budget target; Analysis compares projected TOTAL spend to projected
+     end-of-period income. Projected income is actual income already received
+     plus active recurring income still due before the period closes. */
+  var forecastStart = effectiveRangeStart(info.start);
+  var forecastDays = Math.max(1, daysBetween(forecastStart, info.end) + 1);
+  var futureIncome = info.isCurrent ? scheduledIncomeInRange(todayStr(), info.end) : 0;
+  var projectedIncome = round2((Number(cs.income) || 0) + futureIncome);
+  var incomeTarget = projectedIncome > 0 ? projectedIncome : null;
+
+  var periodWord = info.mode === "week" ? "week"
+    : info.mode === "month" ? "month"
+    : info.mode === "year" ? "year"
+    : "period";
+
+  var compareRows = previousPeriodRows(
+    info.mode,
+    state.analysisOffset || 0,
+    info.start,
+    info.end
+  );
+
+  return buildForecastCard(
+    cs.rows,
+    forecastDays,
+    incomeTarget,
+    forecastStart,
+    T,
+    "Income",
+    periodWord,
+    compareRows,
+    "overall"
+  );
 }
 
 /* Single source of truth for the forecast's pace/projection math — shared
