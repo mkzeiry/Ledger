@@ -31,6 +31,12 @@
     font-size: 17px; line-height: 1.35;
   }
   #root { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; min-height: var(--vh100, 100dvh); }
+  :root { --app-safe-top: env(safe-area-inset-top, 0px); }
+  /* Some iOS webviews report a zero safe-area inset even though the status bar
+     overlays the page. Give coarse, phone-sized screens a conservative floor. */
+  @media (max-width: 479px) and (pointer: coarse) {
+    :root { --app-safe-top: max(env(safe-area-inset-top, 0px), 48px); }
+  }
   .wrap {
     flex: 1 0 auto; max-width: 460px; width: 100%; margin: 0 auto; box-sizing: border-box;
     /* The primary sticky header owns the top safe area. Keeping the wrapper at
@@ -41,10 +47,13 @@
   /* Persistent app chrome on the primary tabs. It covers the complete iOS
      safe-area/status-bar region, while the visible controls sit below it. */
   .app-topbar {
-    position:sticky; top:0; z-index:38;
+    /* iOS can pan the visual viewport when the keyboard opens. Following --vvt
+       keeps this chrome pinned to what the person can actually see, rather than
+       to the hidden top of the layout viewport. */
+    position:sticky; top:var(--vvt, 0px); z-index:38;
     margin:0 -16px 14px;
-    padding:calc(env(safe-area-inset-top, 0px) + 8px) 16px 10px;
-    min-height:calc(env(safe-area-inset-top, 0px) + 66px);
+    padding:calc(var(--app-safe-top) + 8px) 16px 10px;
+    min-height:calc(var(--app-safe-top) + 66px);
     display:flex; align-items:flex-end; justify-content:space-between; gap:12px;
     background:color-mix(in srgb, var(--bg) 96%, transparent);
     -webkit-backdrop-filter:saturate(180%) blur(22px); backdrop-filter:saturate(180%) blur(22px);
@@ -55,7 +64,7 @@
      the translucent portion behind the status bar during momentum scrolling. */
   .app-topbar::before {
     content:""; position:absolute; z-index:-1; left:0; right:0; top:0;
-    height:env(safe-area-inset-top, 0px); background:var(--bg);
+    height:var(--app-safe-top); background:var(--bg);
   }
   @supports not (background: color-mix(in srgb, black, white)) { .app-topbar { background:var(--bg); } }
   .row { display: flex; align-items: center; }
@@ -234,13 +243,18 @@
 
   /* Translucent tab bar */
   .tabbar {
-    position:fixed; left:0; right:0; bottom:var(--vvb, 0px); display:flex;
+    position:fixed; left:0; right:0; bottom:0; display:flex;
     background: var(--tab-bg);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
     border-top:1px solid var(--sep);
     padding:8px 4px calc(env(safe-area-inset-bottom, 0px) + 8px); z-index:40;
   }
+  /* Primary navigation should not float over form content when iOS opens its
+     keyboard. Editors already have dedicated pages; search fields on primary
+     tabs simply hide app chrome until the keyboard closes. */
+  html.keyboard-open .tabbar,
+  html.keyboard-open .app-fab { display:none !important; }
 
   /* Chart affordances */
   .chart-hit { cursor: pointer; }
@@ -2587,7 +2601,7 @@ function renderAddTxnPage() {
   return h;
 }
 function renderFab() {
-  return '<button data-action="open-add-txn" aria-label="Add transaction" style="position:fixed; right:calc(env(safe-area-inset-right,0px) + 18px); bottom:calc(var(--vvb, 0px) + env(safe-area-inset-bottom,0px) + 78px); width:52px; height:52px; border-radius:999px; background:var(--accent); color:var(--accent-ink); border:none; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,0.35); z-index:45;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
+  return '<button class="app-fab" data-action="open-add-txn" aria-label="Add transaction" style="position:fixed; right:calc(env(safe-area-inset-right,0px) + 18px); bottom:calc(env(safe-area-inset-bottom,0px) + 78px); width:52px; height:52px; border-radius:999px; background:var(--accent); color:var(--accent-ink); border:none; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,0.35); z-index:45;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
 }
 
 function renderTransactionsBody() {
@@ -5236,8 +5250,9 @@ window.addEventListener("resize", setViewportHeightVar);
 window.addEventListener("orientationchange", setViewportHeightVar);
 
 /* visualViewport tracking, for two different jobs that both need it:
-   --vvb (bottom gap) is what the tab bar/FAB use, assuming the viewport's top
-   stays put and only its bottom shrinks for the keyboard.
+   --vvb tracks the keyboard gap for modal positioning/legacy calculations.
+   Primary tab navigation no longer follows that gap; it hides while the
+   software keyboard is visible.
    --vvt/--vvh (top offset + height) pin the modal backdrop to the actual
    visible rectangle, top edge included — needed because iOS doesn't just
    shrink the visual viewport for the keyboard, it can also *pan* it (offsetTop
@@ -5254,12 +5269,19 @@ function updateVisualViewportOffset() {
     r.setProperty("--vvb", "0px");
     r.setProperty("--vvt", "0px");
     r.setProperty("--vvh", "100dvh");
+    document.documentElement.classList.remove("keyboard-open");
     return;
   }
   var gap = window.innerHeight - vv.height - vv.offsetTop;
   r.setProperty("--vvb", Math.max(0, Math.round(gap)) + "px");
-  r.setProperty("--vvt", Math.round(vv.offsetTop) + "px");
+  r.setProperty("--vvt", Math.max(0, Math.round(vv.offsetTop)) + "px");
   r.setProperty("--vvh", Math.round(vv.height) + "px");
+
+  /* A substantial loss of visible height is the software keyboard, not normal
+     browser chrome. Hide the primary bottom navigation instead of moving it
+     above the keyboard, which otherwise bisects the transaction list. */
+  var keyboardOpen = gap > 120 || vv.height < window.innerHeight * 0.72;
+  document.documentElement.classList.toggle("keyboard-open", keyboardOpen);
 }
 updateVisualViewportOffset();
 if (window.visualViewport) {
