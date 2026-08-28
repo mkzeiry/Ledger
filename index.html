@@ -250,18 +250,35 @@
 
   .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px 12px; }
 
-  /* Simplified Home: Safe to spend remains the hero. The four supporting
-     metrics use the same roomy card treatment but a slightly quieter number
-     size, so the eye lands on today's decision first. */
+  /* Simplified Home is a decision snapshot rather than a stack of KPIs:
+     1) today's safe amount, 2) week/month budget status, 3) month outlook. */
   .simple-metric-card { padding:18px 18px 17px; margin-bottom:12px; min-height:112px; display:flex; flex-direction:column; justify-content:center; }
-  .simple-metric-card.simple-hero { min-height:122px; }
-  .simple-metric-value { font-size:32px; line-height:1.06; font-weight:760; letter-spacing:-0.038em; margin-top:5px; }
-  .simple-metric-card.simple-hero .simple-metric-value { font-size:40px; letter-spacing:-0.044em; }
+  .simple-metric-card.simple-hero { min-height:136px; }
+  .simple-metric-value { font-size:31px; line-height:1.06; font-weight:760; letter-spacing:-0.038em; margin-top:5px; }
+  .simple-metric-card.simple-hero .simple-metric-value { font-size:44px; letter-spacing:-0.046em; }
   .simple-metric-unit { font-size:15px; font-weight:600; letter-spacing:-0.01em; }
   .simple-metric-card.simple-hero .simple-metric-unit { font-size:17px; }
   .simple-metric-meta { margin-top:7px; font-size:12px; color:var(--text-muted); font-weight:600; }
-  .simple-progress { height:8px; background:var(--fill); border-radius:999px; overflow:hidden; margin-top:13px; }
+  .simple-status { margin-top:10px; font-size:13px; line-height:1.35; font-weight:650; }
+  .simple-progress { height:7px; background:var(--fill); border-radius:999px; overflow:hidden; margin-top:10px; }
   .simple-progress > span { display:block; height:100%; border-radius:999px; }
+  .simple-budget-card { padding:17px 16px 16px; margin-bottom:12px; }
+  .simple-budget-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; margin-top:12px; }
+  .simple-budget-cell { min-width:0; padding-right:14px; }
+  .simple-budget-cell + .simple-budget-cell { border-left:1px solid var(--sep); padding-left:14px; padding-right:0; }
+  .simple-budget-value { margin-top:5px; font-size:27px; line-height:1.05; font-weight:760; letter-spacing:-0.035em; white-space:nowrap; }
+  .simple-budget-unit { font-size:13px; font-weight:650; color:var(--text-muted); }
+  .simple-budget-meta { margin-top:7px; font-size:11.5px; color:var(--text-muted); font-weight:650; }
+  .simple-outlook-card { padding:17px 18px 16px; margin-bottom:12px; }
+  .simple-outlook-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:13px; }
+  .simple-outlook-label { color:var(--text-muted); font-size:11px; font-weight:650; letter-spacing:.03em; text-transform:uppercase; }
+  .simple-outlook-value { margin-top:4px; font-size:25px; line-height:1.08; font-weight:760; letter-spacing:-0.035em; }
+  .simple-outlook-sub { margin-top:5px; color:var(--text-muted); font-size:11.5px; font-weight:600; }
+  .simple-outlook-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; padding-top:11px; border-top:1px solid var(--sep); font-size:12.5px; }
+  @media (max-width:360px) {
+    .simple-budget-value { font-size:24px; }
+    .simple-outlook-value { font-size:23px; }
+  }
 
   /* Keep the primary chrome on its own composited layer. Shorter/simple pages
      can otherwise make iOS Safari re-rasterize the fixed bar by a few pixels
@@ -337,7 +354,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v42";
+var APP_VERSION = "v43";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -2948,31 +2965,54 @@ function renderHomeBody(T, da) {
     var simpleSaving = projectedCashSaving != null ? projectedCashSaving : projectedSaving;
     var simpleSavingPct = projectedCashSaving != null ? projectedCashSavingPct : null;
     var simpleSavingLabel = projectedCashSaving != null ? 'PROJECTED SAVING' : 'PROJECTED BUDGET SAVING';
-    function simpleMetric(label, value, color, opts) {
-      opts=opts||{};
-      var cls='card simple-metric-card'+(opts.hero?' simple-hero':'');
-      var x='<div class="'+cls+'"><div class="muted caption">'+label+'</div><div class="mono simple-metric-value" style="color:'+color+';">'+value+'</div>';
-      if(opts.progress!=null){
-        var pw=Math.max(0,Math.min(100,opts.progress));
-        x+='<div class="simple-progress"><span style="width:'+pw+'%;background:'+(opts.over?'var(--rust)':'var(--accent)')+';"></span></div>';
-      }
-      if(opts.meta) x+='<div class="simple-metric-meta"'+(opts.metaColor?' style="color:'+opts.metaColor+';"':'')+'>'+opts.meta+'</div>';
-      return x+'</div>';
+    function pctBar(pct, over) {
+      var pw=Math.max(0,Math.min(100,pct||0));
+      return '<div class="simple-progress"><span style="width:'+pw+'%;background:'+(over?'var(--rust)':'var(--accent)')+';"></span></div>';
     }
-    var safeMeta=null, safeMetaColor=null;
-    if(overSafeToday>0){
-      safeMeta='Over today\'s safe allowance · '+fmt(overSafeToday,0)+' AED';
-      safeMetaColor='var(--rust)';
-      if(adjustmentNeeded>0) safeMeta+=' · '+((pacing.limitingHorizon||'budget').charAt(0).toUpperCase()+(pacing.limitingHorizon||'budget').slice(1))+' cut '+fmt(adjustmentNeeded,0)+' AED';
-    } else if(adjustmentNeeded>0){
-      safeMeta=((pacing.limitingHorizon||'budget').charAt(0).toUpperCase()+(pacing.limitingHorizon||'budget').slice(1))+' cut needed · '+fmt(adjustmentNeeded,0)+' AED';
-      safeMetaColor='var(--rust)';
+    var limitingLabel=(pacing.limitingHorizon||'budget');
+    limitingLabel=limitingLabel.charAt(0).toUpperCase()+limitingLabel.slice(1);
+    var simpleStatus='', simpleStatusColor='var(--text-muted)';
+    if (overSafeToday>0) {
+      simpleStatus='Over today\'s safe allowance by '+fmt(overSafeToday,0)+' AED · '+limitingLabel+' is limiting';
+      simpleStatusColor='var(--rust)';
+    } else if (adjustmentNeeded>0) {
+      simpleStatus=limitingLabel+' needs a '+fmt(adjustmentNeeded,0)+' AED cut to get back on track';
+      simpleStatusColor='var(--rust)';
+    } else if (projectedSaving>=0) {
+      simpleStatus='On track this month · projected '+fmt(projectedSaving,0)+' AED under budget';
+      simpleStatusColor='var(--positive)';
+    } else {
+      simpleStatus='Projected '+fmt(Math.abs(projectedSaving),0)+' AED over budget · reduce the remaining pace';
+      simpleStatusColor='var(--rust)';
     }
-    h += simpleMetric('SAFE TO SPEND TODAY', safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'), 'var(--text)', {hero:true,meta:safeMeta,metaColor:safeMetaColor});
-    h += simpleMetric('BUDGET REMAINING · THIS WEEK', (weekRemaining<0?'−':'')+fmt(Math.abs(weekRemaining),0)+' <span class="muted simple-metric-unit">AED</span>', weekRemaining>=0?'var(--positive)':'var(--rust)', {progress:weekProgress,over:weekPctRaw>100,meta:weekNow.target>0?(weekPctRaw.toFixed(0)+'% used · '+weekRemainPct.toFixed(0)+'% remaining'):null});
-    h += simpleMetric('BUDGET REMAINING · THIS MONTH', (remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' <span class="muted simple-metric-unit">AED</span>', remaining>=0?'var(--positive)':'var(--rust)', {progress:progress,over:budgetPctRaw>100,meta:target>0?(budgetPctRaw.toFixed(0)+'% used · '+budgetRemainPct.toFixed(0)+'% remaining'):null});
-    h += simpleMetric('SPENT THIS MONTH', fmt(overall.spent,0)+' <span class="muted simple-metric-unit">AED</span>', 'var(--text)', {meta:spentVsIncomePct==null?'Income not set':spentVsIncomePct.toFixed(0)+'% of income'});
-    h += simpleMetric(simpleSavingLabel, (simpleSaving>=0?'+':'−')+fmt(Math.abs(simpleSaving),0)+' <span class="muted simple-metric-unit">AED</span>', simpleSaving>=0?'var(--positive)':'var(--rust)', {meta:simpleSavingPct==null?'Income not set':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(0)+'% of income')});
+
+    h += '<div class="card simple-metric-card simple-hero">';
+    h += '<div class="muted caption">SAFE TO SPEND TODAY</div>';
+    h += '<div class="mono simple-metric-value" style="color:var(--text);">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'))+'</div>';
+    h += '<div class="simple-status" style="color:'+simpleStatusColor+';">'+esc(simpleStatus)+'</div>';
+    h += '</div>';
+
+    h += '<div class="card simple-budget-card">';
+    h += '<div class="row between"><div class="eyebrow">Budget status</div><div class="muted caption">'+esc(limitingLabel)+' limiting</div></div>';
+    h += '<div class="simple-budget-grid">';
+    h += '<div class="simple-budget-cell"><div class="muted caption">THIS WEEK</div><div class="mono simple-budget-value" style="color:'+(weekRemaining>=0?'var(--positive)':'var(--rust)')+';">'+(weekRemaining<0?'−':'')+fmt(Math.abs(weekRemaining),0)+' <span class="simple-budget-unit">AED '+(weekRemaining>=0?'left':'over')+'</span></div>'+pctBar(weekProgress,weekPctRaw>100)+'<div class="simple-budget-meta">'+(weekNow.target>0?(weekPctRaw.toFixed(0)+'% used · '+weekRemainPct.toFixed(0)+'% left'):'—')+'</div></div>';
+    h += '<div class="simple-budget-cell"><div class="muted caption">THIS MONTH</div><div class="mono simple-budget-value" style="color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' <span class="simple-budget-unit">AED '+(remaining>=0?'left':'over')+'</span></div>'+pctBar(progress,budgetPctRaw>100)+'<div class="simple-budget-meta">'+(target>0?(budgetPctRaw.toFixed(0)+'% used · '+budgetRemainPct.toFixed(0)+'% left'):'—')+'</div></div>';
+    h += '</div></div>';
+
+    var projectedSpendVsIncomePct = incomeReference>0 ? (projected/incomeReference*100) : null;
+    h += '<div class="card simple-outlook-card">';
+    h += '<div class="eyebrow">Month outlook</div>';
+    h += '<div class="simple-outlook-grid">';
+    h += '<div><div class="simple-outlook-label">Spent so far</div><div class="mono simple-outlook-value">'+fmt(overall.spent,0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(spentVsIncomePct==null?'Income not set':spentVsIncomePct.toFixed(0)+'% of income')+'</div></div>';
+    h += '<div><div class="simple-outlook-label">'+simpleSavingLabel+'</div><div class="mono simple-outlook-value" style="color:'+(simpleSaving>=0?'var(--positive)':'var(--rust)')+';">'+(simpleSaving>=0?'+':'−')+fmt(Math.abs(simpleSaving),0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(simpleSavingPct==null?'Income not set':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(0)+'% of income'))+'</div></div>';
+    h += '</div>';
+    if (incomeReference>0) {
+      h += pctBar(projectedSpendVsIncomePct, projectedSpendVsIncomePct>100);
+      h += '<div class="simple-outlook-sub">Projected spending uses '+projectedSpendVsIncomePct.toFixed(0)+'% of income</div>';
+    }
+    h += '<div class="simple-outlook-row"><span class="muted">Projected month-end spend</span><span class="mono" style="font-weight:700;">'+fmt(projected,0)+' AED</span></div>';
+    if (incomeReference>0) h += '<div class="simple-outlook-row" style="margin-top:8px;padding-top:0;border-top:0;"><span class="muted">Projected income</span><span class="mono" style="font-weight:700;">'+fmt(incomeReference,0)+' AED</span></div>';
+    h += '</div>';
     return h;
   }
   h += '<div class="row between" style="margin:0 2px 8px;"><span></span><button data-action="toggle-home-reorder" class="btn-plain" style="font-size:12px;">'+(state.homeReorderMode?'Done':'Arrange')+'</button></div>';
