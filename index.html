@@ -329,7 +329,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v33";
+var APP_VERSION = "v34";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -1383,7 +1383,13 @@ function buildOccurrenceProfile(key, label, daily, txnCount, meta) {
     key:key,label:label,activeDates:dates,activeDays:dates.length,txnCount:txnCount||0,
     gap:gap,gapDev:mad==null?null:mad*1.4826,typicalAmount:typicalAmount||0,
     lastDate:dates.length?dates[dates.length-1]:null,
-    eventMode:dates.length>=4 && (txnCount||0)>=4 && gaps.length>=3 && gap!=null && gap>=1.75 && typicalAmount>0
+    /* Three observed active days are enough to start treating a clearly
+       spaced purchase as an event instead of smearing it into every future
+       day. This is deliberately earlier than the old 4-transaction threshold:
+       near period-end, a fresh Fuel/Groceries/etc. occurrence is much more
+       informative than a generic daily pace. Very frequent behavior stays in
+       the weekday fallback. */
+    eventMode:dates.length>=3 && (txnCount||0)>=3 && gaps.length>=2 && gap!=null && gap>=1.35 && typicalAmount>0
   };
   if(meta) Object.keys(meta).forEach(function(k){p[k]=meta[k];});
   return p;
@@ -1479,6 +1485,11 @@ function expectedEventSpendByDate(scope, fromStr, throughStr) {
       offsets.forEach(function(o){
         var d=addDays(center,o.off), ds=toStr(d);
         if(d<horizonStart||d>horizonEnd) return;
+        /* Once an event has happened today, do not immediately forecast the
+           same cadence event again today. For event-like subcategories the
+           occurrence resets the repeat clock; the next probability mass starts
+           on later dates around the learned interval. */
+        if (p.lastDate === fromStr && ds === fromStr) return;
         var prob=o.w/Math.max(denom,1e-9), amt=prob*p.typicalAmount;
         byDate[ds]=(byDate[ds]||0)+amt;
         varianceByDate[ds]=(varianceByDate[ds]||0)+prob*(1-prob)*p.typicalAmount*p.typicalAmount;
@@ -2373,25 +2384,23 @@ function render() {
 
 /* Forecast-aware live budget pacing.
 
-   "Safe to spend today" should answer a practical question: how much MORE can
-   I spend today while still being expected to finish BOTH the current week and
-   month within budget? A flat daily allowance cannot answer that well for
-   event-like spending. If Fuel normally happens every ~5.6 days and was logged
-   today, the forecast already learns that another Fuel event is unlikely before
-   a Sunday/month-end only a few days away. Charging the full Fuel amount against
-   an equal daily quota would therefore be unnecessarily punitive.
+   "Safe to spend today" answers: how much MORE can I spend today while still
+   being expected to finish BOTH the current week and month within budget?
 
-   For each horizon we now reserve forecast spend AFTER today, using the same
-   person/subcategory frequency intelligence as the Budget forecast:
+   Event-like subcategories are conditional on what already happened. A Fuel
+   transaction today resets Fuel's repeat clock, so the future reserve should
+   reflect the learned 5–6 day cadence rather than treating today's fuel as a
+   daily pattern.
 
-     safe today = period target
-                - actual budget spend through now
-                - expected budget spend after today
+   For each horizon:
 
-   We deliberately remove the forecast's "remaining spend today" component: the
-   result itself is the amount available for the rest of today. The tighter of
-   week and month wins. The old equal-day pace is retained as a secondary
-   reference metric only. */
+     raw safe today = period target
+                    - actual budget spend through now
+                    - expected budget spend AFTER today
+
+   The tighter of week/month wins. A negative raw result is not a meaningful
+   amount somebody can "safely spend", so the user-facing value is floored at
+   zero and the shortfall is exposed separately as Adjustment needed. */
 function liveBudgetPacing() {
   var today = todayStr();
   var spentToday = state.entries[today] ? sumBudgetSpent(state.entries[today]) : 0;
@@ -2399,7 +2408,7 @@ function liveBudgetPacing() {
   function horizon(mode) {
     var per = getPeriodBounds(mode, 0, currentWeeklyTarget(), dailyAllowance());
     if (today < per.startStr || today > per.endStr) {
-      return { mode:mode, avg:null, openingRemaining:null, days:0, safe:null, futureReserve:null, forecast:null };
+      return { mode:mode, avg:null, openingRemaining:null, days:0, safe:null, rawSafe:null, adjustmentNeeded:null, futureReserve:null, forecast:null };
     }
     var stats = periodStatsBudget(per.startStr, per.endStr);
     var spentBeforeToday = round2(Math.max(0, stats.spent - spentToday));
@@ -2410,34 +2419,42 @@ function liveBudgetPacing() {
     var forecastStart = effectiveRangeStart(per.startStr);
     var forecastDays = Math.max(1, daysBetween(forecastStart, per.endStr) + 1);
     var fc = stats.rows.length ? computeForecastNumbers(stats.rows, forecastDays, forecastStart, "budget") : null;
-    var futureReserve = null, safe = null;
+    var futureReserve = null, rawSafe = null, safe = null, adjustmentNeeded = 0;
     if (fc) {
-      /* projectedSpend = actual through now + forecast rest-of-today + future.
-         Safe-to-spend IS the rest-of-today allowance, so reserve only future
-         dates after today. */
+      /* projectedSpend contains actual through now + any remaining-today
+         expectation + spend after today. Safe-to-spend IS the rest-of-today
+         allowance, so only reserve dates after today. */
       futureReserve = round2(Math.max(0, fc.projectedSpend - fc.actualSpentSoFar - (fc.remainingVariableToday || 0)));
-      safe = round2(per.target - stats.spent - futureReserve);
+      rawSafe = round2(per.target - stats.spent - futureReserve);
+      safe = round2(Math.max(0, rawSafe));
+      adjustmentNeeded = round2(Math.max(0, -rawSafe));
     } else if (avg != null) {
-      safe = round2(avg - spentToday);
+      rawSafe = round2(avg - spentToday);
+      safe = round2(Math.max(0, rawSafe));
+      adjustmentNeeded = round2(Math.max(0, -rawSafe));
     }
-    return { mode:mode, avg:avg, openingRemaining:openingRemaining, days:days, safe:safe, futureReserve:futureReserve, forecast:fc };
+    return { mode:mode, avg:avg, openingRemaining:openingRemaining, days:days, safe:safe, rawSafe:rawSafe, adjustmentNeeded:adjustmentNeeded, futureReserve:futureReserve, forecast:fc };
   }
 
   var week = horizon("week");
   var month = horizon("month");
   var avgVals = [week.avg, month.avg].filter(function(v){ return v != null; });
-  var safeVals = [week.safe, month.safe].filter(function(v){ return v != null; });
+  var rawVals = [week.rawSafe, month.rawSafe].filter(function(v){ return v != null; });
   var dailyAverage = avgVals.length ? Math.min.apply(null, avgVals) : null;
-  var safeToday = safeVals.length ? round2(Math.min.apply(null, safeVals)) : null;
+  var rawSafeToday = rawVals.length ? round2(Math.min.apply(null, rawVals)) : null;
+  var safeToday = rawSafeToday == null ? null : round2(Math.max(0, rawSafeToday));
+  var adjustmentNeeded = rawSafeToday == null ? null : round2(Math.max(0, -rawSafeToday));
   var limitingHorizon = null;
-  if (safeToday != null) limitingHorizon = (week.safe != null && (month.safe == null || week.safe <= month.safe)) ? "week" : "month";
+  if (rawSafeToday != null) limitingHorizon = (week.rawSafe != null && (month.rawSafe == null || week.rawSafe <= month.rawSafe)) ? "week" : "month";
 
   return {
     week:week,
     month:month,
     dailyAverage:dailyAverage,
     spentToday:spentToday,
+    rawSafeToday:rawSafeToday,
     safeToday:safeToday,
+    adjustmentNeeded:adjustmentNeeded,
     limitingHorizon:limitingHorizon
   };
 }
@@ -2457,6 +2474,7 @@ function renderHomeBody(T, da) {
   var pacing = liveBudgetPacing();
   var dailyAverage = pacing.dailyAverage;
   var safeToday = pacing.safeToday;
+  var adjustmentNeeded = pacing.adjustmentNeeded || 0;
   var spentToday = pacing.spentToday;
   var chartStart = month.startStr;
   var chartDays = daysBetween(chartStart, month.endStr)+1;
@@ -2494,7 +2512,8 @@ function renderHomeBody(T, da) {
   budgetCard += '<div class="row between" style="align-items:baseline;"><div class="eyebrow">Budget</div><span class="row" style="align-items:baseline;gap:8px;"><span class="mono subhead" style="font-weight:600;">'+fmt(budget.spent,0)+' / '+fmt(target,0)+' AED</span><span class="mono caption" style="font-weight:700;color:'+(budgetPctRaw>100?'var(--rust)':'var(--text-muted)')+';">'+budgetPctRaw.toFixed(0)+'%</span></span></div>';
   budgetCard += '<div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 16px;"><div style="height:100%;width:'+progress+'%;background:'+(budget.spent>target?'var(--rust)':'var(--accent)')+';"></div></div>';
   budgetCard += '<div class="muted caption">SAFE TO SPEND TODAY</div>';
-  budgetCard += '<div class="mono" style="font-size:34px;font-weight:700;margin-top:3px;color:'+(safeToday!=null&&safeToday<0?'var(--rust)':'var(--text)')+';">'+(safeToday==null?'—':((safeToday<0?'−':'')+fmt(Math.abs(safeToday),0)+' <span class="muted" style="font-size:17px;">AED</span>'))+'</div>';
+  budgetCard += '<div class="mono" style="font-size:34px;font-weight:700;margin-top:3px;color:var(--text);">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted" style="font-size:17px;">AED</span>'))+'</div>';
+  if (adjustmentNeeded>0) budgetCard += '<div class="caption" style="margin-top:5px;color:var(--rust);font-weight:650;">Adjustment needed · '+fmt(adjustmentNeeded,0)+' AED</div>';
   budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;">';
   budgetCard += '<div class="row between"><span class="muted subhead">Equal daily pace</span><span class="mono subhead" style="font-weight:600;color:'+(dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)')+';">'+(dailyAverage==null?'—':((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'))+'</span></div>';
   budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Saved so far</span><span class="mono subhead" style="font-weight:600;color:'+(savedSoFar>=0?'var(--positive)':'var(--rust)')+';">'+(savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED</span></div>';
@@ -2542,7 +2561,7 @@ function renderHomeBody(T, da) {
       if(opts.meta) x+='<div class="simple-metric-meta">'+opts.meta+'</div>';
       return x+'</div>';
     }
-    h += simpleMetric('SAFE TO SPEND TODAY', safeToday==null?'—':((safeToday<0?'−':'')+fmt(Math.abs(safeToday),0)+' <span class="muted simple-metric-unit">AED</span>'), safeToday!=null&&safeToday<0?'var(--rust)':'var(--text)', {hero:true});
+    h += simpleMetric('SAFE TO SPEND TODAY', safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'), 'var(--text)', {hero:true,meta:adjustmentNeeded>0?('Adjustment needed · '+fmt(adjustmentNeeded,0)+' AED'):null});
     h += simpleMetric('BUDGET REMAINING · THIS WEEK', (weekRemaining<0?'−':'')+fmt(Math.abs(weekRemaining),0)+' <span class="muted simple-metric-unit">AED</span>', weekRemaining>=0?'var(--positive)':'var(--rust)', {progress:weekProgress,over:weekPctRaw>100});
     h += simpleMetric('BUDGET REMAINING · THIS MONTH', (remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' <span class="muted simple-metric-unit">AED</span>', remaining>=0?'var(--positive)':'var(--rust)', {progress:progress,over:budgetPctRaw>100});
     h += simpleMetric('SPENT THIS MONTH', fmt(overall.spent,0)+' <span class="muted simple-metric-unit">AED</span>', 'var(--text)', {meta:spentVsIncomePct==null?'Income not set':spentVsIncomePct.toFixed(0)+'% of income'});
@@ -2564,7 +2583,7 @@ function renderBudgetBody(T) {
   lastForecastChartData=null;lastChartData=null;lastBudgetTrendChartData=null;
   var da=dailyAllowance(),period=getPeriodBounds(state.view,state.offset,currentWeeklyTarget(),da),stats=periodStatsBudget(period.startStr,period.endStr);
   var isCurrent=state.offset===0,isClosed=period.endStr<todayStr(),target=period.target,remaining=round2(target-stats.spent),savedSoFar=round2(stats.targetElapsed-stats.spent);
-  var livePacing=isCurrent?liveBudgetPacing():null,dailyAverage=livePacing?livePacing.dailyAverage:null,safeToday=livePacing?livePacing.safeToday:null,spentToday=livePacing?livePacing.spentToday:0;
+  var livePacing=isCurrent?liveBudgetPacing():null,dailyAverage=livePacing?livePacing.dailyAverage:null,safeToday=livePacing?livePacing.safeToday:null,adjustmentNeeded=livePacing?(livePacing.adjustmentNeeded||0):0,spentToday=livePacing?livePacing.spentToday:0;
   var forecastStart=effectiveRangeStart(period.startStr),forecastDays=daysBetween(forecastStart,period.endStr)+1,budgetForecast=(isCurrent&&stats.rows.length)?computeForecastNumbers(stats.rows,forecastDays,forecastStart,'budget'):null;
   var projectedSpend=budgetForecast?budgetForecast.projectedSpend:stats.spent,projectedSaving=round2(target-projectedSpend),progress=target>0?Math.max(0,Math.min(100,stats.spent/target*100)):0;
   var h='<div class="row between" style="align-items:center;margin-bottom:10px;"><div class="eyebrow">Budget</div><div class="row gap2"><button data-action="toggle-budget-reorder" class="btn-plain" style="font-size:12px;">'+(state.budgetReorderMode?'Done':'Customize')+'</button><button data-action="open-budget-settings" class="btn-outline" style="padding:6px 10px;font-size:12px;">Edit budget</button></div></div>';
@@ -2576,9 +2595,11 @@ function renderBudgetBody(T) {
   summary+=statBlock('Remaining',(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED',remaining>=0?'var(--positive)':'var(--rust)');
   summary+=statBlock(isClosed?'Saved this period':'Saved so far',(savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED',savedSoFar>=0?'var(--positive)':'var(--rust)');
   summary+=statBlock('Daily avg to stay on budget',isCurrent&&dailyAverage!=null?((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'):'—',dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)');
-  summary+=statBlock('Safe to spend today',isCurrent&&safeToday!=null?((safeToday<0?'−':'')+fmt(Math.abs(safeToday),0)+' AED'):'—',safeToday!=null&&safeToday<0?'var(--rust)':'var(--text)');
+  summary+=statBlock('Safe to spend today',isCurrent&&safeToday!=null?(fmt(safeToday,0)+' AED'):'—','var(--text)');
   summary+=statBlock('Spent today',isCurrent?fmt(spentToday,0)+' AED':'—','var(--text)');
-  summary+=statBlock('Projected saving',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div></div>';
+  summary+=statBlock('Projected saving',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div>';
+  if(isCurrent&&adjustmentNeeded>0) summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);" class="row between"><span class="subhead" style="font-weight:650;color:var(--rust);">Adjustment needed</span><span class="mono subhead" style="font-weight:700;color:var(--rust);">'+fmt(adjustmentNeeded,0)+' AED</span></div>';
+  summary+='</div>';
   sections.summary=summary;
   var compareRows=previousPeriodRows(state.view,state.offset,period.startStr,period.endStr,'budget');
   sections.forecast=buildForecastCard(stats.rows,forecastDays,target,forecastStart,T,'Budget',state.view,compareRows,'budget');
@@ -3826,10 +3847,10 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
   };
 }
 
-/* Builds the shared forecast card. Variable spending is estimated with an
-   explainable hybrid: recent same-weekday history (8 weeks, recency weighted
-   and outlier-resistant) blended with the current period's completed-day pace.
-   Scheduled expenses remain exact and land on their real dates. */
+/* Builds the shared forecast card. Repeat-type subcategories are forecast as
+   conditional events first; a transaction today resets that subcategory's
+   repeat clock. Only genuinely frequent or history-poor spending falls back to
+   the recency-weighted weekday pace. Scheduled expenses remain exact. */
 function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, periodWord, compareRows, scope) {
   if (!rows.length) return "";
   scope = scope || "overall";
