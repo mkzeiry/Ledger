@@ -329,7 +329,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v34";
+var APP_VERSION = "v35";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -976,6 +976,8 @@ var state = {
   budgetSelectedGroup: null,
   basis: "budget", // legacy: UI no longer switches basis
   forecastCompareMode: "previous",
+  budgetForecastDetailsOpen: false,
+  analysisForecastDetailsOpen: false,
   incomeDraftMode: null,
   incomeDraftAmount: null,
   categoryStyleEditing: null,
@@ -1261,6 +1263,30 @@ function scheduledAmountInRange(afterStr, throughStr, scope) {
   return round2(total);
 }
 
+/* Same deterministic future plans, grouped by subcategory for the compact
+   Forecast details view. This is explanatory only; it does not change the
+   forecast mathematics. */
+function scheduledExpenseBreakdown(afterStr, throughStr, scope) {
+  var out = {};
+  (state.settings.recurringRules||[]).forEach(function(rule){
+    if (!rule.active || rule.entryKind === "income") return;
+    if (scope === "budget" && categoryExcludedFromBudget(rule.category)) return;
+    var n = rule.occurrencesLogged || 0, guard = 0;
+    while (guard < 500) {
+      if (rule.occurrencesTotal != null && n >= rule.occurrencesTotal) break;
+      var due = recurringOccurrenceDate(rule, n);
+      if (due > throughStr) break;
+      if (rule.endDate && due > rule.endDate) break;
+      if (due > afterStr) {
+        var key = rule.category || "Uncategorised";
+        out[key] = round2((out[key]||0) + ruleOccurrenceAmount(rule,n));
+      }
+      n++; guard++;
+    }
+  });
+  return out;
+}
+
 /* Robust weighted stats for daily variable spend. The outer 10% is winsorised
    when enough observations exist, which prevents one large phone/furniture/etc.
    purchase from teaching the forecast that every future day will look like it.
@@ -1468,7 +1494,7 @@ function variableOccurrenceProfiles(scope, asOfDate) {
    exact next date. Person-specific profiles are used only when mature enough;
    otherwise the hierarchy above falls back cleanly without duplicate events. */
 function expectedEventSpendByDate(scope, fromStr, throughStr) {
-  var model=variableOccurrenceProfiles(scope,fromStr), byDate={}, varianceByDate={}, modeledCount=0;
+  var model=variableOccurrenceProfiles(scope,fromStr), byDate={}, varianceByDate={}, bySubcategory={}, modeledCount=0;
   var horizonStart=parseD(fromStr), horizonEnd=parseD(throughStr);
   (model.selected||[]).forEach(function(p){
     if(!p.eventMode||!p.lastDate) return;
@@ -1492,14 +1518,15 @@ function expectedEventSpendByDate(scope, fromStr, throughStr) {
         if (p.lastDate === fromStr && ds === fromStr) return;
         var prob=o.w/Math.max(denom,1e-9), amt=prob*p.typicalAmount;
         byDate[ds]=(byDate[ds]||0)+amt;
+        bySubcategory[p.subcategory]=(bySubcategory[p.subcategory]||0)+amt;
         varianceByDate[ds]=(varianceByDate[ds]||0)+prob*(1-prob)*p.typicalAmount*p.typicalAmount;
       });
       center=addDays(center,Math.max(1,Math.round(gap))); guard++;
     }
   });
   return {
-    byDate:byDate,varianceByDate:varianceByDate,modeledSet:model.exclusions,modeledCount:modeledCount,
-    profiles:model.profiles,personModeledCount:model.personModeledCount||0,overallModeledCount:model.overallModeledCount||0
+    byDate:byDate,varianceByDate:varianceByDate,bySubcategory:bySubcategory,modeledSet:model.exclusions,modeledCount:modeledCount,
+    profiles:model.profiles,selectedProfiles:model.selected||[],personModeledCount:model.personModeledCount||0,overallModeledCount:model.overallModeledCount||0
   };
 }
 
@@ -2513,7 +2540,7 @@ function renderHomeBody(T, da) {
   budgetCard += '<div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 16px;"><div style="height:100%;width:'+progress+'%;background:'+(budget.spent>target?'var(--rust)':'var(--accent)')+';"></div></div>';
   budgetCard += '<div class="muted caption">SAFE TO SPEND TODAY</div>';
   budgetCard += '<div class="mono" style="font-size:34px;font-weight:700;margin-top:3px;color:var(--text);">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted" style="font-size:17px;">AED</span>'))+'</div>';
-  if (adjustmentNeeded>0) budgetCard += '<div class="caption" style="margin-top:5px;color:var(--rust);font-weight:650;">Adjustment needed · '+fmt(adjustmentNeeded,0)+' AED</div>';
+  if (adjustmentNeeded>0) budgetCard += '<div class="caption" style="margin-top:5px;color:var(--rust);font-weight:650;text-transform:capitalize;">'+esc(pacing.limitingHorizon||'budget')+' cut needed · '+fmt(adjustmentNeeded,0)+' AED</div>';
   budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;">';
   budgetCard += '<div class="row between"><span class="muted subhead">Equal daily pace</span><span class="mono subhead" style="font-weight:600;color:'+(dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)')+';">'+(dailyAverage==null?'—':((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'))+'</span></div>';
   budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Saved so far</span><span class="mono subhead" style="font-weight:600;color:'+(savedSoFar>=0?'var(--positive)':'var(--rust)')+';">'+(savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED</span></div>';
@@ -2561,7 +2588,7 @@ function renderHomeBody(T, da) {
       if(opts.meta) x+='<div class="simple-metric-meta">'+opts.meta+'</div>';
       return x+'</div>';
     }
-    h += simpleMetric('SAFE TO SPEND TODAY', safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'), 'var(--text)', {hero:true,meta:adjustmentNeeded>0?('Adjustment needed · '+fmt(adjustmentNeeded,0)+' AED'):null});
+    h += simpleMetric('SAFE TO SPEND TODAY', safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'), 'var(--text)', {hero:true,meta:adjustmentNeeded>0?(((pacing.limitingHorizon||'budget').charAt(0).toUpperCase()+(pacing.limitingHorizon||'budget').slice(1))+' cut needed · '+fmt(adjustmentNeeded,0)+' AED'):null});
     h += simpleMetric('BUDGET REMAINING · THIS WEEK', (weekRemaining<0?'−':'')+fmt(Math.abs(weekRemaining),0)+' <span class="muted simple-metric-unit">AED</span>', weekRemaining>=0?'var(--positive)':'var(--rust)', {progress:weekProgress,over:weekPctRaw>100});
     h += simpleMetric('BUDGET REMAINING · THIS MONTH', (remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' <span class="muted simple-metric-unit">AED</span>', remaining>=0?'var(--positive)':'var(--rust)', {progress:progress,over:budgetPctRaw>100});
     h += simpleMetric('SPENT THIS MONTH', fmt(overall.spent,0)+' <span class="muted simple-metric-unit">AED</span>', 'var(--text)', {meta:spentVsIncomePct==null?'Income not set':spentVsIncomePct.toFixed(0)+'% of income'});
@@ -2583,7 +2610,7 @@ function renderBudgetBody(T) {
   lastForecastChartData=null;lastChartData=null;lastBudgetTrendChartData=null;
   var da=dailyAllowance(),period=getPeriodBounds(state.view,state.offset,currentWeeklyTarget(),da),stats=periodStatsBudget(period.startStr,period.endStr);
   var isCurrent=state.offset===0,isClosed=period.endStr<todayStr(),target=period.target,remaining=round2(target-stats.spent),savedSoFar=round2(stats.targetElapsed-stats.spent);
-  var livePacing=isCurrent?liveBudgetPacing():null,dailyAverage=livePacing?livePacing.dailyAverage:null,safeToday=livePacing?livePacing.safeToday:null,adjustmentNeeded=livePacing?(livePacing.adjustmentNeeded||0):0,spentToday=livePacing?livePacing.spentToday:0;
+  var livePacing=isCurrent?liveBudgetPacing():null,dailyAverage=livePacing?livePacing.dailyAverage:null,safeToday=livePacing?livePacing.safeToday:null,adjustmentNeeded=livePacing?(livePacing.adjustmentNeeded||0):0,spentToday=livePacing?livePacing.spentToday:0,limitingHorizon=livePacing?livePacing.limitingHorizon:null;
   var forecastStart=effectiveRangeStart(period.startStr),forecastDays=daysBetween(forecastStart,period.endStr)+1,budgetForecast=(isCurrent&&stats.rows.length)?computeForecastNumbers(stats.rows,forecastDays,forecastStart,'budget'):null;
   var projectedSpend=budgetForecast?budgetForecast.projectedSpend:stats.spent,projectedSaving=round2(target-projectedSpend),progress=target>0?Math.max(0,Math.min(100,stats.spent/target*100)):0;
   var h='<div class="row between" style="align-items:center;margin-bottom:10px;"><div class="eyebrow">Budget</div><div class="row gap2"><button data-action="toggle-budget-reorder" class="btn-plain" style="font-size:12px;">'+(state.budgetReorderMode?'Done':'Customize')+'</button><button data-action="open-budget-settings" class="btn-outline" style="padding:6px 10px;font-size:12px;">Edit budget</button></div></div>';
@@ -2597,8 +2624,11 @@ function renderBudgetBody(T) {
   summary+=statBlock('Daily avg to stay on budget',isCurrent&&dailyAverage!=null?((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'):'—',dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)');
   summary+=statBlock('Safe to spend today',isCurrent&&safeToday!=null?(fmt(safeToday,0)+' AED'):'—','var(--text)');
   summary+=statBlock('Spent today',isCurrent?fmt(spentToday,0)+' AED':'—','var(--text)');
-  summary+=statBlock('Projected saving',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div>';
-  if(isCurrent&&adjustmentNeeded>0) summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);" class="row between"><span class="subhead" style="font-weight:650;color:var(--rust);">Adjustment needed</span><span class="mono subhead" style="font-weight:700;color:var(--rust);">'+fmt(adjustmentNeeded,0)+' AED</span></div>';
+  summary+=statBlock('Projected vs budget',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div>';
+  if(isCurrent&&limitingHorizon){
+    summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);" class="row between"><span class="muted subhead" style="font-weight:600;">Safe-to-spend limit</span><span class="subhead" style="font-weight:700;text-transform:capitalize;">'+esc(limitingHorizon)+'</span></div>';
+    if(adjustmentNeeded>0) summary+='<div style="margin-top:8px;" class="row between"><span class="subhead" style="font-weight:650;color:var(--rust);text-transform:capitalize;">'+esc(limitingHorizon)+' cut needed</span><span class="mono subhead" style="font-weight:700;color:var(--rust);">'+fmt(adjustmentNeeded,0)+' AED</span></div>';
+  }
   summary+='</div>';
   sections.summary=summary;
   var compareRows=previousPeriodRows(state.view,state.offset,period.startStr,period.endStr,'budget');
@@ -3759,6 +3789,25 @@ function buildAnalysisForecastCard(info, cs, T) {
   );
 }
 
+/* Allocate the pooled fallback forecast back to the unmodeled
+   subcategories that created that pace. This is for explainability only; the
+   total fallback forecast remains exactly the same. */
+function fallbackSubcategoryWeights(scope, modeledSet, asOfDate) {
+  var end = asOfDate || todayStr();
+  var start = toStr(addDays(parseD(end), -55));
+  var totals = {}, total = 0;
+  Object.keys(state.entries).forEach(function(ds){
+    if (ds < start || ds > end) return;
+    (state.entries[ds].items||[]).forEach(function(it){
+      if (!expenseCountsForScope(it,scope) || it.recurringId || eventModelExcludesItem(it,modeledSet)) return;
+      var key = subcategoryKey(it);
+      totals[key] = (totals[key]||0) + it.amount;
+      total += it.amount;
+    });
+  });
+  return {totals:totals,total:total};
+}
+
 /* Single source of truth for the forecast. Actual spend remains exact;
    deterministic plans remain exact; variable spending is forecast primarily
    as likely subcategory EVENTS (learned repeat interval × typical amount).
@@ -3801,6 +3850,7 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
   var remainingVariableToday=remainingFallbackToday+eventToday;
 
   var projectedSpend=actualSpentSoFar+remainingVariableToday;
+  var fallbackFutureTotal=remainingFallbackToday;
   var uncertaintySq=(eventModel.varianceByDate[today]||0), expectedFutureTotal=remainingVariableToday;
   if(todayFallbackExpected&&remainingFallbackToday>0) uncertaintySq+=todayFallbackExpected.dev*todayFallbackExpected.dev;
 
@@ -3814,6 +3864,7 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
     var eventAmt=eventModel.byDate[ds]||0;
     var scheduled=futureScheduledByDate[ds]||0;
     expectedFutureTotal+=fallbackAmt+eventAmt;
+    fallbackFutureTotal+=fallbackAmt;
     futureRunning+=fallbackAmt+eventAmt+scheduled;
     if(fallback) uncertaintySq+=fallback.dev*fallback.dev;
     uncertaintySq+=(eventModel.varianceByDate[ds]||0);
@@ -3836,6 +3887,51 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
   var avgSpentPerDay=remainingEstimateDays>0?expectedFutureTotal/remainingEstimateDays:(currentStats?currentStats.mean:(historyProfile.overall?historyProfile.overall.mean:null));
   var stillBlending=!!(currentStats&&historyProfile.overall&&currentWeight<0.7);
 
+  /* Explain the remaining forecast without changing it: exact plans, learned
+     repeat events, then the pooled fallback pace allocated to the recent
+     unmodeled subcategories that generated that pace. */
+  var breakdownMap = {};
+  function addBreakdown(label, amount, kind) {
+    amount = Number(amount)||0;
+    if (amount <= 0.005) return;
+    label = label === "__uncategorised__" ? "Uncategorised" : label;
+    if (!breakdownMap[label]) breakdownMap[label] = {label:label,amount:0,kinds:{}};
+    breakdownMap[label].amount += amount;
+    breakdownMap[label].kinds[kind] = true;
+  }
+  Object.keys(eventModel.bySubcategory||{}).forEach(function(k){ addBreakdown(k,eventModel.bySubcategory[k],"cadence"); });
+  var scheduledBreakdown = scheduledExpenseBreakdown(today,periodEnd,scope);
+  Object.keys(scheduledBreakdown).forEach(function(k){ addBreakdown(k,scheduledBreakdown[k],"scheduled"); });
+  var fw = fallbackSubcategoryWeights(scope,modeledSet,today);
+  if (fallbackFutureTotal > 0.005) {
+    if (fw.total > 0) {
+      Object.keys(fw.totals).forEach(function(k){ addBreakdown(k,fallbackFutureTotal*(fw.totals[k]/fw.total),"pace"); });
+    } else addBreakdown("Other variable spending",fallbackFutureTotal,"pace");
+  }
+  var forecastBreakdown = Object.keys(breakdownMap).map(function(k){
+    var x=breakdownMap[k], kinds=Object.keys(x.kinds);
+    return {label:x.label,amount:round2(x.amount),kind:kinds.length>1?"mixed":kinds[0]};
+  }).sort(function(a,b){return b.amount-a.amount;});
+  var remainingForecast = round2(Math.max(0,projectedSpend-actualSpentSoFar));
+  var explained = round2(forecastBreakdown.reduce(function(t,x){return t+x.amount;},0));
+  var explainDelta = round2(remainingForecast-explained);
+  if (Math.abs(explainDelta) > 0.02) addBreakdown("Other",explainDelta,"pace");
+  if (Math.abs(explainDelta) > 0.02) forecastBreakdown = Object.keys(breakdownMap).map(function(k){
+    var x=breakdownMap[k], kinds=Object.keys(x.kinds);
+    return {label:x.label,amount:round2(x.amount),kind:kinds.length>1?"mixed":kinds[0]};
+  }).sort(function(a,b){return b.amount-a.amount;});
+
+  var recentlySatisfied = [];
+  var satSeen = {};
+  (eventModel.selectedProfiles||[]).forEach(function(p){
+    if (!p || p.lastDate !== today || !p.gap) return;
+    var label = p.subcategory === "__uncategorised__" ? "Uncategorised" : p.subcategory;
+    if (satSeen[label]) return;
+    satSeen[label]=true;
+    var amt=(eventModel.bySubcategory&&eventModel.bySubcategory[p.subcategory])||0;
+    recentlySatisfied.push({label:label,amount:round2(amt),gap:p.gap,nextDate:toStr(addDays(parseD(today),Math.max(1,Math.round(p.gap))))});
+  });
+
   return {
     todayIncluded:todayIncluded,pastDays:completedDays,pastSpent:pastSpent,pastDiscretionary:pastDiscretionary,
     actualSpentSoFar:round2(actualSpentSoFar),knownSpent:round2(actualSpentSoFar),avgSpentPerDay:avgSpentPerDay,
@@ -3843,6 +3939,7 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
     daysToEstimate:remainingEstimateDays,scheduledUpcoming:scheduledUpcoming,
     remainingVariableToday:round2(remainingVariableToday),hasForecast:hasForecast,projectedSpend:projectedSpend,
     forecastValues:forecastValues,rangeLow:rangeLow==null?null:round2(rangeLow),rangeHigh:rangeHigh==null?null:round2(rangeHigh),
+    remainingForecast:remainingForecast,forecastBreakdown:forecastBreakdown,recentlySatisfied:recentlySatisfied,
     eventModeledCount:eventModel.modeledCount||0,personModeledCount:eventModel.personModeledCount||0,overallModeledCount:eventModel.overallModeledCount||0
   };
 }
@@ -3911,8 +4008,27 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   if (compareValues) {
     s += '<div class="row gap2" style="margin-top:10px; flex-wrap:wrap;">'+legendSwatch(T.positive,"Actual")+legendSwatch(T.accent,"Projected")+legendSwatch(T.textMuted,compareLabel)+'</div>';
   }
-  /* Keep the forecast card visual-first. The methodology is intentionally not
-     repeated as paragraphs under every chart. */
+  /* Keep the forecast card visual-first. Details stay collapsed unless the
+     user wants to inspect what is driving the remaining estimate. */
+  var detailsOpen = scope === "budget" ? !!state.budgetForecastDetailsOpen : !!state.analysisForecastDetailsOpen;
+  var detailRows = fc.forecastBreakdown || [];
+  var satisfiedRows = fc.recentlySatisfied || [];
+  if (hasForecast) {
+    s += '<button data-action="toggle-forecast-details" data-scope="'+scope+'" class="row between" style="width:100%;background:none;border:none;border-top:1px solid var(--sep);padding:12px 0 0;margin-top:12px;color:inherit;text-align:left;">';
+    s += '<span class="subhead" style="font-weight:650;">Forecast details</span><span class="row gap2"><span class="mono muted caption">'+fmt(fc.remainingForecast||0,0)+' AED remaining</span><span style="display:flex;transform:rotate('+(detailsOpen?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
+    if (detailsOpen) {
+      s += '<div style="margin-top:8px;">';
+      detailRows.forEach(function(x,i){
+        var tag=x.kind==='scheduled'?'Scheduled':(x.kind==='cadence'?'Cadence':(x.kind==='mixed'?'Mixed':'Pace'));
+        s += '<div class="row between" style="padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><div style="min-width:0;"><div class="subhead" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.label)+'</div><div class="muted caption">'+tag+'</div></div><div class="mono subhead" style="font-weight:650;">'+fmt(x.amount,0)+' AED</div></div>';
+      });
+      satisfiedRows.forEach(function(x){
+        if ((x.amount||0) >= 5) return;
+        s += '<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><div style="min-width:0;"><div class="subhead" style="font-weight:600;">'+esc(x.label)+'</div><div class="muted caption">Occurred today · typical repeat '+Number(x.gap).toFixed(1)+' days</div></div><div class="mono subhead muted">'+fmt(x.amount||0,0)+' AED</div></div>';
+      });
+      s += '</div>';
+    }
+  }
   s += '</div>';
   lastForecastChartData = { rows:scopedRows, totalDays:totalDays, target:target, projectedSpend:projectedSpend, start:periodStart, compareValues:compareValues, compareLabel:compareLabel, pastDays:pastDays, forecastValues:forecastValues };
   return s;
@@ -5727,6 +5843,11 @@ document.addEventListener("click", function(e) {
       break;
     case "set-forecast-compare":
       state.forecastCompareMode = el.dataset.mode;
+      render();
+      break;
+    case "toggle-forecast-details":
+      if (el.dataset.scope === "budget") state.budgetForecastDetailsOpen = !state.budgetForecastDetailsOpen;
+      else state.analysisForecastDetailsOpen = !state.analysisForecastDetailsOpen;
       render();
       break;
     case "open-income-settings":
