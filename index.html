@@ -329,7 +329,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v38";
+var APP_VERSION = "v39";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -2421,25 +2421,28 @@ function render() {
 }
 
 
-/* Forecast-aware live budget pacing.
+/* Forecast-aware live budget pacing — v39 reserve → actual substitution.
 
-   "Safe to spend today" answers: how much MORE can I spend today while still
-   being expected to finish BOTH the current week and month within budget?
+   Safe to Spend is now a DAILY share of the money that is genuinely flexible.
+   We do NOT subtract the whole remaining forecast from today. Frequent spending
+   (Restaurants, Food & Drinks, Groceries, etc.) belongs to the flexible pool and
+   is allowed to happen across the remaining days. Only non-flexible future
+   commitments are reserved first:
 
-   Event-like subcategories are conditional on what already happened. A Fuel
-   transaction today resets Fuel's repeat clock, so the future reserve should
-   reflect the learned 5–6 day cadence rather than treating today's fuel as a
-   daily pattern.
+     flexible pool = current budget remaining
+                   - future scheduled expenses
+                   - conservative cadence reserves
 
-   For each horizon:
+     safe today = flexible pool / remaining calendar days (including today)
 
-     raw safe today = period target
-                    - actual budget spend through now
-                    - expected budget spend AFTER today
+   This creates the important reserve→actual substitution behavior. If Fuel was
+   already reserved at ~220 AED and is then actually logged today, current budget
+   remaining falls by ~220 while Fuel's future reserve falls toward zero. Those
+   movements largely cancel, so Safe to Spend stays stable instead of being hit
+   twice. Frequent everyday spending still affects the remaining pool naturally.
 
-   The tighter of week/month wins. A negative raw result is not a meaningful
-   amount somebody can "safely spend", so the user-facing value is floored at
-   zero and the shortfall is exposed separately as Adjustment needed. */
+   If the flexible pool is below zero, the visible safe amount is 0 and
+   adjustmentNeeded is the TOTAL amount the period must be reduced by. */
 function liveBudgetPacing() {
   var today = todayStr();
   var spentToday = state.entries[today] ? sumBudgetSpent(state.entries[today]) : 0;
@@ -2447,35 +2450,36 @@ function liveBudgetPacing() {
   function horizon(mode) {
     var per = getPeriodBounds(mode, 0, currentWeeklyTarget(), dailyAllowance());
     if (today < per.startStr || today > per.endStr) {
-      return { mode:mode, avg:null, openingRemaining:null, days:0, safe:null, rawSafe:null, adjustmentNeeded:null, futureReserve:null, forecast:null };
+      return { mode:mode, avg:null, openingRemaining:null, days:0, safe:null, rawSafe:null, adjustmentNeeded:null, futureReserve:null, flexiblePool:null, forecast:null };
     }
     var stats = periodStatsBudget(per.startStr, per.endStr);
-    var spentBeforeToday = round2(Math.max(0, stats.spent - spentToday));
-    var openingRemaining = round2(per.target - spentBeforeToday);
+    var currentRemaining = round2(per.target - stats.spent);
     var days = daysBetween(today, per.endStr) + 1;
-    var avg = days > 0 ? openingRemaining / days : null;
+    /* Equal daily allowance is deliberately based on what is actually left NOW.
+       Unlike the old opening-of-day pace, it moves when real transactions post. */
+    var avg = days > 0 ? currentRemaining / days : null;
 
     var forecastStart = effectiveRangeStart(per.startStr);
     var forecastDays = Math.max(1, daysBetween(forecastStart, per.endStr) + 1);
     var fc = stats.rows.length ? computeForecastNumbers(stats.rows, forecastDays, forecastStart, "budget") : null;
-    var futureReserve = null, rawSafe = null, safe = null, adjustmentNeeded = 0;
+    var futureReserve = 0, flexiblePool = null, rawSafe = null, safe = null, adjustmentNeeded = 0;
     if (fc) {
-      /* projectedSpend contains actual through now + any remaining-today
-         expectation + spend after today. Safe-to-spend IS the rest-of-today
-         allowance, so only reserve dates after today. */
-      /* Forecast cards use probability-weighted expected value. Safe-to-Spend
-         uses the more conservative reserve returned by the same model: highly
-         likely cadence events reserve close to their full likely transaction. */
-      futureReserve = round2(Math.max(0, fc.safeReserveFuture!=null ? fc.safeReserveFuture : (fc.projectedSpend - fc.actualSpentSoFar - (fc.remainingVariableToday || 0))));
-      rawSafe = round2(per.target - stats.spent - futureReserve);
+      /* v39 safeReserveFuture contains ONLY future scheduled commitments and
+         conservative cadence reserves. Frequent-category forecast is excluded
+         because that is precisely the flexible day-to-day spending pool. */
+      futureReserve = round2(Math.max(0, fc.safeReserveFuture || 0));
+      flexiblePool = round2(currentRemaining - futureReserve);
+      rawSafe = days > 0 ? round2(flexiblePool / days) : flexiblePool;
       safe = round2(Math.max(0, rawSafe));
-      adjustmentNeeded = round2(Math.max(0, -rawSafe));
+      adjustmentNeeded = round2(Math.max(0, -flexiblePool));
     } else if (avg != null) {
-      rawSafe = round2(avg - spentToday);
+      futureReserve = 0;
+      flexiblePool = currentRemaining;
+      rawSafe = round2(avg);
       safe = round2(Math.max(0, rawSafe));
-      adjustmentNeeded = round2(Math.max(0, -rawSafe));
+      adjustmentNeeded = round2(Math.max(0, -flexiblePool));
     }
-    return { mode:mode, avg:avg, openingRemaining:openingRemaining, days:days, safe:safe, rawSafe:rawSafe, adjustmentNeeded:adjustmentNeeded, futureReserve:futureReserve, forecast:fc };
+    return { mode:mode, avg:avg, openingRemaining:currentRemaining, days:days, safe:safe, rawSafe:rawSafe, adjustmentNeeded:adjustmentNeeded, futureReserve:futureReserve, flexiblePool:flexiblePool, forecast:fc };
   }
 
   var week = horizon("week");
@@ -2485,9 +2489,11 @@ function liveBudgetPacing() {
   var dailyAverage = avgVals.length ? Math.min.apply(null, avgVals) : null;
   var rawSafeToday = rawVals.length ? round2(Math.min.apply(null, rawVals)) : null;
   var safeToday = rawSafeToday == null ? null : round2(Math.max(0, rawSafeToday));
-  var adjustmentNeeded = rawSafeToday == null ? null : round2(Math.max(0, -rawSafeToday));
   var limitingHorizon = null;
   if (rawSafeToday != null) limitingHorizon = (week.rawSafe != null && (month.rawSafe == null || week.rawSafe <= month.rawSafe)) ? "week" : "month";
+  /* Adjustment is a PERIOD shortfall, not a negative per-day safe value. */
+  var limitingObj = limitingHorizon === "week" ? week : (limitingHorizon === "month" ? month : null);
+  var adjustmentNeeded = limitingObj && limitingObj.adjustmentNeeded != null ? round2(limitingObj.adjustmentNeeded) : null;
 
   return {
     week:week,
@@ -2636,7 +2642,7 @@ function renderBudgetBody(T) {
   var summary='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="align-items:baseline;"><div><div class="muted caption">BUDGET SPENT</div><div class="mono" style="font-size:30px;font-weight:700;margin-top:2px;">'+fmt(stats.spent,0)+' AED</div></div><div class="mono muted subhead">of '+fmt(target,0)+' AED</div></div><div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 14px;"><div style="height:100%;width:'+progress+'%;background:'+(stats.spent>target?'var(--rust)':'var(--accent)')+';"></div></div><div class="stat-grid">';
   summary+=statBlock('Remaining',(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED',remaining>=0?'var(--positive)':'var(--rust)');
   summary+=statBlock(isClosed?'Saved this period':'Saved so far',(savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED',savedSoFar>=0?'var(--positive)':'var(--rust)');
-  summary+=statBlock('Daily avg to stay on budget',isCurrent&&dailyAverage!=null?((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'):'—',dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)');
+  summary+=statBlock('Equal daily allowance',isCurrent&&dailyAverage!=null?((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'):'—',dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)');
   summary+=statBlock('Safe to spend today',isCurrent&&safeToday!=null?(fmt(safeToday,0)+' AED'):'—','var(--text)');
   summary+=statBlock('Spent today',isCurrent?fmt(spentToday,0)+' AED':'—','var(--text)');
   summary+=statBlock('Projected vs budget',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div>';
@@ -3830,7 +3836,7 @@ function fallbackSubcategoryWeights(scope, modeledSet, asOfDate) {
    as likely subcategory EVENTS (learned repeat interval × typical amount).
    New/very-frequent subcategories fall back to the robust weekday-aware pace
    model, so the engine degrades gracefully when history is sparse. */
-/* ---------------- v38 behavioral short-horizon forecast ----------------
+/* ---------------- v39 behavioral short-horizon forecast ----------------
    A short personal-finance horizon should not allocate generic "pace" money to
    every category that happened once earlier in the month. The model now
    classifies each unscheduled subcategory explicitly:
@@ -3995,7 +4001,8 @@ function cadenceEventForecast(profile, fromStr, throughStr) {
   return {byDate:byDate,total:total,variance:variance,probability:periodProb,safeReserve:safeReserve,reason:"Cadence probability",expectedDate:expectedDate};
 }
 function buildBehavioralForecast(scope, fromStr, throughStr) {
-  var profiles=forecastCategoryProfiles(scope,fromStr), byDate={}, bySub={}, varianceByDate={}, suppressed=[], safeReserveTotal=0;
+  var profiles=forecastCategoryProfiles(scope,fromStr), byDate={}, bySub={}, varianceByDate={}, suppressed=[];
+  var cadenceSafeReserveTotal=0, frequentExpectedTotal=0;
   Object.keys(profiles).forEach(function(k){
     var p=profiles[k];
     if(p.mode==="frequent"){
@@ -4005,7 +4012,9 @@ function buildBehavioralForecast(scope, fromStr, throughStr) {
         if(amt>0){byDate[ds]=(byDate[ds]||0)+amt;varianceByDate[ds]=(varianceByDate[ds]||0)+(e.dev||0)*(e.dev||0);total+=amt;}
         d=addDays(d,1);
       }
-      if(total>0) { bySub[k]={amount:total,kind:"frequent",profile:p,safeReserve:total}; safeReserveTotal+=total; }
+      /* Frequent spend still drives the headline forecast, but it is FLEXIBLE
+         money for Safe to Spend and therefore is not pre-reserved. */
+      if(total>0) { bySub[k]={amount:total,kind:"frequent",profile:p,safeReserve:0}; frequentExpectedTotal+=total; }
     } else if(p.mode==="cadence"){
       var c=cadenceEventForecast(p,fromStr,throughStr), totalC=0;
       Object.keys(c.byDate).forEach(function(ds){var a=c.byDate[ds];byDate[ds]=(byDate[ds]||0)+a;totalC+=a;});
@@ -4014,13 +4023,19 @@ function buildBehavioralForecast(scope, fromStr, throughStr) {
       }
       if(totalC>0.005) {
         bySub[k]={amount:totalC,kind:"cadence",profile:p,probability:c.probability||0,reason:c.reason||"",likelyAmount:p.typicalAmount||0,safeReserve:c.safeReserve||totalC};
-        safeReserveTotal+=(c.safeReserve||totalC);
+        cadenceSafeReserveTotal+=(c.safeReserve||totalC);
       }
       if(p.lastDate===fromStr || totalC<=0.005) { p._forecastReason=c.reason||""; p._forecastProbability=c.probability||0; p._forecastSafeReserve=c.safeReserve||0; suppressed.push(p); }
     }
     /* Sparse is intentionally zero. */
   });
-  return {profiles:profiles,byDate:byDate,bySubcategory:bySub,varianceByDate:varianceByDate,suppressed:suppressed,safeReserveTotal:round2(safeReserveTotal)};
+  return {
+    profiles:profiles,byDate:byDate,bySubcategory:bySub,varianceByDate:varianceByDate,suppressed:suppressed,
+    cadenceSafeReserveTotal:round2(cadenceSafeReserveTotal),
+    frequentExpectedTotal:round2(frequentExpectedTotal),
+    /* Backward-compatible alias: in v39 "safe reserve" means non-flexible reserve only. */
+    safeReserveTotal:round2(cadenceSafeReserveTotal)
+  };
 }
 function forecastProfileMetaText(p, kind, probability, reason) {
   if(!p) return kind==="scheduled"?"Scheduled plan":"";
@@ -4047,12 +4062,16 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
   var pastSpent=pastRows.reduce(function(s,r){return s+rowSpentForScope(r,scope);},0);
   var periodEnd=toStr(addDays(parseD(periodStart),totalDays-1));
 
-  /* v38: all unscheduled future spend comes from an explicit subcategory
+  /* v39: all unscheduled future spend comes from an explicit subcategory
      behavior model. There is no pooled "other pace" fallback. */
   var behavioral=buildBehavioralForecast(scope,today,periodEnd);
   var futureScheduledByDate=scheduledExpenseByDate(today,periodEnd,scope);
   var scheduledUpcoming=0;Object.keys(futureScheduledByDate).forEach(function(k){scheduledUpcoming+=futureScheduledByDate[k];});scheduledUpcoming=round2(scheduledUpcoming);
-  var safeReserveFuture=round2((behavioral.safeReserveTotal||0)+scheduledUpcoming);
+  /* Safe-to-Spend reserve is intentionally narrower than the expected-value
+     forecast: scheduled commitments + cadence events only. Frequent spending
+     remains in the flexible pool and is distributed across the days left. */
+  var cadenceSafeReserveFuture=round2(behavioral.cadenceSafeReserveTotal||0);
+  var safeReserveFuture=round2(cadenceSafeReserveFuture+scheduledUpcoming);
 
   /* We started collecting time-of-day in v36, but old history has no timestamps.
      Until enough timed observations accumulate, today itself is NOT padded with
@@ -4102,7 +4121,8 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
     todayIncluded:todayIncluded,pastDays:completedDays,pastSpent:round2(pastSpent),pastDiscretionary:0,
     actualSpentSoFar:round2(actualSpentSoFar),knownSpent:round2(actualSpentSoFar),
     avgSpentPerDay:futureDays>0?expectedFutureTotal/futureDays:null,stillBlending:false,currentWeight:1,historyDays:0,
-    daysToEstimate:futureDays,scheduledUpcoming:scheduledUpcoming,remainingVariableToday:0,safeReserveFuture:safeReserveFuture,
+    daysToEstimate:futureDays,scheduledUpcoming:scheduledUpcoming,remainingVariableToday:0,
+    cadenceSafeReserveFuture:cadenceSafeReserveFuture,frequentExpectedFuture:round2(behavioral.frequentExpectedTotal||0),safeReserveFuture:safeReserveFuture,
     hasForecast:hasForecast,projectedSpend:projectedSpend,forecastValues:forecastValues,
     rangeLow:rangeLow==null?null:round2(rangeLow),rangeHigh:rangeHigh==null?null:round2(rangeHigh),
     remainingForecast:round2(Math.max(0,projectedSpend-actualSpentSoFar)),forecastBreakdown:breakdown,
