@@ -180,6 +180,14 @@
   .txn-entry-save { margin-top:6px; min-height:52px; border-radius:14px !important; font-size:17px !important; }
   @media (min-width:480px) { .txn-entry-shell { padding-left:20px; padding-right:20px; } .txn-entry-header { margin-left:-20px; margin-right:-20px; padding-left:20px; padding-right:20px; } }
 
+  /* Add Transaction uses a short-lived visual navigation overlay for iOS-style
+     push/pop animations. The real editor remains a normal document page once
+     the animation finishes, so keyboard/visualViewport behavior stays stable. */
+  .txn-nav-overlay { position:fixed; inset:0; z-index:160; overflow:hidden; background:var(--bg); pointer-events:none; }
+  .txn-nav-layer { position:absolute; inset:0; overflow:hidden; background:var(--bg); will-change:transform; backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+  .txn-nav-layer.is-front { box-shadow:-16px 0 36px rgba(0,0,0,.24); }
+  .txn-nav-snapshot { position:absolute; left:0; right:0; width:100%; min-height:100vh; min-height:100dvh; }
+
   /* Settings is a full app screen, not a tabbed sheet. The landing view uses
      grouped navigation rows; each row opens a focused detail screen. */
   .settings-page { min-height:100vh; min-height:100dvh; background:var(--bg); padding-top:env(safe-area-inset-top,0px); }
@@ -329,7 +337,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v40";
+var APP_VERSION = "v42";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -2251,6 +2259,223 @@ document.addEventListener('touchend', function(){
 
 document.addEventListener('touchcancel', function(){ if (settingsSwipe) finishSettingsSwipe(false); }, { passive:true });
 
+/* ---------------- Transaction page navigation ----------------
+   Add/Edit Transaction stays a dedicated document page for keyboard stability,
+   but temporary visual snapshots give opening/closing the native iOS push/pop
+   motion. The snapshots exist only for ~300ms and never become app state. */
+var txnNavSnapshot = null;
+var txnSwipe = null;
+
+function captureTxnVisual() {
+  var root = document.getElementById('root');
+  if (!root) return null;
+  return { html:root.innerHTML, scrollY:window.scrollY || window.pageYOffset || 0 };
+}
+
+function makeTxnNavLayer(snapshot, className) {
+  var layer = document.createElement('div');
+  layer.className = 'txn-nav-layer ' + (className || '');
+  var snap = document.createElement('div');
+  snap.className = 'txn-nav-snapshot';
+  snap.innerHTML = snapshot && snapshot.html ? snapshot.html : '';
+  snap.style.top = '-' + Math.max(0, snapshot && snapshot.scrollY ? snapshot.scrollY : 0) + 'px';
+  layer.appendChild(snap);
+  return layer;
+}
+
+function buildTxnNavOverlay(behindSnapshot, frontSnapshot) {
+  var overlay = document.createElement('div');
+  overlay.className = 'txn-nav-overlay';
+  var behind = makeTxnNavLayer(behindSnapshot, 'is-behind');
+  var front = makeTxnNavLayer(frontSnapshot, 'is-front');
+  overlay.appendChild(behind);
+  overlay.appendChild(front);
+  document.body.appendChild(overlay);
+  return { overlay:overlay, behind:behind, front:front };
+}
+
+function removeTxnNavOverlay(parts) {
+  if (parts && parts.overlay && parts.overlay.parentNode) parts.overlay.parentNode.removeChild(parts.overlay);
+}
+
+function txnReducedMotion() {
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+
+function animateTxnForward(fromSnapshot, toSnapshot) {
+  if (!fromSnapshot || !toSnapshot || txnReducedMotion()) return;
+  var parts = buildTxnNavOverlay(fromSnapshot, toSnapshot);
+  parts.behind.style.transform = 'translate3d(0,0,0)';
+  parts.front.style.transform = 'translate3d(100%,0,0)';
+  parts.behind.style.transition = 'none';
+  parts.front.style.transition = 'none';
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      var ease = 'cubic-bezier(.32,.72,0,1)';
+      parts.behind.style.transition = 'transform 320ms '+ease;
+      parts.front.style.transition = 'transform 320ms '+ease;
+      parts.behind.style.transform = 'translate3d(-22%,0,0)';
+      parts.front.style.transform = 'translate3d(0,0,0)';
+      setTimeout(function(){ removeTxnNavOverlay(parts); }, 340);
+    });
+  });
+}
+
+function resetTxnEntryForClose() {
+  state.showAddTxn = false;
+  state.txnEntryRestoreScroll = true;
+  state.editingItemId = null;
+  state.editingOriginalDate = null;
+  state.txnSplitMode = 'single';
+  state.txnKind = null;
+  state.txnPersonSplitMode = 'single';
+  state.txnCategoryGroup = null;
+  state.txnShowAllCategories = false;
+  state.txnAdvancedOpen = false;
+  state.entryAmountDraft = null;
+  state.entryNoteDraft = null;
+  state.entrySplitDaysDraft = null;
+  state.entryPersonSplitDraft = null;
+  state.entryCategoryDraft = null;
+  state.entryPersonDraft = null;
+  state.entryCurrencyDraft = null;
+  state.entryFxRateDraft = null;
+  state.entryFxSourceDraft = null;
+  state.entryFxDateDraft = null;
+  state.entryTimeDraft = null;
+}
+
+function txnNavigateBack() {
+  if (!state.showAddTxn) return;
+  var destination = txnNavSnapshot;
+  var current = captureTxnVisual();
+  if (!destination || !current || txnReducedMotion()) {
+    resetTxnEntryForClose();
+    txnNavSnapshot = null;
+    render();
+    return;
+  }
+  var parts = buildTxnNavOverlay(destination, current);
+  parts.behind.style.transform = 'translate3d(-22%,0,0)';
+  parts.front.style.transform = 'translate3d(0,0,0)';
+  var active = document.activeElement;
+  if (active && active.blur) active.blur();
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      var ease = 'cubic-bezier(.32,.72,0,1)';
+      parts.behind.style.transition = 'transform 300ms '+ease;
+      parts.front.style.transition = 'transform 300ms '+ease;
+      parts.behind.style.transform = 'translate3d(0,0,0)';
+      parts.front.style.transform = 'translate3d(100%,0,0)';
+      setTimeout(function(){
+        resetTxnEntryForClose();
+        txnNavSnapshot = null;
+        render();
+        removeTxnNavOverlay(parts);
+      }, 310);
+    });
+  });
+}
+
+/* Successful Add/Edit closes with the same pop animation. State/data is already
+   committed underneath; the current editor snapshot simply slides away. */
+function animateTxnCommittedBack(currentSnapshot) {
+  if (!currentSnapshot) { txnNavSnapshot = null; return; }
+  var destination = captureTxnVisual();
+  if (!destination || txnReducedMotion()) { txnNavSnapshot = null; return; }
+  var parts = buildTxnNavOverlay(destination, currentSnapshot);
+  parts.behind.style.transform = 'translate3d(-22%,0,0)';
+  parts.front.style.transform = 'translate3d(0,0,0)';
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      var ease = 'cubic-bezier(.32,.72,0,1)';
+      parts.behind.style.transition = 'transform 300ms '+ease;
+      parts.front.style.transition = 'transform 300ms '+ease;
+      parts.behind.style.transform = 'translate3d(0,0,0)';
+      parts.front.style.transform = 'translate3d(100%,0,0)';
+      setTimeout(function(){ txnNavSnapshot = null; removeTxnNavOverlay(parts); }, 310);
+    });
+  });
+}
+
+/* Interactive left-edge swipe back. Only the first 28px can start it so the
+   category/person horizontal scrollers keep their native iOS gestures. */
+document.addEventListener('touchstart', function(e){
+  if (!state.showAddTxn || !txnNavSnapshot || txnSwipe || !e.touches || e.touches.length !== 1) return;
+  if (document.querySelector('.modal-backdrop')) return;
+  var t = e.touches[0];
+  if (t.clientX > 28) return;
+  var current = captureTxnVisual();
+  if (!current) return;
+  var parts = buildTxnNavOverlay(txnNavSnapshot, current);
+  parts.behind.style.transform = 'translate3d(-22%,0,0)';
+  parts.front.style.transform = 'translate3d(0,0,0)';
+  txnSwipe = {
+    startX:t.clientX, startY:t.clientY, dx:0, intent:null, parts:parts,
+    lastX:t.clientX, lastT:performance.now(), velocity:0
+  };
+}, { passive:true });
+
+document.addEventListener('touchmove', function(e){
+  if (!txnSwipe || !e.touches || !e.touches.length) return;
+  var t = e.touches[0], sw = txnSwipe;
+  var dx = Math.max(0, t.clientX - sw.startX);
+  var dy = t.clientY - sw.startY;
+  if (sw.intent == null && (Math.abs(dx) > 7 || Math.abs(dy) > 7)) {
+    sw.intent = Math.abs(dx) > Math.abs(dy) * 1.12 ? 'horizontal' : 'vertical';
+  }
+  if (sw.intent !== 'horizontal') return;
+  e.preventDefault();
+  var now = performance.now();
+  var dt = Math.max(1, now - sw.lastT);
+  sw.velocity = (t.clientX - sw.lastX) / dt;
+  sw.lastX = t.clientX;
+  sw.lastT = now;
+  sw.dx = dx;
+  var w = Math.max(1, window.innerWidth);
+  var p = Math.min(1, dx / w);
+  sw.parts.front.style.transition = 'none';
+  sw.parts.behind.style.transition = 'none';
+  sw.parts.front.style.transform = 'translate3d('+dx+'px,0,0)';
+  sw.parts.behind.style.transform = 'translate3d('+(-22 + 22*p)+'%,0,0)';
+}, { passive:false });
+
+function finishTxnSwipe(commit) {
+  var sw = txnSwipe;
+  if (!sw) return;
+  txnSwipe = null;
+  var parts = sw.parts;
+  var ease = 'cubic-bezier(.32,.72,0,1)';
+  parts.behind.style.transition = 'transform 250ms '+ease;
+  parts.front.style.transition = 'transform 250ms '+ease;
+  if (commit) {
+    var active = document.activeElement;
+    if (active && active.blur) active.blur();
+    parts.behind.style.transform = 'translate3d(0,0,0)';
+    parts.front.style.transform = 'translate3d(100%,0,0)';
+    setTimeout(function(){
+      resetTxnEntryForClose();
+      txnNavSnapshot = null;
+      render();
+      removeTxnNavOverlay(parts);
+    }, 260);
+  } else {
+    parts.behind.style.transform = 'translate3d(-22%,0,0)';
+    parts.front.style.transform = 'translate3d(0,0,0)';
+    setTimeout(function(){ removeTxnNavOverlay(parts); }, 260);
+  }
+}
+
+document.addEventListener('touchend', function(){
+  if (!txnSwipe) return;
+  if (txnSwipe.intent !== 'horizontal') { removeTxnNavOverlay(txnSwipe.parts); txnSwipe = null; return; }
+  var threshold = Math.min(125, window.innerWidth * 0.30);
+  var commit = txnSwipe.dx >= threshold || (txnSwipe.dx > 42 && txnSwipe.velocity > 0.55);
+  finishTxnSwipe(commit);
+}, { passive:true });
+
+document.addEventListener('touchcancel', function(){ if (txnSwipe) finishTxnSwipe(false); }, { passive:true });
+
 /* Keep an Analysis drill-down card visually anchored while its surrounding
    sections appear/disappear. Preserving raw window.scrollY is not enough: when
    a category filter hides the large charts above it, the old scroll position
@@ -2612,6 +2837,9 @@ function liveBudgetPacing() {
   }
   var limitingObj = limitingHorizon === "week" ? week : (limitingHorizon === "month" ? month : null);
   var adjustmentNeeded = limitingObj && limitingObj.adjustmentNeeded != null ? round2(limitingObj.adjustmentNeeded) : null;
+  /* Preserve how far below zero the unclamped Safe-to-Spend value is.
+     The UI can then show how much of today's safe allowance has been exceeded. */
+  var overSafeToday = rawSafeToday != null ? round2(Math.max(0, -rawSafeToday)) : null;
 
   return {
     week:week,
@@ -2620,6 +2848,7 @@ function liveBudgetPacing() {
     spentToday:spentToday,
     rawSafeToday:rawSafeToday,
     safeToday:safeToday,
+    overSafeToday:overSafeToday,
     adjustmentNeeded:adjustmentNeeded,
     limitingHorizon:limitingHorizon
   };
@@ -2640,6 +2869,7 @@ function renderHomeBody(T, da) {
   var pacing = liveBudgetPacing();
   var dailyAverage = pacing.dailyAverage;
   var safeToday = pacing.safeToday;
+  var overSafeToday = pacing.overSafeToday || 0;
   var adjustmentNeeded = pacing.adjustmentNeeded || 0;
   var spentToday = pacing.spentToday;
   var chartStart = month.startStr;
@@ -2663,6 +2893,8 @@ function renderHomeBody(T, da) {
   var progress = Math.max(0, Math.min(100, budgetPctRaw));
   var weekPctRaw = weekNow.target > 0 ? (weekBudget.spent/weekNow.target)*100 : 0;
   var weekProgress = Math.max(0, Math.min(100, weekPctRaw));
+  var budgetRemainPct = target > 0 ? Math.max(0, (remaining/target)*100) : null;
+  var weekRemainPct = weekNow.target > 0 ? Math.max(0, (weekRemaining/weekNow.target)*100) : null;
   var cards = {};
 
   var spending = '<div class="card card-pad">';
@@ -2724,12 +2956,21 @@ function renderHomeBody(T, da) {
         var pw=Math.max(0,Math.min(100,opts.progress));
         x+='<div class="simple-progress"><span style="width:'+pw+'%;background:'+(opts.over?'var(--rust)':'var(--accent)')+';"></span></div>';
       }
-      if(opts.meta) x+='<div class="simple-metric-meta">'+opts.meta+'</div>';
+      if(opts.meta) x+='<div class="simple-metric-meta"'+(opts.metaColor?' style="color:'+opts.metaColor+';"':'')+'>'+opts.meta+'</div>';
       return x+'</div>';
     }
-    h += simpleMetric('SAFE TO SPEND TODAY', safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'), 'var(--text)', {hero:true,meta:adjustmentNeeded>0?(((pacing.limitingHorizon||'budget').charAt(0).toUpperCase()+(pacing.limitingHorizon||'budget').slice(1))+' cut needed · '+fmt(adjustmentNeeded,0)+' AED'):null});
-    h += simpleMetric('BUDGET REMAINING · THIS WEEK', (weekRemaining<0?'−':'')+fmt(Math.abs(weekRemaining),0)+' <span class="muted simple-metric-unit">AED</span>', weekRemaining>=0?'var(--positive)':'var(--rust)', {progress:weekProgress,over:weekPctRaw>100});
-    h += simpleMetric('BUDGET REMAINING · THIS MONTH', (remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' <span class="muted simple-metric-unit">AED</span>', remaining>=0?'var(--positive)':'var(--rust)', {progress:progress,over:budgetPctRaw>100});
+    var safeMeta=null, safeMetaColor=null;
+    if(overSafeToday>0){
+      safeMeta='Over today\'s safe allowance · '+fmt(overSafeToday,0)+' AED';
+      safeMetaColor='var(--rust)';
+      if(adjustmentNeeded>0) safeMeta+=' · '+((pacing.limitingHorizon||'budget').charAt(0).toUpperCase()+(pacing.limitingHorizon||'budget').slice(1))+' cut '+fmt(adjustmentNeeded,0)+' AED';
+    } else if(adjustmentNeeded>0){
+      safeMeta=((pacing.limitingHorizon||'budget').charAt(0).toUpperCase()+(pacing.limitingHorizon||'budget').slice(1))+' cut needed · '+fmt(adjustmentNeeded,0)+' AED';
+      safeMetaColor='var(--rust)';
+    }
+    h += simpleMetric('SAFE TO SPEND TODAY', safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'), 'var(--text)', {hero:true,meta:safeMeta,metaColor:safeMetaColor});
+    h += simpleMetric('BUDGET REMAINING · THIS WEEK', (weekRemaining<0?'−':'')+fmt(Math.abs(weekRemaining),0)+' <span class="muted simple-metric-unit">AED</span>', weekRemaining>=0?'var(--positive)':'var(--rust)', {progress:weekProgress,over:weekPctRaw>100,meta:weekNow.target>0?(weekPctRaw.toFixed(0)+'% used · '+weekRemainPct.toFixed(0)+'% remaining'):null});
+    h += simpleMetric('BUDGET REMAINING · THIS MONTH', (remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' <span class="muted simple-metric-unit">AED</span>', remaining>=0?'var(--positive)':'var(--rust)', {progress:progress,over:budgetPctRaw>100,meta:target>0?(budgetPctRaw.toFixed(0)+'% used · '+budgetRemainPct.toFixed(0)+'% remaining'):null});
     h += simpleMetric('SPENT THIS MONTH', fmt(overall.spent,0)+' <span class="muted simple-metric-unit">AED</span>', 'var(--text)', {meta:spentVsIncomePct==null?'Income not set':spentVsIncomePct.toFixed(0)+'% of income'});
     h += simpleMetric(simpleSavingLabel, (simpleSaving>=0?'+':'−')+fmt(Math.abs(simpleSaving),0)+' <span class="muted simple-metric-unit">AED</span>', simpleSaving>=0?'var(--positive)':'var(--rust)', {meta:simpleSavingPct==null?'Income not set':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(0)+'% of income')});
     return h;
@@ -2749,7 +2990,7 @@ function renderBudgetBody(T) {
   lastForecastChartData=null;lastChartData=null;lastBudgetTrendChartData=null;
   var da=dailyAllowance(),period=getPeriodBounds(state.view,state.offset,currentWeeklyTarget(),da),stats=periodStatsBudget(period.startStr,period.endStr);
   var isCurrent=state.offset===0,isClosed=period.endStr<todayStr(),target=period.target,remaining=round2(target-stats.spent),savedSoFar=round2(stats.targetElapsed-stats.spent);
-  var livePacing=isCurrent?liveBudgetPacing():null,dailyAverage=livePacing?livePacing.dailyAverage:null,safeToday=livePacing?livePacing.safeToday:null,adjustmentNeeded=livePacing?(livePacing.adjustmentNeeded||0):0,spentToday=livePacing?livePacing.spentToday:0,limitingHorizon=livePacing?livePacing.limitingHorizon:null;
+  var livePacing=isCurrent?liveBudgetPacing():null,dailyAverage=livePacing?livePacing.dailyAverage:null,safeToday=livePacing?livePacing.safeToday:null,overSafeToday=livePacing?(livePacing.overSafeToday||0):0,adjustmentNeeded=livePacing?(livePacing.adjustmentNeeded||0):0,spentToday=livePacing?livePacing.spentToday:0,limitingHorizon=livePacing?livePacing.limitingHorizon:null;
   var forecastStart=effectiveRangeStart(period.startStr),forecastDays=daysBetween(forecastStart,period.endStr)+1,budgetForecast=(isCurrent&&stats.rows.length)?computeForecastNumbers(stats.rows,forecastDays,forecastStart,'budget'):null;
   var projectedSpend=budgetForecast?budgetForecast.projectedSpend:stats.spent,projectedSaving=round2(target-projectedSpend),progress=target>0?Math.max(0,Math.min(100,stats.spent/target*100)):0;
   var h='<div class="row between" style="align-items:center;margin-bottom:10px;"><div class="eyebrow">Budget</div><div class="row gap2"><button data-action="toggle-budget-reorder" class="btn-plain" style="font-size:12px;">'+(state.budgetReorderMode?'Done':'Customize')+'</button><button data-action="open-budget-settings" class="btn-outline" style="padding:6px 10px;font-size:12px;">Edit budget</button></div></div>';
@@ -2757,15 +2998,19 @@ function renderBudgetBody(T) {
   h+='<div class="row between card" style="padding:8px 10px;margin-bottom:12px;"><button data-action="nav-offset" data-delta="-1" class="icon-btn" style="border-radius:10px;">'+ICONS.chevronLeft+'</button><div style="text-align:center;"><div class="subhead" style="font-weight:600;">'+esc(period.title)+'</div><div class="muted caption">'+esc(period.sub)+(isClosed?' · closed':'')+'</div></div><button data-action="nav-offset" data-delta="1" class="icon-btn" style="border-radius:10px;'+(isCurrent?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';
 
   var sections={};
-  var summary='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="align-items:baseline;"><div><div class="muted caption">BUDGET SPENT</div><div class="mono" style="font-size:30px;font-weight:700;margin-top:2px;">'+fmt(stats.spent,0)+' AED</div></div><div class="mono muted subhead">of '+fmt(target,0)+' AED</div></div><div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 14px;"><div style="height:100%;width:'+progress+'%;background:'+(stats.spent>target?'var(--rust)':'var(--accent)')+';"></div></div><div class="stat-grid">';
+  var budgetUsedPct = target>0 ? (stats.spent/target*100) : 0;
+  var summary='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="align-items:baseline;"><div><div class="muted caption">BUDGET SPENT</div><div class="mono" style="font-size:30px;font-weight:700;margin-top:2px;">'+fmt(stats.spent,0)+' AED</div></div><div style="text-align:right;"><div class="mono muted subhead">of '+fmt(target,0)+' AED</div><div class="mono caption" style="margin-top:3px;font-weight:700;color:'+(budgetUsedPct>100?'var(--rust)':'var(--text-muted)')+';">'+budgetUsedPct.toFixed(0)+'% used</div></div></div><div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 14px;"><div style="height:100%;width:'+progress+'%;background:'+(stats.spent>target?'var(--rust)':'var(--accent)')+';"></div></div><div class="stat-grid">';
   summary+=statBlock('Remaining',(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED',remaining>=0?'var(--positive)':'var(--rust)');
   summary+=statBlock(isClosed?'Saved this period':'Saved so far',(savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED',savedSoFar>=0?'var(--positive)':'var(--rust)');
   summary+=statBlock('Equal daily allowance',isCurrent&&dailyAverage!=null?((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'):'—',dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)');
   summary+=statBlock('Safe to spend today',isCurrent&&safeToday!=null?(fmt(safeToday,0)+' AED'):'—','var(--text)');
   summary+=statBlock('Spent today',isCurrent?fmt(spentToday,0)+' AED':'—','var(--text)');
   summary+=statBlock('Projected vs budget',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div>';
+  if(isCurrent&&overSafeToday>0){
+    summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);" class="row between"><span class="subhead" style="font-weight:650;color:var(--rust);">Over today\'s safe allowance</span><span class="mono subhead" style="font-weight:750;color:var(--rust);">'+fmt(overSafeToday,0)+' AED</span></div>';
+  }
   if(isCurrent&&limitingHorizon){
-    summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);" class="row between"><span class="muted subhead" style="font-weight:600;">Safe-to-spend limit</span><span class="subhead" style="font-weight:700;text-transform:capitalize;">'+esc(limitingHorizon)+'</span></div>';
+    summary+='<div style="margin-top:'+(overSafeToday>0?'8px':'14px')+';padding-top:'+(overSafeToday>0?'0':'12px')+';'+(overSafeToday>0?'':'border-top:1px solid var(--sep);')+'" class="row between"><span class="muted subhead" style="font-weight:600;">Safe-to-spend limit</span><span class="subhead" style="font-weight:700;text-transform:capitalize;">'+esc(limitingHorizon)+'</span></div>';
     if(adjustmentNeeded>0) summary+='<div style="margin-top:8px;" class="row between"><span class="subhead" style="font-weight:650;color:var(--rust);text-transform:capitalize;">'+esc(limitingHorizon)+' cut needed</span><span class="mono subhead" style="font-weight:700;color:var(--rust);">'+fmt(adjustmentNeeded,0)+' AED</span></div>';
   }
   summary+='</div>';
@@ -5083,6 +5328,7 @@ function handleAddTransaction() {
     return;
   }
 
+  var txnCloseVisual = captureTxnVisual();
   var nextEntries = Object.assign({}, state.entries);
 
   if (wasEditing) {
@@ -5118,6 +5364,7 @@ function handleAddTransaction() {
   persistAll(state.settings, nextEntries, "your entry");
   showToast(wasEditing ? "Record updated" : "Record added");
   render();
+  animateTxnCommittedBack(txnCloseVisual);
 }
 
 /* Spreads one total across N consecutive days running FORWARD from the chosen
@@ -5128,6 +5375,7 @@ function handleAddTransaction() {
    floor-rounded with the final day absorbing the leftover cents, so the days
    read evenly while the total stays exact. */
 function handleAddSplitTransaction(startDate, totalAmount, category, note, splitDays, person, personSplit, fxMeta) {
+  var txnCloseVisual = captureTxnVisual();
   var perDayFloor = Math.floor((totalAmount/splitDays)*100)/100;
   var newRule = {
     id: Date.now()+"-"+Math.random().toString(36).slice(2,7),
@@ -5159,6 +5407,7 @@ function handleAddSplitTransaction(startDate, totalAmount, category, note, split
   persistAll(state.settings, state.entries, "your entries");
   showToast("Spread across "+splitDays+" days");
   render();
+  animateTxnCommittedBack(txnCloseVisual);
 }
 
 /* Mirrors handleApplyBudget: "future" appends a history entry from the start of
@@ -5277,6 +5526,8 @@ function showToast(msg) {
 }
 
 function handleEditTxn(date, id) {
+  var txnFromVisual = captureTxnVisual();
+  txnNavSnapshot = txnFromVisual;
   state.txnEntryReturnScrollY = window.scrollY || window.pageYOffset || 0;
   state.txnEntryRestoreScroll = false;
   state.entryDate = date;
@@ -5300,6 +5551,7 @@ function handleEditTxn(date, id) {
   var editItem = editDay ? editDay.items.find(function(i){ return i.id === id; }) : null;
   state.txnPersonSplitMode = (editItem && editItem.personSplit && editItem.personSplit.length) ? "split" : "single";
   render();
+  animateTxnForward(txnFromVisual, captureTxnVisual());
 }
 
 function handleCancelEdit() {
@@ -5533,6 +5785,8 @@ document.addEventListener("click", function(e) {
       render();
       break;
     case "open-add-txn":
+      var txnFromVisual = captureTxnVisual();
+      txnNavSnapshot = txnFromVisual;
       state.txnEntryReturnScrollY = window.scrollY || window.pageYOffset || 0;
       state.txnEntryRestoreScroll = false;
       state.editingItemId = null;
@@ -5554,26 +5808,10 @@ document.addEventListener("click", function(e) {
       state.entryPersonDraft = null;
       state.entryCurrencyDraft = null; state.entryFxRateDraft = null; state.entryFxSourceDraft = null; state.entryFxDateDraft = null; state.entryTimeDraft = null;
       render();
+      animateTxnForward(txnFromVisual, captureTxnVisual());
       break;
     case "close-add-txn":
-      state.showAddTxn = false;
-      state.txnEntryRestoreScroll = true;
-      state.editingItemId = null;
-      state.editingOriginalDate = null;
-      state.txnSplitMode = "single";
-      state.txnKind = null;
-      state.txnPersonSplitMode = "single";
-      state.txnCategoryGroup = null;
-      state.txnShowAllCategories = false;
-      state.txnAdvancedOpen = false;
-      state.entryAmountDraft = null;
-      state.entryNoteDraft = null;
-      state.entrySplitDaysDraft = null;
-      state.entryPersonSplitDraft = null;
-      state.entryCategoryDraft = null;
-      state.entryPersonDraft = null;
-      state.entryCurrencyDraft = null; state.entryFxRateDraft = null; state.entryFxSourceDraft = null; state.entryFxDateDraft = null; state.entryTimeDraft = null;
-      render();
+      txnNavigateBack();
       break;
     case "go-page":
       state.editingItemId = null;
