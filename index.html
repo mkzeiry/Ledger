@@ -81,7 +81,13 @@
   .footnote { font-size: 13px; line-height: 1.35; letter-spacing: 0; }
   .caption { font-size: 12px; line-height: 1.3; letter-spacing: 0.005em; }
   .display { font-family: var(--f-display); font-weight: 720; letter-spacing: -0.03em; }
+  .brand-lockup { display:flex; align-items:baseline; gap:8px; min-width:0; }
   .brand-title { font-family: var(--f-display); font-size: 36px; line-height: 1; font-weight: 780; letter-spacing: -0.05em; }
+  .version-badge {
+    flex:0 0 auto; font-size:11px; line-height:1; font-weight:700; letter-spacing:0.02em;
+    color:var(--text-muted); background:var(--fill); border-radius:999px; padding:5px 7px;
+    transform:translateY(-1px);
+  }
   .sheet-title { font-family: var(--f-display); font-size: 21px; line-height: 1.15; font-weight: 730; letter-spacing: -0.03em; }
   .mono { font-family: var(--f-num); font-variant-numeric: tabular-nums; letter-spacing: -0.018em; }
   .muted { color: var(--text-muted); }
@@ -311,6 +317,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
+var APP_VERSION = "v32";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -2265,7 +2272,7 @@ function render() {
 
   // Sticky primary-app header. Editors and Settings have their own bars.
   html += '<div class="app-topbar">';
-  html += '<div class="brand-title">The Ledger</div>';
+  html += '<div class="brand-lockup"><div class="brand-title">The Ledger</div><span class="version-badge">'+APP_VERSION+'</span></div>';
   html += '<div class="row gap2">';
   html += '<button class="icon-btn press" data-action="toggle-theme" aria-label="Toggle theme">'+(state.settings.theme==="dark"?ICONS.sun:ICONS.moon)+'</button>';
   html += '<button class="icon-btn press" data-action="open-settings" aria-label="Settings">'+ICONS.settings+'</button>';
