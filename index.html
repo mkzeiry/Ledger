@@ -293,7 +293,7 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, homeSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, homeSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
 function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
@@ -308,8 +308,8 @@ function normalizeBudgetOrder(order) {
   valid.forEach(function(id){ if(out.indexOf(id)===-1) out.push(id); });
   return out;
 }
-var DEFAULT_ANALYSIS_ORDER = ["balance","cashFlow","forecastedSpend","spendTrend","category","person","topTransactions"];
-var ANALYSIS_SECTION_LABELS = { balance:"Cash balance", cashFlow:"Cash flow", forecastedSpend:"Forecast & projected saving", spendTrend:"Spend trend", category:"Spend by category", person:"Spend by person", topTransactions:"Biggest transactions" };
+var DEFAULT_ANALYSIS_ORDER = ["balance","cashFlow","forecastedSpend","spendTrend","category","frequency","person","topTransactions"];
+var ANALYSIS_SECTION_LABELS = { balance:"Cash balance", cashFlow:"Cash flow", forecastedSpend:"Forecast & projected saving", spendTrend:"Spend trend", category:"Spend by category", frequency:"Frequency", person:"Spend by person", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
   var valid = DEFAULT_ANALYSIS_ORDER;
   var out = (order||[]).filter(function(id){ return valid.indexOf(id)!==-1; });
@@ -460,6 +460,10 @@ function renameTag(kind, oldName, newName) {
     if (!isMerge && nextExclude[oldName]) nextExclude[newName] = true;
     delete nextExclude[oldName];
     patch.categoryExcludeFromBudget = nextExclude;
+    var nextPeopleExclude = Object.assign({}, state.settings.peopleAnalysisExcluded||{});
+    if (!isMerge && nextPeopleExclude[oldName]) nextPeopleExclude[newName] = true;
+    delete nextPeopleExclude[oldName];
+    patch.peopleAnalysisExcluded = nextPeopleExclude;
   } else {
     var nextPersonColors = Object.assign({}, state.settings.personColors||{});
     if (!isMerge && nextPersonColors[oldName]) nextPersonColors[newName] = nextPersonColors[oldName];
@@ -702,6 +706,21 @@ function normalizeCategoryExcludeFromBudget(map, categories) {
   Object.keys(map||{}).forEach(function(c){
     if (valid.indexOf(c) !== -1 && map[c]) out[c] = true;
   });
+  return out;
+}
+
+/* Some expenses are real spending but are not meaningful to attribute to a
+   person in Analysis (rent/mortgage are common examples). This is deliberately
+   separate from budget inclusion: excluding a subcategory here does NOT remove
+   it from total spend, category analysis, cash flow, or forecasting. */
+function subcategoryExcludedFromPeopleAnalysis(catName) {
+  if (!catName) return false;
+  var map = state.settings.peopleAnalysisExcluded;
+  return !!(map && map[catName]);
+}
+function normalizePeopleAnalysisExcluded(map, categories) {
+  var out = {}, valid = categories || [];
+  Object.keys(map||{}).forEach(function(c){ if(valid.indexOf(c)!==-1 && map[c]) out[c]=true; });
   return out;
 }
 /* The spend figure the CURRENT basis cares about. Budget basis omits
@@ -1032,6 +1051,7 @@ function loadInitial() {
   state.settings.people = normalizePeople(state.settings.people);
   state.settings.personColors = normalizePersonColors(state.settings.personColors, state.settings.people);
   state.settings.categoryExcludeFromBudget = normalizeCategoryExcludeFromBudget(state.settings.categoryExcludeFromBudget, state.settings.categories);
+  state.settings.peopleAnalysisExcluded = normalizePeopleAnalysisExcluded(state.settings.peopleAnalysisExcluded, state.settings.categories);
   state.settings.defaultPerson = normalizeDefaultPerson(state.settings.defaultPerson, state.settings.people);
   state.settings.recurringRules = normalizeRecurringRules(state.settings.recurringRules);
   if (runRecurringCatchUp()) {
@@ -1358,39 +1378,38 @@ function activityFrequencyStats(opts, asOfDate) {
   opts=opts||{}; asOfDate=asOfDate||todayStr();
   var datesAll=Object.keys(state.entries).sort(), first=datesAll.length?datesAll[0]:asOfDate;
   var floor=toStr(addDays(parseD(asOfDate),-364)), start=first>floor?first:floor;
-  var daily={}, txnCount=0;
-  Object.keys(state.entries).forEach(function(ds){
+  var eventDates=[], amounts=[];
+  Object.keys(state.entries).sort().forEach(function(ds){
     if(ds<start||ds>asOfDate) return;
     (state.entries[ds].items||[]).forEach(function(it){
       if(!isExpenseItem(it)) return;
       if(opts.subcategory!=null && (it.category||"Uncategorised")!==opts.subcategory) return;
       if(opts.group!=null && (categoryGroupOf(it.category)||"Ungrouped")!==opts.group) return;
       if(opts.person && !itemMatchesPersonFilter(it,opts.person)) return;
-      /* Frequency counts the real transaction once. When a person filter is
-         active, the typical amount is that person's attributed share. */
-      var amt=opts.person?personScopedAmount(it,opts.person):it.amount;
-      daily[ds]=(daily[ds]||0)+amt; txnCount++;
+      /* One transaction = one occurrence. Split-person transactions remain one
+         occurrence; a person filter only changes the attributed amount. */
+      eventDates.push(ds);
+      amounts.push(opts.person?personScopedAmount(it,opts.person):it.amount);
     });
   });
-  var dates=Object.keys(daily).sort(), gaps=[];
-  for(var i=1;i<dates.length;i++){var g=daysBetween(dates[i-1],dates[i]);if(g>0)gaps.push(g);}
+  eventDates.sort();
+  var n=eventDates.length, avgGap=null;
+  if(n>=2){
+    var span=Math.max(0,daysBetween(eventDates[0],eventDates[n-1]));
+    avgGap=span/(n-1);
+  }
   return {
-    activeDays:dates.length,
-    txnCount:txnCount,
-    gap:medianNumber(gaps),
-    typicalAmount:medianNumber(dates.map(function(d){return daily[d];}))||0,
-    lastDate:dates.length?dates[dates.length-1]:null,
-    enough:gaps.length>=2,
+    txnCount:n,
+    avgGap:avgGap,
+    typicalAmount:medianNumber(amounts)||0,
+    lastDate:n?eventDates[n-1]:null,
+    enough:n>=3 && avgGap!=null,
     person:opts.person||null
   };
 }
 function frequencyLabel(st) {
-  if(!st||!st.enough||st.gap==null) return "Not enough history";
-  var g=st.gap;
-  if(g<=1.15) return "About daily";
-  if(g<2) return "Every ~"+g.toFixed(1)+" days";
-  if(g>=27&&g<=33) return "About monthly";
-  return "Every ~"+(g<10?g.toFixed(g%1?1:0):Math.round(g))+" days";
+  if(!st||!st.enough||st.avgGap==null) return "Not enough history";
+  return "Every "+st.avgGap.toFixed(1)+" days";
 }
 
 /* The real start of a range once trackingStartDate clips it — e.g. a "This
@@ -2538,6 +2557,7 @@ function renderSettingsPage() {
       groupList.forEach(function(g){ h += '<option value="'+esc(g)+'"'+(subParent===g?' selected':'')+'>'+esc(g)+'</option>'; });
       h += '</select></div>';
       h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Counts toward budget</div><div class="muted caption" style="margin-top:2px;">Overall Analysis always includes it.</div></div><button data-action="toggle-category-budget" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(categoryExcludedFromBudget(selectedSub)?'var(--rust)':'var(--positive)')+';">'+(categoryExcludedFromBudget(selectedSub)?'Excluded':'Included')+'</button></div></div>';
+      h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Include in People analysis</div><div class="muted caption" style="margin-top:2px;">Turn off for household/fixed costs such as rent or mortgage.</div></div><button data-action="toggle-subcategory-people-analysis" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(subcategoryExcludedFromPeopleAnalysis(selectedSub)?'var(--text-muted)':'var(--positive)')+';">'+(subcategoryExcludedFromPeopleAnalysis(selectedSub)?'Excluded':'Included')+'</button></div></div>';
       h += '<div class="taxonomy-form-card"><label class="eyebrow">Icon</label><div class="taxonomy-icon-grid" style="margin-top:10px;">';
       CAT_ICON_ORDER.forEach(function(iconKey){ var on=subStyle.icon===iconKey; h += '<button data-action="set-category-icon" data-cat="'+esc(selectedSub)+'" data-icon="'+iconKey+'" class="taxonomy-icon-choice" style="background:'+subStyle.color+';border:'+(on?'2px solid var(--text)':'2px solid transparent')+';">'+CAT_ICON_SVGS[iconKey]+'</button>'; });
       h += '</div><label class="eyebrow" style="display:block;margin-top:16px;">Color</label><div class="row gap2" style="margin-top:7px;align-items:center;"><input id="categoryColorInput" data-cat="'+esc(selectedSub)+'" type="color" value="'+subStyle.color+'" style="width:48px;height:40px;border:none;background:none;padding:0;" /><span class="mono subhead">'+subStyle.color.toUpperCase()+'</span></div></div>';
@@ -4064,7 +4084,7 @@ function renderAnalysisBody(T) {
   if(periodMode==='custom'){h+='<div class="row gap2" style="margin-bottom:12px;"><input id="analysisPeriodFromInput" type="date" class="field mono" style="flex:1;font-size:13px;" value="'+esc(periodFrom)+'" max="'+today+'"/><input id="analysisPeriodToInput" type="date" class="field mono" style="flex:1;font-size:13px;" value="'+esc(periodTo)+'" max="'+today+'"/></div>';}else{h+='<div class="row between card" style="padding:8px 10px;margin-bottom:12px;"><button data-action="analysis-nav-offset" data-delta="-1" class="icon-btn">'+ICONS.chevronLeft+'</button><div style="text-align:center;"><div class="subhead">'+esc(info.title)+'</div><div class="muted caption">'+esc(info.sub)+'</div></div><button data-action="analysis-nav-offset" data-delta="1" class="icon-btn" style="'+(info.isCurrent?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';}
   var catFilter=state.analysisCategoryFilter||"",personFilter=state.analysisPersonFilter||"",groupFilter=state.analysisSelectedGroup||"",selKey=state.analysisSelectedBucket;
   var buckets=buildAnalysisBuckets(cs.rows,granularity,catFilter,personFilter,groupFilter);function itemCatOf(it){return it.category||'Uncategorised';}
-  function keepItemPerson(it){return isExpenseItem(it)&&itemMatchesPersonFilter(it,personFilter);}function keepItemCategoryOnly(it){return isExpenseItem(it)&&itemMatchesCategoryScope(it,catFilter,groupFilter);}function keepItem(it){return keepItemCategoryOnly(it)&&keepItemPerson(it);}function filteredSpent(){return cs.rows.reduce(function(t,r){return t+(r.items||[]).reduce(function(u,it){return keepItem(it)?u+personScopedAmount(it,personFilter):u;},0);},0);}
+  function keepItemPerson(it){return isExpenseItem(it)&&itemMatchesPersonFilter(it,personFilter)&&(!personFilter||!subcategoryExcludedFromPeopleAnalysis(it.category));}function keepItemCategoryOnly(it){return isExpenseItem(it)&&itemMatchesCategoryScope(it,catFilter,groupFilter);}function keepItem(it){return keepItemCategoryOnly(it)&&keepItemPerson(it);}function filteredSpent(){return cs.rows.reduce(function(t,r){return t+(r.items||[]).reduce(function(u,it){return keepItem(it)?u+personScopedAmount(it,personFilter):u;},0);},0);}
   var showGroupChip=groupFilter&&!catFilter;if(catFilter||personFilter||showGroupChip){h+='<div class="row gap2" style="margin-bottom:12px;align-items:center;flex-wrap:wrap;">';if(showGroupChip)h+='<span class="chip chip-accent">'+esc(groupFilter)+'</span>';if(catFilter)h+='<span class="chip chip-accent">'+esc(catFilter)+'</span>';if(personFilter)h+='<span class="chip" style="background:'+(personFilter==='Unassigned'?'#8595B5':personColor(personFilter))+';color:#fff;font-weight:600;">'+esc(personFilter)+'</span>';if(showGroupChip)h+='<button class="btn-plain" data-action="clear-analysis-group">Clear group</button>';if(catFilter)h+='<button class="btn-plain" data-action="clear-analysis-category">Clear subcategory</button>';if(personFilter)h+='<button class="btn-plain" data-action="clear-analysis-person">Clear person</button>';h+='</div>';}
   var sectionHtml={};
   sectionHtml.summary=function(){if(!(catFilter||personFilter||groupFilter))return'';var label=[groupFilter&&!catFilter?groupFilter:'',catFilter,personFilter].filter(Boolean).join(' · '),v=filteredSpent(),pct=cs.spent>0?v/cs.spent*100:0,count=cs.rows.reduce(function(t,r){return t+(r.items||[]).filter(keepItem).length;},0);return '<div class="card card-pad" style="margin-bottom:16px;"><div class="muted caption">FILTERED SPEND</div><div class="mono" style="font-size:28px;font-weight:700;margin-top:3px;">'+fmt(v,0)+' AED</div><div class="row between hairline-top" style="margin-top:12px;padding-top:10px;"><span class="muted subhead">'+esc(label)+'</span><span class="mono subhead">'+pct.toFixed(0)+'% of total · '+count+' txn'+(count===1?'':'s')+'</span></div></div>';};
@@ -4087,9 +4107,9 @@ function renderAnalysisBody(T) {
       s+='<div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by category</span><span class="muted caption">Tap to drill in</span></div>';
       s+='<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(gs,T,null,'All',gTotal,'drill-analysis-group','group')+'</div>';
       gs.forEach(function(sl,i){
-        var p=gTotal?sl.value/gTotal*100:0, freq=activityFrequencyStats({group:sl.label,person:personFilter||null},asOf), fLabel=frequencyLabel(freq);
+        var p=gTotal?sl.value/gTotal*100:0;
         s+='<button data-action="drill-analysis-group" data-group="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:9px 0;'+(i?'border-top:1px solid var(--sep);':'')+'">';
-        s+='<span style="text-align:left;min-width:0;"><span class="subhead">'+esc(sl.label==='Ungrouped'?'Uncategorized':sl.label)+'</span><span class="muted caption" style="display:block;margin-top:2px;">'+esc(fLabel)+(freq.txnCount?' · '+freq.txnCount+' txns':'')+'</span></span>';
+        s+='<span class="subhead">'+esc(sl.label==='Ungrouped'?'Uncategorized':sl.label)+'</span>';
         s+='<span class="row" style="gap:10px;flex-shrink:0;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span>'+ICONS.chevronRight+'</span></button>';
       });
     }else{
@@ -4098,20 +4118,54 @@ function renderAnalysisBody(T) {
       s+='<div class="row between" style="margin-bottom:10px;">'+(selected?'<button data-action="clear-analysis-group" class="btn-plain">← '+esc(selected)+'</button>':'<span class="eyebrow">Spend by subcategory</span>')+'<span class="muted caption">'+(catFilter?'Tap to clear':'Tap to filter')+'</span></div>';
       if(slices.length)s+='<div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,catFilter||null,'All',total)+'</div>';
       slices.forEach(function(sl,i){
-        var p=total?sl.value/total*100:0,isSel=catFilter===sl.label,freq=activityFrequencyStats({subcategory:sl.label,person:personFilter||null},asOf),fLabel=frequencyLabel(freq);
-        var detail=fLabel+(freq.typicalAmount>0?' · typical '+fmt(freq.typicalAmount,0)+' AED':'')+(freq.txnCount?' · '+freq.txnCount+' txns':'');
+        var p=total?sl.value/total*100:0,isSel=catFilter===sl.label;
         s+='<button data-action="filter-analysis-category" data-cat="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:9px 0;'+(i?'border-top:1px solid var(--sep);':'')+(catFilter&&!isSel?'opacity:.45;':'')+'">';
-        s+='<span style="text-align:left;min-width:0;"><span class="subhead" style="'+(isSel?'font-weight:700;':'')+'">'+esc(sl.label)+'</span><span class="muted caption" style="display:block;margin-top:2px;white-space:normal;">'+esc(detail)+'</span></span>';
+        s+='<span class="subhead" style="'+(isSel?'font-weight:700;':'')+'">'+esc(sl.label)+'</span>';
         s+='<span class="row" style="gap:10px;flex-shrink:0;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';
       });
     }
     return s+'</div>';
   };
-  sectionHtml.person=function(){if(!(state.settings.people||[]).length)return'';var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemCategoryOnly(it))return;if(it.personSplit&&it.personSplit.length)it.personSplit.forEach(function(ps){totals[ps.person]=(totals[ps.person]||0)+round2(it.amount*ps.pct/100);});else{var k=it.person||'Unassigned';totals[k]=(totals[k]||0)+it.amount;}});});var slices=Object.keys(totals).map(function(k){return{label:k,value:totals[k]};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);if(!slices.length)return'';slices.forEach(function(sl){sl.color=sl.label==='Unassigned'?'#8595B5':personColor(sl.label);});var s='<div id="analysisPersonCard" class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by person</span><span class="muted caption">'+(personFilter?'Tap to clear':'Tap to filter')+'</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,personFilter||null,'All',total,'filter-analysis-person','person')+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=personFilter===sl.label;s+='<button data-action="filter-analysis-person" data-person="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(personFilter&&!isSel?'opacity:.45;':'')+'"><span>'+ (sl.label==='Unassigned'?'<span class="subhead">Unassigned</span>':personChip(sl.label))+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});return s+'</div>';};
+  sectionHtml.frequency=function(){
+    var asOf=minStr(info.end,todayStr()), targets=[];
+    function pushTarget(label,opts,color){
+      var st=activityFrequencyStats(opts,asOf);
+      targets.push({label:label,stats:st,color:color||"var(--accent)"});
+    }
+    if(catFilter){
+      pushTarget(catFilter,{subcategory:catFilter,person:personFilter||null},categoryStyle(catFilter).color);
+    } else if(groupFilter){
+      (state.settings.categories||[]).filter(function(c){return (categoryGroupOf(c)||"Ungrouped")===groupFilter;}).forEach(function(c){
+        pushTarget(c,{subcategory:c,person:personFilter||null},subcategoryShade(groupFilter,c));
+      });
+    } else if((state.settings.categoryGroups||[]).length){
+      (state.settings.categoryGroups||[]).forEach(function(g){pushTarget(g,{group:g,person:personFilter||null},categoryGroupStyle(g).color);});
+      var hasUngrouped=(state.settings.categories||[]).some(function(c){return !categoryGroupOf(c);});
+      if(hasUngrouped) pushTarget("Uncategorized",{group:"Ungrouped",person:personFilter||null},"#8595B5");
+    } else {
+      (state.settings.categories||[]).forEach(function(c){pushTarget(c,{subcategory:c,person:personFilter||null},categoryStyle(c).color);});
+    }
+    targets.sort(function(a,b){
+      var ae=a.stats.enough?a.stats.avgGap:Infinity, be=b.stats.enough?b.stats.avgGap:Infinity;
+      return ae-be;
+    });
+    if(!targets.length)return"";
+    var usable=targets.filter(function(x){return x.stats.enough&&x.stats.avgGap!=null;});
+    var maxRate=usable.length?Math.max.apply(null,usable.map(function(x){return x.stats.avgGap<=0?10:1/x.stats.avgGap;})):1;
+    var s='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:4px;"><span class="eyebrow">Frequency</span>'+(personFilter?'<span class="muted caption">'+esc(personFilter)+'</span>':'')+'</div><div class="muted caption" style="margin-bottom:12px;">Average interval between transactions · last 12 months</div>';
+    targets.forEach(function(x,i){
+      var st=x.stats, label=frequencyLabel(st), rate=st.enough?(st.avgGap<=0?maxRate:1/st.avgGap):0, w=maxRate>0?Math.max(4,Math.min(100,rate/maxRate*100)):0;
+      s+='<div style="padding:10px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="row between" style="gap:12px;"><span class="subhead" style="font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(x.label)+'</span><span class="mono subhead" style="font-weight:700;flex-shrink:0;">'+esc(label)+'</span></div>';
+      s+='<div style="height:5px;background:var(--fill);border-radius:999px;margin-top:7px;overflow:hidden;"><div style="height:100%;width:'+w.toFixed(1)+'%;background:'+x.color+';border-radius:999px;"></div></div>';
+      s+='<div class="muted caption" style="margin-top:5px;">'+(st.typicalAmount>0?'Typical '+fmt(st.typicalAmount,0)+' AED · ':'')+st.txnCount+' transaction'+(st.txnCount===1?'':'s')+'</div></div>';
+    });
+    return s+'</div>';
+  };
+  sectionHtml.person=function(){if(!(state.settings.people||[]).length)return'';var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemCategoryOnly(it)||subcategoryExcludedFromPeopleAnalysis(it.category))return;if(it.personSplit&&it.personSplit.length)it.personSplit.forEach(function(ps){totals[ps.person]=(totals[ps.person]||0)+round2(it.amount*ps.pct/100);});else{var k=it.person||'Unassigned';totals[k]=(totals[k]||0)+it.amount;}});});var slices=Object.keys(totals).map(function(k){return{label:k,value:totals[k]};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);if(!slices.length)return'';slices.forEach(function(sl){sl.color=sl.label==='Unassigned'?'#8595B5':personColor(sl.label);});var s='<div id="analysisPersonCard" class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Spend by person</span><span class="muted caption">'+(personFilter?'Tap to clear':'Tap to filter')+'</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,personFilter||null,'All',total,'filter-analysis-person','person')+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=personFilter===sl.label;s+='<button data-action="filter-analysis-person" data-person="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(personFilter&&!isSel?'opacity:.45;':'')+'"><span>'+ (sl.label==='Unassigned'?'<span class="subhead">Unassigned</span>':personChip(sl.label))+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});return s+'</div>';};
   sectionHtml.dow=function(){return'';}
   sectionHtml.topTransactions=function(){var all=[];cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(keepItem(it))all.push({date:r.date,it:it,amount:personScopedAmount(it,personFilter)});});});all.sort(function(a,b){return b.amount-a.amount;});var top=all.slice(0,5),s='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow" style="margin-bottom:10px;">Biggest transactions</div>';if(!top.length)s+='<div class="muted subhead">Nothing logged in this period.</div>';else top.forEach(function(x,i){s+='<div class="row" style="gap:10px;align-items:center;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'">'+catIconCircle(x.it.category)+'<div style="flex:1;min-width:0;"><div class="subhead">'+esc(x.it.note||x.it.category||'Spent')+'</div><div class="muted caption">'+esc(dayLabel(x.date)+(x.it.category?' · '+x.it.category:''))+'</div></div><div class="mono subhead">'+fmt(x.amount,2)+' AED</div></div>';});return s+'</div>';};
   var filteredMode=!!(catFilter||personFilter||groupFilter);
-  var order=filteredMode?['summary','category','person','topTransactions']:normalizeAnalysisOrder(state.settings.analysisSectionOrder);
+  var order=filteredMode?['summary','category','frequency','person','topTransactions']:normalizeAnalysisOrder(state.settings.analysisSectionOrder);
   var rendered=[];order.forEach(function(id){var c=sectionHtml[id]?sectionHtml[id]():'';if(c)rendered.push({id:id,html:c});});
   h+='<div style="display:flex;flex-direction:column;">';rendered.forEach(function(sec,idx){h+='<div style="order:'+idx+';">'+((state.analysisReorderMode&&!filteredMode)?visualArrangeBar('analysis',sec.id,ANALYSIS_SECTION_LABELS[sec.id]||sec.id,idx,rendered.length):'')+sec.html+'</div>';});h+='</div>';
   return h;
@@ -4682,6 +4736,7 @@ function handleRestore() {
     nextSettings.people = normalizePeople(nextSettings.people);
     nextSettings.personColors = normalizePersonColors(nextSettings.personColors, nextSettings.people);
     nextSettings.categoryExcludeFromBudget = normalizeCategoryExcludeFromBudget(nextSettings.categoryExcludeFromBudget, nextSettings.categories);
+    nextSettings.peopleAnalysisExcluded = normalizePeopleAnalysisExcluded(nextSettings.peopleAnalysisExcluded, nextSettings.categories);
     nextSettings.defaultPerson = normalizeDefaultPerson(nextSettings.defaultPerson, nextSettings.people);
     nextSettings.recurringRules = normalizeRecurringRules(nextSettings.recurringRules);
     var restoreFallback = nextSettings.monthlyBudget ? (Number(nextSettings.monthlyBudget)/daysInMonth(new Date())) : (nextSettings.weeklyTarget/7);
@@ -5039,6 +5094,15 @@ document.addEventListener("click", function(e) {
       persistAll(Object.assign({}, state.settings, { recurringRules: remainingRules }), entriesAfterDelete, "your settings");
       render();
       break;
+    case "toggle-subcategory-people-analysis":
+      var peopleCatToToggle = el.dataset.cat;
+      var peopleExcludeMap = Object.assign({}, state.settings.peopleAnalysisExcluded||{});
+      if (peopleExcludeMap[peopleCatToToggle]) delete peopleExcludeMap[peopleCatToToggle];
+      else peopleExcludeMap[peopleCatToToggle] = true;
+      persistAll(Object.assign({}, state.settings, { peopleAnalysisExcluded: peopleExcludeMap }), state.entries, "your settings");
+      showToast(peopleExcludeMap[peopleCatToToggle] ? peopleCatToToggle+" excluded from People analysis" : peopleCatToToggle+" included in People analysis");
+      render();
+      break;
     case "toggle-category-budget":
       var catToToggle = el.dataset.cat;
       var nextExcludeMap = Object.assign({}, state.settings.categoryExcludeFromBudget||{});
@@ -5057,7 +5121,9 @@ document.addEventListener("click", function(e) {
       delete groupOfAfterRemoveCat[catToRemove];
       var excludeAfterRemove = Object.assign({}, state.settings.categoryExcludeFromBudget||{});
       delete excludeAfterRemove[catToRemove];
-      var withoutCat = Object.assign({}, state.settings, { categories: nextCatsAfterRemove, categoryStyles: stylesAfterRemove, categoryGroupOf: groupOfAfterRemoveCat, categoryExcludeFromBudget: excludeAfterRemove });
+      var peopleExcludeAfterRemove = Object.assign({}, state.settings.peopleAnalysisExcluded||{});
+      delete peopleExcludeAfterRemove[catToRemove];
+      var withoutCat = Object.assign({}, state.settings, { categories: nextCatsAfterRemove, categoryStyles: stylesAfterRemove, categoryGroupOf: groupOfAfterRemoveCat, categoryExcludeFromBudget: excludeAfterRemove, peopleAnalysisExcluded: peopleExcludeAfterRemove });
       if (state.categoryStyleEditing === catToRemove) state.categoryStyleEditing = null;
       if (state.categoryRenameEditing === catToRemove) state.categoryRenameEditing = null;
       persistAll(withoutCat, state.entries, "your categories");
