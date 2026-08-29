@@ -354,9 +354,9 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v44";
+var APP_VERSION = "v45";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, accountsEnabled: false, accounts: null, accountTransfers: null, forecastSnapshots: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, forecastSnapshots: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
 function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
@@ -364,64 +364,8 @@ function normalizeHomeOrder(order) {
   return out;
 }
 
-/* Optional account layer. Transactions remain perfectly valid without an
-   account, so this feature can be turned off later without changing any
-   spending, budget or forecast history. */
-function normalizeAccounts(accounts) {
-  var out=[];
-  (accounts||[]).forEach(function(a){
-    if(!a||typeof a!=="object") return;
-    var id=String(a.id||"").trim(), name=String(a.name||"").trim();
-    if(!id||!name||out.some(function(x){return x.id===id;})) return;
-    var type=["bank","cash","credit","savings"].indexOf(a.type)!==-1?a.type:"bank";
-    var opening=Number(a.openingBalance); if(!isFinite(opening)) opening=0;
-    var openingDate=/^\d{4}-\d{2}-\d{2}$/.test(a.openingDate||"")?a.openingDate:todayStr();
-    out.push({id:id,name:name,type:type,openingBalance:round2(opening),openingDate:openingDate});
-  });
-  return out;
-}
-function normalizeAccountTransfers(list, accounts) {
-  var ids={}; (accounts||[]).forEach(function(a){ids[a.id]=1;});
-  var out=[];
-  (list||[]).forEach(function(t){
-    if(!t||typeof t!=="object"||!ids[t.fromAccountId]||!ids[t.toAccountId]||t.fromAccountId===t.toAccountId) return;
-    var amount=Number(t.amount); if(!(amount>0)) return;
-    var date=/^\d{4}-\d{2}-\d{2}$/.test(t.date||"")?t.date:todayStr();
-    out.push({id:String(t.id||Date.now()+"-"+Math.random().toString(36).slice(2,7)),fromAccountId:t.fromAccountId,toAccountId:t.toAccountId,amount:round2(amount),date:date,time:t.time||"",note:String(t.note||"")});
-  });
-  return out;
-}
-function normalizeForecastSnapshots(list) {
-  var out=[];
-  (list||[]).forEach(function(x){
-    if(!x||typeof x!=="object"||!/^\d{4}-\d{2}-\d{2}$/.test(x.snapshotDate||"")||!/^\d{4}-\d{2}-\d{2}$/.test(x.periodEnd||"")) return;
-    var f=Number(x.forecastClose); if(!isFinite(f)||f<0) return;
-    out.push({snapshotDate:x.snapshotDate,scope:x.scope==="overall"?"overall":"budget",period:x.period==="week"?"week":"month",periodStart:x.periodStart,periodEnd:x.periodEnd,forecastClose:round2(f),actualSoFar:round2(Number(x.actualSoFar)||0),target:round2(Number(x.target)||0),breakdown:Array.isArray(x.breakdown)?x.breakdown.slice(0,40):[]});
-  });
-  out.sort(function(a,b){return a.snapshotDate<b.snapshotDate?-1:a.snapshotDate>b.snapshotDate?1:0;});
-  return out.slice(-450);
-}
-function accountById(id){ return (state.settings.accounts||[]).find(function(a){return a.id===id;})||null; }
-function accountTypeLabel(type){ return type==="cash"?"Cash":type==="credit"?"Credit card":type==="savings"?"Savings":"Bank"; }
-function accountBalance(id) {
-  var a=accountById(id); if(!a) return 0;
-  var bal=Number(a.openingBalance)||0, start=a.openingDate||"1900-01-01";
-  Object.keys(state.entries).forEach(function(ds){
-    if(ds<start) return;
-    (state.entries[ds].items||[]).forEach(function(it){
-      if(it.accountId!==id) return;
-      bal += isIncomeItem(it) ? Number(it.amount||0) : -Number(it.amount||0);
-    });
-  });
-  (state.settings.accountTransfers||[]).forEach(function(t){
-    if(t.date<start) return;
-    if(t.fromAccountId===id) bal-=Number(t.amount||0);
-    if(t.toAccountId===id) bal+=Number(t.amount||0);
-  });
-  return round2(bal);
-}
-var DEFAULT_BUDGET_ORDER = ["summary","forecast","spendTrend","progress","savedPerDay","category","person"];
-var BUDGET_SECTION_LABELS = { summary:"Budget summary", forecast:"Forecast", spendTrend:"Spend trend", progress:"Budget progress", savedPerDay:"Saved per day", category:"Spend by category", person:"Spend by person" };
+var DEFAULT_BUDGET_ORDER = ["summary","forecast","spendTrend","progress","category","person"];
+var BUDGET_SECTION_LABELS = { summary:"Budget summary", forecast:"Forecast", spendTrend:"Spend trend", progress:"Ahead / behind budget", category:"Spend by category", person:"Spend by person" };
 function normalizeBudgetOrder(order) {
   var valid = DEFAULT_BUDGET_ORDER;
   var out = (order||[]).filter(function(id){ return valid.indexOf(id)!==-1; });
@@ -1072,7 +1016,6 @@ var state = {
   budgetForecastDetailsOpen: false,
   analysisForecastDetailsOpen: false,
   entryTimeDraft: null,
-  entryAccountDraft: null,
   incomeDraftMode: null,
   incomeDraftAmount: null,
   categoryStyleEditing: null,
@@ -1261,9 +1204,6 @@ function loadInitial() {
   state.settings.homeSectionOrder = normalizeHomeOrder(state.settings.homeSectionOrder);
   state.settings.homeSimpleView = !!state.settings.homeSimpleView;
   state.settings.fxRateCache = normalizeFxCache(state.settings.fxRateCache);
-  state.settings.accountsEnabled = !!state.settings.accountsEnabled;
-  state.settings.accounts = normalizeAccounts(state.settings.accounts);
-  state.settings.accountTransfers = normalizeAccountTransfers(state.settings.accountTransfers, state.settings.accounts);
   state.settings.forecastSnapshots = normalizeForecastSnapshots(state.settings.forecastSnapshots);
   state.settings.incomeHistory = normalizeIncomeHistory(state.settings.incomeHistory);
   state.settings.monthlyBudgetHistory = normalizeMonthlyBudgetHistory(state.settings.monthlyBudgetHistory);
@@ -2946,7 +2886,6 @@ function renderHomeBody(T, da) {
   var weekNow = getPeriodBounds("week", 0, currentWeeklyTarget(), dailyAllowance());
   var weekBudget = periodStatsBudget(weekNow.startStr, weekNow.endStr);
   var weekRemaining = round2(weekNow.target - weekBudget.spent);
-  var savedSoFar = round2(budget.targetElapsed - budget.spent);
   var pacing = liveBudgetPacing();
   var dailyAverage = pacing.dailyAverage;
   var safeToday = pacing.safeToday;
@@ -2994,8 +2933,7 @@ function renderHomeBody(T, da) {
   budgetCard += '<div class="mono" style="font-size:34px;font-weight:700;margin-top:3px;color:var(--text);">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted" style="font-size:17px;">AED</span>'))+'</div>';
   if (adjustmentNeeded>0) budgetCard += '<div class="caption" style="margin-top:5px;color:var(--rust);font-weight:650;text-transform:capitalize;">'+esc(pacing.limitingHorizon||'budget')+' cut needed · '+fmt(adjustmentNeeded,0)+' AED</div>';
   budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;">';
-  budgetCard += '<div class="row between"><span class="muted subhead">Equal daily pace</span><span class="mono subhead" style="font-weight:600;color:'+(dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)')+';">'+(dailyAverage==null?'—':((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'))+'</span></div>';
-  budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Saved so far</span><span class="mono subhead" style="font-weight:600;color:'+(savedSoFar>=0?'var(--positive)':'var(--rust)')+';">'+(savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED</span></div>';
+  budgetCard += '<div class="row between"><span class="muted subhead">Equal daily allowance</span><span class="mono subhead" style="font-weight:600;color:'+(dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)')+';">'+(dailyAverage==null?'—':((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'))+'</span></div>';
   budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Spent today</span><span class="mono subhead" style="font-weight:600;">'+fmt(spentToday,0)+' AED</span></div>';
   budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Remaining this month</span><span class="mono subhead" style="font-weight:600;color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED</span></div></div>';
   budgetCard += '<button data-action="go-page" data-page="budget" class="btn-plain" style="margin-top:12px;">Open budget →</button></div>';
@@ -3007,7 +2945,6 @@ function renderHomeBody(T, da) {
     cash += statBlock("Income received", fmt(income,0)+' AED', 'var(--positive)');
     cash += statBlock("Expenses", fmt(overall.spent,0)+' AED', 'var(--rust)');
     cash += statBlock("Net cash flow", (cashNet>=0?'+':'−')+fmt(Math.abs(cashNet),0)+' AED', cashNet>=0?'var(--positive)':'var(--rust)');
-    cash += statBlock("Expense transactions", String(overall.rows.reduce(function(t,r){ return t+(r.items||[]).filter(isExpenseItem).length; },0)), 'var(--text)');
     cash += '</div>';
   } else cash += '<div class="muted subhead" style="margin-top:8px;">Log salary or other money received as Income transactions to see cash flow here.</div>';
   cash += '</div>';
@@ -3093,7 +3030,7 @@ function renderHomeBody(T, da) {
 function renderBudgetBody(T) {
   lastForecastChartData=null;lastChartData=null;lastBudgetTrendChartData=null;
   var da=dailyAllowance(),period=getPeriodBounds(state.view,state.offset,currentWeeklyTarget(),da),stats=periodStatsBudget(period.startStr,period.endStr);
-  var isCurrent=state.offset===0,isClosed=period.endStr<todayStr(),target=period.target,remaining=round2(target-stats.spent),savedSoFar=round2(stats.targetElapsed-stats.spent);
+  var isCurrent=state.offset===0,isClosed=period.endStr<todayStr(),target=period.target,remaining=round2(target-stats.spent);
   var livePacing=isCurrent?liveBudgetPacing():null,dailyAverage=livePacing?livePacing.dailyAverage:null,safeToday=livePacing?livePacing.safeToday:null,overSafeToday=livePacing?(livePacing.overSafeToday||0):0,adjustmentNeeded=livePacing?(livePacing.adjustmentNeeded||0):0,spentToday=livePacing?livePacing.spentToday:0,limitingHorizon=livePacing?livePacing.limitingHorizon:null;
   var forecastStart=effectiveRangeStart(period.startStr),forecastDays=daysBetween(forecastStart,period.endStr)+1,budgetForecast=(isCurrent&&stats.rows.length)?computeForecastNumbers(stats.rows,forecastDays,forecastStart,'budget'):null;
   var projectedSpend=budgetForecast?budgetForecast.projectedSpend:stats.spent,projectedSaving=round2(target-projectedSpend),progress=target>0?Math.max(0,Math.min(100,stats.spent/target*100)):0;
@@ -3105,7 +3042,6 @@ function renderBudgetBody(T) {
   var budgetUsedPct = target>0 ? (stats.spent/target*100) : 0;
   var summary='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="align-items:baseline;"><div><div class="muted caption">BUDGET SPENT</div><div class="mono" style="font-size:30px;font-weight:700;margin-top:2px;">'+fmt(stats.spent,0)+' AED</div></div><div style="text-align:right;"><div class="mono muted subhead">of '+fmt(target,0)+' AED</div><div class="mono caption" style="margin-top:3px;font-weight:700;color:'+(budgetUsedPct>100?'var(--rust)':'var(--text-muted)')+';">'+budgetUsedPct.toFixed(0)+'% used</div></div></div><div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 14px;"><div style="height:100%;width:'+progress+'%;background:'+(stats.spent>target?'var(--rust)':'var(--accent)')+';"></div></div><div class="stat-grid">';
   summary+=statBlock('Remaining',(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED',remaining>=0?'var(--positive)':'var(--rust)');
-  summary+=statBlock(isClosed?'Saved this period':'Saved so far',(savedSoFar>=0?'+':'−')+fmt(Math.abs(savedSoFar),0)+' AED',savedSoFar>=0?'var(--positive)':'var(--rust)');
   summary+=statBlock('Equal daily allowance',isCurrent&&dailyAverage!=null?((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'):'—',dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)');
   summary+=statBlock('Safe to spend today',isCurrent&&safeToday!=null?(fmt(safeToday,0)+' AED'):'—','var(--text)');
   summary+=statBlock('Spent today',isCurrent?fmt(spentToday,0)+' AED':'—','var(--text)');
@@ -3124,10 +3060,8 @@ function renderBudgetBody(T) {
   sections.spendTrend=buildBudgetTrendCard(state.view,state.offset,T);
   if(stats.rows.length){
     var acc=0,savingData=stats.rows.map(function(r){var d=round2(r.allowance-r.spent);acc=round2(acc+d);return{label:shortLabel(r.date),date:r.date,balance:acc,delta:d};});
-    sections.progress='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Budget progress</span><span class="mono footnote" style="color:'+(acc>=0?'var(--positive)':'var(--rust)')+';font-weight:600;">'+(acc>=0?'+':'−')+fmt(Math.abs(acc),0)+' AED</span></div><div class="muted caption" style="margin-bottom:10px;">Cumulative amount ahead or behind your budget through each day.</div><div id="budgetSavingChartWrap" style="position:relative;"><div id="balanceChartTip" class="mono footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:8px;padding:4px 9px;max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;z-index:2;"></div>'+renderChart(savingData,T)+'</div></div>';lastChartData=savingData;
-    var buckets=stats.rows.map(function(r){return{key:r.date,label:shortLabel(r.date),title:dayLabel(r.date),date:r.date,dates:[r.date],spent:r.spent,allowance:r.allowance,days:1};});
-    sections.savedPerDay='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow" style="margin-bottom:8px;">Saved per day</div>'+renderDailyBarChart(buckets,function(b){return b.allowance-b.spent;},function(b,v){return v>=0?T.positive:T.rust;},T,null,null,'budget-saved')+'</div>';
-  } else {sections.progress='';sections.savedPerDay='';}
+    sections.progress='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Ahead / behind budget</span><span class="mono footnote" style="color:'+(acc>=0?'var(--positive)':'var(--rust)')+';font-weight:600;">'+(acc>=0?'+':'−')+fmt(Math.abs(acc),0)+' AED</span></div><div class="muted caption" style="margin-bottom:10px;">Cumulative position versus your budget pace.</div><div id="budgetSavingChartWrap" style="position:relative;"><div id="balanceChartTip" class="mono footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:8px;padding:4px 9px;max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;z-index:2;"></div>'+renderChart(savingData,T)+'</div></div>';lastChartData=savingData;
+  } else {sections.progress='';}
 
   var catFilter=state.budgetCategoryFilter||'',personFilter=state.budgetPersonFilter||'',groupFilter=state.budgetSelectedGroup||'';
   function personMatch(it){return itemMatchesPersonFilter(it,personFilter);}function catMatch(it){if(catFilter)return(it.category||'Uncategorised')===catFilter;if(groupFilter)return(categoryGroupOf(it.category)||'Ungrouped')===groupFilter;return true;}function scopedAmount(it){return personScopedAmount(it,personFilter);}
@@ -3152,7 +3086,7 @@ function renderBudgetBody(T) {
 
 function renderSettingsPage() {
   var section = state.settingsSection || "";
-  var titles = { budget:"Monthly budget", currency:"Currencies", accounts:"Accounts & transfers", forecastAccuracy:"Forecast accuracy", categories:"Categories", people:"People", theme:"Appearance", tracking:"Tracking & data", backup:"Backup & restore" };
+  var titles = { budget:"Monthly budget", currency:"Currencies", forecastAccuracy:"Forecast accuracy", categories:"Categories", people:"People", theme:"Appearance", tracking:"Tracking start", backup:"Backup & restore" };
   var categoryHeaderTitle = "Categories";
   if (section === "categories") {
     if (state.settingsSubcategorySelected) categoryHeaderTitle = state.settingsSubcategorySelected;
@@ -3179,7 +3113,6 @@ function renderSettingsPage() {
     h += '<div class="settings-group-title">Money</div><div class="settings-list">';
     h += '<button class="settings-row" data-action="settings-section" data-section="budget"><span class="settings-row-main"><span class="settings-row-label">Monthly budget</span><span class="settings-row-sub">Your controllable-spend target</span></span><span class="row gap2"><span class="settings-row-value">'+fmt(monthlyNow,0)+' AED</span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="currency"><span class="settings-row-main"><span class="settings-row-label">Currencies</span><span class="settings-row-sub">Travel spending and exchange rates</span></span><span class="row gap2"><span class="settings-row-value">AED base</span>'+ICONS.chevronRight+'</span></button>';
-    h += '<button class="settings-row" data-action="settings-section" data-section="accounts"><span class="settings-row-main"><span class="settings-row-label">Accounts & transfers</span><span class="settings-row-sub">Optional bank, cash, card and savings balances</span></span><span class="row gap2"><span class="settings-row-value">'+(state.settings.accountsEnabled?((state.settings.accounts||[]).length+' active'):'Off')+'</span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="categories"><span class="settings-row-main"><span class="settings-row-label">Categories</span><span class="settings-row-sub">Categories, subcategories and budget rules</span></span><span class="row gap2"><span class="settings-row-value">'+groupsN+' · '+catsN+' sub</span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="people"><span class="settings-row-main"><span class="settings-row-label">People</span><span class="settings-row-sub">Defaults, colors and shared spending</span></span><span class="row gap2"><span class="settings-row-value">'+peopleN+'</span>'+ICONS.chevronRight+'</span></button>';
     h += '</div>';
@@ -3190,7 +3123,7 @@ function renderSettingsPage() {
 
     h += '<div class="settings-group-title">Data</div><div class="settings-list">';
     h += '<button class="settings-row" data-action="settings-section" data-section="forecastAccuracy"><span class="settings-row-main"><span class="settings-row-label">Forecast accuracy</span><span class="settings-row-sub">Backtesting and forecast error over time</span></span><span>'+ICONS.chevronRight+'</span></button>';
-    h += '<button class="settings-row" data-action="settings-section" data-section="tracking"><span class="settings-row-main"><span class="settings-row-label">Tracking & data</span><span class="settings-row-sub">Tracking start date and data tools</span></span><span class="row gap2"><span class="settings-row-value">'+esc(trackLabel)+'</span>'+ICONS.chevronRight+'</span></button>';
+    h += '<button class="settings-row" data-action="settings-section" data-section="tracking"><span class="settings-row-main"><span class="settings-row-label">Tracking start</span><span class="settings-row-sub">Where budget history should begin</span></span><span class="row gap2"><span class="settings-row-value">'+esc(trackLabel)+'</span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="backup"><span class="settings-row-main"><span class="settings-row-label">Backup & restore</span><span class="settings-row-sub">Copy, restore or move your ledger</span></span><span>'+ICONS.chevronRight+'</span></button>';
     h += '</div>';
     h += '</div></div>';
@@ -3226,30 +3159,11 @@ function renderSettingsPage() {
     h += '<div class="muted caption" style="padding:0 2px;">For a trip expense, choose the currency beside Amount. The Ledger saves the foreign amount, the dated exchange rate and the converted AED amount. Changing rates later will never rewrite old transactions.</div>';
   }
 
-  if (section === "accounts") {
-    var accts=state.settings.accounts||[], enabled=!!state.settings.accountsEnabled;
-    h += '<div class="card card-pad" style="margin-bottom:14px;"><div class="row between" style="gap:12px;"><div><div class="subhead" style="font-weight:650;">Accounts feature</div><div class="muted caption" style="margin-top:3px;">Optional. Turning it off hides account fields but keeps all saved account data.</div></div><button data-action="toggle-accounts-feature" class="'+(enabled?'btn-accent':'btn-outline')+'" style="flex-shrink:0;">'+(enabled?'On':'Off')+'</button></div></div>';
-    if(enabled){
-      if(accts.length){
-        h += '<div class="settings-group-title" style="padding-left:2px;">Balances</div><div class="settings-list" style="margin-bottom:14px;">';
-        accts.forEach(function(a){var bal=accountBalance(a.id);h+='<div class="settings-row" style="cursor:default;"><span class="settings-row-main"><span class="settings-row-label">'+esc(a.name)+'</span><span class="settings-row-sub">'+accountTypeLabel(a.type)+' · opening '+shortLabel(a.openingDate)+'</span></span><span class="row gap2"><span class="mono settings-row-value" style="color:'+(bal<0?'var(--rust)':'var(--text)')+';">'+(bal<0?'−':'')+fmt(Math.abs(bal),2)+' AED</span><button data-action="remove-account" data-id="'+esc(a.id)+'" class="icon-btn" aria-label="Delete account" style="padding:5px;color:var(--text-muted);">'+ICONS.trash+'</button></span></div>';});
-        h += '</div>';
-      } else h += '<div class="muted subhead" style="margin:4px 2px 14px;">No accounts yet. Existing transactions remain unassigned until you choose an account.</div>';
-      h += '<div class="card card-pad" style="margin-bottom:14px;"><div class="eyebrow" style="margin-bottom:9px;">ADD ACCOUNT</div><input id="accountNameInput" class="field" placeholder="Account name" style="margin-bottom:8px;"/><div class="row gap2" style="margin-bottom:8px;"><select id="accountTypeInput" class="field" style="flex:1;"><option value="bank">Bank</option><option value="cash">Cash</option><option value="credit">Credit card</option><option value="savings">Savings</option></select><input id="accountOpeningInput" type="number" inputmode="decimal" step="0.01" class="field mono" style="width:42%;" placeholder="Opening balance"/></div><label class="muted caption">Balance as of</label><input id="accountOpeningDateInput" type="date" class="field mono" value="'+todayStr()+'" max="'+todayStr()+'" style="margin:5px 0 10px;"/><button data-action="add-account" class="btn-accent" style="width:100%;">Add account</button></div>';
-      if(accts.length>=2){
-        h += '<div class="card card-pad" style="margin-bottom:14px;"><div class="eyebrow" style="margin-bottom:9px;">TRANSFER</div><div class="row gap2" style="margin-bottom:8px;"><select id="transferFromInput" class="field" style="flex:1;">'+accts.map(function(a){return '<option value="'+esc(a.id)+'">'+esc(a.name)+'</option>';}).join('')+'</select><span class="muted" style="align-self:center;">→</span><select id="transferToInput" class="field" style="flex:1;">'+accts.map(function(a,i){return '<option value="'+esc(a.id)+'"'+(i===1?' selected':'')+'>'+esc(a.name)+'</option>';}).join('')+'</select></div><input id="transferAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" placeholder="Amount AED" style="margin-bottom:8px;"/><div class="row gap2" style="margin-bottom:8px;"><input id="transferDateInput" type="date" class="field mono" value="'+todayStr()+'" max="'+todayStr()+'" style="flex:1;"/><input id="transferTimeInput" type="time" class="field mono" value="'+currentTimeStr()+'" style="width:38%;"/></div><input id="transferNoteInput" class="field" placeholder="Note (optional)" style="margin-bottom:10px;"/><button data-action="add-account-transfer" class="btn-outline" style="width:100%;">Record transfer</button></div>';
-      }
-      var transfers=(state.settings.accountTransfers||[]).slice().sort(function(a,b){var ak=a.date+' '+(a.time||''),bk=b.date+' '+(b.time||'');return ak<bk?1:-1;}).slice(0,8);
-      if(transfers.length){h+='<div class="settings-group-title" style="padding-left:2px;">Recent transfers</div><div class="settings-list">';transfers.forEach(function(t){var f=accountById(t.fromAccountId),to=accountById(t.toAccountId);h+='<div class="settings-row" style="cursor:default;"><span class="settings-row-main"><span class="settings-row-label">'+esc((f?f.name:'?')+' → '+(to?to.name:'?'))+'</span><span class="settings-row-sub">'+esc(shortLabel(t.date)+(t.time?' · '+formatTxnTime(t.time):'')+(t.note?' · '+t.note:''))+'</span></span><span class="row gap2"><span class="mono settings-row-value">'+fmt(t.amount,2)+'</span><button data-action="delete-account-transfer" data-id="'+esc(t.id)+'" class="icon-btn" style="padding:5px;color:var(--text-muted);">'+ICONS.trash+'</button></span></div>';});h+='</div>';}
-    }
-  }
-
   if (section === "forecastAccuracy") {
-    var bw=forecastAccuracySummary("budget","week"), bm=forecastAccuracySummary("budget","month"), om=forecastAccuracySummary("overall","month"), snapCount=(state.settings.forecastSnapshots||[]).length;
+    var bw=forecastAccuracySummary("budget","week"), bm=forecastAccuracySummary("budget","month"), om=forecastAccuracySummary("overall","month");
     function accuracyCard(title,x){var body=x.count?('<div class="mono" style="font-size:25px;font-weight:720;margin-top:5px;">'+fmt(x.mae,0)+' AED</div><div class="muted caption" style="margin-top:3px;">Mean absolute error'+(x.mape!=null?' · '+fmt(x.mape,1)+'%':'')+' · '+x.count+' check'+(x.count===1?'':'s')+'</div>'):('<div class="muted subhead" style="margin-top:8px;">Learning — no completed period to score yet.</div>');return '<div class="card card-pad" style="margin-bottom:12px;"><div class="eyebrow">'+title+'</div>'+body+'</div>';}
-    h += '<div class="muted subhead" style="margin:0 2px 14px;">The Ledger saves one forecast snapshot per day and never rewrites it. When that week/month closes, the prediction is compared with the actual result.</div>';
+    h += '<div class="muted subhead" style="margin:0 2px 14px;">Forecasts are frozen daily and scored against the actual result when each week or month closes.</div>';
     h += accuracyCard('BUDGET · WEEK',bw)+accuracyCard('BUDGET · MONTH',bm)+accuracyCard('OVERALL SPEND · MONTH',om);
-    h += '<div class="card card-pad"><div class="row between"><span class="subhead">Snapshots saved</span><span class="mono subhead" style="font-weight:650;">'+snapCount+'</span></div><div class="muted caption" style="margin-top:7px;">This learns independently of Accounts & Transfers. Deleting or disabling accounts does not affect forecast backtesting.</div></div>';
   }
 
   if (section === "tracking") {
@@ -3257,11 +3171,6 @@ function renderSettingsPage() {
     h += '<input id="trackingStartInput" type="date" class="field mono" style="margin:6px 0 6px;" value="'+(state.settings.trackingStartDate||"")+'" max="'+todayStr()+'" />';
     h += '<div class="muted" style="font-size:12px; margin-bottom:16px;">Caps how far back Week/Month/Year totals count. Set this to when you actually started using the app so untracked earlier days aren\'t assumed as saved. Leave blank to count from each period\'s natural start.</div>';
     h += '<button data-action="save-tracking" class="btn-accent" style="width:100%; margin-bottom:20px;">Save</button>';
-    h += '<div class="hairline-top" style="padding-top:14px;">';
-    h += '<label class="eyebrow">Backup & restore</label>';
-    h += '<div class="muted" style="font-size:12px; margin:6px 0 10px;">Copy your data out, or paste it back in — also how you move data between devices or browsers.</div>';
-    h += '<button data-action="settings-section" data-section="backup" class="btn-outline" style="width:100%;">Open backup & restore</button>';
-    h += '</div>';
   }
 
   if (section === "theme") {
@@ -3502,13 +3411,6 @@ function renderAddTxnPage() {
   h += '<label style="width:122px;flex:0 0 122px;"><span class="eyebrow" style="display:block;margin-bottom:6px;">Time</span><input id="entryTimeInput" type="time" class="field mono" style="width:100%;padding:9px 10px;font-size:14px;" value="'+esc(selectedTime)+'" /></label>';
   h += '</div>';
 
-  if (state.settings.accountsEnabled && (state.settings.accounts||[]).length) {
-    var selectedAccount = state.entryAccountDraft != null ? state.entryAccountDraft : (editingItem ? (editingItem.accountId||"") : "");
-    h += '<label class="eyebrow" style="display:block;margin-bottom:6px;">Account <span class="muted" style="font-weight:500;">· optional</span></label><select id="entryAccountInput" class="field" style="margin-bottom:14px;"><option value="">Unassigned</option>';
-    (state.settings.accounts||[]).forEach(function(a){h+='<option value="'+esc(a.id)+'"'+(selectedAccount===a.id?' selected':'')+'>'+esc(a.name)+' · '+accountTypeLabel(a.type)+'</option>';});
-    h += '</select>';
-  } else h += '<input id="entryAccountInput" type="hidden" value="" />';
-
   if (txnKind === "expense") {
     h += '<div class="row between" style="margin-bottom:8px;"><span class="eyebrow">Subcategory</span>'+(selectedCat?'<span class="muted caption">'+esc(categoryGroupOf(selectedCat)||"Ungrouped")+'</span>':'')+'</div>';
     h += '<div class="txn-hscroll" style="gap:8px;margin:0 -8px 10px;padding:2px 8px 5px;">';
@@ -3716,7 +3618,6 @@ function renderTxnRow(date, it) {
   if(it.personSplit&&it.personSplit.length)personText=it.personSplit.map(function(ps){return ps.person+" "+ps.pct+"%";}).join(" · ");
   else if(it.person)personText=it.person;
   if(personText)secondary.push(personText);
-  if(state.settings.accountsEnabled && it.accountId){ var ar=accountById(it.accountId); if(ar) secondary.push(ar.name); }
   if(it.currency && it.currency!==BASE_CURRENCY && it.originalAmount!=null) secondary.push(currencyAmountLabel(it.originalAmount,it.currency,2)+" → "+currencyAmountLabel(it.amount,BASE_CURRENCY,2));
   var seq="";
   if(it.recurringId)seq=(it.seq&&it.seqTotal)?(' · '+it.seq+'/'+it.seqTotal):' · Recurring';
@@ -5178,10 +5079,8 @@ function renderAnalysisBody(T) {
   function keepItemPerson(it){return isExpenseItem(it)&&itemMatchesPersonFilter(it,personFilter)&&(!personFilter||!subcategoryExcludedFromPeopleAnalysis(it.category));}function keepItemCategoryOnly(it){return isExpenseItem(it)&&itemMatchesCategoryScope(it,catFilter,groupFilter);}function keepItem(it){return keepItemCategoryOnly(it)&&keepItemPerson(it);}function filteredSpent(){return cs.rows.reduce(function(t,r){return t+(r.items||[]).reduce(function(u,it){return keepItem(it)?u+personScopedAmount(it,personFilter):u;},0);},0);}
   var showGroupChip=groupFilter&&!catFilter;if(catFilter||personFilter||showGroupChip){h+='<div class="row gap2" style="margin-bottom:12px;align-items:center;flex-wrap:wrap;">';if(showGroupChip)h+='<span class="chip chip-accent">'+esc(groupFilter)+'</span>';if(catFilter)h+='<span class="chip chip-accent">'+esc(catFilter)+'</span>';if(personFilter)h+='<span class="chip" style="background:'+(personFilter==='Unassigned'?'#8595B5':personColor(personFilter))+';color:#fff;font-weight:600;">'+esc(personFilter)+'</span>';if(showGroupChip)h+='<button class="btn-plain" data-action="clear-analysis-group">Clear group</button>';if(catFilter)h+='<button class="btn-plain" data-action="clear-analysis-category">Clear subcategory</button>';if(personFilter)h+='<button class="btn-plain" data-action="clear-analysis-person">Clear person</button>';h+='</div>';}
   var sectionHtml={};
-  sectionHtml.summary=function(){if(!(catFilter||personFilter||groupFilter))return'';var label=[groupFilter&&!catFilter?groupFilter:'',catFilter,personFilter].filter(Boolean).join(' · '),v=filteredSpent(),pct=cs.spent>0?v/cs.spent*100:0,count=cs.rows.reduce(function(t,r){return t+(r.items||[]).filter(keepItem).length;},0);return '<div class="card card-pad" style="margin-bottom:16px;"><div class="muted caption">FILTERED SPEND</div><div class="mono" style="font-size:28px;font-weight:700;margin-top:3px;">'+fmt(v,0)+' AED</div><div class="row between hairline-top" style="margin-top:12px;padding-top:10px;"><span class="muted subhead">'+esc(label)+'</span><span class="mono subhead">'+pct.toFixed(0)+'% of total · '+count+' txn'+(count===1?'':'s')+'</span></div></div>';};
   function bucketDetail(chartId){if(selKey==null)return'';var prefix=chartId+'|';if(selKey.indexOf(prefix)!==0)return'';var key=selKey.slice(prefix.length),b=buckets.find(function(x){return x.key===key;});if(!b)return'';var items=[];cs.rows.filter(function(r){return b.dates.indexOf(r.date)!==-1;}).forEach(function(r){(r.items||[]).forEach(function(it){if(keepItem(it))items.push({date:r.date,it:it});});});items.sort(function(a,b2){return personScopedAmount(b2.it,personFilter)-personScopedAmount(a.it,personFilter);});var total=items.reduce(function(t,x){return t+personScopedAmount(x.it,personFilter);},0);var s='<div class="bucket-detail hairline-top" style="margin-top:12px;padding-top:12px;"><div class="row between" style="margin-bottom:10px;"><div><div class="headline">'+esc(b.title)+'</div><div class="muted footnote">'+fmt(total,0)+' AED spent · '+items.length+' transaction'+(items.length===1?'':'s')+'</div></div><button class="icon-btn" data-action="clear-bucket">'+ICONS.x+'</button></div>';items.forEach(function(x,i){s+='<div class="row" style="align-items:center;gap:10px;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'">'+catIconCircle(x.it.category)+'<div style="flex:1;min-width:0;"><div class="subhead">'+esc(x.it.note||x.it.category||'Spent')+'</div><div class="muted caption">'+esc((b.dates.length>1?dayLabel(x.date):'')+(x.it.category?' · '+x.it.category:''))+'</div></div><div class="mono subhead">'+fmt(personScopedAmount(x.it,personFilter),2)+'</div></div>';});return s+'</div>';}
-  sectionHtml.dailySpend=function(){return'';};
-  sectionHtml.dailySaving=function(){return'';};sectionHtml.cumulativeSaving=function(){return'';};
+
   sectionHtml.cashFlow=function(){if(catFilter||personFilter||groupFilter||cs.income<=0)return'';var net=cs.income-cs.spent,max=Math.max(cs.income,cs.spent,1),ip=Math.round(cs.income/max*100),ep=Math.round(cs.spent/max*100);var s='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow">Cash flow</div><div class="muted caption" style="margin:2px 0 12px;">Actual income transactions versus all expenses.</div><div class="mono" style="font-size:26px;font-weight:700;color:'+(net>=0?'var(--positive)':'var(--rust)')+';">'+(net>=0?'+':'−')+fmt(Math.abs(net),0)+' AED</div><div style="margin-top:16px;"><div class="row between"><span class="subhead">Income</span><span class="mono subhead">'+fmt(cs.income,0)+'</span></div><div style="background:var(--fill);height:12px;border-radius:6px;overflow:hidden;margin:6px 0 14px;"><div style="height:100%;width:'+ip+'%;background:var(--positive);"></div></div><div class="row between"><span class="subhead">Expenses</span><span class="mono subhead">'+fmt(cs.spent,0)+'</span></div><div style="background:var(--fill);height:12px;border-radius:6px;overflow:hidden;margin-top:6px;"><div style="height:100%;width:'+ep+'%;background:var(--rust);"></div></div></div></div>';return s;};
   sectionHtml.forecastedSpend=function(){if(catFilter||personFilter||groupFilter)return'';return buildAnalysisForecastCard(info,cs,T);};
   sectionHtml.balance=function(){if(catFilter||personFilter||groupFilter)return'';return buildCashBalanceCard(info,cs,T);};
@@ -5475,8 +5374,6 @@ function handleAddTransaction() {
   var fxMeta = currency===BASE_CURRENCY ? { currency:BASE_CURRENCY } : { currency:currency, originalAmount:originalAmt, fxRate:fxRate, fxSource:fxSource, fxDate:date };
   var note = noteEl ? noteEl.value.trim() : "";
   var category = catEl ? catEl.value : "";
-  var accountEl = document.getElementById("entryAccountInput");
-  var accountId = (state.settings.accountsEnabled && accountEl) ? accountEl.value : "";
 
   var person = "";
   var personSplit = null;
@@ -5527,9 +5424,8 @@ function handleAddTransaction() {
     }
     /* Preserve recurringId/seq metadata when editing an occurrence so deleting
        its plan later can still find and remove that occurrence. */
-    var updatedItem = Object.assign({}, origItemForKind || {}, fxMeta, { id: state.editingItemId, amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind, time: txnTime||undefined, accountId:accountId||undefined });
+    var updatedItem = Object.assign({}, origItemForKind || {}, fxMeta, { id: state.editingItemId, amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind, time: txnTime||undefined });
     if(!txnTime) delete updatedItem.time;
-    if(!accountId) delete updatedItem.accountId;
     if (currency===BASE_CURRENCY) { delete updatedItem.originalAmount; delete updatedItem.fxRate; delete updatedItem.fxDate; updatedItem.fxSource="Base currency"; }
     var destDay = nextEntries[date];
     var nextDest = destDay ? Object.assign({}, destDay, { items: destDay.items.concat([updatedItem]) }) : { allowance: allowanceForDate(date), items: [updatedItem] };
@@ -5540,9 +5436,8 @@ function handleAddTransaction() {
     state.txnEntryRestoreScroll = true;
   } else {
     var existing = nextEntries[date];
-    var newItem = Object.assign({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind, time: txnTime||undefined, accountId:accountId||undefined }, fxMeta);
+    var newItem = Object.assign({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind, time: txnTime||undefined }, fxMeta);
     if(!txnTime) delete newItem.time;
-    if(!accountId) delete newItem.accountId;
     nextEntries[date] = existing ? Object.assign({}, existing, { items: existing.items.concat([newItem]) }) : { allowance: allowanceForDate(date), items: [newItem] };
     state.showAddTxn = false;
     state.txnEntryRestoreScroll = true;
@@ -5734,7 +5629,7 @@ function handleEditTxn(date, id) {
   state.entryPersonSplitDraft = null;
   state.entryCategoryDraft = null;
   state.entryPersonDraft = null;
-  state.entryCurrencyDraft = null; state.entryFxRateDraft = null; state.entryFxSourceDraft = null; state.entryFxDateDraft = null; state.entryTimeDraft = null; state.entryAccountDraft = null;
+  state.entryCurrencyDraft = null; state.entryFxRateDraft = null; state.entryFxSourceDraft = null; state.entryFxDateDraft = null; state.entryTimeDraft = null;
   var editDay = state.entries[date];
   var editItem = editDay ? editDay.items.find(function(i){ return i.id === id; }) : null;
   state.txnPersonSplitMode = (editItem && editItem.personSplit && editItem.personSplit.length) ? "split" : "single";
@@ -5798,9 +5693,7 @@ function preserveTxnFormDraft() {
   var currencyEl = document.getElementById("entryCurrencyInput");
   var fxRateEl = document.getElementById("entryFxRateInput");
   var fxSourceEl = document.getElementById("entryFxSourceInput");
-  var accountEl = document.getElementById("entryAccountInput");
   if (amtEl) state.entryAmountDraft = amtEl.value;
-  if (accountEl) state.entryAccountDraft = accountEl.value;
   if (timeEl) state.entryTimeDraft = timeEl.value;
   if (currencyEl) state.entryCurrencyDraft = currencyEl.value;
   if (fxRateEl) state.entryFxRateDraft = fxRateEl.value;
@@ -5885,9 +5778,6 @@ function handleRestore() {
     nextSettings.homeSectionOrder = normalizeHomeOrder(nextSettings.homeSectionOrder);
     nextSettings.homeSimpleView = !!nextSettings.homeSimpleView;
     nextSettings.fxRateCache = normalizeFxCache(nextSettings.fxRateCache);
-    nextSettings.accountsEnabled = !!nextSettings.accountsEnabled;
-    nextSettings.accounts = normalizeAccounts(nextSettings.accounts);
-    nextSettings.accountTransfers = normalizeAccountTransfers(nextSettings.accountTransfers, nextSettings.accounts);
     nextSettings.forecastSnapshots = normalizeForecastSnapshots(nextSettings.forecastSnapshots);
     nextSettings.incomeHistory = normalizeIncomeHistory(nextSettings.incomeHistory);
     nextSettings.monthlyBudgetHistory = normalizeMonthlyBudgetHistory(nextSettings.monthlyBudgetHistory);
@@ -6000,7 +5890,7 @@ document.addEventListener("click", function(e) {
       state.entryPersonSplitDraft = null;
       state.entryCategoryDraft = null;
       state.entryPersonDraft = null;
-      state.entryCurrencyDraft = null; state.entryFxRateDraft = null; state.entryFxSourceDraft = null; state.entryFxDateDraft = null; state.entryTimeDraft = null; state.entryAccountDraft = null;
+      state.entryCurrencyDraft = null; state.entryFxRateDraft = null; state.entryFxSourceDraft = null; state.entryFxDateDraft = null; state.entryTimeDraft = null;
       render();
       animateTxnForward(txnFromVisual, captureTxnVisual());
       break;
@@ -6098,34 +5988,7 @@ document.addEventListener("click", function(e) {
       persistAll(Object.assign({}, state.settings, { categoryGroupStyles:parentStyles }), state.entries, "your categories");
       render();
       break;
-    case "toggle-accounts-feature":
-      persistAll(Object.assign({},state.settings,{accountsEnabled:!state.settings.accountsEnabled}),state.entries,"your settings");
-      render();
-      break;
-    case "add-account":
-      var an=document.getElementById("accountNameInput"), at=document.getElementById("accountTypeInput"), ab=document.getElementById("accountOpeningInput"), ad=document.getElementById("accountOpeningDateInput");
-      var name=an?an.value.trim():"", opening=parseFloat(ab?ab.value:"0"); if(!isFinite(opening))opening=0;
-      if(name){var newA={id:Date.now()+"-"+Math.random().toString(36).slice(2,7),name:name,type:at?at.value:"bank",openingBalance:round2(opening),openingDate:(ad&&ad.value)||todayStr()};persistAll(Object.assign({},state.settings,{accounts:normalizeAccounts((state.settings.accounts||[]).concat([newA]))}),state.entries,"your accounts");showToast("Account added");render();}
-      break;
-    case "remove-account":
-      var rid=el.dataset.id, used=false; Object.keys(state.entries).some(function(ds){return (state.entries[ds].items||[]).some(function(it){if(it.accountId===rid){used=true;return true;}return false;});});
-      if(!used) used=(state.settings.accountTransfers||[]).some(function(t){return t.fromAccountId===rid||t.toAccountId===rid;});
-      if(used){showToast("Account has activity — keep it or turn Accounts off");render();break;}
-      persistAll(Object.assign({},state.settings,{accounts:(state.settings.accounts||[]).filter(function(a){return a.id!==rid;})}),state.entries,"your accounts");render();break;
-    case "add-account-transfer":
-      var tf=document.getElementById("transferFromInput"), tt=document.getElementById("transferToInput"), ta=document.getElementById("transferAmountInput"), td=document.getElementById("transferDateInput"), ttime=document.getElementById("transferTimeInput"), tn=document.getElementById("transferNoteInput");
-      var tav=parseFloat(ta?ta.value:""); if(!tf||!tt||tf.value===tt.value||!(tav>0)){showToast("Choose two accounts and an amount");render();break;}
-      var tr={id:Date.now()+"-"+Math.random().toString(36).slice(2,7),fromAccountId:tf.value,toAccountId:tt.value,amount:round2(tav),date:(td&&td.value)||todayStr(),time:(ttime&&ttime.value)||"",note:(tn&&tn.value.trim())||""};
-      persistAll(Object.assign({},state.settings,{accountTransfers:normalizeAccountTransfers((state.settings.accountTransfers||[]).concat([tr]),state.settings.accounts||[])}),state.entries,"your transfer");showToast("Transfer recorded");render();break;
-    case "delete-account-transfer":
-      persistAll(Object.assign({},state.settings,{accountTransfers:(state.settings.accountTransfers||[]).filter(function(t){return t.id!==el.dataset.id;})}),state.entries,"your transfer");render();break;
-    case "settings-section":
-      var nextSettingsSection = el.dataset.section || null;
-      settingsNavigateForward(function(){
-        state.settingsSection = nextSettingsSection;
-        if (state.settingsSection === "categories") { state.settingsCategorySelected = null; state.settingsSubcategorySelected = null; state.settingsCategoryCustomize = false; state.settingsCategoryEditMode = false; }
-      });
-      break;
+
     case "settings-back":
       settingsNavigateBack();
       break;
