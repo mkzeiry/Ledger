@@ -354,7 +354,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v45";
+var APP_VERSION = "v46";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, forecastSnapshots: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -362,6 +362,20 @@ function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
   DEFAULT_HOME_ORDER.forEach(function(id){ if(out.indexOf(id)===-1) out.push(id); });
   return out;
+}
+
+/* Forecast backtesting is independent of the removed Accounts feature.
+   Keep its saved snapshots normalized on every boot so an older/corrupt
+   snapshot can never prevent the ledger itself from opening. */
+function normalizeForecastSnapshots(list) {
+  var out=[];
+  (list||[]).forEach(function(x){
+    if(!x||typeof x!=="object"||!/\d{4}-\d{2}-\d{2}/.test(x.snapshotDate||"")||!/\d{4}-\d{2}-\d{2}/.test(x.periodEnd||"")) return;
+    var f=Number(x.forecastClose); if(!isFinite(f)||f<0) return;
+    out.push({snapshotDate:x.snapshotDate,scope:x.scope==="overall"?"overall":"budget",period:x.period==="week"?"week":"month",periodStart:x.periodStart,periodEnd:x.periodEnd,forecastClose:round2(f),actualSoFar:round2(Number(x.actualSoFar)||0),target:round2(Number(x.target)||0),breakdown:Array.isArray(x.breakdown)?x.breakdown.slice(0,40):[]});
+  });
+  out.sort(function(a,b){return a.snapshotDate<b.snapshotDate?-1:a.snapshotDate>b.snapshotDate?1:0;});
+  return out.slice(-450);
 }
 
 var DEFAULT_BUDGET_ORDER = ["summary","forecast","spendTrend","progress","category","person"];
@@ -1217,8 +1231,12 @@ function loadInitial() {
   state.settings.peopleAnalysisExcluded = normalizePeopleAnalysisExcluded(state.settings.peopleAnalysisExcluded, state.settings.categories);
   state.settings.defaultPerson = normalizeDefaultPerson(state.settings.defaultPerson, state.settings.people);
   state.settings.recurringRules = normalizeRecurringRules(state.settings.recurringRules);
-  var recurringChanged = runRecurringCatchUp();
-  var snapshotChanged = captureForecastSnapshotsIfNeeded();
+  /* Neither recurring catch-up nor forecast backtesting is allowed to block
+     the first paint. They are maintenance tasks; if one ever hits malformed
+     historical data, the core ledger must still open normally. */
+  var recurringChanged = false, snapshotChanged = false;
+  try { recurringChanged = runRecurringCatchUp(); } catch(e) { recurringChanged = false; }
+  try { snapshotChanged = captureForecastSnapshotsIfNeeded(); } catch(e) { snapshotChanged = false; }
   if (recurringChanged || snapshotChanged) {
     persistAll(state.settings, state.entries, recurringChanged ? "recurring payments" : "forecast learning");
   }
