@@ -381,7 +381,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v60";
+var APP_VERSION = "v61";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25 };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -1254,13 +1254,40 @@ function currentSavingsBudgetComparison() {
   var configuredBudget=round2(per.target||0);
   var delta=round2(compatibleBudget-configuredBudget);
   var tighter=Math.abs(delta)<0.5?"equal":(delta<0?"savings":"budget");
+  var effectiveBudget=round2(Math.min(configuredBudget,compatibleBudget));
   return {
     pct:pct, projectedIncome:projectedIncome, targetSaving:targetSaving,
     spendCeiling:spendCeiling, configuredBudget:configuredBudget,
     projectedOverall:projectedOverall, projectedBudget:projectedBudget,
     projectedExcluded:projectedExcluded, actualExcluded:actualExcluded,
-    compatibleBudget:compatibleBudget, delta:delta, tighter:tighter
+    compatibleBudget:compatibleBudget, effectiveBudget:effectiveBudget,
+    delta:delta, tighter:tighter
   };
+}
+/* v61: Budget and savings stay separate INPUTS in Settings, but the live app
+   follows one EFFECTIVE budget. The effective amount is the lower of the
+   user's configured budget and the savings-compatible budget. Only the
+   current calendar month is dynamically tightened; historical periods keep
+   the budget that actually applied at the time. */
+function currentEffectiveBudgetInfo(){
+  var per=getPeriodBounds("month",0,currentWeeklyTarget(),dailyAllowance());
+  var comparison=currentSavingsBudgetComparison();
+  var configured=round2(per.target||0);
+  var effective=comparison?round2(Math.min(configured,comparison.compatibleBudget)):configured;
+  return {monthStart:per.startStr,monthEnd:per.endStr,configuredBudget:configured,effectiveBudget:effective,comparison:comparison,savingsTight:!!(comparison&&effective<configured-0.5)};
+}
+function effectiveBudgetReferenceForDate(ds,info){
+  info=info||currentEffectiveBudgetInfo();
+  if(info&&ds>=info.monthStart&&ds<=info.monthEnd&&info.effectiveBudget>=0){
+    return info.effectiveBudget/daysInMonth(parseD(ds));
+  }
+  return referenceForDate(ds);
+}
+function effectiveBudgetTargetForRange(startStr,endStr,info){
+  info=info||currentEffectiveBudgetInfo();
+  var sum=0,cur=parseD(startStr);
+  while(toStr(cur)<=endStr){sum+=effectiveBudgetReferenceForDate(toStr(cur),info);cur=addDays(cur,1);}
+  return round2(sum);
 }
 function normalizeIncomeHistory(hist) {
   var out = (hist||[]).slice().sort(function(a,b){ return a.from < b.from ? -1 : a.from > b.from ? 1 : 0; });
@@ -2820,27 +2847,31 @@ function liveBudgetPacing() {
     return {mode:mode,scope:scope,target:target,avg:avg,openingRemaining:openingRemaining,currentRemaining:currentRemaining,days:days,safe:safe,rawSafe:rawSafe,openingSafe:openingSafe,adjustmentNeeded:adjustmentNeeded,futureReserve:openingReserve,reserveBreakdown:reserveBreakdown,openingCadenceReserve:openingCadenceReserve,openingScheduledReserve:openingScheduledReserve,flexiblePool:flexiblePool,todayFlexibleSpent:buckets.flexible,todayCadenceSpent:buckets.cadence,cadenceAdjustment:cadenceAdjustment,scheduledAdjustment:scheduledAdjustment,spentTodayScope:spentTodayScope,forecast:fc};
   }
 
-  var week=horizon("week","budget");
-  var month=horizon("month","budget");
+  var effectiveInfo=currentEffectiveBudgetInfo();
+  var weekPer=getPeriodBounds("week",0,currentWeeklyTarget(),dailyAllowance());
+  var monthPer=getPeriodBounds("month",0,currentWeeklyTarget(),dailyAllowance());
+  var weekTarget=effectiveBudgetTargetForRange(weekPer.startStr,weekPer.endStr,effectiveInfo);
+  var monthTarget=effectiveInfo.effectiveBudget;
+  var week=horizon("week","budget",weekTarget);
+  var month=horizon("month","budget",monthTarget);
 
-  /* Savings goal is a third, independent monthly constraint. It converts the
-     desired saving percentage into a maximum ALL-spending ceiling and runs the
-     exact same reserve model against that ceiling. */
+  /* Savings remains a separate goal/diagnostic, but it is no longer exposed as
+     a competing day-to-day budget. Its effect is already folded into the one
+     effective budget above through projected outside-budget spending. */
   var savings=null, savingsPct=savingsTargetPct();
   if(savingsPct>0){
-    var monthPer=getPeriodBounds("month",0,currentWeeklyTarget(),dailyAllowance());
     var monthOverall=periodStatsOverall(monthPer.startStr,monthPer.endStr);
     var projectedIncome=round2((Number(monthOverall.income)||0)+scheduledIncomeInRange(today,monthPer.endStr));
     if(projectedIncome>0){
       var spendCeiling=savingsSpendCeilingForIncome(projectedIncome);
-      savings=horizon("month","overall",spendCeiling);
-      savings.mode="savings"; savings.projectedIncome=projectedIncome; savings.savingsTargetPct=savingsPct; savings.savingsTargetAmount=savingsTargetAmountForIncome(projectedIncome); savings.spendCeiling=spendCeiling;
+      savings={mode:"savings",projectedIncome:projectedIncome,savingsTargetPct:savingsPct,savingsTargetAmount:savingsTargetAmountForIncome(projectedIncome),spendCeiling:spendCeiling};
     }
   }
 
   var avgVals=[week.avg,month.avg].filter(function(v){return v!=null;});
   var dailyAverage=avgVals.length?Math.min.apply(null,avgVals):null;
-  var candidates=[{key:"week",obj:week},{key:"month",obj:month}]; if(savings&&savings.rawSafe!=null)candidates.push({key:"savings",obj:savings});
+  var monthKey=effectiveInfo.savingsTight?"effective":"month";
+  var candidates=[{key:"week",obj:week},{key:monthKey,obj:month}];
   var limiting=null;
   candidates.forEach(function(c){if(c.obj&&c.obj.rawSafe!=null&&(!limiting||c.obj.rawSafe<limiting.obj.rawSafe))limiting=c;});
   var rawSafeToday=limiting?round2(limiting.obj.rawSafe):null;
@@ -2849,7 +2880,7 @@ function liveBudgetPacing() {
   var adjustmentNeeded=limitingObj&&limitingObj.adjustmentNeeded!=null?round2(limitingObj.adjustmentNeeded):null;
   var overSafeToday=rawSafeToday!=null?round2(Math.max(0,-rawSafeToday)):null;
 
-  return {week:week,month:month,savings:savings,dailyAverage:dailyAverage,spentToday:spentTodayBudget,spentTodayAll:spentTodayAll,spentTodayForLimit:limitingObj?limitingObj.spentTodayScope:spentTodayBudget,rawSafeToday:rawSafeToday,safeToday:safeToday,overSafeToday:overSafeToday,adjustmentNeeded:adjustmentNeeded,limitingHorizon:limitingHorizon};
+  return {week:week,month:month,effective:month,effectiveInfo:effectiveInfo,savings:savings,dailyAverage:dailyAverage,spentToday:spentTodayBudget,spentTodayAll:spentTodayAll,spentTodayForLimit:limitingObj?limitingObj.spentTodayScope:spentTodayBudget,rawSafeToday:rawSafeToday,safeToday:safeToday,overSafeToday:overSafeToday,adjustmentNeeded:adjustmentNeeded,limitingHorizon:limitingHorizon};
 }
 
 function renderHomeBody(T, da) {
@@ -2858,11 +2889,15 @@ function renderHomeBody(T, da) {
   var month = getPeriodBounds("month", 0, currentWeeklyTarget(), dailyAllowance());
   var overall = periodStatsOverall(month.startStr, month.endStr);
   var budget = periodStatsBudget(month.startStr, month.endStr);
-  var target = month.target;
+  var homeEffectiveInfo=currentEffectiveBudgetInfo();
+  var homeBudgetSavings=homeEffectiveInfo.comparison;
+  var configuredTarget=month.target;
+  var target=homeEffectiveInfo.effectiveBudget;
   var remaining = round2(target - budget.spent);
   var weekNow = getPeriodBounds("week", 0, currentWeeklyTarget(), dailyAllowance());
   var weekBudget = periodStatsBudget(weekNow.startStr, weekNow.endStr);
-  var weekRemaining = round2(weekNow.target - weekBudget.spent);
+  var effectiveWeekTarget=effectiveBudgetTargetForRange(weekNow.startStr,weekNow.endStr,homeEffectiveInfo);
+  var weekRemaining = round2(effectiveWeekTarget - weekBudget.spent);
   var todayHomeStr = todayStr();
   var weekDaysLeft = Math.max(0, daysBetween(todayHomeStr, weekNow.endStr) + 1);
   var monthDaysLeft = Math.max(0, daysBetween(todayHomeStr, month.endStr) + 1);
@@ -2890,21 +2925,20 @@ function renderHomeBody(T, da) {
   var homeSavingsPct=savingsTargetPct();
   var homeSavingsTarget=(incomeReference>0&&homeSavingsPct>0)?savingsTargetAmountForIncome(incomeReference):null;
   var homeSavingsGap=(projectedCashSaving!=null&&homeSavingsTarget!=null)?round2(projectedCashSaving-homeSavingsTarget):null;
-  var homeBudgetSavings=currentSavingsBudgetComparison();
   var spentVsIncomePct = incomeReference > 0 ? (overall.spent/incomeReference*100) : null;
   var cashNet = round2(income - overall.spent);
   var budgetPctRaw = target > 0 ? (budget.spent/target)*100 : 0;
   var progress = Math.max(0, Math.min(100, budgetPctRaw));
-  var weekPctRaw = weekNow.target > 0 ? (weekBudget.spent/weekNow.target)*100 : 0;
+  var weekPctRaw = effectiveWeekTarget > 0 ? (weekBudget.spent/effectiveWeekTarget)*100 : 0;
   var weekProgress = Math.max(0, Math.min(100, weekPctRaw));
   var budgetRemainPct = target > 0 ? Math.max(0, (remaining/target)*100) : null;
-  var weekRemainPct = weekNow.target > 0 ? Math.max(0, (weekRemaining/weekNow.target)*100) : null;
-  var homeBudgetPosition = round2(budget.net || 0);
+  var weekRemainPct = effectiveWeekTarget > 0 ? Math.max(0, (weekRemaining/effectiveWeekTarget)*100) : null;
   var homeBudgetPositionAcc = 0;
   var homeBudgetPositionData = budget.rows.map(function(r){
-    homeBudgetPositionAcc = round2(homeBudgetPositionAcc + r.allowance - r.spent);
+    homeBudgetPositionAcc = round2(homeBudgetPositionAcc + effectiveBudgetReferenceForDate(r.date,homeEffectiveInfo) - r.spent);
     return {label:shortLabel(r.date),date:r.date,balance:homeBudgetPositionAcc};
   });
+  var homeBudgetPosition=round2(homeBudgetPositionAcc);
   lastHomeBudgetPositionData = homeBudgetPositionData;
   var cards = {};
 
@@ -2920,7 +2954,7 @@ function renderHomeBody(T, da) {
   cards.spending = spending;
 
   var budgetCard = '<div class="card card-pad">';
-  budgetCard += '<div class="row between" style="align-items:baseline;"><div class="eyebrow">Budget</div><span class="row" style="align-items:baseline;gap:8px;"><span class="mono subhead" style="font-weight:600;">'+fmt(budget.spent,0)+' / '+fmt(target,0)+' AED</span><span class="mono caption" style="font-weight:700;color:'+(budgetPctRaw>100?'var(--rust)':'var(--text-muted)')+';">'+budgetPctRaw.toFixed(0)+'%</span></span></div>';
+  budgetCard += '<div class="row between" style="align-items:baseline;"><div><div class="eyebrow">Effective budget</div>'+(homeEffectiveInfo.savingsTight?'<div class="muted caption" style="margin-top:2px;">Savings goal tightened set budget '+fmt(configuredTarget,0)+' → ≈'+fmt(target,0)+' AED</div>':'')+'</div><span class="row" style="align-items:baseline;gap:8px;"><span class="mono subhead" style="font-weight:600;">'+fmt(budget.spent,0)+' / '+fmt(target,0)+' AED</span><span class="mono caption" style="font-weight:700;color:'+(budgetPctRaw>100?'var(--rust)':'var(--text-muted)')+';">'+budgetPctRaw.toFixed(0)+'%</span></span></div>';
   budgetCard += '<div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 16px;"><div style="height:100%;width:'+progress+'%;background:'+(budget.spent>target?'var(--rust)':'var(--accent)')+';"></div></div>';
   budgetCard += '<div class="muted caption">SAFE TO SPEND TODAY</div>';
   budgetCard += '<div class="mono" style="font-size:34px;font-weight:700;margin-top:3px;color:var(--text);">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted" style="font-size:17px;">AED</span>'))+'</div>';
@@ -2930,8 +2964,7 @@ function renderHomeBody(T, da) {
   budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Spent today</span><span class="mono subhead" style="font-weight:600;">'+fmt(spentToday,0)+' AED</span></div>';
   budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Remaining this month</span><span class="mono subhead" style="font-weight:600;color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED</span></div>';
   if(homeBudgetSavings){
-    var hbTight=homeBudgetSavings.tighter==='savings';
-    budgetCard += '<div class="row between" style="margin-top:8px;gap:12px;"><span class="muted subhead">'+fmt(homeBudgetSavings.pct,0)+'% savings-compatible budget</span><span class="mono subhead" style="font-weight:650;color:'+(hbTight?'var(--amber)':'var(--text)')+';">≈ '+fmt(homeBudgetSavings.compatibleBudget,0)+' AED</span></div>';
+    budgetCard += '<div class="row between" style="margin-top:8px;gap:12px;"><span class="muted subhead">Set budget / savings goal</span><span class="mono subhead" style="font-weight:650;color:'+(homeEffectiveInfo.savingsTight?'var(--amber)':'var(--text-muted)')+';">'+fmt(configuredTarget,0)+' AED · '+fmt(homeBudgetSavings.pct,0)+'%</span></div>';
   }
   budgetCard += '</div>';
   if(homeBudgetPositionData.length){
@@ -2973,7 +3006,7 @@ function renderHomeBody(T, da) {
       return '<div class="simple-progress"><span style="width:'+pw+'%;background:'+(over?'var(--rust)':'var(--accent)')+';"></span></div>';
     }
     var limitingLabel=(pacing.limitingHorizon||'budget');
-    limitingLabel=limitingLabel==='savings'?'Savings goal':(limitingLabel.charAt(0).toUpperCase()+limitingLabel.slice(1));
+    limitingLabel=limitingLabel==='effective'?'Effective budget':(limitingLabel==='savings'?'Savings goal':(limitingLabel.charAt(0).toUpperCase()+limitingLabel.slice(1)));
     var simpleStatus='', simpleStatusColor='var(--text-muted)';
     if (overSafeToday>0) {
       simpleStatus='Over today\'s safe allowance by '+fmt(overSafeToday,0)+' AED · '+limitingLabel+' is limiting';
@@ -3002,17 +3035,12 @@ function renderHomeBody(T, da) {
     h += '<div class="card simple-budget-card">';
     h += '<div class="row between"><div class="eyebrow">Budget status</div><div class="muted caption">'+esc(limitingLabel)+' limiting</div></div>';
     h += '<div class="simple-budget-grid">';
-    h += '<div class="simple-budget-cell"><div class="muted caption">THIS WEEK</div><div class="mono simple-budget-value" style="color:'+(weekRemaining>=0?'var(--positive)':'var(--rust)')+';">'+(weekRemaining<0?'−':'')+fmt(Math.abs(weekRemaining),0)+' <span class="simple-budget-unit">AED '+(weekRemaining>=0?'left':'over')+'</span></div>'+pctBar(weekProgress,weekPctRaw>100)+'<div class="simple-budget-meta">'+(weekNow.target>0?(weekPctRaw.toFixed(0)+'% used · '+weekDaysLeft+' day'+(weekDaysLeft===1?'':'s')+' left'):'—')+'</div></div>';
+    h += '<div class="simple-budget-cell"><div class="muted caption">THIS WEEK</div><div class="mono simple-budget-value" style="color:'+(weekRemaining>=0?'var(--positive)':'var(--rust)')+';">'+(weekRemaining<0?'−':'')+fmt(Math.abs(weekRemaining),0)+' <span class="simple-budget-unit">AED '+(weekRemaining>=0?'left':'over')+'</span></div>'+pctBar(weekProgress,weekPctRaw>100)+'<div class="simple-budget-meta">'+(effectiveWeekTarget>0?(weekPctRaw.toFixed(0)+'% used · '+weekDaysLeft+' day'+(weekDaysLeft===1?'':'s')+' left'):'—')+'</div></div>';
     h += '<div class="simple-budget-cell"><div class="muted caption">THIS MONTH</div><div class="mono simple-budget-value" style="color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' <span class="simple-budget-unit">AED '+(remaining>=0?'left':'over')+'</span></div>'+pctBar(progress,budgetPctRaw>100)+'<div class="simple-budget-meta">'+(target>0?(budgetPctRaw.toFixed(0)+'% used · '+monthDaysLeft+' day'+(monthDaysLeft===1?'':'s')+' left'):'—')+'</div></div>';
     h += '</div>';
     if(homeBudgetSavings){
-      var shbSavingsTight=homeBudgetSavings.tighter==='savings';
-      var shbMsg=homeBudgetSavings.tighter==='equal'
-        ? fmt(homeBudgetSavings.pct,0)+'% savings goal matches the '+fmt(homeBudgetSavings.configuredBudget,0)+' AED budget'
-        : (shbSavingsTight
-          ? fmt(homeBudgetSavings.pct,0)+'% goal allows ≈'+fmt(homeBudgetSavings.compatibleBudget,0)+' AED budget · '+fmt(Math.abs(homeBudgetSavings.delta),0)+' AED tighter'
-          : 'Budget is '+fmt(Math.abs(homeBudgetSavings.delta),0)+' AED tighter than the '+fmt(homeBudgetSavings.pct,0)+'% goal');
-      h += '<div class="simple-budget-meta" style="margin-top:8px;color:'+(shbSavingsTight?'var(--amber)':'var(--text-muted)')+';">'+esc(shbMsg)+'</div>';
+      var shbMsg='Effective budget '+fmt(target,0)+' AED · '+(homeEffectiveInfo.savingsTight?(fmt(homeBudgetSavings.pct,0)+'% savings goal limiting'):('your '+fmt(configuredTarget,0)+' AED budget limiting'));
+      h += '<div class="simple-budget-meta" style="margin-top:8px;color:'+(homeEffectiveInfo.savingsTight?'var(--amber)':'var(--text-muted)')+';">'+esc(shbMsg)+'</div>';
     }
     if(homeBudgetPositionData.length){
       h += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between" style="gap:10px;"><span class="muted caption" style="font-weight:650;">AHEAD / BEHIND BUDGET</span><span class="mono subhead" style="font-weight:750;color:'+(homeBudgetPosition>=0?'var(--positive)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED</span></div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
@@ -3050,9 +3078,12 @@ function renderHomeBody(T, da) {
 function renderBudgetBody(T) {
   lastForecastChartData=null;lastChartData=null;lastBudgetTrendChartData=null;
   var da=dailyAllowance(),period=getPeriodBounds(state.view,state.offset,currentWeeklyTarget(),da),stats=periodStatsBudget(period.startStr,period.endStr);
-  var isCurrent=state.offset===0,isClosed=period.endStr<todayStr(),target=period.target,remaining=round2(target-stats.spent);
+  var isCurrent=state.offset===0,isClosed=period.endStr<todayStr(),effectiveInfo=isCurrent?currentEffectiveBudgetInfo():null;
+  var configuredPeriodTarget=period.target;
+  var target=isCurrent?effectiveBudgetTargetForRange(period.startStr,period.endStr,effectiveInfo):period.target;
+  var remaining=round2(target-stats.spent);
   var livePacing=isCurrent?liveBudgetPacing():null,dailyAverage=livePacing?livePacing.dailyAverage:null,safeToday=livePacing?livePacing.safeToday:null,overSafeToday=livePacing?(livePacing.overSafeToday||0):0,adjustmentNeeded=livePacing?(livePacing.adjustmentNeeded||0):0,spentToday=livePacing?(livePacing.spentTodayForLimit!=null?livePacing.spentTodayForLimit:livePacing.spentToday):0,limitingHorizon=livePacing?livePacing.limitingHorizon:null;
-  var budgetSavingsComparison=(isCurrent&&state.view==='month')?currentSavingsBudgetComparison():null;
+  var budgetSavingsComparison=(isCurrent&&state.view==='month')?(effectiveInfo?effectiveInfo.comparison:currentSavingsBudgetComparison()):null;
   /* Each Budget tab must show its OWN equal remaining-per-day figure. The
      Safe-to-Spend engine still compares Week vs Month and uses the tighter one,
      but displaying the minimum on both tabs made the Week card look mathematically
@@ -3082,7 +3113,7 @@ function renderBudgetBody(T) {
 
   var sections={};
   var budgetUsedPct = target>0 ? (stats.spent/target*100) : 0;
-  var summary='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="align-items:baseline;"><div><div class="muted caption">BUDGET SPENT</div><div class="mono" style="font-size:30px;font-weight:700;margin-top:2px;">'+fmt(stats.spent,0)+' AED</div></div><div style="text-align:right;"><div class="mono muted subhead">of '+fmt(target,0)+' AED</div><div class="mono caption" style="margin-top:3px;font-weight:700;color:'+(budgetUsedPct>100?'var(--rust)':'var(--text-muted)')+';">'+budgetUsedPct.toFixed(0)+'% used</div></div></div><div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 14px;"><div style="height:100%;width:'+progress+'%;background:'+(stats.spent>target?'var(--rust)':'var(--accent)')+';"></div></div><div class="stat-grid">';
+  var summary='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="align-items:baseline;"><div><div class="muted caption">'+(isCurrent?'EFFECTIVE BUDGET SPENT':'BUDGET SPENT')+'</div><div class="mono" style="font-size:30px;font-weight:700;margin-top:2px;">'+fmt(stats.spent,0)+' AED</div></div><div style="text-align:right;"><div class="mono muted subhead">of '+fmt(target,0)+' AED</div><div class="mono caption" style="margin-top:3px;font-weight:700;color:'+(budgetUsedPct>100?'var(--rust)':'var(--text-muted)')+';">'+budgetUsedPct.toFixed(0)+'% used</div></div></div><div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 14px;"><div style="height:100%;width:'+progress+'%;background:'+(stats.spent>target?'var(--rust)':'var(--accent)')+';"></div></div><div class="stat-grid">';
   summary+=statBlock('Remaining',(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED',remaining>=0?'var(--positive)':'var(--rust)');
   summary+=statBlock('Equal remaining / day',isCurrent&&selectedDailyAllowance!=null?((selectedDailyAllowance<0?'−':'')+fmt(Math.abs(selectedDailyAllowance),0)+' AED/day'):'—',selectedDailyAllowance!=null&&selectedDailyAllowance<0?'var(--rust)':'var(--text)');
   summary+=statBlock('Flexible allowance / day',isCurrent&&flexibleAllowancePerDay!=null?((flexibleAllowancePerDay<0?'−':'')+fmt(Math.abs(flexibleAllowancePerDay),0)+' AED/day'):'—',flexibleAllowancePerDay!=null&&flexibleAllowancePerDay<0?'var(--rust)':'var(--text)');
@@ -3090,26 +3121,23 @@ function renderBudgetBody(T) {
   summary+=statBlock('Spent today',isCurrent?fmt(spentToday,0)+' AED':'—','var(--text)');
   summary+=statBlock('Projected vs budget',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div>';
   if(budgetSavingsComparison){
-    var bsc=budgetSavingsComparison, savingsTighter=bsc.tighter==='savings', equalTight=bsc.tighter==='equal';
-    var relationText=equalTight
-      ? 'Budget and savings goal are aligned'
-      : (savingsTighter
-        ? 'Savings goal is tighter by '+fmt(Math.abs(bsc.delta),0)+' AED'
-        : 'Monthly budget is tighter by '+fmt(Math.abs(bsc.delta),0)+' AED');
-    var relationColor=equalTight?'var(--text-muted)':(savingsTighter?'var(--amber)':'var(--positive)');
+    var bsc=budgetSavingsComparison, savingsTighter=effectiveInfo&&effectiveInfo.savingsTight;
+    var relationText=savingsTighter
+      ? fmt(bsc.pct,0)+'% savings goal sets the limit'
+      : 'Your set monthly budget sets the limit';
+    var relationColor=savingsTighter?'var(--amber)':'var(--positive)';
     summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);">';
-    summary+='<div class="row between" style="gap:12px;align-items:baseline;"><div><div class="subhead" style="font-weight:700;">Budget vs '+fmt(bsc.pct,0)+'% savings goal</div><div class="muted caption" style="margin-top:2px;">Savings goal applies to all spending; monthly budget covers included categories only.</div></div><div class="caption" style="font-weight:700;text-align:right;color:'+relationColor+';flex-shrink:0;">'+esc(relationText)+'</div></div>';
+    summary+='<div class="row between" style="gap:12px;align-items:baseline;"><div><div class="subhead" style="font-weight:700;">Effective monthly budget</div><div class="muted caption" style="margin-top:2px;">One live spending limit from budget + savings goal.</div></div><div style="text-align:right;flex-shrink:0;"><div class="mono subhead" style="font-weight:800;color:'+relationColor+';">≈ '+fmt(effectiveInfo.effectiveBudget,0)+' AED</div><div class="caption" style="font-weight:700;color:'+relationColor+';">'+esc(relationText)+'</div></div></div>';
     summary+='<div style="margin-top:10px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
-    summary+='<div class="row between" style="padding:7px 0;"><span class="muted caption">Set monthly budget</span><span class="mono caption" style="font-weight:700;">'+fmt(bsc.configuredBudget,0)+' AED</span></div>';
-    summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Savings-compatible budget</span><span class="mono caption" style="font-weight:750;color:'+(savingsTighter?'var(--amber)':'var(--text)')+';">≈ '+fmt(bsc.compatibleBudget,0)+' AED</span></div>';
+    summary+='<div class="row between" style="padding:7px 0;"><span class="muted caption">Your set budget</span><span class="mono caption" style="font-weight:700;">'+fmt(bsc.configuredBudget,0)+' AED</span></div>';
+    summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Savings-compatible limit</span><span class="mono caption" style="font-weight:750;">≈ '+fmt(bsc.compatibleBudget,0)+' AED</span></div>';
     summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Projected outside-budget spend</span><span class="mono caption" style="font-weight:700;">≈ '+fmt(bsc.projectedExcluded,0)+' AED</span></div>';
-    summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Max total spend for target</span><span class="mono caption" style="font-weight:700;">'+fmt(bsc.spendCeiling,0)+' AED</span></div>';
-    summary+='</div><div class="muted caption" style="margin-top:8px;line-height:1.35;">The savings-compatible budget will move as projected expenses outside your budget change.</div></div>';
+    summary+='</div><div class="muted caption" style="margin-top:8px;line-height:1.35;">The lower limit becomes your effective budget automatically and updates as outside-budget spending changes.</div></div>';
   }
   if(isCurrent&&protectedTotal>0){
     var protectedDays=limitingPacing&&limitingPacing.days?limitingPacing.days:0;
     summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);">';
-    summary+='<div class="row between" style="gap:12px;align-items:baseline;"><div><span class="subhead" style="font-weight:650;">Protected for expected spending</span><div class="muted caption" style="margin-top:2px;">At the start of today · '+esc(limitingHorizon==='savings'?'Savings goal':((limitingHorizon||'budget').charAt(0).toUpperCase()+(limitingHorizon||'budget').slice(1)))+' limit</div></div><div style="text-align:right;flex-shrink:0;"><div class="mono subhead" style="font-weight:750;">'+fmt(protectedTotal,0)+' AED</div>'+(protectedDays>0?'<div class="muted mono caption">≈ '+fmt(protectedTotal/protectedDays,0)+' AED/day</div>':'')+'</div></div>';
+    summary+='<div class="row between" style="gap:12px;align-items:baseline;"><div><span class="subhead" style="font-weight:650;">Protected for expected spending</span><div class="muted caption" style="margin-top:2px;">At the start of today · '+esc(limitingHorizon==='effective'?'Effective budget':(limitingHorizon==='savings'?'Savings goal':((limitingHorizon||'budget').charAt(0).toUpperCase()+(limitingHorizon||'budget').slice(1))))+' limit</div></div><div style="text-align:right;flex-shrink:0;"><div class="mono subhead" style="font-weight:750;">'+fmt(protectedTotal,0)+' AED</div>'+(protectedDays>0?'<div class="muted mono caption">≈ '+fmt(protectedTotal/protectedDays,0)+' AED/day</div>':'')+'</div></div>';
     if(flexibleAllowancePerDay!=null){
       var reconText=fmt(flexibleAllowancePerDay,0)+' allowance';
       if(flexibleSpentToday>0) reconText+=' − '+fmt(flexibleSpentToday,0)+' flexible spent';
@@ -3130,16 +3158,16 @@ function renderBudgetBody(T) {
     summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);" class="row between"><span class="subhead" style="font-weight:650;color:var(--rust);">Over today\'s safe allowance</span><span class="mono subhead" style="font-weight:750;color:var(--rust);">'+fmt(overSafeToday,0)+' AED</span></div>';
   }
   if(isCurrent&&limitingHorizon){
-    summary+='<div style="margin-top:'+(overSafeToday>0?'8px':'14px')+';padding-top:'+(overSafeToday>0?'0':'12px')+';'+(overSafeToday>0?'':'border-top:1px solid var(--sep);')+'" class="row between"><span class="muted subhead" style="font-weight:600;">Safe-to-spend limit</span><span class="subhead" style="font-weight:700;">'+esc(limitingHorizon==='savings'?'Savings goal':(limitingHorizon.charAt(0).toUpperCase()+limitingHorizon.slice(1)))+'</span></div>';
-    if(adjustmentNeeded>0) summary+='<div style="margin-top:8px;" class="row between"><span class="subhead" style="font-weight:650;color:var(--rust);">'+esc(limitingHorizon==='savings'?'Savings goal':(limitingHorizon.charAt(0).toUpperCase()+limitingHorizon.slice(1)))+' cut needed</span><span class="mono subhead" style="font-weight:700;color:var(--rust);">'+fmt(adjustmentNeeded,0)+' AED</span></div>';
+    summary+='<div style="margin-top:'+(overSafeToday>0?'8px':'14px')+';padding-top:'+(overSafeToday>0?'0':'12px')+';'+(overSafeToday>0?'':'border-top:1px solid var(--sep);')+'" class="row between"><span class="muted subhead" style="font-weight:600;">Safe-to-spend limit</span><span class="subhead" style="font-weight:700;">'+esc(limitingHorizon==='effective'?'Effective budget':(limitingHorizon==='savings'?'Savings goal':(limitingHorizon.charAt(0).toUpperCase()+limitingHorizon.slice(1))))+'</span></div>';
+    if(adjustmentNeeded>0) summary+='<div style="margin-top:8px;" class="row between"><span class="subhead" style="font-weight:650;color:var(--rust);">'+esc(limitingHorizon==='effective'?'Effective budget':(limitingHorizon==='savings'?'Savings goal':(limitingHorizon.charAt(0).toUpperCase()+limitingHorizon.slice(1))))+' cut needed</span><span class="mono subhead" style="font-weight:700;color:var(--rust);">'+fmt(adjustmentNeeded,0)+' AED</span></div>';
   }
   summary+='</div>';
   sections.summary=summary;
   var compareRows=previousPeriodRows(state.view,state.offset,period.startStr,period.endStr,'budget');
-  sections.forecast=buildForecastCard(stats.rows,forecastDays,target,forecastStart,T,'Budget',state.view,compareRows,'budget');
+  sections.forecast=buildForecastCard(stats.rows,forecastDays,target,forecastStart,T,(isCurrent&&effectiveInfo&&effectiveInfo.savingsTight?'Effective budget':'Budget'),state.view,compareRows,'budget');
   sections.spendTrend=buildBudgetTrendCard(state.view,state.offset,T);
   if(stats.rows.length){
-    var acc=0,savingData=stats.rows.map(function(r){var d=round2(r.allowance-r.spent);acc=round2(acc+d);return{label:shortLabel(r.date),date:r.date,balance:acc,delta:d};});
+    var acc=0,savingData=stats.rows.map(function(r){var ref=isCurrent?effectiveBudgetReferenceForDate(r.date,effectiveInfo):r.allowance;var d=round2(ref-r.spent);acc=round2(acc+d);return{label:shortLabel(r.date),date:r.date,balance:acc,delta:d};});
     sections.progress='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Ahead / behind budget</span><span class="mono footnote" style="color:'+(acc>=0?'var(--positive)':'var(--rust)')+';font-weight:600;">'+(acc>=0?'+':'−')+fmt(Math.abs(acc),0)+' AED</span></div><div class="muted caption" style="margin-bottom:10px;">Cumulative position versus your budget pace.</div><div id="budgetSavingChartWrap" style="position:relative;"><div id="balanceChartTip" class="mono footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:8px;padding:4px 9px;max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;z-index:2;"></div>'+renderChart(savingData,T)+'</div></div>';lastChartData=savingData;
   } else {sections.progress='';}
 
@@ -4802,16 +4830,18 @@ function buildBudgetTrendCard(view, baseOffset, T) {
   for(var j=-(N-1);j<=0;j++){
     var off=(baseOffset||0)+j, per=getPeriodBounds(view,off,currentWeeklyTarget(),dailyAllowance()), st=periodStatsBudget(per.startStr,per.endStr);
     var isLive=off===0 && per.endStr>=todayStr(), projected=st.spent;
+    var trendTarget=per.target;
+    if(isLive){var ei=currentEffectiveBudgetInfo();trendTarget=effectiveBudgetTargetForRange(per.startStr,per.endStr,ei);}
     if(isLive&&st.rows.length){var start=effectiveRangeStart(per.startStr),days=daysBetween(start,per.endStr)+1,fc=computeForecastNumbers(st.rows,days,start,'budget');if(fc)projected=fc.projectedSpend;}
-    var status=(st.spent>per.target)?'rust':(isLive&&projected>per.target?'amber':'positive');
-    items.push({label:trendPeriodLabel(per,view),actual:st.spent,displayTotal:isLive?projected:st.spent,target:per.target,status:status,current:isLive});
+    var status=(st.spent>trendTarget)?'rust':(isLive&&projected>trendTarget?'amber':'positive');
+    items.push({label:trendPeriodLabel(per,view),actual:st.spent,displayTotal:isLive?projected:st.spent,target:trendTarget,status:status,current:isLive});
   }
   var cur=items[items.length-1], diff=round2(cur.target-cur.displayTotal), statusText=cur.status==='rust'?'Over budget':cur.status==='amber'?'Trending over':'On track';
   var statusBg=cur.status==='rust'?'var(--rust-wash)':cur.status==='amber'?'rgba(224,151,46,.16)':'var(--positive-wash)';
   var statusColor=cur.status==='rust'?'var(--rust)':cur.status==='amber'?'var(--amber)':'var(--positive)';
   var s='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="align-items:flex-start;"><div><div class="eyebrow">Spend trend</div><div class="mono" style="font-size:25px;font-weight:700;margin-top:4px;">'+fmt(cur.actual,0)+' AED</div></div><span class="chip" style="background:'+statusBg+';color:'+statusColor+';font-weight:600;">'+statusText+'</span></div>';
   s+='<div class="row between" style="margin-top:10px;"><span class="muted subhead">'+(cur.current?'Projected close':'Closed at')+'</span><span class="mono subhead" style="font-weight:600;">'+fmt(cur.displayTotal,0)+' AED</span></div>';
-  s+='<div class="row between" style="margin-top:6px;"><span class="muted subhead">Budget</span><span class="mono subhead">'+fmt(cur.target,0)+' AED</span></div>';
+  s+='<div class="row between" style="margin-top:6px;"><span class="muted subhead">'+(cur.current?'Effective budget':'Budget')+'</span><span class="mono subhead">'+fmt(cur.target,0)+' AED</span></div>';
   s+='<div class="row between" style="margin-top:6px;"><span class="muted subhead">'+(diff>=0?'Projected saving':'Projected over')+'</span><span class="mono subhead" style="font-weight:600;color:'+(diff>=0?'var(--positive)':'var(--rust)')+';">'+fmt(Math.abs(diff),0)+' AED</span></div>';
   s+='<div id="budgetTrendChartWrap" style="position:relative;margin-top:10px;"><div id="budgetTrendChartTip" class="footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:9px;padding:6px 9px;max-width:260px;opacity:0;pointer-events:none;z-index:3;box-shadow:0 3px 10px rgba(0,0,0,.2);"></div>'+renderBudgetTrendChart(items,T)+'</div>';
   s+='<div class="row" style="gap:12px;justify-content:center;flex-wrap:wrap;margin-top:4px;"><span class="caption" style="color:var(--positive);">● On track</span><span class="caption" style="color:var(--amber);">● Trending over</span><span class="caption" style="color:var(--rust);">● Over budget</span></div></div>';
