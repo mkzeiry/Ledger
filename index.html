@@ -18,6 +18,7 @@
     --text:#F2F5FA; --text-muted:#8A99B8; --accent:#E0B368; --accent-ink:#0C1322;
     --rust:#FF453A; --rust-wash: rgba(255,69,58,0.15); --positive:#30D158;
     --tab-bg: rgba(21,30,51,0.82);
+    --app-safe-top: env(safe-area-inset-top, 0px);
     --f-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     --f-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     --f-num: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -31,7 +32,6 @@
     font-size: 17px; line-height: 1.35;
   }
   #root { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; min-height: var(--vh100, 100dvh); }
-  :root { --app-safe-top: env(safe-area-inset-top, 0px); }
   /* Some iOS webviews report a zero safe-area inset even though the status bar
      overlays the page. Give coarse, phone-sized screens a conservative floor. */
   @media (max-width: 479px) and (pointer: coarse) {
@@ -69,11 +69,9 @@
   @supports not (background: color-mix(in srgb, black, white)) { .app-topbar { background:var(--bg); } }
   .row { display: flex; align-items: center; }
   .between { justify-content: space-between; }
-  .col { display: flex; flex-direction: column; }
   .gap2 { gap: 8px; }
 
   /* Modern native-finance type scale — SF-style system typography */
-  .lg-title { font-family: var(--f-display); font-size: 36px; line-height: 1.02; font-weight: 760; letter-spacing: -0.045em; }
   .title2 { font-family: var(--f-display); font-size: 23px; line-height: 1.12; font-weight: 720; letter-spacing: -0.035em; }
   .headline { font-size: 17px; line-height: 1.25; font-weight: 650; letter-spacing: -0.018em; }
   .body { font-size: 17px; letter-spacing: -0.008em; }
@@ -96,16 +94,13 @@
     font-size: 13px; font-weight: 650; letter-spacing: -0.005em;
     color: var(--text-muted); text-transform: none;
   }
-  .eyebrow-caps { font-size: 11px; text-transform: uppercase; letter-spacing: 0.075em; color: var(--text-muted); font-weight: 700; }
 
   /* Inset grouped card — no border, fill carries the elevation like iOS */
   .card { background: var(--card); border: none; border-radius: 14px; }
   .card-pad { padding: 14px 16px; }
 
   /* Inset hairline separator, aligned to content not the card edge */
-  .sep-row + .sep-row { border-top: 1px solid var(--sep); }
   .hairline-top { border-top: 1px solid var(--sep); }
-  .hairline-bottom { border-bottom: 1px solid var(--sep); }
 
   .icon-btn {
     padding: 8px; border-radius: 999px; background: var(--fill); border: none;
@@ -220,7 +215,6 @@
   .settings-nav-layer { position:absolute; inset:0; overflow:hidden; background:var(--bg); will-change:transform; backface-visibility:hidden; -webkit-backface-visibility:hidden; }
   .settings-nav-layer > .settings-page { position:absolute; left:0; right:0; width:100%; min-height:100dvh; }
   .settings-nav-layer.is-front { box-shadow:-14px 0 34px rgba(0,0,0,.22); }
-  .settings-nav-edge-hint { position:fixed; left:0; top:0; bottom:0; width:22px; z-index:119; pointer-events:none; }
   .taxonomy-list { overflow:hidden; border-radius:16px; background:var(--card); }
   .taxonomy-row { width:100%; min-height:68px; display:flex; align-items:center; gap:12px; padding:10px 14px; background:none; border:none; text-align:left; }
   .taxonomy-row[data-action] { cursor:pointer; -webkit-tap-highlight-color:transparent; }
@@ -245,8 +239,6 @@
   .taxonomy-icon-choice { width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; padding:0; }
   @media (min-width:480px) { .settings-shell { padding-left:20px; padding-right:20px; } .settings-header { margin-left:-20px; margin-right:-20px; padding-left:20px; padding-right:20px; } }
   .seg-scroll .seg-btn { flex: 0 0 auto; white-space:nowrap; padding: 7px 14px; }
-  .seg-wrap { flex-wrap: wrap; gap: 6px; }
-  .seg-wrap .seg-btn { flex: 0 0 auto; white-space:nowrap; padding: 7px 14px; }
 
   .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px 12px; }
 
@@ -258,7 +250,6 @@
   .simple-metric-card.simple-hero .simple-metric-value { font-size:40px; letter-spacing:-0.046em; }
   .simple-metric-unit { font-size:14px; font-weight:600; letter-spacing:-0.01em; }
   .simple-metric-card.simple-hero .simple-metric-unit { font-size:16px; }
-  .simple-metric-meta { margin-top:5px; font-size:11.5px; color:var(--text-muted); font-weight:600; }
   .simple-status { margin-top:7px; font-size:11.5px; line-height:1.28; font-weight:650; }
   .simple-progress { height:6px; background:var(--fill); border-radius:999px; overflow:hidden; margin-top:7px; }
   .simple-progress > span { display:block; height:100%; border-radius:999px; }
@@ -276,19 +267,23 @@
   .simple-outlook-sub { margin-top:3px; color:var(--text-muted); font-size:10.5px; font-weight:600; }
   .simple-outlook-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px; padding-top:8px; border-top:1px solid var(--sep); font-size:11.5px; }
   html.simple-home .app-topbar { margin-bottom:8px; }
-  html.simple-home .wrap { padding-bottom:88px; }
   html.simple-home .simple-budget-card .hairline-top { margin-top:9px !important; padding-top:8px !important; }
-  html.simple-home .simple-budget-card svg { height:58px !important; }
   @media (max-width:360px) {
     .simple-budget-value { font-size:24px; }
     .simple-outlook-value { font-size:23px; }
   }
 
-  /* Keep the primary chrome on its own composited layer. Shorter/simple pages
-     can otherwise make iOS Safari re-rasterize the fixed bar by a few pixels
-     as its browser chrome changes state. */
-  .tabbar { transform:translate3d(0,0,0); -webkit-transform:translate3d(0,0,0); will-change:transform; }
-  html.simple-home .wrap { min-height:calc(var(--vh100, 100dvh) + 2px); }
+  /* Simple Home should still feel like a full-screen dashboard when its
+     content is compact. The middle Budget card absorbs spare vertical room,
+     rather than leaving a large dead area above the tab bar. */
+  html.simple-home .wrap { padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 86px); min-height:var(--vh100, 100dvh); }
+  .simple-home-stack {
+    min-height:calc(var(--vh100, 100dvh) - var(--app-safe-top) - 206px - env(safe-area-inset-bottom, 0px));
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .simple-home-stack > .card { margin-bottom:0; }
+  .simple-home-stack .simple-budget-card { flex:1 1 auto; }
+  html.simple-home .simple-budget-card svg { height:clamp(58px, 8.2vh, 78px) !important; }
 
   /* Foreign-currency entry lives inside the same amount surface rather than
      adding another form box. Reports always remain in AED; this selector only
@@ -320,13 +315,19 @@
 
   /* Translucent tab bar */
   .tabbar {
-    position:fixed; left:0; right:0; bottom:0; display:flex;
+    transform:translate3d(0,0,0); -webkit-transform:translate3d(0,0,0); will-change:transform;
+    /* On iOS the visual viewport can become slightly taller than the layout
+       viewport after browser chrome collapses. Shift only that extra distance
+       so the bar remains visually flush with the bottom; keyboard-open pages
+       still hide the bar entirely. */
+    position:fixed; left:0; right:0; bottom:calc(-1 * var(--vv-extra-bottom, 0px)); display:flex;
     background: var(--tab-bg);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
     border-top:1px solid var(--sep);
     padding:8px 4px calc(env(safe-area-inset-bottom, 0px) + 8px); z-index:40;
   }
+  .tabbar::after { content:""; position:absolute; left:0; right:0; top:100%; height:128px; background:var(--tab-bg); pointer-events:none; }
   /* Primary navigation should not float over form content when iOS opens its
      keyboard. Editors already have dedicated pages; search fields on primary
      tabs simply hide app chrome until the keyboard closes. */
@@ -342,9 +343,6 @@
   }
   .chip-accent { background: var(--accent); color: var(--accent-ink); font-weight:600; }
 
-  .day-row { width:100%; display:flex; align-items:center; justify-content:space-between; padding:12px 16px; text-align:left; background:none; border:none; }
-  .txn-line { display:flex; align-items:center; justify-content:space-between; padding:4px 0 4px 8px; border-left:2px solid var(--sep); }
-
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; animation: none !important; }
     .press:active { transform: none; }
@@ -358,7 +356,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v49";
+var APP_VERSION = "v51";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -834,7 +832,6 @@ var CURRENCY_NAMES = { AED:"UAE Dirham", EGP:"Egyptian Pound", USD:"US Dollar", 
 function normalizeFxCache(cache){ return cache && typeof cache === "object" && !Array.isArray(cache) ? cache : {}; }
 function reportingCurrency(){ var c=String(state.settings.baseCurrency||STORAGE_CURRENCY).toUpperCase(); return TXN_CURRENCIES.indexOf(c)!==-1?c:STORAGE_CURRENCY; }
 function fxPairKey(from,to,date){ return String(from).toUpperCase()+">"+String(to).toUpperCase()+"@"+(date||todayStr()); }
-function fxCacheKey(from, date){ return fxPairKey(from,STORAGE_CURRENCY,date); }
 function readCachedFxPair(from,to,date){ var c=normalizeFxCache(state.settings.fxRateCache), x=c[fxPairKey(from,to,date)]; return x && Number(x.rate)>0 ? x : null; }
 function readCachedFxRate(from, date){ return readCachedFxPair(from,STORAGE_CURRENCY,date); }
 function reportingRate(){
@@ -909,7 +906,6 @@ async function refreshEntryFxRate(force){
 }
 function dayLabel(s){ return parseD(s).toLocaleDateString("en-GB",{weekday:"short", day:"numeric", month:"short"}); }
 function shortLabel(s){ return parseD(s).toLocaleDateString("en-GB",{day:"numeric", month:"short"}); }
-function weekdayLong(s){ return parseD(s).toLocaleDateString("en-GB",{weekday:"long"}); }
 /* A transaction is an expense unless explicitly tagged otherwise. Income
    transactions live in the same entries[date].items array as expenses (so
    they show up in Transactions/Calendar like any other logged entry) but
@@ -964,7 +960,6 @@ function sumBudgetSpent(e) {
     return (isExpenseItem(i) && itemCountsTowardBudget(i)) ? s + i.amount : s;
   }, 0);
 }
-function sumSpentForBasis(e) { return sumBudgetSpent(e); }
 
 /* Total outgoings regardless of basis — used by the cash-flow view, which
    always wants the true full picture even while the budget basis is active. */
@@ -1173,16 +1168,6 @@ function allowanceForDate(ds) {
   if (e && typeof e.allowance === "number") return e.allowance;
   return dailyBudgetForDate(ds);
 }
-function normalizeRateHistory(hist) {
-  var out = (hist||[]).slice().sort(function(a,b){ return a.from < b.from ? -1 : a.from > b.from ? 1 : 0; });
-  var dedup = [];
-  for (var i=0;i<out.length;i++) {
-    if (dedup.length && dedup[dedup.length-1].from === out[i].from) dedup[dedup.length-1] = out[i];
-    else if (dedup.length && dedup[dedup.length-1].weeklyTarget === out[i].weeklyTarget) continue;
-    else dedup.push(out[i]);
-  }
-  return dedup;
-}
 
 /* ---------------- income ----------------
    Income mirrors rateHistory: whatever was in effect on a given day is what
@@ -1190,41 +1175,6 @@ function normalizeRateHistory(hist) {
    Entered either as a monthly figure (divided across that month's real length,
    so it accrues to exactly the full amount by month end) or as a flat daily
    figure. */
-function incomeForDate(ds) {
-  var hist = state.settings.incomeHistory;
-  if (!hist || !hist.length) {
-    return { mode: state.settings.incomeMode || "monthly", amount: Number(state.settings.incomeAmount) || 0 };
-  }
-  /* A history record only applies on/after its own start date. Starting with
-     hist[0] would make the first future-dated income leak backwards into all
-     earlier periods. If no record was active yet, income was not configured
-     for that date, so use zero rather than rewriting history. */
-  var cur = null;
-  for (var i=0;i<hist.length;i++) {
-    if (hist[i].from <= ds) cur = hist[i]; else break;
-  }
-  return cur || { mode: "monthly", amount: 0 };
-}
-function dailyIncomeForDate(ds) {
-  var inc = incomeForDate(ds);
-  var amt = Number(inc && inc.amount) || 0;
-  if (amt <= 0) return 0;
-  if (inc.mode === "daily") return amt;
-  return amt / daysInMonth(parseD(ds));
-}
-function monthlyIncomeForDate(ds) {
-  var inc = incomeForDate(ds);
-  var amt = Number(inc && inc.amount) || 0;
-  if (amt <= 0) return 0;
-  if (inc.mode === "daily") return amt * daysInMonth(parseD(ds));
-  return amt;
-}
-function incomeIsSet() {
-  if (dailyIncomeForDate(todayStr()) > 0) return true;
-  return Object.keys(state.entries).some(function(d){
-    return (state.entries[d].items||[]).some(function(it){ return isIncomeItem(it); });
-  });
-}
 /* Plain-language breakdown of what a monthly income figure works out to per
    day and per week, using the current month's real length. Shown live in
    Settings so the derived Week/Year views aren't a black box. */
@@ -1251,11 +1201,6 @@ function normalizeIncomeHistory(hist) {
    against. Swapping the basis swaps this, and every downstream figure —
    headline saved, calendar deltas, charts, forecasts — follows automatically. */
 function referenceForDate(ds) { return allowanceForDate(ds); }
-function dailyReference() { return allowanceForDate(todayStr()); }
-function basisWord() { return "budget"; }
-function basisWordCap() { return "Budget"; }
-function withBudgetBasis(fn) { return fn(); }
-
 
 
 /* ---------------- persistence ---------------- */
@@ -1353,14 +1298,6 @@ function expenseCountsForScope(it, scope) {
 function rowSpentForScope(r, scope) {
   return (r.items||[]).reduce(function(s,it){ return expenseCountsForScope(it, scope) ? s+it.amount : s; }, 0);
 }
-function discretionarySpentInRow(r, scope) {
-  return (r && r.items ? r.items : []).reduce(function(sum,it){
-    return (expenseCountsForScope(it, scope) && !it.recurringId) ? sum + it.amount : sum;
-  }, 0);
-}
-function discretionarySpentInRows(rows, scope) {
-  return (rows||[]).reduce(function(sum,r){ return sum + discretionarySpentInRow(r, scope); }, 0);
-}
 
 /* Future recurring expenses are deterministic, so keep them on their real due
    dates instead of smearing them into the variable-spend pace. This is used by
@@ -1443,43 +1380,10 @@ function robustWeightedStats(samples) {
    baselines. Recency has a 28-day half-life, so last week's Friday matters more
    than a Friday seven weeks ago. The current period is intentionally excluded
    here because it gets its own explicit weight in the blend below. */
-function historicalVariableProfile(scope, periodStart, excludedSet) {
-  scope = scope || "overall";
-  var entryDatesAll=Object.keys(state.entries).sort();
-  var firstEntry=entryDatesAll.length?entryDatesAll[0]:todayStr();
-  var naturalAnchor=scope==="budget"?(state.settings.trackingStartDate||firstEntry):firstEntry;
-  var histEnd=toStr(addDays(parseD(periodStart),-1));
-  if (naturalAnchor>histEnd) return {overall:null,byDow:[null,null,null,null,null,null,null],days:0};
-  var floor=toStr(addDays(parseD(histEnd),-55));
-  var histStart=naturalAnchor>floor?naturalAnchor:floor;
-  var rows=periodStatsOverall(histStart,histEnd).rows;
-  var all=[], byDow=[[],[],[],[],[],[],[]];
-  rows.forEach(function(r){
-    var age=Math.max(0,daysBetween(r.date,histEnd));
-    var weight=Math.pow(0.5,age/28);
-    var sample={value:discretionarySpentInRowExcluding(r,scope,excludedSet),weight:weight};
-    all.push(sample); byDow[parseD(r.date).getDay()].push(sample);
-  });
-  return {
-    overall:robustWeightedStats(all),
-    byDow:byDow.map(function(x){var st=robustWeightedStats(x);return st&&st.count>=2?st:null;}),
-    days:rows.length
-  };
-}
 
 /* Returns the expected unscheduled spend for one future date. Current-period
    behavior gains weight naturally as completed days accumulate; seven prior
    days are the intuitive amount of evidence needed for a 50/50 split. */
-function expectedVariableForDate(ds, currentStats, currentWeight, historyProfile) {
-  var hist=(historyProfile.byDow&&historyProfile.byDow[parseD(ds).getDay()])||historyProfile.overall;
-  if (currentStats && hist) return {
-    mean:currentStats.mean*currentWeight + hist.mean*(1-currentWeight),
-    dev:currentStats.dev*currentWeight + hist.dev*(1-currentWeight)
-  };
-  if (currentStats) return {mean:currentStats.mean,dev:currentStats.dev};
-  if (hist) return {mean:hist.mean,dev:hist.dev};
-  return null;
-}
 
 
 /* ---------------- transaction-frequency intelligence ----------------
@@ -1501,50 +1405,6 @@ function subcategoryKey(it){ return (it && it.category) ? it.category : "__uncat
    grocery purchase from teaching the model that two grocery trips happened.
    Non-split transactions keep their assigned person so repeat timing and
    typical amount can become person-aware when enough history exists. */
-function forecastPersonBucket(it) {
-  if (it && it.personSplit && it.personSplit.length) return "__shared__";
-  return (it && it.person) ? it.person : "__unassigned__";
-}
-function forecastPairKey(it) { return subcategoryKey(it)+"||"+forecastPersonBucket(it); }
-function eventModelExcludesItem(it, exclusion) {
-  if (!exclusion) return false;
-  var sub=subcategoryKey(it);
-  if (exclusion.allSubcategories && exclusion.allSubcategories[sub]) return true;
-  if (exclusion.pairSet && exclusion.pairSet[forecastPairKey(it)]) return true;
-  /* Backward-compatible flat set shape. */
-  return exclusion[sub] === true;
-}
-function discretionarySpentInRowExcluding(r, scope, excludedSet) {
-  return (r && r.items ? r.items : []).reduce(function(sum,it){
-    return (expenseCountsForScope(it,scope) && !it.recurringId && !eventModelExcludesItem(it,excludedSet)) ? sum+it.amount : sum;
-  },0);
-}
-function buildOccurrenceProfile(key, label, daily, txnCount, meta) {
-  var dates=Object.keys(daily||{}).sort(), gaps=[];
-  for(var i=1;i<dates.length;i++){
-    var g=daysBetween(dates[i-1],dates[i]);
-    if(g>0) gaps.push(g);
-  }
-  var gap=medianNumber(gaps);
-  var deviations=gap==null?[]:gaps.map(function(g){return Math.abs(g-gap);});
-  var mad=medianNumber(deviations);
-  var amounts=dates.map(function(d){return daily[d];});
-  var typicalAmount=medianNumber(amounts);
-  var p={
-    key:key,label:label,activeDates:dates,activeDays:dates.length,txnCount:txnCount||0,
-    gap:gap,gapDev:mad==null?null:mad*1.4826,typicalAmount:typicalAmount||0,
-    lastDate:dates.length?dates[dates.length-1]:null,
-    /* Three observed active days are enough to start treating a clearly
-       spaced purchase as an event instead of smearing it into every future
-       day. This is deliberately earlier than the old 4-transaction threshold:
-       near period-end, a fresh Fuel/Groceries/etc. occurrence is much more
-       informative than a generic daily pace. Very frequent behavior stays in
-       the weekday fallback. */
-    eventMode:dates.length>=3 && (txnCount||0)>=3 && gaps.length>=2 && gap!=null && gap>=1.35 && typicalAmount>0
-  };
-  if(meta) Object.keys(meta).forEach(function(k){p[k]=meta[k];});
-  return p;
-}
 /* Builds a partitioned occurrence model. Preferred hierarchy:
      1) Subcategory + person, when that pair has enough history.
      2) A pooled residual profile for the remaining people, when THAT pool has
@@ -1552,108 +1412,11 @@ function buildOccurrenceProfile(key, label, daily, txnCount, meta) {
      3) Overall subcategory profile when no person-specific pair is mature.
      4) Otherwise leave the spend to the general weekday/pace fallback.
    This makes the model person-aware without double-counting a subcategory. */
-function variableOccurrenceProfiles(scope, asOfDate) {
-  scope=scope||"overall";
-  asOfDate=asOfDate||todayStr();
-  var entryDates=Object.keys(state.entries).sort();
-  var firstEntry=entryDates.length?entryDates[0]:asOfDate;
-  var naturalAnchor=scope==="budget"?(state.settings.trackingStartDate||firstEntry):firstEntry;
-  var floor=toStr(addDays(parseD(asOfDate),-364));
-  var start=naturalAnchor>floor?naturalAnchor:floor;
-  var maps={};
-  Object.keys(state.entries).forEach(function(ds){
-    if(ds<start||ds>asOfDate) return;
-    (state.entries[ds].items||[]).forEach(function(it){
-      if(!expenseCountsForScope(it,scope)||it.recurringId) return;
-      var sub=subcategoryKey(it), bucket=forecastPersonBucket(it);
-      if(!maps[sub]) maps[sub]={daily:{},txnCount:0,byPerson:{}};
-      maps[sub].daily[ds]=(maps[sub].daily[ds]||0)+it.amount;
-      maps[sub].txnCount++;
-      if(!maps[sub].byPerson[bucket]) maps[sub].byPerson[bucket]={daily:{},txnCount:0};
-      maps[sub].byPerson[bucket].daily[ds]=(maps[sub].byPerson[bucket].daily[ds]||0)+it.amount;
-      maps[sub].byPerson[bucket].txnCount++;
-    });
-  });
-
-  var selected=[], exclusions={allSubcategories:{},pairSet:{}}, allProfiles={}, personModeledCount=0, overallModeledCount=0;
-  Object.keys(maps).forEach(function(sub){
-    var m=maps[sub], label=sub==="__uncategorised__"?"Uncategorised":sub;
-    var overall=buildOccurrenceProfile(sub,label,m.daily,m.txnCount,{subcategory:sub,modelLevel:"subcategory"});
-    allProfiles[sub]={overall:overall,persons:{}};
-    var qualified=[], unqualifiedBuckets=[];
-    Object.keys(m.byPerson).forEach(function(bucket){
-      var pm=m.byPerson[bucket];
-      var prof=buildOccurrenceProfile(sub+"||"+bucket,label,pm.daily,pm.txnCount,{subcategory:sub,personBucket:bucket,modelLevel:"person"});
-      allProfiles[sub].persons[bucket]=prof;
-      if(prof.eventMode) qualified.push(prof); else unqualifiedBuckets.push(bucket);
-    });
-
-    if(qualified.length){
-      qualified.forEach(function(prof){
-        selected.push(prof); exclusions.pairSet[sub+"||"+prof.personBucket]=true; personModeledCount++;
-      });
-      /* Pool only the not-yet-mature person buckets. If that residual group is
-         itself repeatable, model it once. Otherwise those transactions remain
-         available to the weekday/pace fallback. */
-      if(unqualifiedBuckets.length){
-        var rd={}, rt=0;
-        unqualifiedBuckets.forEach(function(bucket){
-          var pm=m.byPerson[bucket]; rt+=pm.txnCount;
-          Object.keys(pm.daily).forEach(function(ds){rd[ds]=(rd[ds]||0)+pm.daily[ds];});
-        });
-        var residual=buildOccurrenceProfile(sub+"||__residual__",label,rd,rt,{subcategory:sub,personBucket:"__residual__",modelLevel:"residual"});
-        if(residual.eventMode){
-          selected.push(residual); overallModeledCount++;
-          unqualifiedBuckets.forEach(function(bucket){exclusions.pairSet[sub+"||"+bucket]=true;});
-        }
-      }
-    } else if(overall.eventMode) {
-      selected.push(overall); exclusions.allSubcategories[sub]=true; overallModeledCount++;
-    }
-  });
-  return {selected:selected,exclusions:exclusions,profiles:allProfiles,personModeledCount:personModeledCount,overallModeledCount:overallModeledCount};
-}
 
 /* Expected event spend by future date. Each selected profile is represented
    as a probability distribution around its learned interval rather than a hard
    exact next date. Person-specific profiles are used only when mature enough;
    otherwise the hierarchy above falls back cleanly without duplicate events. */
-function expectedEventSpendByDate(scope, fromStr, throughStr) {
-  var model=variableOccurrenceProfiles(scope,fromStr), byDate={}, varianceByDate={}, bySubcategory={}, modeledCount=0;
-  var horizonStart=parseD(fromStr), horizonEnd=parseD(throughStr);
-  (model.selected||[]).forEach(function(p){
-    if(!p.eventMode||!p.lastDate) return;
-    modeledCount++;
-    var gap=Math.max(1.75,p.gap), sigma=Math.max(.8,p.gapDev||0,gap*.18), radius=Math.ceil(3*sigma);
-    var center=addDays(parseD(p.lastDate),Math.max(1,Math.round(gap)));
-    if(toStr(center)<fromStr) center=parseD(fromStr);
-    var guard=0;
-    while(center<=addDays(horizonEnd,radius) && guard<200){
-      var denom=0, offsets=[];
-      for(var off=-radius;off<=radius;off++){
-        var w=Math.exp(-.5*Math.pow(off/sigma,2)); offsets.push({off:off,w:w}); denom+=w;
-      }
-      offsets.forEach(function(o){
-        var d=addDays(center,o.off), ds=toStr(d);
-        if(d<horizonStart||d>horizonEnd) return;
-        /* Once an event has happened today, do not immediately forecast the
-           same cadence event again today. For event-like subcategories the
-           occurrence resets the repeat clock; the next probability mass starts
-           on later dates around the learned interval. */
-        if (p.lastDate === fromStr && ds === fromStr) return;
-        var prob=o.w/Math.max(denom,1e-9), amt=prob*p.typicalAmount;
-        byDate[ds]=(byDate[ds]||0)+amt;
-        bySubcategory[p.subcategory]=(bySubcategory[p.subcategory]||0)+amt;
-        varianceByDate[ds]=(varianceByDate[ds]||0)+prob*(1-prob)*p.typicalAmount*p.typicalAmount;
-      });
-      center=addDays(center,Math.max(1,Math.round(gap))); guard++;
-    }
-  });
-  return {
-    byDate:byDate,varianceByDate:varianceByDate,bySubcategory:bySubcategory,modeledSet:model.exclusions,modeledCount:modeledCount,
-    profiles:model.profiles,selectedProfiles:model.selected||[],personModeledCount:model.personModeledCount||0,overallModeledCount:model.overallModeledCount||0
-  };
-}
 
 /* Frequency analytics shown in Analysis. This intentionally includes real
    recurring-generated transactions because the question here is descriptive:
@@ -1792,16 +1555,6 @@ function periodStats(startStr, endStrRaw) { return periodStatsBudget(startStr, e
 /* Daily budget left for the CURRENT (live) instance of a given view type,
    treating today as a fresh, still-available day rather than one already
    partly spent. Returns null when there are no days left to plan for. */
-function computeDailyBudgetLeft(viewType, spentTodayVal) {
-  var per = getPeriodBounds(viewType, 0, currentWeeklyTarget(), dailyAllowance());
-  var stats = periodStatsBudget(per.startStr, per.endStr);
-  var daysLeftLocal = Math.max(0, per.days - stats.calendarElapsedDays);
-  if (daysLeftLocal <= 0) return null;
-  var planDaysLocal = daysLeftLocal + 1;
-  var spentBeforeTodayLocal = stats.spent - spentTodayVal;
-  var remainingExclToday = per.target - spentBeforeTodayLocal;
-  return { value: remainingExclToday/planDaysLocal, planDays: planDaysLocal, daysLeft: daysLeftLocal };
-}
 
 /* ---------------- chart (plain SVG string) ---------------- */
 /* Shared by renderChart (drawing) and wireBalanceChart (touch hit-testing) so
@@ -3132,6 +2885,7 @@ function renderHomeBody(T, da) {
       simpleStatusColor='var(--rust)';
     }
 
+    h += '<div class="simple-home-stack">';
     h += '<div class="card simple-metric-card simple-hero">';
     h += '<div class="muted caption">SAFE TO SPEND TODAY</div>';
     h += '<div class="mono simple-metric-value" style="color:var(--text);">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'))+'</div>';
@@ -3162,6 +2916,7 @@ function renderHomeBody(T, da) {
     }
     h += '<div class="simple-outlook-row"><span class="muted">Projected close</span><span class="mono" style="font-weight:700;">'+fmt(projected,0)+' AED</span>'+(incomeReference>0?'<span class="muted" style="margin-left:auto;">Income</span><span class="mono" style="font-weight:700;">'+fmt(incomeReference,0)+' AED</span>':'')+'</div>';
     h += '</div>';
+    h += '</div>'; // simple-home-stack
     return h;
   }
   h += '<div class="row between" style="margin:0 2px 8px;"><span></span><button data-action="toggle-home-reorder" class="btn-plain" style="font-size:12px;">'+(state.homeReorderMode?'Done':'Arrange')+'</button></div>';
@@ -4037,28 +3792,6 @@ function renderPieChart(slices, T, selectedLabel, centerLabel, centerValue, tapA
   return '<svg viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'">'+paths+centerSvg+'</svg>';
 }
 
-function renderBarChart(items, T) {
-  var w = 340, h = 140, padL = 30, padR = 8, padT = 10, padB = 20;
-  var maxVal = Math.max.apply(null, items.map(function(i){ return Math.max(i.spent, i.target); }).concat([1]));
-  var plotW = w-padL-padR, plotH = h-padT-padB;
-  var n = items.length;
-  var slot = plotW/n;
-  var barW = Math.min(24, slot*0.55);
-  function y(v){ return padT + plotH - (Math.min(v,maxVal)/maxVal)*plotH; }
-  var bars = items.map(function(it,i){
-    var cx = padL + slot*i + slot/2;
-    var barTopY = y(it.spent);
-    var barH = Math.max(0, plotH - (barTopY-padT));
-    var color = it.spent <= it.target ? T.positive : T.rust;
-    var targetY = y(it.target);
-    return '<rect x="'+(cx-barW/2)+'" y="'+barTopY+'" width="'+barW+'" height="'+barH+'" fill="'+color+'" rx="2"/>'
-      + '<line x1="'+(cx-barW/2-2)+'" x2="'+(cx+barW/2+2)+'" y1="'+targetY+'" y2="'+targetY+'" stroke="'+T.textMuted+'" stroke-dasharray="2,2"/>'
-      + '<text x="'+cx+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="middle">'+esc(it.label)+'</text>';
-  }).join("");
-  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'">'
-    + '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+y(0)+'" y2="'+y(0)+'" stroke="'+T.hairline+'"/>'
-    + bars + '</svg>';
-}
 
 /* Generic bucketed bar chart: one bar per bucket, value from getValue(), color
    from getColor(bucket, value). Bars can go negative (drawn below a zero line)
@@ -4067,75 +3800,6 @@ function renderBarChart(items, T) {
    without overlapping; refLine (optional) draws a labelled dashed marker, e.g.
    the daily budget. Buckets carry their own `label`, so the same chart works
    whether they're days or months. */
-function renderDailyBarChart(buckets, getValue, getColor, T, refLine, selectedKey, chartId) {
-  if (!buckets.length) return '<div class="muted" style="font-size:12px;">No data in this period.</div>';
-  var w = 340, h = 156, padL = 30, padR = 8, padB = 20;
-  var n = buckets.length;
-  var plotW = w-padL-padR;
-  var slot = plotW/n;
-  var barW = Math.max(1, Math.min(20, slot*0.7));
-  /* Horizontal labels need real width to read; below that, rotate them
-     vertical so a value is still visible even at daily-for-a-month density —
-     hiding it outright was the old behavior, but a label you have to tap to
-     see isn't a label. Vertical labels get extra top padding so they don't
-     clip against the chart's edge above a tall bar. */
-  var labelMode = slot >= 20 ? "h" : (slot >= 7 ? "v" : "none");
-  var padT = labelMode === "v" ? 40 : 18;
-  var values = buckets.map(getValue);
-  var maxVal = Math.max.apply(null, values.concat([0, refLine==null?0:refLine]));
-  var minVal = Math.min.apply(null, values.concat([0]));
-  var range = (maxVal - minVal) || 1;
-  var plotH = h-padT-padB;
-  function y(v){ return padT + plotH - ((v-minVal)/range)*plotH; }
-  var zeroY = y(0);
-  /* Each column gets a full-height transparent hit rect so thin bars are still
-     an easy tap target — the bar itself is often only a few pixels wide. */
-  var bars = buckets.map(function(b,i){
-    var v = getValue(b);
-    var cx = padL + slot*i + slot/2;
-    var top = v>=0 ? y(v) : zeroY;
-    var barH = Math.max(0.5, Math.abs(y(v)-zeroY));
-    var hitKey = (chartId||"c")+"|"+b.key;
-    var isSel = selectedKey != null && hitKey === selectedKey;
-    var dim = (selectedKey != null && !isSel) ? ' opacity="0.38"' : '';
-    var svg = '<rect x="'+(cx-barW/2)+'" y="'+top+'" width="'+barW+'" height="'+barH+'" fill="'+getColor(b,v)+'" rx="2"'+dim+'/>';
-    if (isSel) {
-      svg += '<rect x="'+(cx-barW/2-1.5)+'" y="'+(top-1.5)+'" width="'+(barW+3)+'" height="'+(barH+3)+'" fill="none" stroke="'+T.text+'" stroke-width="1.5" rx="3"/>';
-    }
-    if (labelMode !== "none" && Math.round(v) !== 0) {
-      var roundedV = Math.round(v);
-      var labelStr = roundedV < 0 ? ("−"+fmt(Math.abs(roundedV),0)) : fmt(roundedV,0);
-      var labelFill = isSel ? T.text : T.textMuted;
-      if (labelMode === "h") {
-        var labelY = v>=0 ? Math.max(9, top-3) : (top+barH+9);
-        svg += '<text x="'+cx+'" y="'+labelY+'" font-size="8" fill="'+labelFill+'" text-anchor="middle">'+labelStr+'</text>';
-      } else {
-        // Vertical label: reads bottom-to-top above a positive bar, or
-        // top-to-bottom below a negative one, so it never overlaps the bar.
-        if (v>=0) {
-          svg += '<text x="0" y="0" font-size="7" fill="'+labelFill+'" text-anchor="start" transform="translate('+cx+','+Math.max(10,top-3)+') rotate(-90)">'+labelStr+'</text>';
-        } else {
-          svg += '<text x="0" y="0" font-size="7" fill="'+labelFill+'" text-anchor="start" transform="translate('+cx+','+(top+barH+3)+') rotate(90)">'+labelStr+'</text>';
-        }
-      }
-    }
-    svg += '<rect class="chart-hit" data-action="select-bucket" data-key="'+esc(hitKey)+'" x="'+(padL+slot*i)+'" y="'+padT+'" width="'+slot+'" height="'+plotH+'" fill="transparent"/>';
-    return svg;
-  }).join("");
-  var refSvg = "";
-  if (refLine != null) {
-    var ry = y(refLine);
-    refSvg = '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+ry+'" y2="'+ry+'" stroke="'+T.textMuted+'" stroke-dasharray="3,3"/>'
-      + '<text x="2" y="'+(ry+3)+'" font-size="8" fill="'+T.textMuted+'">'+fmt(Math.round(refLine),0)+'</text>';
-  }
-  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'">'
-    + refSvg
-    + '<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+zeroY+'" y2="'+zeroY+'" stroke="'+T.hairline+'"/>'
-    + bars
-    + '<text x="'+padL+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'">'+esc(buckets[0].label)+'</text>'
-    + '<text x="'+(w-padR)+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="end">'+esc(buckets[buckets.length-1].label)+'</text>'
-    + '</svg>';
-}
 
 /* Shared by renderForecastChart and wireForecastChart, mirroring
    balanceChartGeom's role for the Home page chart. */
@@ -4331,32 +3995,6 @@ function analysisForecastSpendAt(data, idx) {
   var frac=(idx-knownIdx)/((data.totalDays-1)-knownIdx);
   return knownVal+(data.projectedSpend-knownVal)*Math.max(0,Math.min(1,frac));
 }
-function renderAnalysisForecastChart(data,T) {
-  var g=analysisForecastGeom(data),xAt=g.xAt,yAt=g.yAt,n=g.n;
-  var ticks={};[0,Math.round(g.maxY/2),Math.round(g.maxY)].forEach(function(v){ticks[v]=true;});
-  var grid=Object.keys(ticks).map(Number).map(function(v){return '<line x1="'+g.padL+'" x2="'+(g.w-g.padR)+'" y1="'+yAt(v)+'" y2="'+yAt(v)+'" stroke="'+T.sep+'" stroke-dasharray="2,2"/><text x="2" y="'+(yAt(v)+3)+'" font-size="9" fill="'+T.textMuted+'">'+fmt(v,0)+'</text>';}).join('');
-  var spendPts=(data.spendActual||[]).map(function(v,i){return [xAt(i),yAt(v)];});
-  var spendD=spendPts.length>=2?smoothPathD(spendPts):(spendPts.length?'M '+spendPts[0][0]+','+spendPts[0][1]:'');
-  var knownIdx=Math.max(0,(data.pastDays||0)-1),knownVal=(data.pastDays||0)>0?(data.spendActual[knownIdx]||0):0;
-  var forecastD=data.hasForecast?'M '+xAt(knownIdx)+','+yAt(knownVal)+' L '+xAt(n-1)+','+yAt(data.projectedSpend):'';
-  var incomePts=(data.incomeValues||[]).map(function(v,i){return [xAt(i),yAt(v)];});
-  /* Income is cumulative cash received, so render it as a step line: flat
-     between dates and jumping only on the date income actually arrives. */
-  var incomeD='';if(incomePts.length){incomeD='M '+incomePts[0][0]+','+incomePts[0][1];for(var ip=1;ip<incomePts.length;ip++)incomeD+=' H '+incomePts[ip][0]+' V '+incomePts[ip][1];}
-  var todayIdx=Math.max(0,(data.rowsLength||1)-1),todayMarker='';
-  if(data.isCurrent&&todayIdx<n-1) todayMarker='<line x1="'+xAt(todayIdx)+'" x2="'+xAt(todayIdx)+'" y1="'+g.padT+'" y2="'+(g.h-g.padB)+'" stroke="'+T.hairline+'" stroke-dasharray="2,2"/><text x="'+xAt(todayIdx)+'" y="'+(g.h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="middle">Today</text>';
-  var gapColor=data.projectedSaving>=0?T.positive:T.rust, xEnd=xAt(n-1), ySpend=yAt(data.projectedSpend),yIncome=yAt(data.projectedIncome);
-  var gap='<line x1="'+(xEnd+7)+'" x2="'+(xEnd+7)+'" y1="'+ySpend+'" y2="'+yIncome+'" stroke="'+gapColor+'" stroke-width="2"/><line x1="'+(xEnd+3)+'" x2="'+(xEnd+11)+'" y1="'+ySpend+'" y2="'+ySpend+'" stroke="'+gapColor+'" stroke-width="2"/><line x1="'+(xEnd+3)+'" x2="'+(xEnd+11)+'" y1="'+yIncome+'" y2="'+yIncome+'" stroke="'+gapColor+'" stroke-width="2"/>';
-  return '<svg id="analysisForecastChartSvg" viewBox="0 0 '+g.w+' '+g.h+'" width="100%" height="'+g.h+'">'+grid
-    +(spendD?'<path d="'+spendD+'" fill="none" stroke="'+T.accent+'" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/>':'')
-    +(forecastD?'<path d="'+forecastD+'" fill="none" stroke="'+T.accent+'" stroke-width="2.7" stroke-linecap="round" stroke-dasharray="1,5"/>':'')
-    +(incomeD?'<path d="'+incomeD+'" fill="none" stroke="'+T.positive+'" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>':'')
-    +todayMarker+gap
-    +'<line id="analysisForecastCrosshair" x1="0" x2="0" y1="'+g.padT+'" y2="'+(g.h-g.padB)+'" stroke="'+T.text+'" stroke-width="1" opacity="0"/>'
-    +'<circle id="analysisForecastSpendDot" r="4.2" fill="'+T.accent+'" stroke="'+T.bg+'" stroke-width="2" opacity="0"/>'
-    +'<circle id="analysisForecastIncomeDot" r="4.2" fill="'+T.positive+'" stroke="'+T.bg+'" stroke-width="2" opacity="0"/>'
-    +'<rect id="analysisForecastHit" x="0" y="0" width="'+g.w+'" height="'+g.h+'" fill="transparent" style="touch-action:none;"/></svg>';
-}
 function wireAnalysisForecastChart(data){
   var svg=document.getElementById('analysisForecastChartSvg'),hit=document.getElementById('analysisForecastHit'),cross=document.getElementById('analysisForecastCrosshair'),sd=document.getElementById('analysisForecastSpendDot'),id=document.getElementById('analysisForecastIncomeDot'),tip=document.getElementById('analysisForecastTip');
   if(!svg||!hit||!cross||!sd||!id||!tip||!data)return;
@@ -4409,21 +4047,6 @@ function buildAnalysisForecastCard(info, cs, T) {
 /* Allocate the pooled fallback forecast back to the unmodeled
    subcategories that created that pace. This is for explainability only; the
    total fallback forecast remains exactly the same. */
-function fallbackSubcategoryWeights(scope, modeledSet, asOfDate) {
-  var end = asOfDate || todayStr();
-  var start = toStr(addDays(parseD(end), -55));
-  var totals = {}, total = 0;
-  Object.keys(state.entries).forEach(function(ds){
-    if (ds < start || ds > end) return;
-    (state.entries[ds].items||[]).forEach(function(it){
-      if (!expenseCountsForScope(it,scope) || it.recurringId || eventModelExcludesItem(it,modeledSet)) return;
-      var key = subcategoryKey(it);
-      totals[key] = (totals[key]||0) + it.amount;
-      total += it.amount;
-    });
-  });
-  return {totals:totals,total:total};
-}
 
 /* Single source of truth for the forecast. Actual spend remains exact;
    deterministic plans remain exact; variable spending is forecast primarily
@@ -4446,12 +4069,6 @@ function fallbackSubcategoryWeights(scope, modeledSet, asOfDate) {
 
    This deliberately removes the old pooled fallback that produced artificial
    weekend allocations for Health, Gifts, Home Maintenance, etc. */
-function forecastWeightedMean(samples) {
-  var good=(samples||[]).filter(function(x){return x&&isFinite(x.value)&&isFinite(x.weight)&&x.weight>0;});
-  if(!good.length) return null;
-  var sw=0, sv=0; good.forEach(function(x){sw+=x.weight;sv+=x.value*x.weight;});
-  return sw>0?sv/sw:null;
-}
 function forecastCategoryProfiles(scope, asOfDate) {
   scope=scope||"overall"; asOfDate=asOfDate||todayStr();
   var allDates=Object.keys(state.entries).sort(), first=allDates.length?allDates[0]:asOfDate;
@@ -4872,14 +4489,6 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
    budget (red — either a finished period that ran over, or a current period
    forecast to run well over). One dashed line marks the most recent period's
    budget, since target can drift over time via rate changes. */
-function renderTrendBarChart(items, refTarget, T, refLabel) {
-  var w=340,h=150,padL=34,padR=8,padT=22,padB=20,plotW=w-padL-padR,plotH=h-padT-padB;
-  var maxVal=Math.max.apply(null,items.map(function(i){return i.spent;}).concat([refTarget==null?0:refTarget,1]));
-  var n=items.length,slot=plotW/n,barW=Math.min(30,slot*.6);function y(v){return padT+plotH-(Math.min(v,maxVal)/maxVal)*plotH;}
-  var bars=items.map(function(it,i){var cx=padL+slot*i+slot/2,topY=y(it.spent),barH=Math.max(0,plotH-(topY-padT));var color=it.status==='rust'?T.rust:it.status==='amber'?T.amber:it.status==='positive'?T.positive:T.accent;return '<rect x="'+(cx-barW/2)+'" y="'+topY+'" width="'+barW+'" height="'+barH+'" fill="'+color+'" rx="3"/><text x="'+cx+'" y="'+Math.max(9,topY-4)+'" font-size="8" fill="'+T.textMuted+'" text-anchor="middle">'+fmt(Math.round(it.spent),0)+'</text><text x="'+cx+'" y="'+(h-4)+'" font-size="9" fill="'+T.textMuted+'" text-anchor="middle">'+esc(it.label)+'</text>';}).join('');
-  var ref='';if(refTarget!=null){var ry=y(refTarget);ref='<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+ry+'" y2="'+ry+'" stroke="'+T.text+'" stroke-width="1.5" stroke-dasharray="4,3"/><text x="'+padL+'" y="'+(ry-5)+'" font-size="9" font-weight="600" fill="'+T.text+'">'+esc(refLabel||'Budget')+'</text>';}
-  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'">'+ref+bars+'</svg>';
-}
 
 
 /* Budget trend: previous periods show actual closes; the live period extends
@@ -5791,18 +5400,6 @@ function handleApplyBudget(scope) {
    now uses to stay above the keyboard) catches up promptly, rather than
    waiting on the visualViewport "resize" event, which can lag the keyboard's
    slide-in animation by a beat on iOS. */
-function focusAmountInput() {
-  var el = document.getElementById("entryAmountInput");
-  if (!el) return;
-  try { el.focus({ preventScroll: true }); }
-  catch(e) { try { el.focus(); } catch(e2) {} }
-  if (typeof updateVisualViewportOffset === "function") {
-    updateVisualViewportOffset();
-    setTimeout(updateVisualViewportOffset, 60);
-    setTimeout(updateVisualViewportOffset, 250);
-    setTimeout(updateVisualViewportOffset, 400);
-  }
-}
 
 function showToast(msg) {
   state.toastMessage = msg;
@@ -7148,17 +6745,18 @@ function keyboardFieldFocused() {
 }
 function updateVisualViewportOffset() {
   var vv=window.visualViewport,r=document.documentElement.style;
-  if(!vv){r.setProperty('--vvb','0px');r.setProperty('--vvt','0px');r.setProperty('--vvh','100dvh');document.documentElement.classList.toggle('keyboard-open',keyboardFieldFocused());return;}
+  if(!vv){r.setProperty('--vvb','0px');r.setProperty('--vvt','0px');r.setProperty('--vvh','100dvh');r.setProperty('--vv-extra-bottom','0px');document.documentElement.classList.toggle('keyboard-open',keyboardFieldFocused());return;}
   var shrink=Math.max(0,window.innerHeight-vv.height),gap=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);
-  r.setProperty('--vvb',Math.round(gap)+'px');r.setProperty('--vvt',Math.max(0,Math.round(vv.offsetTop))+'px');r.setProperty('--vvh',Math.round(vv.height)+'px');
+  var keyboardOpen=keyboardFieldFocused() || shrink>160 || vv.height<window.innerHeight*.76;
+  var visualExtraBottom=keyboardOpen?0:Math.max(0,(vv.offsetTop+vv.height)-window.innerHeight);
+  r.setProperty('--vvb',Math.round(gap)+'px');r.setProperty('--vvt',Math.max(0,Math.round(vv.offsetTop))+'px');r.setProperty('--vvh',Math.round(vv.height)+'px');r.setProperty('--vv-extra-bottom',Math.round(visualExtraBottom)+'px');
   /* offsetTop changes while Safari pans a focused page. It must NOT be used to
      decide whether the keyboard exists, otherwise the tab bar can reappear
      above the keyboard mid-scroll. Focus + viewport shrink are stable signals. */
-  var keyboardOpen=keyboardFieldFocused() || shrink>160 || vv.height<window.innerHeight*.76;
   document.documentElement.classList.toggle('keyboard-open',keyboardOpen);
 }
 updateVisualViewportOffset();
-if(window.visualViewport){window.visualViewport.addEventListener('resize',updateVisualViewportOffset);window.visualViewport.addEventListener('scroll',function(){var vv=window.visualViewport,r=document.documentElement.style;r.setProperty('--vvb',Math.max(0,Math.round(window.innerHeight-vv.height-vv.offsetTop))+'px');r.setProperty('--vvt',Math.max(0,Math.round(vv.offsetTop))+'px');r.setProperty('--vvh',Math.round(vv.height)+'px');/* deliberately do not toggle keyboard-open here */});}
+if(window.visualViewport){window.visualViewport.addEventListener('resize',updateVisualViewportOffset);window.visualViewport.addEventListener('scroll',function(){var vv=window.visualViewport,r=document.documentElement.style,shrink=Math.max(0,window.innerHeight-vv.height),keyboardOpen=document.documentElement.classList.contains('keyboard-open')||keyboardFieldFocused()||shrink>160||vv.height<window.innerHeight*.76,extra=keyboardOpen?0:Math.max(0,(vv.offsetTop+vv.height)-window.innerHeight);r.setProperty('--vvb',Math.max(0,Math.round(window.innerHeight-vv.height-vv.offsetTop))+'px');r.setProperty('--vvt',Math.max(0,Math.round(vv.offsetTop))+'px');r.setProperty('--vvh',Math.round(vv.height)+'px');r.setProperty('--vv-extra-bottom',Math.round(extra)+'px');/* deliberately do not toggle keyboard-open here */});}
 window.addEventListener('resize',updateVisualViewportOffset);window.addEventListener('orientationchange',updateVisualViewportOffset);setTimeout(updateVisualViewportOffset,300);setTimeout(updateVisualViewportOffset,1000);
 document.addEventListener('focusin',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'))document.documentElement.classList.add('keyboard-open');[30,120,260,420].forEach(function(ms){setTimeout(updateVisualViewportOffset,ms);});});
 document.addEventListener('focusout',function(){[50,180,350,500].forEach(function(ms){setTimeout(updateVisualViewportOffset,ms);});});
