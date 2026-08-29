@@ -381,7 +381,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v54";
+var APP_VERSION = "v55";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -1691,22 +1691,40 @@ function wireMiniBudgetPositionChart(data) {
     var frac=Math.max(0,Math.min(1,(clientX-rect.left)/rect.width));
     return Math.max(0,Math.min(data.length-1,Math.round(frac*(data.length-1))));
   }
+  var dragging=false, activeIndex=-1, hideTimer=null, visible=false;
+  function cancelHide(){ if(hideTimer){ clearTimeout(hideTimer); hideTimer=null; } }
+  function scheduleHide(){ cancelHide(); hideTimer=setTimeout(hide,1900); }
   function showAt(i){
+    cancelHide();
     var d=data[i],px=x(i),py=y(Number(d.balance)||0),v=Number(d.balance)||0;
+    activeIndex=i; visible=true;
     cross.setAttribute('x1',px);cross.setAttribute('x2',px);cross.setAttribute('opacity','0.55');
     dot.setAttribute('cx',px);dot.setAttribute('cy',py);dot.setAttribute('opacity','1');
     tip.textContent=(d.label||d.date||'')+' · '+(v>=0?'+':'−')+fmt(Math.abs(v),0)+' AED '+(v>=0?'ahead':'behind');
     tip.style.opacity='1'; positionChartTooltip(tip,svg,px,w);
   }
-  function hide(){cross.setAttribute('opacity','0');dot.setAttribute('opacity','0');tip.style.opacity='0';}
-  var dragging=false;
-  hit.addEventListener('pointerdown',function(e){dragging=true;try{hit.setPointerCapture(e.pointerId);}catch(_e){}showAt(indexAt(e.clientX));e.preventDefault();});
-  hit.addEventListener('pointermove',function(e){if(e.pointerType==='mouse'||dragging) showAt(indexAt(e.clientX));});
-  hit.addEventListener('pointerup',function(e){dragging=false;showAt(indexAt(e.clientX));});
+  function hide(){
+    cancelHide(); visible=false; activeIndex=-1;
+    cross.setAttribute('opacity','0');dot.setAttribute('opacity','0');tip.style.opacity='0';
+  }
+  hit.addEventListener('pointerdown',function(e){
+    var idx=indexAt(e.clientX);
+    if(e.pointerType!=='mouse' && visible && activeIndex===idx){ hide(); dragging=false; e.preventDefault(); return; }
+    dragging=true; try{hit.setPointerCapture(e.pointerId);}catch(_e){} showAt(idx); e.preventDefault();
+  });
+  hit.addEventListener('pointermove',function(e){
+    if(e.pointerType==='mouse'||dragging) showAt(indexAt(e.clientX));
+  });
+  hit.addEventListener('pointerup',function(e){
+    dragging=false;
+    if(e.pointerType==='mouse') showAt(indexAt(e.clientX));
+    else scheduleHide();
+  });
   hit.addEventListener('pointercancel',function(){dragging=false;hide();});
   hit.addEventListener('pointerleave',function(e){if(e.pointerType==='mouse'&&!dragging) hide();});
-  hit.addEventListener('click',function(e){showAt(indexAt(e.clientX));});
+  hit.addEventListener('dblclick',hide);
 }
+
 
 /* Drives the crosshair/dot/tooltip during a touch or mouse drag across the
    balance chart. Bypasses state/render() entirely — a full re-render on every
@@ -2846,6 +2864,9 @@ function renderHomeBody(T, da) {
   var weekNow = getPeriodBounds("week", 0, currentWeeklyTarget(), dailyAllowance());
   var weekBudget = periodStatsBudget(weekNow.startStr, weekNow.endStr);
   var weekRemaining = round2(weekNow.target - weekBudget.spent);
+  var todayHomeStr = todayStr();
+  var weekDaysLeft = Math.max(0, daysBetween(todayHomeStr, weekNow.endStr) + 1);
+  var monthDaysLeft = Math.max(0, daysBetween(todayHomeStr, month.endStr) + 1);
   var pacing = liveBudgetPacing();
   var dailyAverage = pacing.dailyAverage;
   var safeToday = pacing.safeToday;
@@ -2967,8 +2988,8 @@ function renderHomeBody(T, da) {
     h += '<div class="card simple-budget-card">';
     h += '<div class="row between"><div class="eyebrow">Budget status</div><div class="muted caption">'+esc(limitingLabel)+' limiting</div></div>';
     h += '<div class="simple-budget-grid">';
-    h += '<div class="simple-budget-cell"><div class="muted caption">THIS WEEK</div><div class="mono simple-budget-value" style="color:'+(weekRemaining>=0?'var(--positive)':'var(--rust)')+';">'+(weekRemaining<0?'−':'')+fmt(Math.abs(weekRemaining),0)+' <span class="simple-budget-unit">AED '+(weekRemaining>=0?'left':'over')+'</span></div>'+pctBar(weekProgress,weekPctRaw>100)+'<div class="simple-budget-meta">'+(weekNow.target>0?(weekPctRaw.toFixed(0)+'% used · '+weekRemainPct.toFixed(0)+'% left'):'—')+'</div></div>';
-    h += '<div class="simple-budget-cell"><div class="muted caption">THIS MONTH</div><div class="mono simple-budget-value" style="color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' <span class="simple-budget-unit">AED '+(remaining>=0?'left':'over')+'</span></div>'+pctBar(progress,budgetPctRaw>100)+'<div class="simple-budget-meta">'+(target>0?(budgetPctRaw.toFixed(0)+'% used · '+budgetRemainPct.toFixed(0)+'% left'):'—')+'</div></div>';
+    h += '<div class="simple-budget-cell"><div class="muted caption">THIS WEEK</div><div class="mono simple-budget-value" style="color:'+(weekRemaining>=0?'var(--positive)':'var(--rust)')+';">'+(weekRemaining<0?'−':'')+fmt(Math.abs(weekRemaining),0)+' <span class="simple-budget-unit">AED '+(weekRemaining>=0?'left':'over')+'</span></div>'+pctBar(weekProgress,weekPctRaw>100)+'<div class="simple-budget-meta">'+(weekNow.target>0?(weekPctRaw.toFixed(0)+'% used · '+weekDaysLeft+' day'+(weekDaysLeft===1?'':'s')+' left'):'—')+'</div></div>';
+    h += '<div class="simple-budget-cell"><div class="muted caption">THIS MONTH</div><div class="mono simple-budget-value" style="color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' <span class="simple-budget-unit">AED '+(remaining>=0?'left':'over')+'</span></div>'+pctBar(progress,budgetPctRaw>100)+'<div class="simple-budget-meta">'+(target>0?(budgetPctRaw.toFixed(0)+'% used · '+monthDaysLeft+' day'+(monthDaysLeft===1?'':'s')+' left'):'—')+'</div></div>';
     h += '</div>';
     if(homeBudgetPositionData.length){
       h += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between" style="gap:10px;"><span class="muted caption" style="font-weight:650;">AHEAD / BEHIND BUDGET</span><span class="mono subhead" style="font-weight:750;color:'+(homeBudgetPosition>=0?'var(--positive)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED</span></div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
@@ -2980,7 +3001,7 @@ function renderHomeBody(T, da) {
     h += '<div class="eyebrow">Month outlook</div>';
     h += '<div class="simple-outlook-grid">';
     h += '<div><div class="simple-outlook-label">Spent so far</div><div class="mono simple-outlook-value">'+fmt(overall.spent,0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(spentVsIncomePct==null?'Income not set':spentVsIncomePct.toFixed(0)+'% of income')+'</div></div>';
-    h += '<div><div class="simple-outlook-label">'+simpleSavingLabel+'</div><div class="mono simple-outlook-value" style="color:'+(simpleSaving>=0?'var(--positive)':'var(--rust)')+';">'+(simpleSaving>=0?'+':'−')+fmt(Math.abs(simpleSaving),0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(simpleSavingPct==null?'Income not set':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(0)+'% of income'))+'</div></div>';
+    h += '<div><div class="simple-outlook-label">'+simpleSavingLabel+'</div><div class="mono simple-outlook-value" style="color:'+(simpleSaving>=0?'var(--positive)':'var(--rust)')+';">'+(simpleSaving>=0?'+':'−')+fmt(Math.abs(simpleSaving),0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub" style="color:'+(simpleSavingPct==null?'var(--text-muted)':(simpleSavingPct<0?'var(--rust)':(simpleSavingPct>=25?'var(--positive)':'var(--text-muted)')))+';">'+(simpleSavingPct==null?'Income not set':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(0)+'% of income'))+'</div></div>';
     h += '</div>';
     if (incomeReference>0) {
       h += pctBar(projectedSpendVsIncomePct, projectedSpendVsIncomePct>100);
