@@ -288,12 +288,16 @@
   html.simple-home .app-topbar { flex:0 0 auto; }
   .simple-home-stack {
     flex:1 1 auto; min-height:0;
-    display:grid; grid-template-rows:1.02fr 2.12fr 1.30fr; gap:10px;
+    /* The budget card is content-sized so the sparkline does not sit above a
+       large blank block. Hero/outlook share the remaining screen height. */
+    display:grid; grid-template-rows:minmax(0,1fr) auto minmax(0,1.18fr); gap:10px;
   }
   .simple-home-stack > .card { margin-bottom:0; height:100%; min-height:0; }
   .simple-home-stack .simple-metric-card,
   .simple-home-stack .simple-outlook-card { justify-content:center; }
-  .simple-home-stack .simple-budget-card { display:flex; flex-direction:column; justify-content:center; }
+  .simple-home-stack .simple-budget-card { display:flex; flex-direction:column; justify-content:flex-start; }
+  /* Keep the bottom-right FAB from covering Projected close. */
+  html.simple-home .simple-outlook-row { padding-right:64px; }
   html.simple-home .simple-metric-card.simple-hero .simple-metric-value { font-size:46px; }
   html.simple-home .simple-budget-value { font-size:27px; }
   html.simple-home .simple-outlook-value { font-size:25px; }
@@ -377,7 +381,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v53";
+var APP_VERSION = "v54";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -1646,24 +1650,62 @@ function renderChart(data, T) {
 }
 
 
-/* Compact, non-interactive Home sparkline for cumulative ahead/behind budget.
-   It deliberately has no SVG ids so it cannot collide with the full Budget
-   chart's tooltip/crosshair wiring. */
+/* Compact Home sparkline for cumulative ahead/behind budget. It supports
+   mouse hover on desktop and tap/drag scrubbing on iPhone, while remaining
+   visually lighter than the full Budget chart. */
 function renderMiniBudgetPositionChart(data,T) {
   data=data||[]; if(!data.length) return '';
-  var w=340,h=70,pL=4,pR=4,pT=7,pB=7,vals=data.map(function(d){return Number(d.balance)||0;});
+  var w=340,h=78,pL=4,pR=4,pT=9,pB=9,vals=data.map(function(d){return Number(d.balance)||0;});
   var mn=Math.min.apply(null,[0].concat(vals)), mx=Math.max.apply(null,[0].concat(vals)), range=(mx-mn)||1;
   function x(i){return pL+(data.length>1?(i/(data.length-1))*(w-pL-pR):(w-pL-pR)/2);}
   function y(v){return pT+(h-pT-pB)-((v-mn)/range)*(h-pT-pB);}
   var pts=data.map(function(d,i){return [x(i),y(d.balance)];}), path=pts.length>1?smoothPathD(pts):'';
   var zero=y(0), last=pts[pts.length-1], endColor=(data[data.length-1].balance>=0?T.positive:T.rust);
   var areaPath=path ? (path+' L '+last[0]+','+zero+' L '+pts[0][0]+','+zero+' Z') : '';
-  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="none">'
+  return '<div id="homeBudgetPositionChartWrap" style="position:relative;margin-top:2px;">'
+    +'<div id="homeBudgetPositionChartTip" class="mono footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:8px;padding:4px 8px;max-width:230px;white-space:nowrap;opacity:0;pointer-events:none;z-index:3;box-shadow:0 3px 10px rgba(0,0,0,.16);"></div>'
+    +'<svg id="homeBudgetPositionChartSvg" viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="none">'
     +'<line x1="'+pL+'" x2="'+(w-pR)+'" y1="'+zero+'" y2="'+zero+'" stroke="'+T.hairline+'" stroke-width="1" stroke-dasharray="3,3"/>'
     +(areaPath?'<path d="'+areaPath+'" fill="'+endColor+'" fill-opacity="0.12" stroke="none"/>':'')
     +(path?'<path d="'+path+'" fill="none" stroke="'+endColor+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>':'')
     +'<circle cx="'+last[0]+'" cy="'+last[1]+'" r="4" fill="'+endColor+'"/>'
-    +'</svg>';
+    +'<line id="homeBudgetPositionCrosshair" x1="0" x2="0" y1="'+pT+'" y2="'+(h-pB)+'" stroke="'+T.text+'" stroke-width="1" opacity="0"/>'
+    +'<circle id="homeBudgetPositionDot" r="4.5" fill="'+endColor+'" stroke="'+T.bg+'" stroke-width="2" opacity="0"/>'
+    +'<rect id="homeBudgetPositionHit" x="0" y="0" width="'+w+'" height="'+h+'" fill="transparent" style="touch-action:none;cursor:crosshair;"/>'
+    +'</svg></div>';
+}
+
+function wireMiniBudgetPositionChart(data) {
+  var svg=document.getElementById('homeBudgetPositionChartSvg');
+  var hit=document.getElementById('homeBudgetPositionHit');
+  var cross=document.getElementById('homeBudgetPositionCrosshair');
+  var dot=document.getElementById('homeBudgetPositionDot');
+  var tip=document.getElementById('homeBudgetPositionChartTip');
+  if(!svg||!hit||!cross||!dot||!tip||!data||!data.length) return;
+  var w=340,h=78,pL=4,pR=4,pT=9,pB=9,vals=data.map(function(d){return Number(d.balance)||0;});
+  var mn=Math.min.apply(null,[0].concat(vals)),mx=Math.max.apply(null,[0].concat(vals)),range=(mx-mn)||1;
+  function x(i){return pL+(data.length>1?(i/(data.length-1))*(w-pL-pR):(w-pL-pR)/2);}
+  function y(v){return pT+(h-pT-pB)-((v-mn)/range)*(h-pT-pB);}
+  function indexAt(clientX){
+    var rect=svg.getBoundingClientRect(); if(!rect.width) return 0;
+    var frac=Math.max(0,Math.min(1,(clientX-rect.left)/rect.width));
+    return Math.max(0,Math.min(data.length-1,Math.round(frac*(data.length-1))));
+  }
+  function showAt(i){
+    var d=data[i],px=x(i),py=y(Number(d.balance)||0),v=Number(d.balance)||0;
+    cross.setAttribute('x1',px);cross.setAttribute('x2',px);cross.setAttribute('opacity','0.55');
+    dot.setAttribute('cx',px);dot.setAttribute('cy',py);dot.setAttribute('opacity','1');
+    tip.textContent=(d.label||d.date||'')+' · '+(v>=0?'+':'−')+fmt(Math.abs(v),0)+' AED '+(v>=0?'ahead':'behind');
+    tip.style.opacity='1'; positionChartTooltip(tip,svg,px,w);
+  }
+  function hide(){cross.setAttribute('opacity','0');dot.setAttribute('opacity','0');tip.style.opacity='0';}
+  var dragging=false;
+  hit.addEventListener('pointerdown',function(e){dragging=true;try{hit.setPointerCapture(e.pointerId);}catch(_e){}showAt(indexAt(e.clientX));e.preventDefault();});
+  hit.addEventListener('pointermove',function(e){if(e.pointerType==='mouse'||dragging) showAt(indexAt(e.clientX));});
+  hit.addEventListener('pointerup',function(e){dragging=false;showAt(indexAt(e.clientX));});
+  hit.addEventListener('pointercancel',function(){dragging=false;hide();});
+  hit.addEventListener('pointerleave',function(e){if(e.pointerType==='mouse'&&!dragging) hide();});
+  hit.addEventListener('click',function(e){showAt(indexAt(e.clientX));});
 }
 
 /* Drives the crosshair/dot/tooltip during a touch or mouse drag across the
@@ -1801,6 +1843,7 @@ var lastCashBalanceChartData = null;
 var lastAnalysisForecastChartData = null;
 var lastBudgetTrendChartData = null;
 var lastOverallTrendChartData = null;
+var lastHomeBudgetPositionData = null;
 var lockedScrollY = 0;
 function lockBodyScroll() {
   if (bodyScrollLocked) return;
@@ -2579,6 +2622,7 @@ function render() {
   if (state.page === "analysis" && lastAnalysisForecastChartData) wireAnalysisForecastChart(lastAnalysisForecastChartData);
   if (state.page === "budget" && lastBudgetTrendChartData) wirePeriodTrendChart("budget", lastBudgetTrendChartData);
   if (state.page === "analysis" && lastOverallTrendChartData) wirePeriodTrendChart("overall", lastOverallTrendChartData);
+  if (state.page === "home" && lastHomeBudgetPositionData) wireMiniBudgetPositionChart(lastHomeBudgetPositionData);
   if (state.page === "analysis") restoreAnalysisAnchor();
 }
 
@@ -2837,6 +2881,7 @@ function renderHomeBody(T, da) {
     homeBudgetPositionAcc = round2(homeBudgetPositionAcc + r.allowance - r.spent);
     return {label:shortLabel(r.date),date:r.date,balance:homeBudgetPositionAcc};
   });
+  lastHomeBudgetPositionData = homeBudgetPositionData;
   var cards = {};
 
   var spending = '<div class="card card-pad">';
