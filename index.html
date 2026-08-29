@@ -354,9 +354,9 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v47";
+var APP_VERSION = "v48";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, forecastSnapshots: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, forecastSnapshots: null, transactionTags: null, transactionTagColors: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
 function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
@@ -497,6 +497,39 @@ function personColor(name) {
 function personChip(name, sizeVariant) {
   var small = sizeVariant === "small";
   return '<span style="display:inline-flex; align-items:center; background:'+personColor(name)+'; color:#fff; font-weight:600; border-radius:'+(small?"5px":"6px")+'; padding:'+(small?"1px 6px":"2px 8px")+'; font-size:'+(small?"10px":"11px")+'; white-space:nowrap;">'+esc(name)+'</span>';
+}
+/* Transaction tags are intentionally separate from Category and Person.
+   They are free-form labels such as Travel, Reimbursable or Work and never
+   affect budget/forecast math. */
+function normalizeTransactionTags(tags) {
+  var out=[];
+  (tags||[]).forEach(function(t){
+    if(typeof t!=="string") return;
+    var v=t.trim();
+    if(v && out.indexOf(v)===-1) out.push(v);
+  });
+  return out;
+}
+function normalizeTransactionTagColors(colors,tags) {
+  var out={}, valid=tags||[];
+  Object.keys(colors||{}).forEach(function(k){ if(valid.indexOf(k)!==-1 && /^#[0-9a-fA-F]{6}$/.test(colors[k]||"")) out[k]=colors[k]; });
+  return out;
+}
+function normalizeItemTags(tags) { return normalizeTransactionTags(Array.isArray(tags)?tags:[]); }
+function transactionTagColor(name) {
+  var custom=state.settings.transactionTagColors && state.settings.transactionTagColors[name];
+  if(custom) return custom;
+  var hash=0; for(var i=0;i<(name||"").length;i++) hash=(hash*31+name.charCodeAt(i))>>>0;
+  return PIE_COLORS[hash%PIE_COLORS.length] || "#8595B5";
+}
+function transactionTagChip(name,small) {
+  return '<span style="display:inline-flex;align-items:center;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:999px;padding:'+(small?'2px 6px':'5px 9px')+';font-size:'+(small?'9.5px':'11.5px')+';font-weight:650;background:'+transactionTagColor(name)+';color:#fff;">'+esc(name)+'</span>';
+}
+function transactionTagChipsHtml(tags,maxCount) {
+  var a=normalizeItemTags(tags), lim=maxCount==null?a.length:Math.min(a.length,maxCount), h='';
+  for(var i=0;i<lim;i++) h+=transactionTagChip(a[i],true);
+  if(a.length>lim) h+='<span class="muted" style="font-size:10px;font-weight:650;">+'+(a.length-lim)+'</span>';
+  return h;
 }
 /* Renames a category or person everywhere it's referenced: the settings
    list itself, per-category style/group assignment (categories only), any
@@ -766,6 +799,7 @@ function runRecurringCatchUp() {
         id: Date.now()+"-"+Math.random().toString(36).slice(2,7)+"-"+guard,
         amount: ruleOccurrenceAmount(rule, seq),
         note: rule.note||"", category: rule.category||"", person: rule.person||"", personSplit: rule.personSplit||null,
+        tags: normalizeItemTags(rule.tags),
         recurringId: rule.id, seq: seq+1, seqTotal: rule.occurrencesTotal,
         kind: rule.entryKind === "income" ? "income" : undefined,
         currency: rule.currency||BASE_CURRENCY,
@@ -996,6 +1030,7 @@ var state = {
   txnCategoryFilter: "",
   txnGroupFilter: "",
   txnPersonFilter: "",
+  txnTagFilter: "",
   txnPeriodMode: "month",
   txnTypeFilter: "all",
   txnSearch: "",
@@ -1036,6 +1071,8 @@ var state = {
   groupStyleEditing: null,
   categoryRenameEditing: null,
   personRenameEditing: null,
+  tagRenameEditing: null,
+  tagDeletePending: null,
   recurringLimitMode: "ongoing",
   recurringKindDraft: "expense",
   recurringAmountDraft: null,
@@ -1054,6 +1091,7 @@ var state = {
   entryPersonSplitDraft: null,
   entryCategoryDraft: null,
   entryPersonDraft: null,
+  entryTagsDraft: null,
 };
 
 /* Legacy rate history: retained for backwards compatibility with ledgers created
@@ -1219,6 +1257,8 @@ function loadInitial() {
   state.settings.homeSimpleView = !!state.settings.homeSimpleView;
   state.settings.fxRateCache = normalizeFxCache(state.settings.fxRateCache);
   state.settings.forecastSnapshots = normalizeForecastSnapshots(state.settings.forecastSnapshots);
+  state.settings.transactionTags = normalizeTransactionTags(state.settings.transactionTags);
+  state.settings.transactionTagColors = normalizeTransactionTagColors(state.settings.transactionTagColors, state.settings.transactionTags);
   state.settings.incomeHistory = normalizeIncomeHistory(state.settings.incomeHistory);
   state.settings.monthlyBudgetHistory = normalizeMonthlyBudgetHistory(state.settings.monthlyBudgetHistory);
   state.settings.categoryStyles = normalizeCategoryStyles(state.settings.categoryStyles, state.settings.categories);
@@ -1799,6 +1839,25 @@ function renderChart(data, T) {
     + '</svg>';
 }
 
+
+/* Compact, non-interactive Home sparkline for cumulative ahead/behind budget.
+   It deliberately has no SVG ids so it cannot collide with the full Budget
+   chart's tooltip/crosshair wiring. */
+function renderMiniBudgetPositionChart(data,T) {
+  data=data||[]; if(!data.length) return '';
+  var w=340,h=92,pL=4,pR=4,pT=8,pB=8,vals=data.map(function(d){return Number(d.balance)||0;});
+  var mn=Math.min.apply(null,[0].concat(vals)), mx=Math.max.apply(null,[0].concat(vals)), range=(mx-mn)||1;
+  function x(i){return pL+(data.length>1?(i/(data.length-1))*(w-pL-pR):(w-pL-pR)/2);}
+  function y(v){return pT+(h-pT-pB)-((v-mn)/range)*(h-pT-pB);}
+  var pts=data.map(function(d,i){return [x(i),y(d.balance)];}), path=pts.length>1?smoothPathD(pts):'';
+  var zero=y(0), last=pts[pts.length-1], endColor=(data[data.length-1].balance>=0?T.positive:T.rust);
+  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="none">'
+    +'<line x1="'+pL+'" x2="'+(w-pR)+'" y1="'+zero+'" y2="'+zero+'" stroke="'+T.hairline+'" stroke-width="1" stroke-dasharray="3,3"/>'
+    +(path?'<path d="'+path+'" fill="none" stroke="'+endColor+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>':'')
+    +'<circle cx="'+last[0]+'" cy="'+last[1]+'" r="4" fill="'+endColor+'"/>'
+    +'</svg>';
+}
+
 /* Drives the crosshair/dot/tooltip during a touch or mouse drag across the
    balance chart. Bypasses state/render() entirely — a full re-render on every
    pixel of finger movement would destroy the SVG node and feel laggy, so this
@@ -2105,6 +2164,7 @@ document.addEventListener("touchend", function() {
    still `state`; no transaction/settings data is duplicated or migrated. */
 var settingsNavStack = [];
 var settingsSwipe = null;
+var settingsRootSnapshot = null;
 
 function captureSettingsVisual() {
   var page = document.querySelector('.settings-page');
@@ -2227,19 +2287,32 @@ function settingsNavigateBack() {
 /* Edge-swipe back. It deliberately starts only within 26px of the left edge,
    so horizontal carousels/chips elsewhere keep their native momentum. */
 document.addEventListener('touchstart', function(e){
-  if (!state.showSettings || !settingsNavStack.length || settingsSwipe || !e.touches || e.touches.length !== 1) return;
+  if (!state.showSettings || settingsSwipe || !e.touches || e.touches.length !== 1) return;
   if (document.querySelector('.modal-backdrop')) return;
   var t = e.touches[0];
   if (t.clientX > 26) return;
-  var current = captureSettingsVisual();
-  var destination = settingsNavStack[settingsNavStack.length-1];
-  if (!current || !destination) return;
-  var parts = buildSettingsNavOverlay(destination, current);
+  var current, destination, parts, rootClose=false;
+  if (settingsNavStack.length) {
+    current = captureSettingsVisual();
+    destination = settingsNavStack[settingsNavStack.length-1];
+    if (!current || !destination) return;
+    parts = buildSettingsNavOverlay(destination, current);
+  } else {
+    /* Root Settings can also be dismissed with the same iOS edge gesture.
+       Its destination is the exact app page that was visible before Settings
+       opened, not an invented Settings landing screen. */
+    if (!settingsRootSnapshot) return;
+    current = captureTxnVisual();
+    destination = settingsRootSnapshot;
+    if (!current) return;
+    parts = buildTxnNavOverlay(destination, current);
+    rootClose = true;
+  }
   parts.behind.style.transform = 'translate3d(-22%,0,0)';
   parts.front.style.transform = 'translate3d(0,0,0)';
   settingsSwipe = {
     startX:t.clientX, startY:t.clientY, lastX:t.clientX, lastT:performance.now(),
-    dx:0, intent:null, parts:parts, destination:destination
+    dx:0, intent:null, parts:parts, destination:destination, rootClose:rootClose
   };
 }, { passive:true });
 
@@ -2276,8 +2349,19 @@ function finishSettingsSwipe(commit) {
     parts.behind.style.transform = 'translate3d(0,0,0)';
     parts.front.style.transform = 'translate3d(100%,0,0)';
     setTimeout(function(){
-      settingsNavStack.pop();
-      applySettingsBackState();
+      if (sw.rootClose) {
+        settingsNavStack = [];
+        state.settingsSection = null;
+        state.settingsCategorySelected = null;
+        state.settingsSubcategorySelected = null;
+        state.settingsCategoryCustomize = false;
+        state.settingsCategoryEditMode = false;
+        state.showSettings = false;
+        settingsRootSnapshot = null;
+      } else {
+        settingsNavStack.pop();
+        applySettingsBackState();
+      }
       render();
       window.scrollTo(0, sw.destination.scrollY || 0);
       removeSettingsNavOverlay(parts);
@@ -2382,6 +2466,7 @@ function resetTxnEntryForClose() {
   state.entryFxSourceDraft = null;
   state.entryFxDateDraft = null;
   state.entryTimeDraft = null;
+  state.entryTagsDraft = null;
 }
 
 function txnNavigateBack() {
@@ -2649,7 +2734,7 @@ function render() {
     html += '<div class="modal-backdrop" data-action="close-reset" style="padding:0 24px;">';
     html += '<div class="modal-card" style="border-radius:16px;" data-action="noop">';
     html += '<div class="sheet-title" style="margin-bottom:8px;">Clear all entries?</div>';
-    html += '<div class="muted" style="font-size:14px; margin-bottom:16px;">Every logged transaction is removed. Your monthly budget and theme stay. This can\'t be undone.</div>';
+    html += '<div class="muted" style="font-size:14px; margin-bottom:16px;">Every logged transaction is removed. Your settings stay, but forecast-learning history is reset. This can\'t be undone.</div>';
     html += '<div class="row gap2">';
     html += '<button data-action="close-reset" class="btn-outline" style="flex:1;">Cancel</button>';
     html += '<button data-action="confirm-reset" class="btn-rust row gap2" style="flex:1; justify-content:center; align-items:center;">'+ICONS.rotate+' Clear</button>';
@@ -2933,6 +3018,12 @@ function renderHomeBody(T, da) {
   var weekProgress = Math.max(0, Math.min(100, weekPctRaw));
   var budgetRemainPct = target > 0 ? Math.max(0, (remaining/target)*100) : null;
   var weekRemainPct = weekNow.target > 0 ? Math.max(0, (weekRemaining/weekNow.target)*100) : null;
+  var homeBudgetPosition = round2(budget.net || 0);
+  var homeBudgetPositionAcc = 0;
+  var homeBudgetPositionData = budget.rows.map(function(r){
+    homeBudgetPositionAcc = round2(homeBudgetPositionAcc + r.allowance - r.spent);
+    return {label:shortLabel(r.date),date:r.date,balance:homeBudgetPositionAcc};
+  });
   var cards = {};
 
   var spending = '<div class="card card-pad">';
@@ -2954,6 +3045,9 @@ function renderHomeBody(T, da) {
   budgetCard += '<div class="row between"><span class="muted subhead">Equal daily allowance</span><span class="mono subhead" style="font-weight:600;color:'+(dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)')+';">'+(dailyAverage==null?'—':((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'))+'</span></div>';
   budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Spent today</span><span class="mono subhead" style="font-weight:600;">'+fmt(spentToday,0)+' AED</span></div>';
   budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Remaining this month</span><span class="mono subhead" style="font-weight:600;color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED</span></div></div>';
+  if(homeBudgetPositionData.length){
+    budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between"><span class="muted subhead">Ahead / behind budget</span><span class="mono subhead" style="font-weight:700;color:'+(homeBudgetPosition>=0?'var(--positive)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED '+(homeBudgetPosition>=0?'ahead':'behind')+'</span></div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
+  }
   budgetCard += '<button data-action="go-page" data-page="budget" class="btn-plain" style="margin-top:12px;">Open budget →</button></div>';
   cards.budget = budgetCard;
 
@@ -3016,7 +3110,11 @@ function renderHomeBody(T, da) {
     h += '<div class="simple-budget-grid">';
     h += '<div class="simple-budget-cell"><div class="muted caption">THIS WEEK</div><div class="mono simple-budget-value" style="color:'+(weekRemaining>=0?'var(--positive)':'var(--rust)')+';">'+(weekRemaining<0?'−':'')+fmt(Math.abs(weekRemaining),0)+' <span class="simple-budget-unit">AED '+(weekRemaining>=0?'left':'over')+'</span></div>'+pctBar(weekProgress,weekPctRaw>100)+'<div class="simple-budget-meta">'+(weekNow.target>0?(weekPctRaw.toFixed(0)+'% used · '+weekRemainPct.toFixed(0)+'% left'):'—')+'</div></div>';
     h += '<div class="simple-budget-cell"><div class="muted caption">THIS MONTH</div><div class="mono simple-budget-value" style="color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' <span class="simple-budget-unit">AED '+(remaining>=0?'left':'over')+'</span></div>'+pctBar(progress,budgetPctRaw>100)+'<div class="simple-budget-meta">'+(target>0?(budgetPctRaw.toFixed(0)+'% used · '+budgetRemainPct.toFixed(0)+'% left'):'—')+'</div></div>';
-    h += '</div></div>';
+    h += '</div>';
+    if(homeBudgetPositionData.length){
+      h += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between" style="gap:10px;"><span class="muted caption" style="font-weight:650;">AHEAD / BEHIND BUDGET</span><span class="mono subhead" style="font-weight:750;color:'+(homeBudgetPosition>=0?'var(--positive)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED</span></div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
+    }
+    h += '</div>';
 
     var projectedSpendVsIncomePct = incomeReference>0 ? (projected/incomeReference*100) : null;
     h += '<div class="card simple-outlook-card">';
@@ -3104,7 +3202,7 @@ function renderBudgetBody(T) {
 
 function renderSettingsPage() {
   var section = state.settingsSection || "";
-  var titles = { budget:"Monthly budget", currency:"Currencies", forecastAccuracy:"Forecast accuracy", categories:"Categories", people:"People", theme:"Appearance", tracking:"Tracking start", backup:"Backup & restore" };
+  var titles = { budget:"Monthly budget", currency:"Currencies", forecastAccuracy:"Forecast accuracy", categories:"Categories", people:"People", tags:"Transaction tags", theme:"Appearance", tracking:"Tracking start", backup:"Backup & restore", clearEntries:"Clear all entries" };
   var categoryHeaderTitle = "Categories";
   if (section === "categories") {
     if (state.settingsSubcategorySelected) categoryHeaderTitle = state.settingsSubcategorySelected;
@@ -3125,6 +3223,7 @@ function renderSettingsPage() {
     var monthlyNow = currentMonthlyBudget();
     var catsN=(state.settings.categories||[]).length, groupsN=(state.settings.categoryGroups||[]).length;
     var peopleN=(state.settings.people||[]).length;
+    var tagsN=(state.settings.transactionTags||[]).length;
     var themeLabel = state.settings.theme === "dark" ? "Dark" : "Light";
     var trackLabel = state.settings.trackingStartDate ? shortLabel(state.settings.trackingStartDate) : "Not set";
 
@@ -3133,6 +3232,7 @@ function renderSettingsPage() {
     h += '<button class="settings-row" data-action="settings-section" data-section="currency"><span class="settings-row-main"><span class="settings-row-label">Currencies</span><span class="settings-row-sub">Travel spending and exchange rates</span></span><span class="row gap2"><span class="settings-row-value">AED base</span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="categories"><span class="settings-row-main"><span class="settings-row-label">Categories</span><span class="settings-row-sub">Categories, subcategories and budget rules</span></span><span class="row gap2"><span class="settings-row-value">'+groupsN+' · '+catsN+' sub</span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="people"><span class="settings-row-main"><span class="settings-row-label">People</span><span class="settings-row-sub">Defaults, colors and shared spending</span></span><span class="row gap2"><span class="settings-row-value">'+peopleN+'</span>'+ICONS.chevronRight+'</span></button>';
+    h += '<button class="settings-row" data-action="settings-section" data-section="tags"><span class="settings-row-main"><span class="settings-row-label">Transaction tags</span><span class="settings-row-sub">Flexible labels such as Travel or Work</span></span><span class="row gap2"><span class="settings-row-value">'+tagsN+'</span>'+ICONS.chevronRight+'</span></button>';
     h += '</div>';
 
     h += '<div class="settings-group-title">App</div><div class="settings-list">';
@@ -3143,6 +3243,7 @@ function renderSettingsPage() {
     h += '<button class="settings-row" data-action="settings-section" data-section="forecastAccuracy"><span class="settings-row-main"><span class="settings-row-label">Forecast accuracy</span><span class="settings-row-sub">Backtesting and forecast error over time</span></span><span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="tracking"><span class="settings-row-main"><span class="settings-row-label">Tracking start</span><span class="settings-row-sub">Where budget history should begin</span></span><span class="row gap2"><span class="settings-row-value">'+esc(trackLabel)+'</span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="backup"><span class="settings-row-main"><span class="settings-row-label">Backup & restore</span><span class="settings-row-sub">Copy, restore or move your ledger</span></span><span>'+ICONS.chevronRight+'</span></button>';
+    h += '<button class="settings-row settings-danger" data-action="settings-section" data-section="clearEntries"><span class="settings-row-main"><span class="settings-row-label">Clear all entries</span><span class="settings-row-sub">Danger zone · permanently erase transactions</span></span><span>'+ICONS.chevronRight+'</span></button>';
     h += '</div>';
     h += '</div></div>';
     return h;
@@ -3340,6 +3441,31 @@ function renderSettingsPage() {
   }
 
 
+  if (section === "tags") {
+    var tagList=state.settings.transactionTags||[];
+    h += '<div class="muted caption" style="margin:2px 2px 14px;">Add optional labels to any transaction. Tags are searchable/filterable and never change budget or forecast calculations.</div>';
+    h += '<div style="display:flex;flex-direction:column;gap:7px;margin-bottom:12px;">';
+    tagList.forEach(function(tag){
+      var renaming=state.tagRenameEditing===tag, deleting=state.tagDeletePending===tag;
+      h += '<div style="background:var(--card);border-radius:14px;padding:10px 12px;">';
+      if(renaming){
+        h += '<div class="row gap2"><input id="txnTagRenameInput" type="text" class="field" value="'+esc(tag)+'" style="flex:1;"/><button data-action="save-txn-tag-rename" data-tag="'+esc(tag)+'" class="btn-plain">Save</button><button data-action="cancel-txn-tag-rename" class="icon-btn">'+ICONS.x+'</button></div>';
+      } else if(deleting){
+        h += '<div class="row between"><div>'+transactionTagChip(tag,false)+'</div><div class="row gap2"><button data-action="cancel-remove-txn-tag" class="btn-plain">Cancel</button><button data-action="confirm-remove-txn-tag" data-tag="'+esc(tag)+'" class="btn-rust">Delete</button></div></div>';
+      } else {
+        h += '<div class="row between" style="gap:10px;"><div class="row gap2" style="min-width:0;align-items:center;"><input class="txn-tag-color-input" data-tag="'+esc(tag)+'" type="color" value="'+transactionTagColor(tag)+'" style="width:34px;height:30px;border:none;background:none;padding:0;flex-shrink:0;"/>'+transactionTagChip(tag,false)+'</div><div class="row gap2" style="flex-shrink:0;"><button data-action="edit-txn-tag-name" data-tag="'+esc(tag)+'" class="icon-btn" style="padding:5px;">'+ICONS.pencil+'</button><button data-action="ask-remove-txn-tag" data-tag="'+esc(tag)+'" class="icon-btn" style="padding:5px;color:var(--rust);">'+ICONS.trash+'</button></div></div>';
+      }
+      h += '</div>';
+    });
+    if(!tagList.length) h += '<div class="muted subhead" style="padding:12px 2px;">No transaction tags yet.</div>';
+    h += '</div><div class="row gap2"><input id="newTxnTagInput" type="text" class="field" placeholder="New tag" style="flex:1;"/><button data-action="add-txn-tag" class="btn-accent">Add</button></div>';
+  }
+
+  if (section === "clearEntries") {
+    var txnCount=0; Object.keys(state.entries).forEach(function(d){txnCount+=(state.entries[d].items||[]).length;});
+    h += '<div class="card card-pad"><div class="eyebrow" style="color:var(--rust);">DANGER ZONE</div><div class="headline" style="margin-top:6px;">Clear all transaction history</div><div class="muted subhead" style="margin-top:7px;">This removes '+txnCount+' logged transaction'+(txnCount===1?'':'s')+'. Budgets, categories, tags, appearance and other settings stay.</div><button data-action="open-reset" class="btn-rust" style="width:100%;margin-top:18px;justify-content:center;">'+ICONS.trash+' Clear all entries</button><div class="muted caption" style="margin-top:9px;">A confirmation is required before anything is deleted.</div></div>';
+  }
+
   if (section === "backup") {
     var backupText = JSON.stringify({settings:state.settings, entries:state.entries}, null, 2);
     h += '<div class="muted" style="font-size:12px; margin-bottom:10px;">Copy your full ledger as text. Keep it somewhere safe before major code changes or when moving devices.</div>';
@@ -3368,6 +3494,8 @@ function renderAddTxnPage() {
   var splitMode = state.txnSplitMode || "single";
   var selectedCat = state.entryCategoryDraft != null ? state.entryCategoryDraft : (editingItem ? (editingItem.category||"") : "");
   var people = state.settings.people || [];
+  var txnTags = state.settings.transactionTags || [];
+  var selectedTxnTags = state.entryTagsDraft != null ? normalizeItemTags(state.entryTagsDraft) : (editingItem ? normalizeItemTags(editingItem.tags) : []);
   var selectedPerson = state.entryPersonDraft != null ? state.entryPersonDraft : (editingItem ? (editingItem.person||"") : (state.settings.defaultPerson||""));
   var personSplitMode = people.length >= 2 ? (state.txnPersonSplitMode||"single") : "single";
   var selectedCurrency = state.entryCurrencyDraft != null ? state.entryCurrencyDraft : (editingItem && editingItem.currency ? editingItem.currency : BASE_CURRENCY);
@@ -3499,6 +3627,12 @@ function renderAddTxnPage() {
     h += '<input id="entryPersonInput" type="hidden" value="" />';
   }
 
+  if (txnTags.length) {
+    h += '<div class="eyebrow" style="margin:2px 0 8px;">Tags</div><div class="txn-hscroll" style="gap:7px;margin:0 -8px 12px;padding:0 8px 4px;">';
+    txnTags.forEach(function(tag){var sel=selectedTxnTags.indexOf(tag)!==-1;h+='<button data-action="toggle-txn-tag" data-tag="'+esc(tag)+'" style="flex:0 0 auto;border:none;border-radius:999px;padding:7px 10px;background:'+(sel?transactionTagColor(tag):'var(--fill)')+';color:'+(sel?'#fff':'var(--text)')+';font-size:12px;font-weight:'+(sel?'650':'500')+';">'+esc(tag)+(sel?' ✓':'')+'</button>';});
+    h += '</div>';
+  }
+
   h += '<div class="eyebrow" style="margin-bottom:6px;">Note</div>';
   h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:10px;" placeholder="Merchant or what it was for" value="'+(state.entryNoteDraft!=null?esc(state.entryNoteDraft):(editingItem?esc(editingItem.note||""):""))+'" />';
 
@@ -3537,6 +3671,7 @@ function renderTransactionsBody() {
   var groupFilter=state.txnGroupFilter||"";
   var categoryFilter=state.txnCategoryFilter||"";
   var personFilter=state.txnPersonFilter||"";
+  var tagFilter=state.txnTagFilter||"";
   var typeFilter=state.txnTypeFilter||"all";
   var search=(state.txnSearch||"").trim().toLowerCase();
   var periodMode=state.txnPeriodMode||"month";
@@ -3550,16 +3685,16 @@ function renderTransactionsBody() {
   function matchesSearch(it){
     if(!search)return true;
     var persons=(it.personSplit&&it.personSplit.length)?it.personSplit.map(function(ps){return ps.person;}).join(" "):(it.person||"");
-    var blob=[it.note||"",it.category||"",categoryGroupOf(it.category)||"",persons,isIncomeItem(it)?"income":"expense",String(it.amount||"")].join(" ").toLowerCase();
+    var blob=[it.note||"",it.category||"",categoryGroupOf(it.category)||"",persons,(it.tags||[]).join(" "),isIncomeItem(it)?"income":"expense",String(it.amount||"")].join(" ").toLowerCase();
     return blob.indexOf(search)!==-1;
   }
   function matches(it){
     if(typeFilter==="expense"&&!isExpenseItem(it))return false;
     if(typeFilter==="income"&&!isIncomeItem(it))return false;
     if(isIncomeItem(it)&&(categoryFilter||groupFilter))return false;
-    return (!categoryFilter||itemCat(it)===categoryFilter)&&matchesGroup(it)&&itemMatchesPersonFilter(it,personFilter)&&matchesSearch(it);
+    return (!categoryFilter||itemCat(it)===categoryFilter)&&matchesGroup(it)&&itemMatchesPersonFilter(it,personFilter)&&(!tagFilter||normalizeItemTags(it.tags).indexOf(tagFilter)!==-1)&&matchesSearch(it);
   }
-  var itemFilterActive=!!categoryFilter||!!groupFilter||!!personFilter||typeFilter!=="all"||!!search;
+  var itemFilterActive=!!categoryFilter||!!groupFilter||!!personFilter||!!tagFilter||typeFilter!=="all"||!!search;
 
   var allPeriodItems=[];
   entryDates.forEach(function(d){if(!inPeriod(d))return;(state.entries[d].items||[]).forEach(function(it){if(matches(it))allPeriodItems.push({date:d,it:it});});});
@@ -3578,10 +3713,10 @@ function renderTransactionsBody() {
   h+='</div>';
 
   h+='<div class="card" style="padding:12px;margin-bottom:12px;">';
-  h+='<div style="position:relative;margin-bottom:10px;"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);display:flex;">'+ICONS.search+'</span><input id="txnSearchInput" type="search" class="field" placeholder="Search merchant, category, subcategory or person" value="'+esc(state.txnSearch||"")+'" style="padding-left:40px;" /></div>';
+  h+='<div style="position:relative;margin-bottom:10px;"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);display:flex;">'+ICONS.search+'</span><input id="txnSearchInput" type="search" class="field" placeholder="Search merchant, category, person or tag" value="'+esc(state.txnSearch||"")+'" style="padding-left:40px;" /></div>';
   h+='<div style="display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;">';
   [["all","All"],["expense","Expenses"],["income","Income"]].forEach(function(opt){var sel=typeFilter===opt[0];h+='<button data-action="set-txn-type-filter" data-type="'+opt[0]+'" class="chip" style="flex:0 0 auto;background:'+(sel?'var(--accent)':'var(--fill)')+';color:'+(sel?'var(--accent-ink)':'var(--text)')+';font-weight:'+(sel?'600':'500')+';">'+opt[1]+'</button>';});
-  var extraFilters=!!groupFilter||!!categoryFilter||!!personFilter||periodMode!=="month";
+  var extraFilters=!!groupFilter||!!categoryFilter||!!personFilter||!!tagFilter||periodMode!=="month";
   h+='<button data-action="toggle-txn-filters" class="chip" style="flex:0 0 auto;'+(extraFilters?'background:var(--accent);color:var(--accent-ink);font-weight:600;':'')+'">Filters'+(extraFilters?' •':'')+'</button>';
   h+='</div>';
 
@@ -3594,6 +3729,8 @@ function renderTransactionsBody() {
     var filterCats=!groupFilter?(state.settings.categories||[]).slice():(groupFilter==='__ungrouped__'?(state.settings.categories||[]).filter(function(c){return !categoryGroupOf(c);}):(state.settings.categories||[]).filter(function(c){return categoryGroupOf(c)===groupFilter;}));
     h+='<select id="txnCategoryFilterSelect" class="field" style="font-size:13px;margin-bottom:8px;"><option value="">All subcategories</option>';filterCats.forEach(function(c){h+='<option value="'+esc(c)+'"'+(categoryFilter===c?' selected':'')+'>'+esc(c)+'</option>';});h+='<option value="Uncategorised"'+(categoryFilter==='Uncategorised'?' selected':'')+'>Uncategorised</option></select>';
     if(people.length){h+='<select id="txnPersonFilterSelect" class="field" style="font-size:13px;margin-bottom:8px;"><option value="">All people</option>';people.forEach(function(p){h+='<option value="'+esc(p)+'"'+(personFilter===p?' selected':'')+'>'+esc(p)+'</option>';});h+='<option value="__unassigned__"'+(personFilter==='__unassigned__'?' selected':'')+'>Unassigned</option></select>';}
+    var txnTagsForFilter=state.settings.transactionTags||[];
+    if(txnTagsForFilter.length){h+='<select id="txnTagFilterSelect" class="field" style="font-size:13px;margin-bottom:8px;"><option value="">All tags</option>';txnTagsForFilter.forEach(function(tag){h+='<option value="'+esc(tag)+'"'+(tagFilter===tag?' selected':'')+'>'+esc(tag)+'</option>';});h+='</select>';}
     h+='<div style="text-align:right;"><button data-action="clear-txn-filters" class="btn-plain" style="font-size:13px;">Reset filters</button></div></div>';
   }
   h+='</div>';
@@ -3611,7 +3748,7 @@ function renderTransactionsBody() {
     newestFirst(items).forEach(function(it){h+=renderTxnRow(date,it);});
     h+='</div>';
   });
-  h+='</div><div style="text-align:center;margin-bottom:16px;"><button data-action="open-reset" style="background:none;border:none;padding:0;color:var(--text-muted);font-size:11px;">Clear all entries</button></div>';
+  h+='</div>';
   return h;
 }
 function legendSwatch(bg, label, fg) {
@@ -3645,6 +3782,7 @@ function renderTxnRow(date, it) {
   h+=income?'<span style="width:34px;height:34px;border-radius:50%;background:var(--positive);color:white;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+ICONS.plus+'</span>':catIconCircle(it.category);
   h+='<span style="min-width:0;flex:1;"><span style="display:block;font-size:14px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(primary)+'</span>';
   if(secondary.length||seq)h+='<span class="muted" style="display:block;font-size:11px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(secondary.join(" · "))+esc(seq)+'</span>';
+  if(normalizeItemTags(it.tags).length)h+='<span style="display:flex;align-items:center;gap:4px;margin-top:4px;overflow:hidden;">'+transactionTagChipsHtml(it.tags,3)+'</span>';
   h+='</span></button>';
   h+='<div class="mono" style="font-size:14px;font-weight:650;color:'+(income?'var(--positive)':'var(--text)')+';flex-shrink:0;">'+(income?'+':'−')+fmt(it.amount,2)+'</div>';
   h+='<button data-action="ask-delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:5px;color:var(--text-muted);flex-shrink:0;" aria-label="Delete">'+ICONS.trash+'</button></div>';
@@ -5419,13 +5557,14 @@ function handleAddTransaction() {
     if (origDayForKind) origItemForKind = origDayForKind.items.find(function(i){ return i.id === state.editingItemId; }) || null;
   }
   var kind = state.txnKind != null ? state.txnKind : (origItemForKind && origItemForKind.kind==="income" ? "income" : "expense");
+  var tags = state.entryTagsDraft != null ? normalizeItemTags(state.entryTagsDraft) : normalizeItemTags(origItemForKind && origItemForKind.tags);
   if (kind === "income") category = ""; // income doesn't use the expense category system
 
   if (!wasEditing && state.txnSplitMode === "split" && kind === "expense") {
     var splitDaysEl = document.getElementById("splitDaysInput");
     var splitDays = parseInt(splitDaysEl ? splitDaysEl.value : "", 10);
     if (isNaN(splitDays) || splitDays < 2) return;
-    handleAddSplitTransaction(date, amt, category, note, splitDays, person, personSplit, fxMeta);
+    handleAddSplitTransaction(date, amt, category, note, splitDays, person, personSplit, fxMeta, tags);
     return;
   }
 
@@ -5442,8 +5581,9 @@ function handleAddTransaction() {
     }
     /* Preserve recurringId/seq metadata when editing an occurrence so deleting
        its plan later can still find and remove that occurrence. */
-    var updatedItem = Object.assign({}, origItemForKind || {}, fxMeta, { id: state.editingItemId, amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind, time: txnTime||undefined });
+    var updatedItem = Object.assign({}, origItemForKind || {}, fxMeta, { id: state.editingItemId, amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind, time: txnTime||undefined, tags:tags });
     if(!txnTime) delete updatedItem.time;
+    if(!tags.length) delete updatedItem.tags;
     if (currency===BASE_CURRENCY) { delete updatedItem.originalAmount; delete updatedItem.fxRate; delete updatedItem.fxDate; updatedItem.fxSource="Base currency"; }
     var destDay = nextEntries[date];
     var nextDest = destDay ? Object.assign({}, destDay, { items: destDay.items.concat([updatedItem]) }) : { allowance: allowanceForDate(date), items: [updatedItem] };
@@ -5454,14 +5594,16 @@ function handleAddTransaction() {
     state.txnEntryRestoreScroll = true;
   } else {
     var existing = nextEntries[date];
-    var newItem = Object.assign({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind, time: txnTime||undefined }, fxMeta);
+    var newItem = Object.assign({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind, time: txnTime||undefined, tags:tags }, fxMeta);
     if(!txnTime) delete newItem.time;
+    if(!tags.length) delete newItem.tags;
     nextEntries[date] = existing ? Object.assign({}, existing, { items: existing.items.concat([newItem]) }) : { allowance: allowanceForDate(date), items: [newItem] };
     state.showAddTxn = false;
     state.txnEntryRestoreScroll = true;
   }
 
   state.entryDate = date;
+  state.entryTagsDraft = null;
   persistAll(state.settings, nextEntries, "your entry");
   showToast(wasEditing ? "Record updated" : "Record added");
   render();
@@ -5475,7 +5617,7 @@ function handleAddTransaction() {
    much is left / what's coming up" answerable at all. Per-day share is
    floor-rounded with the final day absorbing the leftover cents, so the days
    read evenly while the total stays exact. */
-function handleAddSplitTransaction(startDate, totalAmount, category, note, splitDays, person, personSplit, fxMeta) {
+function handleAddSplitTransaction(startDate, totalAmount, category, note, splitDays, person, personSplit, fxMeta, tags) {
   var txnCloseVisual = captureTxnVisual();
   var perDayFloor = Math.floor((totalAmount/splitDays)*100)/100;
   var newRule = {
@@ -5487,6 +5629,7 @@ function handleAddSplitTransaction(startDate, totalAmount, category, note, split
     note: note,
     person: person||"",
     personSplit: personSplit||null,
+    tags: normalizeItemTags(tags),
     frequency: "daily",
     startDate: startDate,
     endDate: null,
@@ -5505,6 +5648,7 @@ function handleAddSplitTransaction(startDate, totalAmount, category, note, split
   state.txnEntryRestoreScroll = true;
   state.txnSplitMode = "single";
   state.txnKind = null;
+  state.entryTagsDraft = null;
   persistAll(state.settings, state.entries, "your entries");
   showToast("Spread across "+splitDays+" days");
   render();
@@ -5647,9 +5791,11 @@ function handleEditTxn(date, id) {
   state.entryPersonSplitDraft = null;
   state.entryCategoryDraft = null;
   state.entryPersonDraft = null;
+  state.entryTagsDraft = null;
   state.entryCurrencyDraft = null; state.entryFxRateDraft = null; state.entryFxSourceDraft = null; state.entryFxDateDraft = null; state.entryTimeDraft = null;
   var editDay = state.entries[date];
   var editItem = editDay ? editDay.items.find(function(i){ return i.id === id; }) : null;
+  state.entryTagsDraft = editItem ? normalizeItemTags(editItem.tags) : [];
   state.txnPersonSplitMode = (editItem && editItem.personSplit && editItem.personSplit.length) ? "split" : "single";
   render();
   animateTxnForward(txnFromVisual, captureTxnVisual());
@@ -5797,6 +5943,8 @@ function handleRestore() {
     nextSettings.homeSimpleView = !!nextSettings.homeSimpleView;
     nextSettings.fxRateCache = normalizeFxCache(nextSettings.fxRateCache);
     nextSettings.forecastSnapshots = normalizeForecastSnapshots(nextSettings.forecastSnapshots);
+    nextSettings.transactionTags = normalizeTransactionTags(nextSettings.transactionTags);
+    nextSettings.transactionTagColors = normalizeTransactionTagColors(nextSettings.transactionTagColors, nextSettings.transactionTags);
     nextSettings.incomeHistory = normalizeIncomeHistory(nextSettings.incomeHistory);
     nextSettings.monthlyBudgetHistory = normalizeMonthlyBudgetHistory(nextSettings.monthlyBudgetHistory);
     nextSettings.categoryStyles = normalizeCategoryStyles(nextSettings.categoryStyles, nextSettings.categories);
@@ -5831,9 +5979,9 @@ document.addEventListener("click", function(e) {
   switch(action) {
     case "open-backup": state.showBackup = true; render(); break;
     case "close-backup": state.showBackup = false; state.restoreError = null; render(); break;
-    case "open-settings": settingsNavStack = []; state.settingsSection = null; state.showSettings = true; render(); break;
-    case "open-budget-settings": settingsNavStack = []; state.settingsSection = "budget"; state.showSettings = true; render(); break;
-    case "close-settings": settingsNavStack = []; state.settingsSection = null; state.showSettings = false; render(); break;
+    case "open-settings": settingsRootSnapshot = captureTxnVisual(); settingsNavStack = []; state.settingsSection = null; state.showSettings = true; render(); break;
+    case "open-budget-settings": settingsRootSnapshot = captureTxnVisual(); settingsNavStack = []; state.settingsSection = "budget"; state.showSettings = true; render(); break;
+    case "close-settings": settingsRootSnapshot = null; settingsNavStack = []; state.settingsSection = null; state.showSettings = false; render(); break;
     case "open-reset": state.showResetConfirm = true; render(); break;
     case "close-reset": state.showResetConfirm = false; render(); break;
     case "toggle-theme":
@@ -5872,6 +6020,15 @@ document.addEventListener("click", function(e) {
       state.txnSplitMode = el.dataset.mode;
       render();
       break;
+    case "toggle-txn-tag":
+      preserveTxnFormDraft();
+      var toggledTag=el.dataset.tag||"";
+      var selectedTagsNow=normalizeItemTags(state.entryTagsDraft);
+      var tagIdx=selectedTagsNow.indexOf(toggledTag);
+      if(tagIdx===-1) selectedTagsNow.push(toggledTag); else selectedTagsNow.splice(tagIdx,1);
+      state.entryTagsDraft=selectedTagsNow;
+      render();
+      break;
     case "set-txn-person-split-mode":
       preserveTxnFormDraft();
       state.txnPersonSplitMode = el.dataset.mode;
@@ -5908,6 +6065,7 @@ document.addEventListener("click", function(e) {
       state.entryPersonSplitDraft = null;
       state.entryCategoryDraft = null;
       state.entryPersonDraft = null;
+      state.entryTagsDraft = null;
       state.entryCurrencyDraft = null; state.entryFxRateDraft = null; state.entryFxSourceDraft = null; state.entryFxDateDraft = null; state.entryTimeDraft = null;
       render();
       animateTxnForward(txnFromVisual, captureTxnVisual());
@@ -5963,6 +6121,38 @@ document.addEventListener("click", function(e) {
         state.settingsCategoryCustomize = true;
         state.settingsCategoryEditMode = false;
       });
+      break;
+    case "add-txn-tag":
+      var newTagEl=document.getElementById("newTxnTagInput"), newTag=newTagEl?newTagEl.value.trim():"";
+      if(newTag && (state.settings.transactionTags||[]).indexOf(newTag)===-1){
+        var nextTags=(state.settings.transactionTags||[]).concat([newTag]);
+        persistAll(Object.assign({},state.settings,{transactionTags:nextTags}),state.entries,"your tags");
+        showToast("Tag added"); render();
+      }
+      break;
+    case "edit-txn-tag-name": state.tagRenameEditing=el.dataset.tag||null; state.tagDeletePending=null; render(); break;
+    case "cancel-txn-tag-rename": state.tagRenameEditing=null; render(); break;
+    case "save-txn-tag-rename":
+      var oldTag=el.dataset.tag||"", tagRenameEl=document.getElementById("txnTagRenameInput"), renamedTag=tagRenameEl?tagRenameEl.value.trim():"";
+      if(renamedTag && renamedTag!==oldTag && (state.settings.transactionTags||[]).indexOf(renamedTag)===-1){
+        var renamedTags=(state.settings.transactionTags||[]).map(function(t){return t===oldTag?renamedTag:t;});
+        var renamedColors=Object.assign({},state.settings.transactionTagColors||{}); if(renamedColors[oldTag]){renamedColors[renamedTag]=renamedColors[oldTag];delete renamedColors[oldTag];}
+        var renamedEntries={}; Object.keys(state.entries).forEach(function(d){var day=state.entries[d];renamedEntries[d]=Object.assign({},day,{items:(day.items||[]).map(function(it){var a=normalizeItemTags(it.tags);if(a.indexOf(oldTag)!==-1){a=a.map(function(t){return t===oldTag?renamedTag:t;});return Object.assign({},it,{tags:a});}return it;})});});
+        var renamedRules=(state.settings.recurringRules||[]).map(function(r){var a=normalizeItemTags(r.tags);if(a.indexOf(oldTag)!==-1)return Object.assign({},r,{tags:a.map(function(t){return t===oldTag?renamedTag:t;})});return r;});
+        state.tagRenameEditing=null;
+        persistAll(Object.assign({},state.settings,{transactionTags:renamedTags,transactionTagColors:renamedColors,recurringRules:renamedRules}),renamedEntries,"your tags"); showToast("Tag renamed"); render();
+      }
+      break;
+    case "ask-remove-txn-tag": state.tagDeletePending=el.dataset.tag||null; state.tagRenameEditing=null; render(); break;
+    case "cancel-remove-txn-tag": state.tagDeletePending=null; render(); break;
+    case "confirm-remove-txn-tag":
+      var removeTag=el.dataset.tag||"";
+      var keptTags=(state.settings.transactionTags||[]).filter(function(t){return t!==removeTag;});
+      var keptColors=Object.assign({},state.settings.transactionTagColors||{}); delete keptColors[removeTag];
+      var cleanedEntries={}; Object.keys(state.entries).forEach(function(d){var day=state.entries[d];cleanedEntries[d]=Object.assign({},day,{items:(day.items||[]).map(function(it){var a=normalizeItemTags(it.tags).filter(function(t){return t!==removeTag;});if(a.length!==normalizeItemTags(it.tags).length){var cp=Object.assign({},it);if(a.length)cp.tags=a;else delete cp.tags;return cp;}return it;})});});
+      var cleanedRules=(state.settings.recurringRules||[]).map(function(r){var a=normalizeItemTags(r.tags).filter(function(t){return t!==removeTag;});if(a.length!==normalizeItemTags(r.tags).length){var cp=Object.assign({},r);if(a.length)cp.tags=a;else delete cp.tags;return cp;}return r;});
+      state.tagDeletePending=null; state.tagRenameEditing=null;
+      persistAll(Object.assign({},state.settings,{transactionTags:keptTags,transactionTagColors:keptColors,recurringRules:cleanedRules}),cleanedEntries,"your tags"); showToast("Tag removed"); render();
       break;
     case "settings-section":
       var nextSettingsSection = el.dataset.section || null;
@@ -6020,7 +6210,9 @@ document.addEventListener("click", function(e) {
       break;
 
     case "settings-back":
+      var wasSettingsRoot = !settingsNavStack.length;
       settingsNavigateBack();
+      if(wasSettingsRoot) settingsRootSnapshot=null;
       break;
     case "save-tracking":
       var tsEl = document.getElementById("trackingStartInput");
@@ -6560,6 +6752,7 @@ document.addEventListener("click", function(e) {
       state.txnGroupFilter = "";
       state.txnCategoryFilter = "";
       state.txnPersonFilter = "";
+      state.txnTagFilter = "";
       state.txnPeriodMode = "month";
       state.txnOffset = 0;
       render();
@@ -6631,7 +6824,7 @@ document.addEventListener("click", function(e) {
     case "copy-backup": handleCopyBackup(); break;
     case "restore-backup": handleRestore(); break;
     case "confirm-reset":
-      persistAll(state.settings, {}, "reset");
+      persistAll(Object.assign({},state.settings,{forecastSnapshots:[]}), {}, "reset");
       state.showResetConfirm = false;
       render();
       break;
@@ -6795,6 +6988,7 @@ document.addEventListener("change", function(e) {
     return;
   }
   if (e.target && e.target.id === "txnPersonFilterSelect") { state.txnPersonFilter = e.target.value; render(); }
+  if (e.target && e.target.id === "txnTagFilterSelect") { state.txnTagFilter = e.target.value; render(); }
   if (e.target && e.target.id === "txnCategoryFilterSelect") { state.txnCategoryFilter = e.target.value; render(); }
   if (e.target && e.target.id === "txnPeriodFromInput") { state.txnPeriodFrom = e.target.value; render(); }
   if (e.target && e.target.id === "txnPeriodToInput") { state.txnPeriodTo = e.target.value; render(); }
@@ -6826,6 +7020,11 @@ document.addEventListener("change", function(e) {
       showToast("Color applied to "+membersC.length+" categor"+(membersC.length===1?"y":"ies"));
       render();
     }, 300);
+  }
+  if (e.target && e.target.classList && e.target.classList.contains("txn-tag-color-input")) {
+    var tagC=e.target.dataset.tag, newTagColor=e.target.value;
+    setTimeout(function(){var nextTagColors=Object.assign({},state.settings.transactionTagColors||{});nextTagColors[tagC]=newTagColor;persistAll(Object.assign({},state.settings,{transactionTagColors:nextTagColors}),state.entries,"your tags");render();},300);
+    return;
   }
   if (e.target && e.target.classList && e.target.classList.contains("person-color-input")) {
     var personC = e.target.dataset.person;
