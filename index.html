@@ -252,29 +252,33 @@
 
   /* Simplified Home is a decision snapshot rather than a stack of KPIs:
      1) today's safe amount, 2) week/month budget status, 3) month outlook. */
-  .simple-metric-card { padding:18px 18px 17px; margin-bottom:12px; min-height:112px; display:flex; flex-direction:column; justify-content:center; }
-  .simple-metric-card.simple-hero { min-height:136px; }
-  .simple-metric-value { font-size:31px; line-height:1.06; font-weight:760; letter-spacing:-0.038em; margin-top:5px; }
-  .simple-metric-card.simple-hero .simple-metric-value { font-size:44px; letter-spacing:-0.046em; }
-  .simple-metric-unit { font-size:15px; font-weight:600; letter-spacing:-0.01em; }
-  .simple-metric-card.simple-hero .simple-metric-unit { font-size:17px; }
-  .simple-metric-meta { margin-top:7px; font-size:12px; color:var(--text-muted); font-weight:600; }
-  .simple-status { margin-top:10px; font-size:13px; line-height:1.35; font-weight:650; }
-  .simple-progress { height:7px; background:var(--fill); border-radius:999px; overflow:hidden; margin-top:10px; }
+  .simple-metric-card { padding:14px 18px 13px; margin-bottom:9px; min-height:92px; display:flex; flex-direction:column; justify-content:center; }
+  .simple-metric-card.simple-hero { min-height:108px; }
+  .simple-metric-value { font-size:30px; line-height:1.04; font-weight:760; letter-spacing:-0.038em; margin-top:3px; }
+  .simple-metric-card.simple-hero .simple-metric-value { font-size:40px; letter-spacing:-0.046em; }
+  .simple-metric-unit { font-size:14px; font-weight:600; letter-spacing:-0.01em; }
+  .simple-metric-card.simple-hero .simple-metric-unit { font-size:16px; }
+  .simple-metric-meta { margin-top:5px; font-size:11.5px; color:var(--text-muted); font-weight:600; }
+  .simple-status { margin-top:7px; font-size:11.5px; line-height:1.28; font-weight:650; }
+  .simple-progress { height:6px; background:var(--fill); border-radius:999px; overflow:hidden; margin-top:7px; }
   .simple-progress > span { display:block; height:100%; border-radius:999px; }
-  .simple-budget-card { padding:17px 16px 16px; margin-bottom:12px; }
-  .simple-budget-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; margin-top:12px; }
-  .simple-budget-cell { min-width:0; padding-right:14px; }
-  .simple-budget-cell + .simple-budget-cell { border-left:1px solid var(--sep); padding-left:14px; padding-right:0; }
-  .simple-budget-value { margin-top:5px; font-size:27px; line-height:1.05; font-weight:760; letter-spacing:-0.035em; white-space:nowrap; }
-  .simple-budget-unit { font-size:13px; font-weight:650; color:var(--text-muted); }
-  .simple-budget-meta { margin-top:7px; font-size:11.5px; color:var(--text-muted); font-weight:650; }
-  .simple-outlook-card { padding:17px 18px 16px; margin-bottom:12px; }
-  .simple-outlook-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:13px; }
-  .simple-outlook-label { color:var(--text-muted); font-size:11px; font-weight:650; letter-spacing:.03em; text-transform:uppercase; }
-  .simple-outlook-value { margin-top:4px; font-size:25px; line-height:1.08; font-weight:760; letter-spacing:-0.035em; }
-  .simple-outlook-sub { margin-top:5px; color:var(--text-muted); font-size:11.5px; font-weight:600; }
-  .simple-outlook-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; padding-top:11px; border-top:1px solid var(--sep); font-size:12.5px; }
+  .simple-budget-card { padding:13px 16px 12px; margin-bottom:9px; }
+  .simple-budget-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; margin-top:8px; }
+  .simple-budget-cell { min-width:0; padding-right:12px; }
+  .simple-budget-cell + .simple-budget-cell { border-left:1px solid var(--sep); padding-left:12px; padding-right:0; }
+  .simple-budget-value { margin-top:3px; font-size:24px; line-height:1.03; font-weight:760; letter-spacing:-0.035em; white-space:nowrap; }
+  .simple-budget-unit { font-size:11.5px; font-weight:650; color:var(--text-muted); }
+  .simple-budget-meta { margin-top:5px; font-size:10.5px; color:var(--text-muted); font-weight:650; }
+  .simple-outlook-card { padding:13px 16px 12px; margin-bottom:8px; }
+  .simple-outlook-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:8px; }
+  .simple-outlook-label { color:var(--text-muted); font-size:10.5px; font-weight:650; letter-spacing:.03em; text-transform:uppercase; }
+  .simple-outlook-value { margin-top:2px; font-size:22px; line-height:1.06; font-weight:760; letter-spacing:-0.035em; }
+  .simple-outlook-sub { margin-top:3px; color:var(--text-muted); font-size:10.5px; font-weight:600; }
+  .simple-outlook-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px; padding-top:8px; border-top:1px solid var(--sep); font-size:11.5px; }
+  html.simple-home .app-topbar { margin-bottom:8px; }
+  html.simple-home .wrap { padding-bottom:88px; }
+  html.simple-home .simple-budget-card .hairline-top { margin-top:9px !important; padding-top:8px !important; }
+  html.simple-home .simple-budget-card svg { height:58px !important; }
   @media (max-width:360px) {
     .simple-budget-value { font-size:24px; }
     .simple-outlook-value { font-size:23px; }
@@ -354,9 +358,9 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v48";
+var APP_VERSION = "v49";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, forecastSnapshots: null, transactionTags: null, transactionTagColors: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
 function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
@@ -818,55 +822,76 @@ function runRecurringCatchUp() {
 }
 function fmt(n, dp){ dp = dp || 0; return (Number(n)||0).toLocaleString("en-US",{minimumFractionDigits:dp, maximumFractionDigits:dp}); }
 
-/* The ledger's reporting/base currency remains AED so all budgets, forecasts
-   and historical comparisons stay apples-to-apples. A transaction may be
-   entered in another currency; its original amount + rate are frozen on the
-   item while `amount` stores the converted AED value used everywhere else. */
-var BASE_CURRENCY = "AED";
+/* Monetary values stay in an internal AED canonical ledger so changing the
+   user's reporting/base currency is fully reversible and never rewrites old
+   transactions. `baseCurrency` changes what the app displays and what new
+   base-currency amounts default to; foreign transaction source amounts and
+   dated FX quotes remain preserved on each item. */
+var STORAGE_CURRENCY = "AED";
+var BASE_CURRENCY = STORAGE_CURRENCY; // backwards-compatible internal name
 var TXN_CURRENCIES = ["AED","EGP","USD","EUR","GBP","SAR","QAR","KWD","BHD","OMR","JOD","TRY","INR","JPY","CHF","AUD","CAD"];
 var CURRENCY_NAMES = { AED:"UAE Dirham", EGP:"Egyptian Pound", USD:"US Dollar", EUR:"Euro", GBP:"British Pound", SAR:"Saudi Riyal", QAR:"Qatari Riyal", KWD:"Kuwaiti Dinar", BHD:"Bahraini Dinar", OMR:"Omani Rial", JOD:"Jordanian Dinar", TRY:"Turkish Lira", INR:"Indian Rupee", JPY:"Japanese Yen", CHF:"Swiss Franc", AUD:"Australian Dollar", CAD:"Canadian Dollar" };
 function normalizeFxCache(cache){ return cache && typeof cache === "object" && !Array.isArray(cache) ? cache : {}; }
-function fxCacheKey(from, date){ return from+">"+BASE_CURRENCY+"@"+(date||todayStr()); }
-function readCachedFxRate(from, date){ var c=normalizeFxCache(state.settings.fxRateCache), x=c[fxCacheKey(from,date)]; return x && Number(x.rate)>0 ? x : null; }
-function currencyAmountLabel(amount, currency, dp){ return fmt(amount, dp==null?2:dp)+" "+(currency||BASE_CURRENCY); }
-
-/* Frankfurter is used because a travel ledger needs both current AND dated
-   reference rates. We ask only for the currency pair and date — no amount,
-   merchant, note, category or person ever leaves the device. */
-async function fetchFxRate(from, date, force) {
-  from = String(from||BASE_CURRENCY).toUpperCase();
-  date = date || todayStr();
-  if (from === BASE_CURRENCY) return { rate:1, date:date, source:"Base currency" };
-  var cached = !force ? readCachedFxRate(from,date) : null;
-  if (cached) return cached;
-  var url = "https://api.frankfurter.dev/v2/rate/"+encodeURIComponent(from)+"/"+BASE_CURRENCY+"?date="+encodeURIComponent(date);
-  var resp = await fetch(url, { cache:"no-store" });
-  if (!resp.ok) throw new Error("Rate unavailable");
-  var data = await resp.json();
-  var rate = Number(data && data.rate);
-  if (!(rate>0)) throw new Error("Invalid exchange rate");
-  var quote = { rate:rate, date:(data.date||date), source:"Frankfurter", fetchedAt:new Date().toISOString() };
-  var nextCache = Object.assign({}, normalizeFxCache(state.settings.fxRateCache));
-  nextCache[fxCacheKey(from,date)] = quote;
-  persistAll(Object.assign({}, state.settings, { fxRateCache:nextCache }), state.entries, "exchange rates");
+function reportingCurrency(){ var c=String(state.settings.baseCurrency||STORAGE_CURRENCY).toUpperCase(); return TXN_CURRENCIES.indexOf(c)!==-1?c:STORAGE_CURRENCY; }
+function fxPairKey(from,to,date){ return String(from).toUpperCase()+">"+String(to).toUpperCase()+"@"+(date||todayStr()); }
+function fxCacheKey(from, date){ return fxPairKey(from,STORAGE_CURRENCY,date); }
+function readCachedFxPair(from,to,date){ var c=normalizeFxCache(state.settings.fxRateCache), x=c[fxPairKey(from,to,date)]; return x && Number(x.rate)>0 ? x : null; }
+function readCachedFxRate(from, date){ return readCachedFxPair(from,STORAGE_CURRENCY,date); }
+function reportingRate(){
+  var rc=reportingCurrency(); if(rc===STORAGE_CURRENCY) return 1;
+  var q=readCachedFxPair(STORAGE_CURRENCY,rc,todayStr()); if(q&&Number(q.rate)>0) return Number(q.rate);
+  var rev=readCachedFxPair(rc,STORAGE_CURRENCY,todayStr()); if(rev&&Number(rev.rate)>0) return 1/Number(rev.rate);
+  var cache=normalizeFxCache(state.settings.fxRateCache), best=null, prefix=STORAGE_CURRENCY+">"+rc+"@";
+  Object.keys(cache).forEach(function(k){if(k.indexOf(prefix)===0&&cache[k]&&Number(cache[k].rate)>0&&(!best||k>best.k))best={k:k,rate:Number(cache[k].rate)};});
+  if(best) return best.rate;
+  var rprefix=rc+">"+STORAGE_CURRENCY+"@", rbest=null;
+  Object.keys(cache).forEach(function(k){if(k.indexOf(rprefix)===0&&cache[k]&&Number(cache[k].rate)>0&&(!rbest||k>rbest.k))rbest={k:k,rate:Number(cache[k].rate)};});
+  return rbest?1/rbest.rate:1;
+}
+function toReporting(n){ return Number(n||0)*reportingRate(); }
+function fromReporting(n){ var r=reportingRate(); return r>0?Number(n||0)/r:Number(n||0); }
+function currencyAmountLabel(amount, currency, dp){ return fmt(amount, dp==null?2:dp)+" "+(currency||reportingCurrency()); }
+async function fetchFxPair(from,to,date,force) {
+  from=String(from||STORAGE_CURRENCY).toUpperCase(); to=String(to||STORAGE_CURRENCY).toUpperCase(); date=date||todayStr();
+  if(from===to) return {rate:1,date:date,source:"Same currency"};
+  var cached=!force?readCachedFxPair(from,to,date):null; if(cached) return cached;
+  var url="https://api.frankfurter.dev/v2/rate/"+encodeURIComponent(from)+"/"+encodeURIComponent(to)+"?date="+encodeURIComponent(date);
+  var resp=await fetch(url,{cache:"no-store"}); if(!resp.ok) throw new Error("Rate unavailable");
+  var data=await resp.json(), rate=Number(data&&data.rate); if(!(rate>0)) throw new Error("Invalid exchange rate");
+  var quote={rate:rate,date:(data.date||date),source:"Frankfurter",fetchedAt:new Date().toISOString()};
+  var nextCache=Object.assign({},normalizeFxCache(state.settings.fxRateCache)); nextCache[fxPairKey(from,to,date)]=quote;
+  persistAll(Object.assign({},state.settings,{fxRateCache:nextCache}),state.entries,"exchange rates");
   return quote;
+}
+async function fetchFxRate(from,date,force){ return fetchFxPair(from,STORAGE_CURRENCY,date,force); }
+/* Converts rendered canonical-AED money text to the selected reporting/base
+   currency without changing stored values. This keeps base-currency switching
+   instant, reversible and safe for historical data. */
+function applyReportingCurrencyText(root){
+  var rc=reportingCurrency(), rate=reportingRate(); if(!root||rc===STORAGE_CURRENCY||!(rate>0)||rate===1) return;
+  if(state.showSettings && state.settingsSection==="currency") return;
+  var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null), nodes=[]; while(walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(function(n){ var p=n.parentElement;if(!p||/^(SCRIPT|STYLE|TEXTAREA|OPTION)$/.test(p.tagName)||p.closest(".fx-panel"))return; var t=n.nodeValue;if(!t)return;
+    if(t.indexOf("AED")!==-1) n.nodeValue=t.replace(/([+−-]?\s*\d[\d,]*(?:\.\d+)?)\s*AED\b/g,function(m,num){var clean=num.replace(/,/g,"").replace(/\s/g,"").replace("−","-");var v=Number(clean);if(!isFinite(v))return m;var dec=(clean.split(".")[1]||"").length;var sign=v<0?"−":(clean.charAt(0)==="+"?"+":"");return sign+fmt(Math.abs(v*rate),Math.min(2,dec))+" "+rc;});
+    else if(p.namespaceURI==="http://www.w3.org/2000/svg" && /^\s*[+−-]?\d[\d,]*(?:\.\d+)?\s*$/.test(t)) { var cleanSvg=t.trim().replace(/,/g,"").replace("−","-"); var sv=Number(cleanSvg); if(isFinite(sv)){var sd=(cleanSvg.split(".")[1]||"").length;n.nodeValue=(sv<0?"−":(cleanSvg.charAt(0)==="+"?"+":""))+fmt(Math.abs(sv*rate),Math.min(2,sd));} }
+  });
 }
 function updateFxConvertedPreview(){
   var curEl=document.getElementById("entryCurrencyInput"), amtEl=document.getElementById("entryAmountInput"), rateEl=document.getElementById("entryFxRateInput"), out=document.getElementById("entryFxConverted");
   if(!curEl||!out) return;
-  var cur=curEl.value||BASE_CURRENCY, amt=parseFloat(amtEl?amtEl.value:""), rate=parseFloat(rateEl?rateEl.value:"");
-  if(cur===BASE_CURRENCY){ out.textContent=""; return; }
-  out.textContent=(!isNaN(amt)&&amt>=0&&!isNaN(rate)&&rate>0) ? (currencyAmountLabel(amt,cur,2)+" = "+currencyAmountLabel(round2(amt*rate),BASE_CURRENCY,2)) : "Enter or refresh the exchange rate";
+  var cur=curEl.value||reportingCurrency(), amt=parseFloat(amtEl?amtEl.value:""), rate=parseFloat(rateEl?rateEl.value:"");
+  if(cur===reportingCurrency()){ out.textContent=""; return; }
+  out.textContent=(!isNaN(amt)&&amt>=0&&!isNaN(rate)&&rate>0) ? (currencyAmountLabel(amt,cur,2)+" = "+currencyAmountLabel(round2(amt*rate),reportingCurrency(),2)) : "Enter or refresh the exchange rate";
 }
 async function refreshEntryFxRate(force){
   var curEl=document.getElementById("entryCurrencyInput"), dateEl=document.getElementById("entryDateInput"), panel=document.getElementById("entryFxPanel"), rateEl=document.getElementById("entryFxRateInput"), status=document.getElementById("entryFxStatus"), sourceEl=document.getElementById("entryFxSourceInput");
   if(!curEl||!panel) return;
-  var cur=curEl.value||BASE_CURRENCY, date=dateEl?dateEl.value:todayStr();
-  panel.style.display=cur===BASE_CURRENCY?"none":"block";
-  if(cur===BASE_CURRENCY){ if(rateEl)rateEl.value="1"; if(sourceEl)sourceEl.value="Base currency"; updateFxConvertedPreview(); return; }
-  if(status) status.textContent="Getting "+cur+" → AED rate…";
+  var cur=curEl.value||reportingCurrency(), date=dateEl?dateEl.value:todayStr(), rc=reportingCurrency();
+  panel.style.display=cur===rc?"none":"block";
+  if(cur===rc){ if(rateEl)rateEl.value="1"; if(sourceEl)sourceEl.value="Base currency"; updateFxConvertedPreview(); return; }
+  if(status) status.textContent="Getting "+cur+" → "+rc+" rate…";
   try {
-    var q=await fetchFxRate(cur,date,!!force);
+    var q=await fetchFxPair(cur,rc,date,!!force);
     /* A network reply can arrive after the user has already switched to a
        different currency/date. Never let an older quote overwrite the newer
        selection. */
@@ -1256,6 +1281,7 @@ function loadInitial() {
   state.settings.homeSectionOrder = normalizeHomeOrder(state.settings.homeSectionOrder);
   state.settings.homeSimpleView = !!state.settings.homeSimpleView;
   state.settings.fxRateCache = normalizeFxCache(state.settings.fxRateCache);
+  state.settings.baseCurrency = TXN_CURRENCIES.indexOf(String(state.settings.baseCurrency||"AED").toUpperCase())!==-1 ? String(state.settings.baseCurrency||"AED").toUpperCase() : "AED";
   state.settings.forecastSnapshots = normalizeForecastSnapshots(state.settings.forecastSnapshots);
   state.settings.transactionTags = normalizeTransactionTags(state.settings.transactionTags);
   state.settings.transactionTagColors = normalizeTransactionTagColors(state.settings.transactionTagColors, state.settings.transactionTags);
@@ -1845,14 +1871,16 @@ function renderChart(data, T) {
    chart's tooltip/crosshair wiring. */
 function renderMiniBudgetPositionChart(data,T) {
   data=data||[]; if(!data.length) return '';
-  var w=340,h=92,pL=4,pR=4,pT=8,pB=8,vals=data.map(function(d){return Number(d.balance)||0;});
+  var w=340,h=70,pL=4,pR=4,pT=7,pB=7,vals=data.map(function(d){return Number(d.balance)||0;});
   var mn=Math.min.apply(null,[0].concat(vals)), mx=Math.max.apply(null,[0].concat(vals)), range=(mx-mn)||1;
   function x(i){return pL+(data.length>1?(i/(data.length-1))*(w-pL-pR):(w-pL-pR)/2);}
   function y(v){return pT+(h-pT-pB)-((v-mn)/range)*(h-pT-pB);}
   var pts=data.map(function(d,i){return [x(i),y(d.balance)];}), path=pts.length>1?smoothPathD(pts):'';
   var zero=y(0), last=pts[pts.length-1], endColor=(data[data.length-1].balance>=0?T.positive:T.rust);
+  var areaPath=path ? (path+' L '+last[0]+','+zero+' L '+pts[0][0]+','+zero+' Z') : '';
   return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="none">'
     +'<line x1="'+pL+'" x2="'+(w-pR)+'" y1="'+zero+'" y2="'+zero+'" stroke="'+T.hairline+'" stroke-width="1" stroke-dasharray="3,3"/>'
+    +(areaPath?'<path d="'+areaPath+'" fill="'+endColor+'" fill-opacity="0.12" stroke="none"/>':'')
     +(path?'<path d="'+path+'" fill="none" stroke="'+endColor+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>':'')
     +'<circle cx="'+last[0]+'" cy="'+last[1]+'" r="4" fill="'+endColor+'"/>'
     +'</svg>';
@@ -2660,12 +2688,14 @@ function render() {
      iOS opens/closes the keyboard. */
   if (state.showAddTxn) {
     root.innerHTML = renderAddTxnPage();
+    applyReportingCurrencyText(root);
     window.scrollTo(0, savedTxnEntryScrollY);
     return;
   }
 
   if (state.showSettings) {
     root.innerHTML = renderSettingsPage();
+    applyReportingCurrencyText(root);
     window.scrollTo(0, savedSettingsScrollY);
     return;
   }
@@ -2675,6 +2705,7 @@ function render() {
      made the inline form look broken on iPhone. */
   if (state.page === "plans" && state.plansCreateOpen) {
     root.innerHTML = renderPlanEditorPage();
+    applyReportingCurrencyText(root);
     window.scrollTo(0, savedPlanEntryScrollY);
     return;
   }
@@ -2734,10 +2765,11 @@ function render() {
     html += '<div class="modal-backdrop" data-action="close-reset" style="padding:0 24px;">';
     html += '<div class="modal-card" style="border-radius:16px;" data-action="noop">';
     html += '<div class="sheet-title" style="margin-bottom:8px;">Clear all entries?</div>';
-    html += '<div class="muted" style="font-size:14px; margin-bottom:16px;">Every logged transaction is removed. Your settings stay, but forecast-learning history is reset. This can\'t be undone.</div>';
+    html += '<div class="muted" style="font-size:14px; margin-bottom:12px;">Every logged transaction is removed. Your settings stay, but forecast-learning history is reset. This can\'t be undone.</div>';
+    html += '<label class="eyebrow">Type CLEAR to confirm</label><input id="clearConfirmInput" class="field" autocomplete="off" autocapitalize="characters" placeholder="CLEAR" style="margin:6px 0 14px;" />';
     html += '<div class="row gap2">';
     html += '<button data-action="close-reset" class="btn-outline" style="flex:1;">Cancel</button>';
-    html += '<button data-action="confirm-reset" class="btn-rust row gap2" style="flex:1; justify-content:center; align-items:center;">'+ICONS.rotate+' Clear</button>';
+    html += '<button id="clearConfirmBtn" data-action="confirm-reset" class="btn-rust row gap2" style="flex:1; justify-content:center; align-items:center;opacity:.4;" disabled>'+ICONS.rotate+' Clear</button>';
     html += '</div></div></div>';
   }
 
@@ -2746,6 +2778,7 @@ function render() {
   }
 
   root.innerHTML = html;
+  applyReportingCurrencyText(root);
   var newModalCardEl = document.querySelector(".modal-card");
   if (state.txnEntryRestoreScroll) {
     var restoreTxnY = state.txnEntryReturnScrollY || 0;
@@ -3073,7 +3106,7 @@ function renderHomeBody(T, da) {
   var order = normalizeHomeOrder(state.settings.homeSectionOrder);
   var labels = { spending:"Spending", budget:"Budget", cashFlow:"Cash flow", recent:"Recent transactions" };
   var isSimpleHome = !!state.settings.homeSimpleView;
-  var h = '<div class="row between" style="margin-bottom:10px;align-items:center;gap:10px;"><div class="eyebrow">This month</div><div class="seg" style="padding:2px;min-width:172px;"><button class="seg-btn" data-action="set-home-view" data-mode="simple" aria-selected="'+isSimpleHome+'" style="padding:6px 10px;font-size:12px;">Simple</button><button class="seg-btn" data-action="set-home-view" data-mode="detailed" aria-selected="'+(!isSimpleHome)+'" style="padding:6px 10px;font-size:12px;">Detailed</button></div></div>';
+  var h = '<div class="row between" style="margin-bottom:7px;align-items:center;gap:10px;"><div class="eyebrow">This month</div><div class="seg" style="padding:2px;min-width:166px;"><button class="seg-btn" data-action="set-home-view" data-mode="simple" aria-selected="'+isSimpleHome+'" style="padding:6px 10px;font-size:12px;">Simple</button><button class="seg-btn" data-action="set-home-view" data-mode="detailed" aria-selected="'+(!isSimpleHome)+'" style="padding:6px 10px;font-size:12px;">Detailed</button></div></div>';
   if (isSimpleHome) {
     var simpleSaving = projectedCashSaving != null ? projectedCashSaving : projectedSaving;
     var simpleSavingPct = projectedCashSaving != null ? projectedCashSavingPct : null;
@@ -3127,8 +3160,7 @@ function renderHomeBody(T, da) {
       h += pctBar(projectedSpendVsIncomePct, projectedSpendVsIncomePct>100);
       h += '<div class="simple-outlook-sub">Projected spending uses '+projectedSpendVsIncomePct.toFixed(0)+'% of income</div>';
     }
-    h += '<div class="simple-outlook-row"><span class="muted">Projected month-end spend</span><span class="mono" style="font-weight:700;">'+fmt(projected,0)+' AED</span></div>';
-    if (incomeReference>0) h += '<div class="simple-outlook-row" style="margin-top:8px;padding-top:0;border-top:0;"><span class="muted">Projected income</span><span class="mono" style="font-weight:700;">'+fmt(incomeReference,0)+' AED</span></div>';
+    h += '<div class="simple-outlook-row"><span class="muted">Projected close</span><span class="mono" style="font-weight:700;">'+fmt(projected,0)+' AED</span>'+(incomeReference>0?'<span class="muted" style="margin-left:auto;">Income</span><span class="mono" style="font-weight:700;">'+fmt(incomeReference,0)+' AED</span>':'')+'</div>';
     h += '</div>';
     return h;
   }
@@ -3229,7 +3261,7 @@ function renderSettingsPage() {
 
     h += '<div class="settings-group-title">Money</div><div class="settings-list">';
     h += '<button class="settings-row" data-action="settings-section" data-section="budget"><span class="settings-row-main"><span class="settings-row-label">Monthly budget</span><span class="settings-row-sub">Your controllable-spend target</span></span><span class="row gap2"><span class="settings-row-value">'+fmt(monthlyNow,0)+' AED</span>'+ICONS.chevronRight+'</span></button>';
-    h += '<button class="settings-row" data-action="settings-section" data-section="currency"><span class="settings-row-main"><span class="settings-row-label">Currencies</span><span class="settings-row-sub">Travel spending and exchange rates</span></span><span class="row gap2"><span class="settings-row-value">AED base</span>'+ICONS.chevronRight+'</span></button>';
+    h += '<button class="settings-row" data-action="settings-section" data-section="currency"><span class="settings-row-main"><span class="settings-row-label">Currencies</span><span class="settings-row-sub">Travel spending and exchange rates</span></span><span class="row gap2"><span class="settings-row-value">'+reportingCurrency()+' base</span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="categories"><span class="settings-row-main"><span class="settings-row-label">Categories</span><span class="settings-row-sub">Categories, subcategories and budget rules</span></span><span class="row gap2"><span class="settings-row-value">'+groupsN+' · '+catsN+' sub</span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="people"><span class="settings-row-main"><span class="settings-row-label">People</span><span class="settings-row-sub">Defaults, colors and shared spending</span></span><span class="row gap2"><span class="settings-row-value">'+peopleN+'</span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="tags"><span class="settings-row-main"><span class="settings-row-label">Transaction tags</span><span class="settings-row-sub">Flexible labels such as Travel or Work</span></span><span class="row gap2"><span class="settings-row-value">'+tagsN+'</span>'+ICONS.chevronRight+'</span></button>';
@@ -3257,8 +3289,8 @@ function renderSettingsPage() {
     var monthName = new Date().toLocaleDateString("en-GB",{month:"long"});
     h += '<label class="eyebrow">Monthly budget</label>';
     h += '<div class="muted caption" style="margin:4px 0 10px;">Set the total amount you want available for budget-counted categories each month.</div>';
-    h += '<div style="position:relative; margin:6px 0 6px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">AED</span>';
-    h += '<input id="monthlyDraftInput" type="number" inputmode="decimal" class="field mono" style="padding-left:44px; font-size:20px; font-weight:650;" value="'+round2(curMonthly)+'" /></div>';
+    h += '<div style="position:relative; margin:6px 0 6px;"><span class="muted" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px;">'+reportingCurrency()+'</span>';
+    h += '<input id="monthlyDraftInput" type="number" inputmode="decimal" class="field mono" style="padding-left:44px; font-size:20px; font-weight:650;" value="'+round2(toReporting(curMonthly))+'" /></div>';
     h += '<div class="muted" id="monthlyBudgetDerivedText" style="font-size:12px; margin-bottom:18px;">= '+fmt(curMonthly/dim,2)+' AED/day in '+esc(monthName)+' · about '+fmt((curMonthly/dim)*7,0)+' AED/week</div>';
     h += '<button data-action="apply-budget" data-scope="future" class="btn-accent" style="width:100%; margin-bottom:8px;">From this month onward</button>';
     h += '<div class="muted" style="font-size:11px; margin-bottom:14px;">Starts '+esc(shortLabel(monthBounds.startStr))+'. Earlier months keep the budget that applied then.</div>';
@@ -3266,16 +3298,18 @@ function renderSettingsPage() {
     h += '<div class="muted" style="font-size:11px;">Use this only when correcting the budget itself; historical days will be re-judged against the new monthly amount.</div>';
   }
   if (section === "currency") {
-    var fxCache = normalizeFxCache(state.settings.fxRateCache);
-    var popularFx = ["EGP","USD","EUR","GBP","SAR"];
-    h += '<div class="card card-pad" style="margin-bottom:14px;"><div class="eyebrow">HOME CURRENCY</div><div class="mono" style="font-size:30px;font-weight:750;margin-top:4px;">AED</div><div class="muted subhead" style="margin-top:6px;">Budgets, forecasts and Analysis stay in AED. Foreign transactions keep their original currency too.</div></div>';
-    h += '<div class="card card-pad" style="margin-bottom:14px;"><div class="row between"><div><div class="eyebrow">EXCHANGE RATES</div><div class="muted caption" style="margin-top:3px;">Automatically fetched for the transaction date and frozen on that transaction.</div></div><button data-action="refresh-popular-fx" class="btn-outline" style="padding:7px 10px;font-size:12px;flex-shrink:0;">Refresh</button></div>';
+    var fxCache = normalizeFxCache(state.settings.fxRateCache), rc=reportingCurrency();
+    var popularFx = ["AED","EGP","USD","EUR","GBP","SAR"].filter(function(c){return c!==rc;}).slice(0,5);
+    h += '<div class="card card-pad" style="margin-bottom:14px;"><div class="eyebrow">BASE / REPORTING CURRENCY</div><div class="row gap2" style="margin-top:8px;"><select id="baseCurrencyInput" class="field" style="flex:1;">';
+    TXN_CURRENCIES.forEach(function(c){h+='<option value="'+c+'"'+(c===rc?' selected':'')+'>'+c+' · '+esc(CURRENCY_NAMES[c]||c)+'</option>';});
+    h += '</select><button data-action="save-base-currency" class="btn-accent">Apply</button></div><div class="muted caption" style="margin-top:9px;">Changes reporting across the app and the default currency for new transactions. Historical values are not rewritten; The Ledger keeps an internal AED canonical ledger so switching is reversible.</div><div id="baseCurrencyStatus" class="muted caption" style="margin-top:6px;"></div></div>';
+    h += '<div class="card card-pad" style="margin-bottom:14px;"><div class="row between"><div><div class="eyebrow">EXCHANGE RATES</div><div class="muted caption" style="margin-top:3px;">Reference rates into '+rc+'.</div></div><button data-action="refresh-popular-fx" class="btn-outline" style="padding:7px 10px;font-size:12px;flex-shrink:0;">Refresh</button></div>';
     popularFx.forEach(function(code,idx){
-      var quote = fxCache[fxCacheKey(code,todayStr())];
-      h += '<div class="row between" style="padding:10px 0;'+(idx?'border-top:1px solid var(--sep);':'')+'"><span class="subhead" style="font-weight:600;">'+code+' <span class="muted caption">'+esc(CURRENCY_NAMES[code]||'')+'</span></span><span class="mono subhead" id="fxSettings_'+code+'">'+(quote&&quote.rate?'1 '+code+' = '+fmt(quote.rate,4)+' AED':'—')+'</span></div>';
+      var quote = readCachedFxPair(code,rc,todayStr());
+      h += '<div class="row between" style="padding:10px 0;'+(idx?'border-top:1px solid var(--sep);':'')+'"><span class="subhead" style="font-weight:600;">'+code+' <span class="muted caption">'+esc(CURRENCY_NAMES[code]||'')+'</span></span><span class="mono subhead" id="fxSettings_'+code+'">'+(quote&&quote.rate?'1 '+code+' = '+fmt(quote.rate,4)+' '+rc:'—')+'</span></div>';
     });
     h += '<div class="muted caption" id="fxSettingsStatus" style="margin-top:6px;">Daily reference rates · manual override is available on each foreign transaction.</div></div>';
-    h += '<div class="muted caption" style="padding:0 2px;">For a trip expense, choose the currency beside Amount. The Ledger saves the foreign amount, the dated exchange rate and the converted AED amount. Changing rates later will never rewrite old transactions.</div>';
+    h += '<div class="muted caption" style="padding:0 2px;">A foreign transaction keeps its original amount and dated FX quote. Changing the reporting currency later never changes the stored transaction history.</div>';
   }
 
   if (section === "forecastAccuracy") {
@@ -3463,7 +3497,7 @@ function renderSettingsPage() {
 
   if (section === "clearEntries") {
     var txnCount=0; Object.keys(state.entries).forEach(function(d){txnCount+=(state.entries[d].items||[]).length;});
-    h += '<div class="card card-pad"><div class="eyebrow" style="color:var(--rust);">DANGER ZONE</div><div class="headline" style="margin-top:6px;">Clear all transaction history</div><div class="muted subhead" style="margin-top:7px;">This removes '+txnCount+' logged transaction'+(txnCount===1?'':'s')+'. Budgets, categories, tags, appearance and other settings stay.</div><button data-action="open-reset" class="btn-rust" style="width:100%;margin-top:18px;justify-content:center;">'+ICONS.trash+' Clear all entries</button><div class="muted caption" style="margin-top:9px;">A confirmation is required before anything is deleted.</div></div>';
+    h += '<div class="card card-pad"><div class="eyebrow" style="color:var(--rust);">DANGER ZONE</div><div class="headline" style="margin-top:6px;">Clear all transaction history</div><div class="muted subhead" style="margin-top:7px;">This removes '+txnCount+' logged transaction'+(txnCount===1?'':'s')+'. Budgets, categories, tags, appearance and other settings stay.</div><button data-action="open-reset" class="btn-rust" style="width:100%;margin-top:18px;justify-content:center;">'+ICONS.trash+' Clear all entries</button><div class="muted caption" style="margin-top:9px;">A second confirmation is required: you must type CLEAR before deletion is enabled.</div></div>';
   }
 
   if (section === "backup") {
@@ -3498,9 +3532,9 @@ function renderAddTxnPage() {
   var selectedTxnTags = state.entryTagsDraft != null ? normalizeItemTags(state.entryTagsDraft) : (editingItem ? normalizeItemTags(editingItem.tags) : []);
   var selectedPerson = state.entryPersonDraft != null ? state.entryPersonDraft : (editingItem ? (editingItem.person||"") : (state.settings.defaultPerson||""));
   var personSplitMode = people.length >= 2 ? (state.txnPersonSplitMode||"single") : "single";
-  var selectedCurrency = state.entryCurrencyDraft != null ? state.entryCurrencyDraft : (editingItem && editingItem.currency ? editingItem.currency : BASE_CURRENCY);
-  var amountShown = state.entryAmountDraft != null ? state.entryAmountDraft : (editingItem ? ((selectedCurrency!==BASE_CURRENCY && editingItem.originalAmount!=null)?editingItem.originalAmount:editingItem.amount) : "");
-  var fxRateShown = state.entryFxRateDraft != null ? state.entryFxRateDraft : (editingItem && editingItem.fxRate ? editingItem.fxRate : (selectedCurrency===BASE_CURRENCY?1:""));
+  var selectedCurrency = state.entryCurrencyDraft != null ? state.entryCurrencyDraft : (editingItem && editingItem.currency ? editingItem.currency : reportingCurrency());
+  var amountShown = state.entryAmountDraft != null ? state.entryAmountDraft : (editingItem ? ((editingItem.originalAmount!=null && editingItem.currency)?editingItem.originalAmount:editingItem.amount) : "");
+  var fxRateShown = state.entryFxRateDraft != null ? state.entryFxRateDraft : (editingItem && editingItem.fxRate ? (Number(editingItem.fxRate)*reportingRate()) : (selectedCurrency===reportingCurrency()?1:""));
   var fxSourceShown = state.entryFxSourceDraft != null ? state.entryFxSourceDraft : (editingItem && editingItem.fxSource ? editingItem.fxSource : "");
   var parsedShown = parseFloat(amountShown);
   var advancedOpen = !!state.txnAdvancedOpen || !!editingItem || splitMode === "split";
@@ -3543,11 +3577,11 @@ function renderAddTxnPage() {
   h += '</select>';
   h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="mono fx-amount-input" placeholder="0.00" value="'+esc(amountShown)+'" />';
   h += '</div>';
-  h += '<div id="entryFxPanel" class="fx-panel" style="display:'+(selectedCurrency===BASE_CURRENCY?'none':'block')+';">';
-  h += '<div class="row between" style="gap:8px;"><span id="entryFxStatus" class="muted caption">'+(selectedCurrency===BASE_CURRENCY?'':(fxSourceShown?('Saved rate · '+esc(fxSourceShown)):'Rate for '+shortLabel(formDate)))+'</span><button data-action="refresh-fx-rate" class="btn-plain" style="font-size:12px;">Use reference rate</button></div>';
-  h += '<div class="fx-rate-line"><span class="muted caption">1 <span id="entryFxFromLabel">'+selectedCurrency+'</span> =</span><input id="entryFxRateInput" class="fx-rate-input mono" type="number" inputmode="decimal" step="0.000001" min="0" value="'+esc(fxRateShown)+'" /><span class="muted caption">AED</span></div>';
+  h += '<div id="entryFxPanel" class="fx-panel" style="display:'+(selectedCurrency===reportingCurrency()?'none':'block')+';">';
+  h += '<div class="row between" style="gap:8px;"><span id="entryFxStatus" class="muted caption">'+(selectedCurrency===reportingCurrency()?'':(fxSourceShown?('Saved rate · '+esc(fxSourceShown)):'Rate for '+shortLabel(formDate)))+'</span><button data-action="refresh-fx-rate" class="btn-plain" style="font-size:12px;">Use reference rate</button></div>';
+  h += '<div class="fx-rate-line"><span class="muted caption">1 <span id="entryFxFromLabel">'+selectedCurrency+'</span> =</span><input id="entryFxRateInput" class="fx-rate-input mono" type="number" inputmode="decimal" step="0.000001" min="0" value="'+esc(fxRateShown)+'" /><span class="muted caption">'+reportingCurrency()+'</span></div>';
   h += '<input id="entryFxSourceInput" type="hidden" value="'+esc(fxSourceShown)+'" />';
-  h += '<div id="entryFxConverted" class="mono caption" style="margin-top:7px;font-weight:650;">'+((selectedCurrency!==BASE_CURRENCY&&!isNaN(parsedShown)&&Number(fxRateShown)>0)?(currencyAmountLabel(parsedShown,selectedCurrency,2)+' = '+currencyAmountLabel(round2(parsedShown*Number(fxRateShown)),BASE_CURRENCY,2)):'')+'</div>';
+  h += '<div id="entryFxConverted" class="mono caption" style="margin-top:7px;font-weight:650;">'+((selectedCurrency!==reportingCurrency()&&!isNaN(parsedShown)&&Number(fxRateShown)>0)?(currencyAmountLabel(parsedShown,selectedCurrency,2)+' = '+currencyAmountLabel(round2(parsedShown*Number(fxRateShown)),reportingCurrency(),2)):'')+'</div>';
   h += '</div>';
 
   /* Date is part of the primary entry flow: most entries default to Today,
@@ -3773,7 +3807,7 @@ function renderTxnRow(date, it) {
   if(it.personSplit&&it.personSplit.length)personText=it.personSplit.map(function(ps){return ps.person+" "+ps.pct+"%";}).join(" · ");
   else if(it.person)personText=it.person;
   if(personText)secondary.push(personText);
-  if(it.currency && it.currency!==BASE_CURRENCY && it.originalAmount!=null) secondary.push(currencyAmountLabel(it.originalAmount,it.currency,2)+" → "+currencyAmountLabel(it.amount,BASE_CURRENCY,2));
+  if(it.currency && it.currency!==STORAGE_CURRENCY && it.originalAmount!=null && it.currency!==reportingCurrency()) secondary.push(currencyAmountLabel(it.originalAmount,it.currency,2)+" → "+currencyAmountLabel(toReporting(it.amount),reportingCurrency(),2));
   var seq="";
   if(it.recurringId)seq=(it.seq&&it.seqTotal)?(' · '+it.seq+'/'+it.seqTotal):' · Recurring';
 
@@ -3784,7 +3818,7 @@ function renderTxnRow(date, it) {
   if(secondary.length||seq)h+='<span class="muted" style="display:block;font-size:11px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(secondary.join(" · "))+esc(seq)+'</span>';
   if(normalizeItemTags(it.tags).length)h+='<span style="display:flex;align-items:center;gap:4px;margin-top:4px;overflow:hidden;">'+transactionTagChipsHtml(it.tags,3)+'</span>';
   h+='</span></button>';
-  h+='<div class="mono" style="font-size:14px;font-weight:650;color:'+(income?'var(--positive)':'var(--text)')+';flex-shrink:0;">'+(income?'+':'−')+fmt(it.amount,2)+'</div>';
+  h+='<div class="mono" style="font-size:14px;font-weight:650;color:'+(income?'var(--positive)':'var(--text)')+';flex-shrink:0;">'+(income?'+':'−')+fmt(toReporting(it.amount),2)+'</div>';
   h+='<button data-action="ask-delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:5px;color:var(--text-muted);flex-shrink:0;" aria-label="Delete">'+ICONS.trash+'</button></div>';
   return h;
 }
@@ -3795,7 +3829,7 @@ function renderCalendarBody() {
   h+='<div class="card" style="padding:14px;margin-bottom:12px;"><div class="row between" style="margin-bottom:12px;"><button data-action="cal-nav" data-delta="-1" class="icon-btn">'+ICONS.chevronLeft+'</button><div class="subhead" style="font-weight:600;">'+esc(title)+'</div><button data-action="cal-nav" data-delta="1" class="icon-btn" style="'+(state.calendarOffset>=0?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';
   h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;">';["Mo","Tu","We","Th","Fr","Sa","Su"].forEach(function(x){h+='<div class="muted" style="text-align:center;font-size:10px;">'+x+'</div>';});h+='</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">';
   var firstDow=base.getDay(), blanks=firstDow===0?6:firstDow-1;for(var i=0;i<blanks;i++)h+='<div></div>';var cur=parseD(monthStartStr);
-  while(toStr(cur)<=monthEndStr){var ds=toStr(cur),e=state.entries[ds],spent=e?sumSpent(e):0,income=e?sumIncome(e):0,budgetSpent=e?sumBudgetSpent(e):0,dailyBudget=allowanceForDate(ds),isFuture=ds>today,isToday=ds===today,isSelected=state.calendarSelectedDate===ds;var overBudget=budgetSpent>dailyBudget;var bg=e?(overBudget?'var(--rust-wash)':'var(--positive-wash)'):'var(--raised)';if(isFuture&&!e)bg='transparent';var border=isToday?'2px solid var(--accent)':(isSelected?'2px solid var(--text)':'1px solid transparent');h+='<button data-action="cal-select" data-date="'+ds+'" style="min-height:64px;border-radius:9px;border:'+border+';background:'+bg+';display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 1px;gap:4px;"><span style="font-size:14px;font-weight:500;">'+cur.getDate()+'</span><span class="mono" style="font-size:11px;">'+(e?fmt(spent,0):' ')+'</span></button>';cur=addDays(cur,1);}
+  while(toStr(cur)<=monthEndStr){var ds=toStr(cur),e=state.entries[ds],spent=e?sumSpent(e):0,income=e?sumIncome(e):0,budgetSpent=e?sumBudgetSpent(e):0,dailyBudget=allowanceForDate(ds),isFuture=ds>today,isToday=ds===today,isSelected=state.calendarSelectedDate===ds;var overBudget=budgetSpent>dailyBudget;var bg=e?(overBudget?'var(--rust-wash)':'var(--positive-wash)'):'var(--raised)';if(isFuture&&!e)bg='transparent';var border=isToday?'2px solid var(--accent)':(isSelected?'2px solid var(--text)':'1px solid transparent');h+='<button data-action="cal-select" data-date="'+ds+'" style="min-height:64px;border-radius:9px;border:'+border+';background:'+bg+';display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 1px;gap:4px;"><span style="font-size:14px;font-weight:500;">'+cur.getDate()+'</span><span class="mono" style="font-size:11px;">'+(e?fmt(toReporting(spent),0):' ')+'</span></button>';cur=addDays(cur,1);}
   h+='</div></div><div class="row" style="gap:14px;margin-bottom:16px;flex-wrap:wrap;">'+legendSwatch('var(--positive-wash)','Within daily budget')+legendSwatch('var(--rust-wash)','Over daily budget')+legendSwatch('var(--raised)','No transactions')+'</div>';
   if(state.calendarSelectedDate){var sd=state.calendarSelectedDate,sday=state.entries[sd];h+='<div class="card card-pad"><div class="eyebrow" style="margin-bottom:8px;">'+esc(dayLabel(sd))+'</div>';if(sday&&sday.items.length)newestFirst(sday.items).forEach(function(it){h+=renderTxnRow(sd,it);});else h+='<div class="muted subhead">Nothing logged this day.</div>';h+='</div>';}
   return h;
@@ -5358,7 +5392,7 @@ function renderPlanEditorPage() {
   h += '<div class="txn-entry-header"><button data-action="toggle-plan-create" class="txn-entry-back" aria-label="Back">'+ICONS.chevronLeft+'</button><div class="txn-entry-header-title">New plan</div><span></span></div>';
   h += '<div class="txn-entry-content">';
   h += '<div class="seg" style="margin-bottom:16px;"><button class="seg-btn" role="tab" aria-selected="'+(recKind==='expense')+'" data-action="set-recurring-kind" data-kind="expense">Expense</button><button class="seg-btn" role="tab" aria-selected="'+(recKind==='income')+'" data-action="set-recurring-kind" data-kind="income">Income</button></div>';
-  h += '<label class="eyebrow">Amount</label><div style="position:relative;margin:7px 0 16px;"><span class="muted" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:15px;">AED</span><input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding:15px 14px 15px 50px;font-size:28px;font-weight:700;" placeholder="0.00" value="'+(state.recurringAmountDraft!=null?esc(state.recurringAmountDraft):'')+'" /></div>';
+  h += '<label class="eyebrow">Amount</label><div style="position:relative;margin:7px 0 16px;"><span class="muted" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:15px;">'+reportingCurrency()+'</span><input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding:15px 14px 15px 50px;font-size:28px;font-weight:700;" placeholder="0.00" value="'+(state.recurringAmountDraft!=null?esc(state.recurringAmountDraft):'')+'" /></div>';
   h += '<label class="eyebrow">Name</label><input id="recurringNoteInput" type="text" class="field" style="margin:7px 0 16px;" placeholder="'+(recKind==='income'?'Salary, freelance…':'Rent, subscription…')+'" value="'+(state.recurringNoteDraft!=null?esc(state.recurringNoteDraft):'')+'" />';
   if (recKind === 'expense') {
     h += '<label class="eyebrow">Subcategory</label><select id="recurringCategoryInput" class="field" style="margin:7px 0 16px;"><option value="">No subcategory</option>';
@@ -5473,7 +5507,7 @@ function renderPlansBody() {
     var recKind=state.recurringKindDraft||'expense', limitMode=state.recurringLimitMode||'ongoing';
     h+='<div id="newPlanCard" class="card card-pad" style="margin-bottom:14px;"><div class="title2" style="font-size:18px;margin-bottom:12px;">New recurring plan</div>';
     h+='<div class="seg" style="margin-bottom:10px;"><button class="seg-btn" role="tab" aria-selected="'+(recKind==='expense')+'" data-action="set-recurring-kind" data-kind="expense">Expense</button><button class="seg-btn" role="tab" aria-selected="'+(recKind==='income')+'" data-action="set-recurring-kind" data-kind="income">Income</button></div>';
-    h+='<label class="eyebrow">Amount</label><div style="position:relative;margin:6px 0 10px;"><span class="muted" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;">AED</span><input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="0.00" value="'+(state.recurringAmountDraft!=null?esc(state.recurringAmountDraft):'')+'" /></div>';
+    h+='<label class="eyebrow">Amount</label><div style="position:relative;margin:6px 0 10px;"><span class="muted" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;">'+reportingCurrency()+'</span><input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding-left:44px;" placeholder="0.00" value="'+(state.recurringAmountDraft!=null?esc(state.recurringAmountDraft):'')+'" /></div>';
     if(recKind==='expense') { h+='<label class="eyebrow">Subcategory</label><select id="recurringCategoryInput" class="field" style="margin:6px 0 10px;"><option value="">No subcategory</option>'; (state.settings.categories||[]).forEach(function(c){ var g=categoryGroupOf(c); h+='<option value="'+esc(c)+'"'+(state.recurringCategoryDraft===c?' selected':'')+'>'+esc(g?g+' — '+c:c)+'</option>'; }); h+='</select>'; }
     if((state.settings.people||[]).length) { var rp=state.recurringPersonDraft!=null?state.recurringPersonDraft:(state.settings.defaultPerson||''); h+='<label class="eyebrow">For</label><select id="recurringPersonInput" class="field" style="margin:6px 0 10px;"><option value="">Unassigned</option>'; (state.settings.people||[]).forEach(function(p){ h+='<option value="'+esc(p)+'"'+(rp===p?' selected':'')+'>'+esc(p)+'</option>'; }); h+='</select>'; }
     h+='<label class="eyebrow">Name</label><input id="recurringNoteInput" type="text" class="field" style="margin:6px 0 10px;" placeholder="'+(recKind==='income'?'Salary, freelance…':'Rent, subscription…')+'" value="'+(state.recurringNoteDraft!=null?esc(state.recurringNoteDraft):'')+'" />';
@@ -5522,12 +5556,16 @@ function handleAddTransaction() {
   var currencyEl = document.getElementById("entryCurrencyInput");
   var fxRateEl = document.getElementById("entryFxRateInput");
   var fxSourceEl = document.getElementById("entryFxSourceInput");
-  var currency = currencyEl ? (currencyEl.value||BASE_CURRENCY) : BASE_CURRENCY;
-  var fxRate = currency===BASE_CURRENCY ? 1 : parseFloat(fxRateEl ? fxRateEl.value : "");
-  if (currency!==BASE_CURRENCY && (!(fxRate>0))) { showToast("Add or refresh the exchange rate"); return; }
-  var amt = currency===BASE_CURRENCY ? round2(originalAmt) : round2(originalAmt*fxRate);
-  var fxSource = currency===BASE_CURRENCY ? "Base currency" : ((fxSourceEl&&fxSourceEl.value)||"Manual");
-  var fxMeta = currency===BASE_CURRENCY ? { currency:BASE_CURRENCY } : { currency:currency, originalAmount:originalAmt, fxRate:fxRate, fxSource:fxSource, fxDate:date };
+  var currency = currencyEl ? (currencyEl.value||reportingCurrency()) : reportingCurrency();
+  var displayFxRate = currency===reportingCurrency() ? 1 : parseFloat(fxRateEl ? fxRateEl.value : "");
+  if (currency!==reportingCurrency() && (!(displayFxRate>0))) { showToast("Add or refresh the exchange rate"); return; }
+  /* The form rate is source → reporting currency. Convert that result back to
+     the internal AED ledger so changing base currency never mutates history. */
+  var reportAmount = currency===reportingCurrency() ? originalAmt : originalAmt*displayFxRate;
+  var amt = round2(fromReporting(reportAmount));
+  var canonicalFxRate = currency===STORAGE_CURRENCY ? 1 : (amt/originalAmt);
+  var fxSource = currency===reportingCurrency() ? "Base currency" : ((fxSourceEl&&fxSourceEl.value)||"Manual");
+  var fxMeta = currency===STORAGE_CURRENCY ? { currency:STORAGE_CURRENCY } : { currency:currency, originalAmount:originalAmt, fxRate:canonicalFxRate, fxSource:fxSource, fxDate:date };
   var note = noteEl ? noteEl.value.trim() : "";
   var category = catEl ? catEl.value : "";
 
@@ -5584,7 +5622,7 @@ function handleAddTransaction() {
     var updatedItem = Object.assign({}, origItemForKind || {}, fxMeta, { id: state.editingItemId, amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind, time: txnTime||undefined, tags:tags });
     if(!txnTime) delete updatedItem.time;
     if(!tags.length) delete updatedItem.tags;
-    if (currency===BASE_CURRENCY) { delete updatedItem.originalAmount; delete updatedItem.fxRate; delete updatedItem.fxDate; updatedItem.fxSource="Base currency"; }
+    if (currency===STORAGE_CURRENCY) { delete updatedItem.originalAmount; delete updatedItem.fxRate; delete updatedItem.fxDate; updatedItem.fxSource="Base currency"; }
     var destDay = nextEntries[date];
     var nextDest = destDay ? Object.assign({}, destDay, { items: destDay.items.concat([updatedItem]) }) : { allowance: allowanceForDate(date), items: [updatedItem] };
     nextEntries[date] = nextDest;
@@ -5701,8 +5739,9 @@ function handleApplyIncome(scope) {
 
 function handleApplyBudget(scope) {
   var el = document.getElementById("monthlyDraftInput");
-  var v = el ? parseFloat(el.value) : NaN;
-  if (isNaN(v) || v <= 0) return;
+  var vShown = el ? parseFloat(el.value) : NaN;
+  if (isNaN(vShown) || vShown <= 0) return;
+  var v = fromReporting(vShown);
   var month = getPeriodBounds("month", 0, currentWeeklyTarget(), dailyAllowance());
   var hist = (state.settings.monthlyBudgetHistory || []).slice();
   var nextEntries = Object.assign({}, state.entries);
@@ -5881,7 +5920,7 @@ function handleQuickDate(date) {
   var hintEl = document.getElementById("entryHint");
   if (hintEl) {
     var day = state.entries[date];
-    hintEl.innerHTML = day ? (esc(dayLabel(date))+" so far: "+day.items.length+" transaction"+(day.items.length===1?"":"s")+", "+fmt(sumSpent(day),2)+" AED total.") : "";
+    hintEl.innerHTML = day ? (esc(dayLabel(date))+" so far: "+day.items.length+" transaction"+(day.items.length===1?"":"s")+", "+fmt(toReporting(sumSpent(day)),2)+" "+reportingCurrency()+" total.") : "";
   }
 }
 
@@ -5942,6 +5981,7 @@ function handleRestore() {
     nextSettings.homeSectionOrder = normalizeHomeOrder(nextSettings.homeSectionOrder);
     nextSettings.homeSimpleView = !!nextSettings.homeSimpleView;
     nextSettings.fxRateCache = normalizeFxCache(nextSettings.fxRateCache);
+    nextSettings.baseCurrency = TXN_CURRENCIES.indexOf(String(nextSettings.baseCurrency||"AED").toUpperCase())!==-1 ? String(nextSettings.baseCurrency||"AED").toUpperCase() : "AED";
     nextSettings.forecastSnapshots = normalizeForecastSnapshots(nextSettings.forecastSnapshots);
     nextSettings.transactionTags = normalizeTransactionTags(nextSettings.transactionTags);
     nextSettings.transactionTagColors = normalizeTransactionTagColors(nextSettings.transactionTagColors, nextSettings.transactionTags);
@@ -6261,10 +6301,11 @@ document.addEventListener("click", function(e) {
       break;
     case "add-recurring":
       var recAmountEl = document.getElementById("recurringAmountInput");
-      var recAmount = parseFloat(recAmountEl ? recAmountEl.value : "");
+      var recAmountShown = parseFloat(recAmountEl ? recAmountEl.value : "");
+      var recAmount = fromReporting(recAmountShown);
       var recStartEl = document.getElementById("recurringStartDateInput");
       var recStart = recStartEl ? recStartEl.value : "";
-      if (isNaN(recAmount) || recAmount < 0 || !recStart) break;
+      if (isNaN(recAmountShown) || recAmountShown < 0 || !recStart) break;
       var recKindForRule = state.recurringKindDraft || "expense";
       var recLimitMode = state.recurringLimitMode || "ongoing";
       var recCount = null;
@@ -6807,6 +6848,19 @@ document.addEventListener("click", function(e) {
       persistAll(Object.assign({}, state.settings, { analysisHiddenSections: nextHidden }), state.entries, "your settings");
       render();
       break;
+    case "save-base-currency":
+      (async function(){
+        var sel=document.getElementById("baseCurrencyInput"), next=sel?String(sel.value||"AED").toUpperCase():"AED", status=document.getElementById("baseCurrencyStatus"), old=reportingCurrency();
+        if(TXN_CURRENCIES.indexOf(next)===-1||next===old){ if(status)status.textContent=next===old?"Already using "+old:"Choose a supported currency"; return; }
+        if(status) status.textContent="Getting "+STORAGE_CURRENCY+" → "+next+" rate…";
+        try {
+          if(next!==STORAGE_CURRENCY) await fetchFxPair(STORAGE_CURRENCY,next,todayStr(),false);
+          persistAll(Object.assign({},state.settings,{baseCurrency:next}),state.entries,"your base currency");
+          state.entryCurrencyDraft=null; state.entryFxRateDraft=null; state.entryFxSourceDraft=null; state.entryFxDateDraft=null;
+          showToast("Base currency changed to "+next); render();
+        } catch(err){ if(status)status.textContent="Couldn’t change base currency while the reference rate is unavailable."; }
+      })();
+      break;
     case "refresh-fx-rate":
       preserveTxnFormDraft();
       refreshEntryFxRate(true);
@@ -6814,9 +6868,9 @@ document.addEventListener("click", function(e) {
     case "refresh-popular-fx":
       (async function(){
         var status=document.getElementById("fxSettingsStatus"); if(status) status.textContent="Refreshing rates…";
-        var codes=["EGP","USD","EUR","GBP","SAR"];
+        var rc=reportingCurrency(), codes=["AED","EGP","USD","EUR","GBP","SAR"].filter(function(c){return c!==rc;}).slice(0,5);
         for (var fi=0;fi<codes.length;fi++) {
-          try { var fq=await fetchFxRate(codes[fi],todayStr(),true); var fel=document.getElementById("fxSettings_"+codes[fi]); if(fel) fel.textContent="1 "+codes[fi]+" = "+fmt(fq.rate,4)+" AED"; } catch(err) {}
+          try { var fq=await fetchFxPair(codes[fi],rc,todayStr(),true); var fel=document.getElementById("fxSettings_"+codes[fi]); if(fel) fel.textContent="1 "+codes[fi]+" = "+fmt(fq.rate,4)+" "+rc; } catch(err) {}
         }
         if(status) status.textContent="Updated for "+shortLabel(todayStr())+" · saved locally";
       })();
@@ -6824,8 +6878,11 @@ document.addEventListener("click", function(e) {
     case "copy-backup": handleCopyBackup(); break;
     case "restore-backup": handleRestore(); break;
     case "confirm-reset":
+      var clearInput=document.getElementById("clearConfirmInput");
+      if(!clearInput || String(clearInput.value||"").trim().toUpperCase()!=="CLEAR") { showToast("Type CLEAR first"); break; }
       persistAll(Object.assign({},state.settings,{forecastSnapshots:[]}), {}, "reset");
       state.showResetConfirm = false;
+      showToast("All entries cleared");
       render();
       break;
   }
@@ -6835,6 +6892,11 @@ document.addEventListener("click", function(e) {
    a color is picked, without waiting for Apply or a full re-render (which
    would rebuild the sheet mid-pick and could interrupt the native picker). */
 document.addEventListener("input", function(e) {
+  if (e.target && e.target.id === "clearConfirmInput") {
+    var cb=document.getElementById("clearConfirmBtn"), ok=String(e.target.value||"").trim().toUpperCase()==="CLEAR";
+    if(cb){cb.disabled=!ok;cb.style.opacity=ok?"1":".4";}
+    return;
+  }
   if (e.target && e.target.id === "txnSearchInput") {
     state.txnSearch = e.target.value;
     var caret = e.target.selectionStart;
@@ -6881,7 +6943,7 @@ document.addEventListener("input", function(e) {
       var dim = daysInMonth(new Date());
       var perDay = (!isNaN(v) && v >= 0) ? v/dim : 0;
       var monthName = new Date().toLocaleDateString("en-GB",{month:"long"});
-      derived.textContent = "= " + fmt(perDay,2) + " AED/day in " + monthName + " · about " + fmt(perDay*7,0) + " AED/week";
+      derived.textContent = "= " + fmt(perDay,2) + " "+reportingCurrency()+"/day in " + monthName + " · about " + fmt(perDay*7,0) + " "+reportingCurrency()+"/week";
     }
   }
   if (e.target && e.target.id === "customBgInput") {
