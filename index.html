@@ -244,46 +244,61 @@
 
   /* Simplified Home is a decision snapshot rather than a stack of KPIs:
      1) today's safe amount, 2) week/month budget status, 3) month outlook. */
-  .simple-metric-card { padding:14px 18px 13px; margin-bottom:9px; min-height:92px; display:flex; flex-direction:column; justify-content:center; }
-  .simple-metric-card.simple-hero { min-height:108px; }
-  .simple-metric-value { font-size:30px; line-height:1.04; font-weight:760; letter-spacing:-0.038em; margin-top:3px; }
-  .simple-metric-card.simple-hero .simple-metric-value { font-size:40px; letter-spacing:-0.046em; }
-  .simple-metric-unit { font-size:14px; font-weight:600; letter-spacing:-0.01em; }
-  .simple-metric-card.simple-hero .simple-metric-unit { font-size:16px; }
-  .simple-status { margin-top:7px; font-size:11.5px; line-height:1.28; font-weight:650; }
-  .simple-progress { height:6px; background:var(--fill); border-radius:999px; overflow:hidden; margin-top:7px; }
+  /* v52 Simple Home: use the iPhone viewport as a dashboard canvas rather than
+     leaving the cards at compact list-row scale. Typography and chart height
+     grow with the screen, while small phones still fall back gracefully. */
+  .simple-metric-card { padding:18px 18px 16px; margin-bottom:0; min-height:118px; display:flex; flex-direction:column; justify-content:center; }
+  .simple-metric-card.simple-hero { min-height:132px; }
+  .simple-metric-value { font-size:36px; line-height:1.02; font-weight:760; letter-spacing:-0.042em; margin-top:5px; }
+  .simple-metric-card.simple-hero .simple-metric-value { font-size:48px; letter-spacing:-0.05em; }
+  .simple-metric-unit { font-size:15px; font-weight:650; letter-spacing:-0.01em; }
+  .simple-metric-card.simple-hero .simple-metric-unit { font-size:18px; }
+  .simple-status { margin-top:9px; font-size:13px; line-height:1.3; font-weight:650; }
+  .simple-progress { height:7px; background:var(--fill); border-radius:999px; overflow:hidden; margin-top:9px; }
   .simple-progress > span { display:block; height:100%; border-radius:999px; }
-  .simple-budget-card { padding:13px 16px 12px; margin-bottom:9px; }
-  .simple-budget-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; margin-top:8px; }
+  .simple-budget-card { padding:17px 16px 15px; margin-bottom:0; min-height:300px; display:flex; flex-direction:column; }
+  .simple-budget-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; margin-top:11px; }
   .simple-budget-cell { min-width:0; padding-right:12px; }
   .simple-budget-cell + .simple-budget-cell { border-left:1px solid var(--sep); padding-left:12px; padding-right:0; }
-  .simple-budget-value { margin-top:3px; font-size:24px; line-height:1.03; font-weight:760; letter-spacing:-0.035em; white-space:nowrap; }
-  .simple-budget-unit { font-size:11.5px; font-weight:650; color:var(--text-muted); }
-  .simple-budget-meta { margin-top:5px; font-size:10.5px; color:var(--text-muted); font-weight:650; }
-  .simple-outlook-card { padding:13px 16px 12px; margin-bottom:8px; }
-  .simple-outlook-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:8px; }
-  .simple-outlook-label { color:var(--text-muted); font-size:10.5px; font-weight:650; letter-spacing:.03em; text-transform:uppercase; }
-  .simple-outlook-value { margin-top:2px; font-size:22px; line-height:1.06; font-weight:760; letter-spacing:-0.035em; }
-  .simple-outlook-sub { margin-top:3px; color:var(--text-muted); font-size:10.5px; font-weight:600; }
-  .simple-outlook-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px; padding-top:8px; border-top:1px solid var(--sep); font-size:11.5px; }
-  html.simple-home .app-topbar { margin-bottom:8px; }
-  html.simple-home .simple-budget-card .hairline-top { margin-top:9px !important; padding-top:8px !important; }
-  @media (max-width:360px) {
-    .simple-budget-value { font-size:24px; }
-    .simple-outlook-value { font-size:23px; }
-  }
+  .simple-budget-value { margin-top:4px; font-size:29px; line-height:1.03; font-weight:760; letter-spacing:-0.038em; white-space:nowrap; }
+  .simple-budget-unit { font-size:12.5px; font-weight:650; color:var(--text-muted); }
+  .simple-budget-meta { margin-top:6px; font-size:11.5px; color:var(--text-muted); font-weight:650; }
+  .simple-outlook-card { padding:17px 16px 15px; margin-bottom:0; min-height:218px; display:flex; flex-direction:column; justify-content:center; }
+  .simple-outlook-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:10px; }
+  .simple-outlook-label { color:var(--text-muted); font-size:11.5px; font-weight:650; letter-spacing:.03em; text-transform:uppercase; }
+  .simple-outlook-value { margin-top:3px; font-size:27px; line-height:1.05; font-weight:760; letter-spacing:-0.038em; }
+  .simple-outlook-sub { margin-top:4px; color:var(--text-muted); font-size:11.5px; font-weight:600; }
+  .simple-outlook-row { display:flex; align-items:center; justify-content:space-between; gap:9px; margin-top:10px; padding-top:10px; border-top:1px solid var(--sep); font-size:12.5px; }
+  html.simple-home .app-topbar { margin-bottom:10px; }
+  html.simple-home .simple-budget-card .hairline-top { margin-top:14px !important; padding-top:12px !important; flex:1 1 auto; display:flex; flex-direction:column; justify-content:center; }
 
-  /* Simple Home should still feel like a full-screen dashboard when its
-     content is compact. The middle Budget card absorbs spare vertical room,
-     rather than leaving a large dead area above the tab bar. */
-  html.simple-home .wrap { padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 86px); min-height:var(--vh100, 100dvh); }
+  /* Fill the visible area above the fixed tab bar. Cards can still grow past
+     this minimum on short screens, so nothing is clipped and normal scrolling
+     remains available. */
+  html.simple-home .wrap { padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 104px); min-height:var(--vh100, 100dvh); }
   .simple-home-stack {
-    min-height:calc(var(--vh100, 100dvh) - var(--app-safe-top) - 206px - env(safe-area-inset-bottom, 0px));
-    display:flex; flex-direction:column; gap:10px;
+    min-height:calc(var(--vh100, 100dvh) - var(--app-safe-top) - 188px - env(safe-area-inset-bottom, 0px));
+    display:flex; flex-direction:column; gap:12px;
   }
   .simple-home-stack > .card { margin-bottom:0; }
-  .simple-home-stack .simple-budget-card { flex:1 1 auto; }
-  html.simple-home .simple-budget-card svg { height:clamp(58px, 8.2vh, 78px) !important; }
+  .simple-home-stack .simple-metric-card { flex:0 0 auto; }
+  .simple-home-stack .simple-budget-card { flex:1.25 1 0; }
+  .simple-home-stack .simple-outlook-card { flex:.78 1 0; }
+  html.simple-home .simple-budget-card svg { height:clamp(92px, 11.5vh, 128px) !important; }
+
+  @media (max-height:720px) {
+    .simple-metric-card { padding:14px 16px 13px; min-height:104px; }
+    .simple-metric-card.simple-hero { min-height:112px; }
+    .simple-metric-card.simple-hero .simple-metric-value { font-size:42px; }
+    .simple-budget-card { min-height:250px; padding-top:14px; padding-bottom:13px; }
+    .simple-outlook-card { min-height:190px; padding-top:14px; padding-bottom:13px; }
+    html.simple-home .simple-budget-card svg { height:clamp(72px, 10vh, 98px) !important; }
+  }
+  @media (max-width:360px) {
+    .simple-budget-value { font-size:25px; }
+    .simple-outlook-value { font-size:24px; }
+    .simple-metric-card.simple-hero .simple-metric-value { font-size:44px; }
+  }
 
   /* Foreign-currency entry lives inside the same amount surface rather than
      adding another form box. Reports always remain in AED; this selector only
@@ -313,21 +328,20 @@
   }
   @media (min-width: 480px) { .modal-sticky-header { margin-top:-20px; padding-top:20px; } }
 
-  /* Translucent tab bar */
+  /* v52: true viewport-docked iPhone tab bar. `bottom:0` is intentional.
+     The old visualViewport compensation could move the bar downward when
+     Safari collapsed/expanded its browser chrome, which made it look as if it
+     belonged to the page instead of remaining fixed to the screen. */
   .tabbar {
-    transform:translate3d(0,0,0); -webkit-transform:translate3d(0,0,0); will-change:transform;
-    /* On iOS the visual viewport can become slightly taller than the layout
-       viewport after browser chrome collapses. Shift only that extra distance
-       so the bar remains visually flush with the bottom; keyboard-open pages
-       still hide the bar entirely. */
-    position:fixed; left:0; right:0; bottom:calc(-1 * var(--vv-extra-bottom, 0px)); display:flex;
+    position:fixed !important; left:0; right:0; bottom:0 !important; display:flex;
+    transform:translateZ(0); -webkit-transform:translateZ(0); backface-visibility:hidden; -webkit-backface-visibility:hidden;
     background: var(--tab-bg);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
     border-top:1px solid var(--sep);
-    padding:8px 4px calc(env(safe-area-inset-bottom, 0px) + 8px); z-index:40;
+    padding:8px 4px calc(env(safe-area-inset-bottom, 0px) + 8px);
+    z-index:100;
   }
-  .tabbar::after { content:""; position:absolute; left:0; right:0; top:100%; height:128px; background:var(--tab-bg); pointer-events:none; }
   /* Primary navigation should not float over form content when iOS opens its
      keyboard. Editors already have dedicated pages; search fields on primary
      tabs simply hide app chrome until the keyboard closes. */
@@ -356,7 +370,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v51";
+var APP_VERSION = "v52";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -389,7 +403,7 @@ function normalizeBudgetOrder(order) {
   return out;
 }
 var DEFAULT_ANALYSIS_ORDER = ["balance","cashFlow","forecastedSpend","spendTrend","category","frequency","person","topTransactions"];
-var ANALYSIS_SECTION_LABELS = { balance:"Cash balance", cashFlow:"Cash flow", forecastedSpend:"Forecast & projected saving", spendTrend:"Spend trend", category:"Spend by category", frequency:"Frequency", person:"Spend by person", topTransactions:"Biggest transactions" };
+var ANALYSIS_SECTION_LABELS = { balance:"Cash balance", cashFlow:"Cash flow", forecastedSpend:"Forecasted total spend", spendTrend:"Spend trend", category:"Spend by category", frequency:"Frequency", person:"Spend by person", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
   var valid = DEFAULT_ANALYSIS_ORDER;
   var out = (order||[]).filter(function(id){ return valid.indexOf(id)!==-1; });
@@ -4426,7 +4440,8 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   } else compareUnavailableNote = "Not enough history yet to show an average pace.";
 
   var s = '<div class="card card-pad" style="margin-bottom:16px;">';
-  s += '<div class="eyebrow" style="margin-bottom:10px;">Forecasted '+(scope==="budget"?"budget spend":"total spend")+'</div>';
+  s += '<div class="eyebrow" style="margin-bottom:'+(scope==="overall"?'3px':'10px')+';">Forecasted '+(scope==="budget"?"budget spend":"total spend")+'</div>';
+  if (scope === "overall") s += '<div class="muted caption" style="margin-bottom:10px;">All expense transactions · including categories excluded from Budget</div>';
   s += '<div class="row between" style="align-items:flex-start; margin-bottom:14px;">';
   s += '<div><div class="muted caption">THIS '+esc(periodWord.toUpperCase())+'</div><div class="mono" style="font-size:22px; font-weight:700; margin-top:2px;">'+fmt(projectedSpend,0)+' AED</div>';
   if (rangeLow != null && rangeHigh != null) s += '<div class="muted caption" style="margin-top:3px;">Likely range '+fmt(rangeLow,0)+'–'+fmt(rangeHigh,0)+' AED</div>';
@@ -6724,8 +6739,8 @@ window.addEventListener("orientationchange", setViewportHeightVar);
 
 /* visualViewport tracking, for two different jobs that both need it:
    --vvb tracks the keyboard gap for modal positioning/legacy calculations.
-   Primary tab navigation no longer follows that gap; it hides while the
-   software keyboard is visible.
+   Primary tab navigation is independently pinned with CSS bottom:0; it hides
+   while the software keyboard is visible.
    --vvt/--vvh (top offset + height) pin the modal backdrop to the actual
    visible rectangle, top edge included — needed because iOS doesn't just
    shrink the visual viewport for the keyboard, it can also *pan* it (offsetTop
