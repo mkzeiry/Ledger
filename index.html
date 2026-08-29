@@ -381,7 +381,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v59";
+var APP_VERSION = "v60";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25 };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -1221,6 +1221,47 @@ function normalizeSavingsTargetPct(v) {
 function savingsTargetPct(){ return normalizeSavingsTargetPct(state.settings.savingsTargetPct); }
 function savingsTargetAmountForIncome(income){ return round2(Math.max(0,Number(income)||0)*savingsTargetPct()/100); }
 function savingsSpendCeilingForIncome(income){ return round2(Math.max(0,Number(income)||0)-savingsTargetAmountForIncome(income)); }
+/* Compares the configured MONTHLY budget (budget-counted categories only)
+   with the all-spending ceiling implied by the savings goal. The missing
+   bridge between those two numbers is projected spending OUTSIDE the budget.
+
+     savings-compatible budget
+       = max total spend allowed by savings goal
+         - projected spend outside the budget
+
+   This is intentionally an estimate: outside-budget spend can still move as
+   new transactions arrive or cadence probabilities change. It gives the UI a
+   truthful way to say whether the monthly budget or the savings goal is the
+   tighter constraint without pretending the two scopes are identical. */
+function currentSavingsBudgetComparison() {
+  var pct=savingsTargetPct();
+  if(!(pct>0)) return null;
+  var per=getPeriodBounds("month",0,currentWeeklyTarget(),dailyAllowance());
+  var overall=periodStatsOverall(per.startStr,per.endStr);
+  var budget=periodStatsBudget(per.startStr,per.endStr);
+  var projectedIncome=round2((Number(overall.income)||0)+scheduledIncomeInRange(todayStr(),per.endStr));
+  if(!(projectedIncome>0)) return null;
+  var start=effectiveRangeStart(per.startStr), totalDays=Math.max(1,daysBetween(start,per.endStr)+1);
+  var overallFc=overall.rows.length?computeForecastNumbers(overall.rows,totalDays,start,"overall"):null;
+  var budgetFc=budget.rows.length?computeForecastNumbers(budget.rows,totalDays,start,"budget"):null;
+  var projectedOverall=round2(overallFc?overallFc.projectedSpend:overall.spent);
+  var projectedBudget=round2(budgetFc?budgetFc.projectedSpend:budget.spent);
+  var projectedExcluded=round2(Math.max(0,projectedOverall-projectedBudget));
+  var actualExcluded=round2(Math.max(0,overall.spent-budget.spent));
+  var spendCeiling=savingsSpendCeilingForIncome(projectedIncome);
+  var targetSaving=savingsTargetAmountForIncome(projectedIncome);
+  var compatibleBudget=round2(Math.max(0,spendCeiling-projectedExcluded));
+  var configuredBudget=round2(per.target||0);
+  var delta=round2(compatibleBudget-configuredBudget);
+  var tighter=Math.abs(delta)<0.5?"equal":(delta<0?"savings":"budget");
+  return {
+    pct:pct, projectedIncome:projectedIncome, targetSaving:targetSaving,
+    spendCeiling:spendCeiling, configuredBudget:configuredBudget,
+    projectedOverall:projectedOverall, projectedBudget:projectedBudget,
+    projectedExcluded:projectedExcluded, actualExcluded:actualExcluded,
+    compatibleBudget:compatibleBudget, delta:delta, tighter:tighter
+  };
+}
 function normalizeIncomeHistory(hist) {
   var out = (hist||[]).slice().sort(function(a,b){ return a.from < b.from ? -1 : a.from > b.from ? 1 : 0; });
   var dedup = [];
@@ -2849,6 +2890,7 @@ function renderHomeBody(T, da) {
   var homeSavingsPct=savingsTargetPct();
   var homeSavingsTarget=(incomeReference>0&&homeSavingsPct>0)?savingsTargetAmountForIncome(incomeReference):null;
   var homeSavingsGap=(projectedCashSaving!=null&&homeSavingsTarget!=null)?round2(projectedCashSaving-homeSavingsTarget):null;
+  var homeBudgetSavings=currentSavingsBudgetComparison();
   var spentVsIncomePct = incomeReference > 0 ? (overall.spent/incomeReference*100) : null;
   var cashNet = round2(income - overall.spent);
   var budgetPctRaw = target > 0 ? (budget.spent/target)*100 : 0;
@@ -2886,7 +2928,12 @@ function renderHomeBody(T, da) {
   budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;">';
   budgetCard += '<div class="row between"><span class="muted subhead">Equal daily allowance</span><span class="mono subhead" style="font-weight:600;color:'+(dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)')+';">'+(dailyAverage==null?'—':((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'))+'</span></div>';
   budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Spent today</span><span class="mono subhead" style="font-weight:600;">'+fmt(spentToday,0)+' AED</span></div>';
-  budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Remaining this month</span><span class="mono subhead" style="font-weight:600;color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED</span></div></div>';
+  budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Remaining this month</span><span class="mono subhead" style="font-weight:600;color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED</span></div>';
+  if(homeBudgetSavings){
+    var hbTight=homeBudgetSavings.tighter==='savings';
+    budgetCard += '<div class="row between" style="margin-top:8px;gap:12px;"><span class="muted subhead">'+fmt(homeBudgetSavings.pct,0)+'% savings-compatible budget</span><span class="mono subhead" style="font-weight:650;color:'+(hbTight?'var(--amber)':'var(--text)')+';">≈ '+fmt(homeBudgetSavings.compatibleBudget,0)+' AED</span></div>';
+  }
+  budgetCard += '</div>';
   if(homeBudgetPositionData.length){
     budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between"><span class="muted subhead">Ahead / behind budget</span><span class="mono subhead" style="font-weight:700;color:'+(homeBudgetPosition>=0?'var(--positive)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED '+(homeBudgetPosition>=0?'ahead':'behind')+'</span></div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
   }
@@ -2958,6 +3005,15 @@ function renderHomeBody(T, da) {
     h += '<div class="simple-budget-cell"><div class="muted caption">THIS WEEK</div><div class="mono simple-budget-value" style="color:'+(weekRemaining>=0?'var(--positive)':'var(--rust)')+';">'+(weekRemaining<0?'−':'')+fmt(Math.abs(weekRemaining),0)+' <span class="simple-budget-unit">AED '+(weekRemaining>=0?'left':'over')+'</span></div>'+pctBar(weekProgress,weekPctRaw>100)+'<div class="simple-budget-meta">'+(weekNow.target>0?(weekPctRaw.toFixed(0)+'% used · '+weekDaysLeft+' day'+(weekDaysLeft===1?'':'s')+' left'):'—')+'</div></div>';
     h += '<div class="simple-budget-cell"><div class="muted caption">THIS MONTH</div><div class="mono simple-budget-value" style="color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' <span class="simple-budget-unit">AED '+(remaining>=0?'left':'over')+'</span></div>'+pctBar(progress,budgetPctRaw>100)+'<div class="simple-budget-meta">'+(target>0?(budgetPctRaw.toFixed(0)+'% used · '+monthDaysLeft+' day'+(monthDaysLeft===1?'':'s')+' left'):'—')+'</div></div>';
     h += '</div>';
+    if(homeBudgetSavings){
+      var shbSavingsTight=homeBudgetSavings.tighter==='savings';
+      var shbMsg=homeBudgetSavings.tighter==='equal'
+        ? fmt(homeBudgetSavings.pct,0)+'% savings goal matches the '+fmt(homeBudgetSavings.configuredBudget,0)+' AED budget'
+        : (shbSavingsTight
+          ? fmt(homeBudgetSavings.pct,0)+'% goal allows ≈'+fmt(homeBudgetSavings.compatibleBudget,0)+' AED budget · '+fmt(Math.abs(homeBudgetSavings.delta),0)+' AED tighter'
+          : 'Budget is '+fmt(Math.abs(homeBudgetSavings.delta),0)+' AED tighter than the '+fmt(homeBudgetSavings.pct,0)+'% goal');
+      h += '<div class="simple-budget-meta" style="margin-top:8px;color:'+(shbSavingsTight?'var(--amber)':'var(--text-muted)')+';">'+esc(shbMsg)+'</div>';
+    }
     if(homeBudgetPositionData.length){
       h += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between" style="gap:10px;"><span class="muted caption" style="font-weight:650;">AHEAD / BEHIND BUDGET</span><span class="mono subhead" style="font-weight:750;color:'+(homeBudgetPosition>=0?'var(--positive)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED</span></div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
     }
@@ -2996,6 +3052,7 @@ function renderBudgetBody(T) {
   var da=dailyAllowance(),period=getPeriodBounds(state.view,state.offset,currentWeeklyTarget(),da),stats=periodStatsBudget(period.startStr,period.endStr);
   var isCurrent=state.offset===0,isClosed=period.endStr<todayStr(),target=period.target,remaining=round2(target-stats.spent);
   var livePacing=isCurrent?liveBudgetPacing():null,dailyAverage=livePacing?livePacing.dailyAverage:null,safeToday=livePacing?livePacing.safeToday:null,overSafeToday=livePacing?(livePacing.overSafeToday||0):0,adjustmentNeeded=livePacing?(livePacing.adjustmentNeeded||0):0,spentToday=livePacing?(livePacing.spentTodayForLimit!=null?livePacing.spentTodayForLimit:livePacing.spentToday):0,limitingHorizon=livePacing?livePacing.limitingHorizon:null;
+  var budgetSavingsComparison=(isCurrent&&state.view==='month')?currentSavingsBudgetComparison():null;
   /* Each Budget tab must show its OWN equal remaining-per-day figure. The
      Safe-to-Spend engine still compares Week vs Month and uses the tighter one,
      but displaying the minimum on both tabs made the Week card look mathematically
@@ -3032,6 +3089,23 @@ function renderBudgetBody(T) {
   summary+=statBlock('Safe to spend today',isCurrent&&safeToday!=null?(fmt(safeToday,0)+' AED'):'—','var(--text)');
   summary+=statBlock('Spent today',isCurrent?fmt(spentToday,0)+' AED':'—','var(--text)');
   summary+=statBlock('Projected vs budget',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div>';
+  if(budgetSavingsComparison){
+    var bsc=budgetSavingsComparison, savingsTighter=bsc.tighter==='savings', equalTight=bsc.tighter==='equal';
+    var relationText=equalTight
+      ? 'Budget and savings goal are aligned'
+      : (savingsTighter
+        ? 'Savings goal is tighter by '+fmt(Math.abs(bsc.delta),0)+' AED'
+        : 'Monthly budget is tighter by '+fmt(Math.abs(bsc.delta),0)+' AED');
+    var relationColor=equalTight?'var(--text-muted)':(savingsTighter?'var(--amber)':'var(--positive)');
+    summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);">';
+    summary+='<div class="row between" style="gap:12px;align-items:baseline;"><div><div class="subhead" style="font-weight:700;">Budget vs '+fmt(bsc.pct,0)+'% savings goal</div><div class="muted caption" style="margin-top:2px;">Savings goal applies to all spending; monthly budget covers included categories only.</div></div><div class="caption" style="font-weight:700;text-align:right;color:'+relationColor+';flex-shrink:0;">'+esc(relationText)+'</div></div>';
+    summary+='<div style="margin-top:10px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
+    summary+='<div class="row between" style="padding:7px 0;"><span class="muted caption">Set monthly budget</span><span class="mono caption" style="font-weight:700;">'+fmt(bsc.configuredBudget,0)+' AED</span></div>';
+    summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Savings-compatible budget</span><span class="mono caption" style="font-weight:750;color:'+(savingsTighter?'var(--amber)':'var(--text)')+';">≈ '+fmt(bsc.compatibleBudget,0)+' AED</span></div>';
+    summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Projected outside-budget spend</span><span class="mono caption" style="font-weight:700;">≈ '+fmt(bsc.projectedExcluded,0)+' AED</span></div>';
+    summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Max total spend for target</span><span class="mono caption" style="font-weight:700;">'+fmt(bsc.spendCeiling,0)+' AED</span></div>';
+    summary+='</div><div class="muted caption" style="margin-top:8px;line-height:1.35;">The savings-compatible budget will move as projected expenses outside your budget change.</div></div>';
+  }
   if(isCurrent&&protectedTotal>0){
     var protectedDays=limitingPacing&&limitingPacing.days?limitingPacing.days:0;
     summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);">';
@@ -3162,6 +3236,15 @@ function renderSettingsPage() {
     h += '<div class="muted caption" style="margin:4px 0 10px;">The percentage of full/projected income you want to keep. The Ledger converts this into a maximum-spend ceiling and can make it the Safe-to-Spend limit when it is tighter than your budget.</div>';
     h += '<div style="position:relative;margin:6px 0 8px;"><input id="savingsTargetPctInput" type="number" inputmode="decimal" min="0" max="100" step="1" class="field mono" style="padding-right:40px;font-size:20px;font-weight:650;" value="'+savePct+'"/><span class="muted" style="position:absolute;right:13px;top:50%;transform:translateY(-50%);font-weight:650;">%</span></div>';
     h += '<div class="muted caption" style="margin-bottom:16px;">Default is 25%. Set 0% if you want to disable the savings-goal constraint.</div>';
+    var settingsSavingsCompare=currentSavingsBudgetComparison();
+    if(settingsSavingsCompare){
+      var ssc=settingsSavingsCompare, sscTight=ssc.tighter==='savings';
+      h += '<div class="card card-pad" style="margin-bottom:14px;"><div class="eyebrow">CURRENT MONTH RELATIONSHIP</div>';
+      h += '<div class="row between" style="margin-top:9px;"><span class="muted subhead">Set monthly budget</span><span class="mono subhead" style="font-weight:650;">'+fmt(ssc.configuredBudget,0)+' AED</span></div>';
+      h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Savings-compatible budget</span><span class="mono subhead" style="font-weight:700;color:'+(sscTight?'var(--amber)':'var(--text)')+';">≈ '+fmt(ssc.compatibleBudget,0)+' AED</span></div>';
+      h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Max total spending</span><span class="mono subhead" style="font-weight:650;">'+fmt(ssc.spendCeiling,0)+' AED</span></div>';
+      h += '<div class="muted caption" style="margin-top:9px;line-height:1.35;">Based on ≈ '+fmt(ssc.projectedExcluded,0)+' AED projected outside-budget spending. '+(ssc.tighter==='equal'?'The two limits are currently aligned.':(sscTight?'The savings goal is currently the tighter monthly constraint.':'Your configured budget is currently tighter than the savings goal.'))+'</div></div>';
+    }
     h += '<button data-action="save-savings-target" class="btn-accent" style="width:100%;">Save savings target</button>';
   }
   if (section === "currency") {
