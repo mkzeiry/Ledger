@@ -277,8 +277,11 @@
      The wrapper becomes a viewport-height flex column and the three cards share
      every pixel left between the top controls and the fixed tab bar. */
   html.simple-home .wrap {
-    min-height:var(--vvh, var(--vh100, 100dvh));
-    height:var(--vvh, var(--vh100, 100dvh));
+    /* iOS can report a temporarily shortened layout/visual viewport on first
+       launch. Use the largest stable viewport from the start so Home does not
+       jump taller only after visiting another tab. */
+    min-height:max(var(--stable-vh, 0px), 100lvh);
+    height:max(var(--stable-vh, 0px), 100lvh);
     padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 78px);
     display:flex; flex-direction:column;
   }
@@ -331,12 +334,12 @@
 
   /* Translucent tab bar */
   .tabbar {
-    transform:translate3d(0,0,0); -webkit-transform:translate3d(0,0,0);
-    /* Keep primary navigation attached to the actual viewport bottom. The old
-       visual-viewport compensation plus a 128px paint extension could leave
-       the icons visibly floating above the bottom on iPhone. Keyboard-open
-       states are handled separately by hiding the bar altogether. */
-    position:fixed; left:0; right:0; bottom:0; display:flex;
+    transform:translate3d(0,0,0); -webkit-transform:translate3d(0,0,0); will-change:transform;
+    /* Some iOS webviews initially make the layout viewport shorter than the
+       visible viewport. Shift by only that measured mismatch. Unlike the old
+       implementation there is no oversized paint extension, so once the two
+       viewports agree this resolves exactly to bottom:0. */
+    position:fixed; left:0; right:0; bottom:calc(-1 * var(--vv-extra-bottom, 0px)); display:flex;
     background: var(--tab-bg);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
@@ -374,7 +377,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v52";
+var APP_VERSION = "v53";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -2938,7 +2941,7 @@ function renderHomeBody(T, da) {
       h += pctBar(projectedSpendVsIncomePct, projectedSpendVsIncomePct>100);
       h += '<div class="simple-outlook-sub">Projected spending uses '+projectedSpendVsIncomePct.toFixed(0)+'% of income</div>';
     }
-    h += '<div class="simple-outlook-row"><span class="muted">Projected close</span><span class="mono" style="font-weight:700;">'+fmt(projected,0)+' AED</span>'+(incomeReference>0?'<span class="muted" style="margin-left:auto;">Income</span><span class="mono" style="font-weight:700;">'+fmt(incomeReference,0)+' AED</span>':'')+'</div>';
+    h += '<div class="simple-outlook-row"><span class="muted">Projected close</span><span class="mono" style="font-weight:700;">'+fmt(projected,0)+' AED</span></div>';
     h += '</div>';
     h += '</div>'; // simple-home-stack
     return h;
@@ -6745,12 +6748,26 @@ document.addEventListener("change", function(e) {
 });
 
 /* ---------------- init ---------------- */
+var stableViewportHeight = 0;
 function setViewportHeightVar() {
-  document.documentElement.style.setProperty("--vh100", window.innerHeight + "px");
+  var r=document.documentElement.style;
+  var vv=window.visualViewport;
+  var layoutH=Math.max(window.innerHeight||0, document.documentElement.clientHeight||0);
+  var visualH=vv ? Math.max(0, vv.height + Math.max(0,vv.offsetTop)) : 0;
+  var candidate=Math.max(layoutH, visualH);
+  /* Never learn keyboard-shrunken heights. The value may grow as iOS settles
+     its chrome, but it does not shrink during the session. */
+  if(!keyboardFieldFocused() && candidate>stableViewportHeight) stableViewportHeight=candidate;
+  r.setProperty("--vh100", layoutH + "px");
+  if(stableViewportHeight>0) r.setProperty("--stable-vh", Math.round(stableViewportHeight) + "px");
 }
 setViewportHeightVar();
 window.addEventListener("resize", setViewportHeightVar);
-window.addEventListener("orientationchange", setViewportHeightVar);
+window.addEventListener("orientationchange", function(){ stableViewportHeight=0; setViewportHeightVar(); });
+window.addEventListener("pageshow", function(){
+  [0,60,180,420,900,1600].forEach(function(ms){setTimeout(function(){setViewportHeightVar();updateVisualViewportOffset();},ms);});
+});
+document.addEventListener("visibilitychange",function(){if(!document.hidden){setViewportHeightVar();updateVisualViewportOffset();}});
 
 /* visualViewport tracking, for two different jobs that both need it:
    --vvb tracks the keyboard gap for modal positioning/legacy calculations.
@@ -6774,6 +6791,7 @@ function keyboardFieldFocused() {
   return ['text','search','number','tel','email','url','password','decimal'].indexOf(ty)!==-1;
 }
 function updateVisualViewportOffset() {
+  setViewportHeightVar();
   var vv=window.visualViewport,r=document.documentElement.style;
   if(!vv){r.setProperty('--vvb','0px');r.setProperty('--vvt','0px');r.setProperty('--vvh','100dvh');r.setProperty('--vv-extra-bottom','0px');document.documentElement.classList.toggle('keyboard-open',keyboardFieldFocused());return;}
   var shrink=Math.max(0,window.innerHeight-vv.height),gap=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);
