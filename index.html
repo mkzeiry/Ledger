@@ -381,9 +381,9 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v61";
+var APP_VERSION = "v62";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25 };
+var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
 function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
@@ -614,6 +614,12 @@ function renameTag(kind, oldName, newName) {
     if (!isMerge && nextPeopleExclude[oldName]) nextPeopleExclude[newName] = true;
     delete nextPeopleExclude[oldName];
     patch.peopleAnalysisExcluded = nextPeopleExclude;
+    var nextSafePriorities = Object.assign({}, state.settings.safeSpendPriorities||{});
+    if (isMerge) {
+      if (nextSafePriorities[newName] == null && nextSafePriorities[oldName] != null) nextSafePriorities[newName] = nextSafePriorities[oldName];
+    } else if (nextSafePriorities[oldName] != null) nextSafePriorities[newName] = nextSafePriorities[oldName];
+    delete nextSafePriorities[oldName];
+    patch.safeSpendPriorities = nextSafePriorities;
   } else {
     var nextPersonColors = Object.assign({}, state.settings.personColors||{});
     if (!isMerge && nextPersonColors[oldName]) nextPersonColors[newName] = nextPersonColors[oldName];
@@ -956,6 +962,36 @@ function normalizeCategoryExcludeFromBudget(map, categories) {
     if (valid.indexOf(c) !== -1 && map[c]) out[c] = true;
   });
   return out;
+}
+
+/* Safe-to-Spend priority is separate from budget inclusion. Essential
+   subcategories may hard-protect learned cadence / explicit-plan spending.
+   Flexible forecasts still contribute to the month-end forecast, but they do
+   not block money needed today for higher-priority spending. Frequent
+   essentials such as Restaurants remain part of today's spendable allowance. */
+var DEFAULT_SAFE_SPEND_ESSENTIAL = {
+  "Food & Dining":true, "Restaurants":true, "Groceries":true,
+  "Feeding":true, "Diapers & Hygiene":true, "Health":true, "Baby Health":true
+};
+function defaultSafeSpendPriority(catName) {
+  return DEFAULT_SAFE_SPEND_ESSENTIAL[catName] ? "essential" : "flexible";
+}
+function normalizeSafeSpendPriorities(map, categories) {
+  var out = {}, valid = categories || [], hasMap = !!(map && typeof map === "object" && !Array.isArray(map));
+  valid.forEach(function(c){
+    var v = hasMap ? map[c] : null;
+    out[c] = (v === "essential" || v === "flexible") ? v : defaultSafeSpendPriority(c);
+  });
+  return out;
+}
+function subcategorySafeSpendPriority(catName) {
+  if (!catName) return "flexible";
+  var map = state.settings.safeSpendPriorities;
+  var v = map && map[catName];
+  return (v === "essential" || v === "flexible") ? v : defaultSafeSpendPriority(catName);
+}
+function subcategoryEssentialForSafeSpend(catName) {
+  return subcategorySafeSpendPriority(catName) === "essential";
 }
 
 /* Some expenses are real spending but are not meaningful to attribute to a
@@ -1350,6 +1386,7 @@ function loadInitial() {
   state.settings.people = normalizePeople(state.settings.people);
   state.settings.personColors = normalizePersonColors(state.settings.personColors, state.settings.people);
   state.settings.categoryExcludeFromBudget = normalizeCategoryExcludeFromBudget(state.settings.categoryExcludeFromBudget, state.settings.categories);
+  state.settings.safeSpendPriorities = normalizeSafeSpendPriorities(state.settings.safeSpendPriorities, state.settings.categories);
   state.settings.peopleAnalysisExcluded = normalizePeopleAnalysisExcluded(state.settings.peopleAnalysisExcluded, state.settings.categories);
   state.settings.defaultPerson = normalizeDefaultPerson(state.settings.defaultPerson, state.settings.people);
   state.settings.recurringRules = normalizeRecurringRules(state.settings.recurringRules);
@@ -2730,16 +2767,19 @@ function render() {
    The budget is split into two different kinds of spending because they should
    not hit today's allowance in the same way:
 
-     CADENCE / LUMPY spending (Fuel, Baby Gear, etc.)
+     ESSENTIAL CADENCE / PLANNED spending (e.g. Diapers or Health)
        -> reserve the expected event from the FULL remaining-period budget, then
           spread that effect across the remaining calendar days.
        -> when the event actually happens, the actual replaces its opening-day
           reserve. Only the difference between actual and reserved amount changes
-          the daily allowance, so an expected Fuel fill does not double-hit.
+          the daily allowance.
 
-     DAILY / FLEXIBLE spending (Restaurants, Food & Drinks, Groceries, sparse
-     one-offs without a learned cadence)
-       -> subtract directly from today's Safe to Spend, 1-for-1.
+     FLEXIBLE FORECASTS (e.g. Baby Gear or Maid when marked Flexible)
+       -> stay in the month-end forecast but are NOT hard-reserved, so a likely
+          optional purchase cannot block today's essential food allowance.
+
+     DAILY spending (including frequent essentials such as Restaurants/Groceries)
+       -> stays available inside today's allowance and subtracts 1-for-1 when spent.
 
    Opening Safe Today for each horizon is therefore:
 
@@ -2767,12 +2807,14 @@ function liveBudgetPacing() {
       var amount = Number(it.amount) || 0;
       var key = subcategoryKey(it);
       if (it.recurringId) {
-        recurring += amount;
-        recurringBySub[key] = round2((recurringBySub[key] || 0) + amount);
+        if (subcategoryEssentialForSafeSpend(key)) {
+          recurring += amount;
+          recurringBySub[key] = round2((recurringBySub[key] || 0) + amount);
+        } else flexible += amount;
         return;
       }
       var p = openingProfiles ? openingProfiles[key] : null;
-      if (p && p.mode === "cadence") {
+      if (p && p.mode === "cadence" && subcategoryEssentialForSafeSpend(key)) {
         cadence += amount;
         cadenceBySub[key] = round2((cadenceBySub[key] || 0) + amount);
       } else flexible += amount;
@@ -2801,7 +2843,7 @@ function liveBudgetPacing() {
     var openingBehavior = buildBehavioralForecast(scope, yesterday, per.endStr);
     var buckets = todaySpendBuckets(openingProfiles, scope);
 
-    var cadenceReserveBySub = {}, openingCadenceReserve = 0, reserveBreakdownBySub = {};
+    var cadenceReserveBySub = {}, openingCadenceReserve = 0, reserveBreakdownBySub = {}, flexibleForecastBySub = {};
     function addReserveBreakdown(key, amount, kind) {
       amount=round2(Math.max(0,Number(amount)||0)); if(amount<=0)return;
       var label=key==="__uncategorised__"?"Uncategorised":key;
@@ -2809,25 +2851,44 @@ function liveBudgetPacing() {
       reserveBreakdownBySub[label].amount=round2(reserveBreakdownBySub[label].amount+amount);
       reserveBreakdownBySub[label][kind]=round2((reserveBreakdownBySub[label][kind]||0)+amount);
     }
+    function addFlexibleForecast(key, amount, kind) {
+      amount=round2(Math.max(0,Number(amount)||0)); if(amount<=0)return;
+      var label=key==="__uncategorised__"?"Uncategorised":key;
+      if(!flexibleForecastBySub[label]) flexibleForecastBySub[label]={category:label,amount:0,cadence:0,scheduled:0};
+      flexibleForecastBySub[label].amount=round2(flexibleForecastBySub[label].amount+amount);
+      flexibleForecastBySub[label][kind]=round2((flexibleForecastBySub[label][kind]||0)+amount);
+    }
     Object.keys(openingBehavior.bySubcategory||{}).forEach(function(k){
       var x=openingBehavior.bySubcategory[k]; if(!x||x.kind!=="cadence")return;
-      var r=round2(Math.max(0,x.safeReserve||x.amount||0)); cadenceReserveBySub[k]=r; openingCadenceReserve+=r; addReserveBreakdown(k,r,"cadence");
+      var r=round2(Math.max(0,x.safeReserve||x.amount||0));
+      if(subcategoryEssentialForSafeSpend(k)){ cadenceReserveBySub[k]=r; openingCadenceReserve+=r; addReserveBreakdown(k,r,"cadence"); }
+      else addFlexibleForecast(k,r,"cadence");
     });
     openingCadenceReserve=round2(openingCadenceReserve);
 
-    var futureScheduledAfterToday=scheduledAmountInRange(today,per.endStr,scope);
-    var futureScheduledBySub=scheduledExpenseBreakdown(today,per.endStr,scope);
-    Object.keys(futureScheduledBySub).forEach(function(k){addReserveBreakdown(k,futureScheduledBySub[k],"scheduled");});
-    var dueTodayMap=scheduledExpenseByDate(yesterday,today,scope);
-    var dueTodayUnlogged=round2((dueTodayMap&&dueTodayMap[today])||0);
-    var dueTodayBySub=scheduledExpenseBreakdown(yesterday,today,scope);
-    var openingScheduledToday=round2(Math.max(dueTodayUnlogged,buckets.recurring));
-    var todayScheduledBreakdown=buckets.recurring>=dueTodayUnlogged?buckets.recurringBySub:dueTodayBySub;
+    var futureScheduledBySub=scheduledExpenseBreakdown(today,per.endStr,scope), futureScheduledAfterToday=0;
+    Object.keys(futureScheduledBySub).forEach(function(k){
+      var a=round2(futureScheduledBySub[k]||0);
+      if(subcategoryEssentialForSafeSpend(k)){futureScheduledAfterToday+=a;addReserveBreakdown(k,a,"scheduled");}
+      else addFlexibleForecast(k,a,"scheduled");
+    });
+    futureScheduledAfterToday=round2(futureScheduledAfterToday);
+    var dueTodayBySub=scheduledExpenseBreakdown(yesterday,today,scope), dueTodayEssential=0, dueTodayEssentialBySub={};
+    Object.keys(dueTodayBySub).forEach(function(k){
+      var a=round2(dueTodayBySub[k]||0);
+      if(subcategoryEssentialForSafeSpend(k)){dueTodayEssential+=a;dueTodayEssentialBySub[k]=a;}
+      else addFlexibleForecast(k,a,"scheduled");
+    });
+    dueTodayEssential=round2(dueTodayEssential);
+    var openingScheduledToday=round2(Math.max(dueTodayEssential,buckets.recurring));
+    var todayScheduledBreakdown=buckets.recurring>=dueTodayEssential?buckets.recurringBySub:dueTodayEssentialBySub;
     Object.keys(todayScheduledBreakdown||{}).forEach(function(k){addReserveBreakdown(k,todayScheduledBreakdown[k],"scheduled");});
     var openingScheduledReserve=round2(futureScheduledAfterToday+openingScheduledToday);
 
     var openingReserve=round2(openingCadenceReserve+openingScheduledReserve);
     var reserveBreakdown=Object.keys(reserveBreakdownBySub).map(function(k){return reserveBreakdownBySub[k];}).sort(function(a,b){return b.amount-a.amount;});
+    var flexibleForecastBreakdown=Object.keys(flexibleForecastBySub).map(function(k){return flexibleForecastBySub[k];}).sort(function(a,b){return b.amount-a.amount;});
+    var flexibleForecastTotal=round2(flexibleForecastBreakdown.reduce(function(s,x){return s+x.amount;},0));
     var openingFlexiblePool=round2(openingRemaining-openingReserve);
     var openingSafe=days>0?round2(openingFlexiblePool/days):openingFlexiblePool;
 
@@ -2844,7 +2905,7 @@ function liveBudgetPacing() {
     var forecastStart=effectiveRangeStart(per.startStr), forecastDays=Math.max(1,daysBetween(forecastStart,per.endStr)+1);
     var fc=stats.rows.length?computeForecastNumbers(stats.rows,forecastDays,forecastStart,scope):null;
 
-    return {mode:mode,scope:scope,target:target,avg:avg,openingRemaining:openingRemaining,currentRemaining:currentRemaining,days:days,safe:safe,rawSafe:rawSafe,openingSafe:openingSafe,adjustmentNeeded:adjustmentNeeded,futureReserve:openingReserve,reserveBreakdown:reserveBreakdown,openingCadenceReserve:openingCadenceReserve,openingScheduledReserve:openingScheduledReserve,flexiblePool:flexiblePool,todayFlexibleSpent:buckets.flexible,todayCadenceSpent:buckets.cadence,cadenceAdjustment:cadenceAdjustment,scheduledAdjustment:scheduledAdjustment,spentTodayScope:spentTodayScope,forecast:fc};
+    return {mode:mode,scope:scope,target:target,avg:avg,openingRemaining:openingRemaining,currentRemaining:currentRemaining,days:days,safe:safe,rawSafe:rawSafe,openingSafe:openingSafe,adjustmentNeeded:adjustmentNeeded,futureReserve:openingReserve,reserveBreakdown:reserveBreakdown,flexibleForecastTotal:flexibleForecastTotal,flexibleForecastBreakdown:flexibleForecastBreakdown,openingCadenceReserve:openingCadenceReserve,openingScheduledReserve:openingScheduledReserve,flexiblePool:flexiblePool,todayFlexibleSpent:buckets.flexible,todayCadenceSpent:buckets.cadence,cadenceAdjustment:cadenceAdjustment,scheduledAdjustment:scheduledAdjustment,spentTodayScope:spentTodayScope,forecast:fc};
   }
 
   var effectiveInfo=currentEffectiveBudgetInfo();
@@ -3097,6 +3158,8 @@ function renderBudgetBody(T) {
   var limitingPacing=(livePacing&&limitingHorizon)?livePacing[limitingHorizon]:null;
   var protectedTotal=limitingPacing?round2(limitingPacing.futureReserve||0):0;
   var protectedBreakdown=limitingPacing&&Array.isArray(limitingPacing.reserveBreakdown)?limitingPacing.reserveBreakdown:[];
+  var flexibleForecastTotal=limitingPacing?round2(limitingPacing.flexibleForecastTotal||0):0;
+  var flexibleForecastBreakdown=limitingPacing&&Array.isArray(limitingPacing.flexibleForecastBreakdown)?limitingPacing.flexibleForecastBreakdown:[];
   /* The simple equal split and the forecast-aware flexible allowance answer
      different questions. Keep both visible so Safe to Spend can be audited:
        equal remaining/day = current remaining / days left
@@ -3134,22 +3197,31 @@ function renderBudgetBody(T) {
     summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Projected outside-budget spend</span><span class="mono caption" style="font-weight:700;">≈ '+fmt(bsc.projectedExcluded,0)+' AED</span></div>';
     summary+='</div><div class="muted caption" style="margin-top:8px;line-height:1.35;">The lower limit becomes your effective budget automatically and updates as outside-budget spending changes.</div></div>';
   }
-  if(isCurrent&&protectedTotal>0){
+  if(isCurrent&&(protectedTotal>0||flexibleForecastTotal>0)){
     var protectedDays=limitingPacing&&limitingPacing.days?limitingPacing.days:0;
     summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);">';
-    summary+='<div class="row between" style="gap:12px;align-items:baseline;"><div><span class="subhead" style="font-weight:650;">Protected for expected spending</span><div class="muted caption" style="margin-top:2px;">At the start of today · '+esc(limitingHorizon==='effective'?'Effective budget':(limitingHorizon==='savings'?'Savings goal':((limitingHorizon||'budget').charAt(0).toUpperCase()+(limitingHorizon||'budget').slice(1))))+' limit</div></div><div style="text-align:right;flex-shrink:0;"><div class="mono subhead" style="font-weight:750;">'+fmt(protectedTotal,0)+' AED</div>'+(protectedDays>0?'<div class="muted mono caption">≈ '+fmt(protectedTotal/protectedDays,0)+' AED/day</div>':'')+'</div></div>';
-    if(flexibleAllowancePerDay!=null){
-      var reconText=fmt(flexibleAllowancePerDay,0)+' allowance';
-      if(flexibleSpentToday>0) reconText+=' − '+fmt(flexibleSpentToday,0)+' flexible spent';
-      if(Math.abs(reserveVariancePerDay)>=0.5) reconText+=(reserveVariancePerDay>0?' − ':' + ')+fmt(Math.abs(reserveVariancePerDay),0)+' reserve variance/day';
-      reconText+=' = '+fmt(safeToday||0,0)+' safe now';
-      summary+='<div class="muted caption" style="margin-top:8px;line-height:1.35;"><span style="font-weight:650;color:var(--text);">Safe-to-spend math:</span> '+esc(reconText)+'</div>';
+    if(protectedTotal>0){
+      summary+='<div class="row between" style="gap:12px;align-items:baseline;"><div><span class="subhead" style="font-weight:650;">Protected essentials</span><div class="muted caption" style="margin-top:2px;">Essential cadence / plans · '+esc(limitingHorizon==='effective'?'Effective budget':(limitingHorizon==='savings'?'Savings goal':((limitingHorizon||'budget').charAt(0).toUpperCase()+(limitingHorizon||'budget').slice(1))))+' limit</div></div><div style="text-align:right;flex-shrink:0;"><div class="mono subhead" style="font-weight:750;">'+fmt(protectedTotal,0)+' AED</div>'+(protectedDays>0?'<div class="muted mono caption">≈ '+fmt(protectedTotal/protectedDays,0)+' AED/day</div>':'')+'</div></div>';
+      if(flexibleAllowancePerDay!=null){
+        var reconText=fmt(flexibleAllowancePerDay,0)+' allowance';
+        if(flexibleSpentToday>0) reconText+=' − '+fmt(flexibleSpentToday,0)+' spent today';
+        if(Math.abs(reserveVariancePerDay)>=0.5) reconText+=(reserveVariancePerDay>0?' − ':' + ')+fmt(Math.abs(reserveVariancePerDay),0)+' essential reserve variance/day';
+        reconText+=' = '+fmt(safeToday||0,0)+' safe now';
+        summary+='<div class="muted caption" style="margin-top:8px;line-height:1.35;"><span style="font-weight:650;color:var(--text);">Safe-to-spend math:</span> '+esc(reconText)+'</div>';
+      }
+      if(protectedBreakdown.length){
+        summary+='<div style="margin-top:9px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
+        protectedBreakdown.forEach(function(x,i){summary+='<div class="row between" style="padding:7px 0;gap:12px;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="caption" style="font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</span><span class="mono caption" style="font-weight:700;flex-shrink:0;">'+fmt(x.amount,0)+' AED</span></div>';});
+        summary+='</div>';
+      }
     }
-    if(protectedBreakdown.length){
-      summary+='<div style="margin-top:9px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
-      protectedBreakdown.forEach(function(x,i){
-        summary+='<div class="row between" style="padding:7px 0;gap:12px;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="caption" style="font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</span><span class="mono caption" style="font-weight:700;flex-shrink:0;">'+fmt(x.amount,0)+' AED</span></div>';
-      });
+    if(flexibleForecastTotal>0){
+      summary+='<div class="'+(protectedTotal>0?'hairline-top':'')+'" style="margin-top:'+(protectedTotal>0?'13px':'0')+';padding-top:'+(protectedTotal>0?'12px':'0')+';"><div class="row between" style="gap:12px;align-items:baseline;"><div><span class="subhead" style="font-weight:650;">Upcoming flexible forecasts</span><div class="muted caption" style="margin-top:2px;">Forecast only · not deducted from Safe to Spend</div></div><div class="mono subhead" style="font-weight:700;color:var(--text-muted);">≈ '+fmt(flexibleForecastTotal,0)+' AED</div></div>';
+      if(flexibleForecastBreakdown.length){
+        summary+='<div style="margin-top:9px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
+        flexibleForecastBreakdown.forEach(function(x,i){summary+='<div class="row between" style="padding:7px 0;gap:12px;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="caption" style="font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</span><span class="mono caption muted" style="font-weight:700;flex-shrink:0;">≈ '+fmt(x.amount,0)+' AED</span></div>';});
+        summary+='</div>';
+      }
       summary+='</div>';
     }
     summary+='</div>';
@@ -3373,6 +3445,8 @@ function renderSettingsPage() {
       groupList.forEach(function(g){ h += '<option value="'+esc(g)+'"'+(subParent===g?' selected':'')+'>'+esc(g)+'</option>'; });
       h += '</select></div>';
       h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Counts toward budget</div><div class="muted caption" style="margin-top:2px;">Overall Analysis always includes it.</div></div><button data-action="toggle-category-budget" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(categoryExcludedFromBudget(selectedSub)?'var(--rust)':'var(--positive)')+';">'+(categoryExcludedFromBudget(selectedSub)?'Excluded':'Included')+'</button></div></div>';
+      var safePriority=subcategorySafeSpendPriority(selectedSub), safeEssential=safePriority==='essential';
+      h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Safe-to-Spend priority</div><div class="muted caption" style="margin-top:2px;">Essential cadence/plan spending is protected first. Flexible forecasts never block today\'s allowance.</div></div><button data-action="toggle-safe-spend-priority" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(safeEssential?'var(--positive)':'var(--text-muted)')+';">'+(safeEssential?'Essential':'Flexible')+'</button></div></div>';
       h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Include in People analysis</div><div class="muted caption" style="margin-top:2px;">Turn off for household/fixed costs such as rent or mortgage.</div></div><button data-action="toggle-subcategory-people-analysis" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(subcategoryExcludedFromPeopleAnalysis(selectedSub)?'var(--text-muted)':'var(--positive)')+';">'+(subcategoryExcludedFromPeopleAnalysis(selectedSub)?'Excluded':'Included')+'</button></div></div>';
       h += '<div class="taxonomy-form-card"><label class="eyebrow">Icon</label><div class="taxonomy-icon-grid" style="margin-top:10px;">';
       CAT_ICON_ORDER.forEach(function(iconKey){ var on=subStyle.icon===iconKey; h += '<button data-action="set-category-icon" data-cat="'+esc(selectedSub)+'" data-icon="'+iconKey+'" class="taxonomy-icon-choice" style="background:'+subStyle.color+';border:'+(on?'2px solid var(--text)':'2px solid transparent')+';">'+CAT_ICON_SVGS[iconKey]+'</button>'; });
@@ -3396,7 +3470,7 @@ function renderSettingsPage() {
       h += '<div class="taxonomy-section-label">Subcategories</div><div class="taxonomy-list">';
       members.forEach(function(c,ci){
         var st=categoryStyle(c), excluded=categoryExcludedFromBudget(c);
-        h += '<div class="taxonomy-row" data-action="open-settings-subcategory" data-cat="'+esc(c)+'"><span class="taxonomy-icon" style="background:'+st.color+';">'+CAT_ICON_SVGS[st.icon]+'</span><div class="taxonomy-main"><span class="taxonomy-name">'+esc(c)+'</span><span class="taxonomy-meta">'+(excluded?'Outside budget':'Included in budget')+'</span></div><span class="taxonomy-badge '+(excluded?'out':'in')+'">'+(excluded?'Excluded':'Included')+'</span>';
+        h += '<div class="taxonomy-row" data-action="open-settings-subcategory" data-cat="'+esc(c)+'"><span class="taxonomy-icon" style="background:'+st.color+';">'+CAT_ICON_SVGS[st.icon]+'</span><div class="taxonomy-main"><span class="taxonomy-name">'+esc(c)+'</span><span class="taxonomy-meta">'+(excluded?'Outside budget':'Included in budget')+(subcategoryEssentialForSafeSpend(c)?' · Essential':'')+'</span></div><span class="taxonomy-badge '+(excluded?'out':'in')+'">'+(excluded?'Excluded':'Included')+'</span>';
         if (state.settingsCategoryEditMode) h += '<div class="taxonomy-edit-actions"><button data-action="move-category" data-cat="'+esc(c)+'" data-dir="-1" '+(ci===0?'disabled':'')+' style="'+(ci===0?'opacity:.3;':'')+'">'+ICONS.chevronUp+'</button><button data-action="move-category" data-cat="'+esc(c)+'" data-dir="1" '+(ci===members.length-1?'disabled':'')+' style="'+(ci===members.length-1?'opacity:.3;':'')+'">'+ICONS.chevronDown+'</button></div>';
         else h += '<span class="muted">'+ICONS.chevronRight+'</span>';
         h += '</div>';
@@ -5874,6 +5948,7 @@ function handleRestore() {
     nextSettings.transactionTags = normalizeTransactionTags(nextSettings.transactionTags);
     nextSettings.transactionTagColors = normalizeTransactionTagColors(nextSettings.transactionTagColors, nextSettings.transactionTags);
     nextSettings.incomeHistory = normalizeIncomeHistory(nextSettings.incomeHistory);
+    nextSettings.savingsTargetPct = normalizeSavingsTargetPct(nextSettings.savingsTargetPct);
     nextSettings.monthlyBudgetHistory = normalizeMonthlyBudgetHistory(nextSettings.monthlyBudgetHistory);
     nextSettings.categoryStyles = normalizeCategoryStyles(nextSettings.categoryStyles, nextSettings.categories);
     nextSettings.categoryGroups = normalizeCategoryGroups(nextSettings.categoryGroups);
@@ -5882,6 +5957,7 @@ function handleRestore() {
     nextSettings.people = normalizePeople(nextSettings.people);
     nextSettings.personColors = normalizePersonColors(nextSettings.personColors, nextSettings.people);
     nextSettings.categoryExcludeFromBudget = normalizeCategoryExcludeFromBudget(nextSettings.categoryExcludeFromBudget, nextSettings.categories);
+    nextSettings.safeSpendPriorities = normalizeSafeSpendPriorities(nextSettings.safeSpendPriorities, nextSettings.categories);
     nextSettings.peopleAnalysisExcluded = normalizePeopleAnalysisExcluded(nextSettings.peopleAnalysisExcluded, nextSettings.categories);
     nextSettings.defaultPerson = normalizeDefaultPerson(nextSettings.defaultPerson, nextSettings.people);
     nextSettings.recurringRules = normalizeRecurringRules(nextSettings.recurringRules);
@@ -6286,6 +6362,14 @@ document.addEventListener("click", function(e) {
       persistAll(Object.assign({}, state.settings, { recurringRules: remainingRules }), entriesAfterDelete, "your settings");
       render();
       break;
+    case "toggle-safe-spend-priority":
+      var safeCatToToggle=el.dataset.cat;
+      var safePriorityMap=Object.assign({},state.settings.safeSpendPriorities||{});
+      safePriorityMap[safeCatToToggle]=subcategoryEssentialForSafeSpend(safeCatToToggle)?"flexible":"essential";
+      persistAll(Object.assign({},state.settings,{safeSpendPriorities:safePriorityMap}),state.entries,"your Safe-to-Spend priorities");
+      showToast(safeCatToToggle+" set to "+(safePriorityMap[safeCatToToggle]==="essential"?"Essential":"Flexible"));
+      render();
+      break;
     case "toggle-subcategory-people-analysis":
       var peopleCatToToggle = el.dataset.cat;
       var peopleExcludeMap = Object.assign({}, state.settings.peopleAnalysisExcluded||{});
@@ -6315,7 +6399,9 @@ document.addEventListener("click", function(e) {
       delete excludeAfterRemove[catToRemove];
       var peopleExcludeAfterRemove = Object.assign({}, state.settings.peopleAnalysisExcluded||{});
       delete peopleExcludeAfterRemove[catToRemove];
-      var withoutCat = Object.assign({}, state.settings, { categories: nextCatsAfterRemove, categoryStyles: stylesAfterRemove, categoryGroupOf: groupOfAfterRemoveCat, categoryExcludeFromBudget: excludeAfterRemove, peopleAnalysisExcluded: peopleExcludeAfterRemove });
+      var safePrioritiesAfterRemove=Object.assign({},state.settings.safeSpendPriorities||{});
+      delete safePrioritiesAfterRemove[catToRemove];
+      var withoutCat = Object.assign({}, state.settings, { categories: nextCatsAfterRemove, categoryStyles: stylesAfterRemove, categoryGroupOf: groupOfAfterRemoveCat, categoryExcludeFromBudget: excludeAfterRemove, peopleAnalysisExcluded: peopleExcludeAfterRemove, safeSpendPriorities:safePrioritiesAfterRemove });
       if (state.categoryStyleEditing === catToRemove) state.categoryStyleEditing = null;
       if (state.categoryRenameEditing === catToRemove) state.categoryRenameEditing = null;
       persistAll(withoutCat, state.entries, "your categories");
