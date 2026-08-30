@@ -381,7 +381,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v69";
+var APP_VERSION = "v70";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -3477,10 +3477,6 @@ function renderBudgetBody(T) {
     else { var selectedDaysLeft=Math.max(0,daysBetween(todayStr(),period.endStr)+1); selectedDailyAllowance=selectedDaysLeft>0?remaining/selectedDaysLeft:null; }
   }
   var limitingPacing=(livePacing&&limitingHorizon)?livePacing[limitingHorizon]:null;
-  var protectedTotal=limitingPacing?round2(limitingPacing.futureReserve||0):0;
-  var protectedBreakdown=limitingPacing&&Array.isArray(limitingPacing.reserveBreakdown)?limitingPacing.reserveBreakdown:[];
-  var flexibleForecastTotal=limitingPacing?round2(limitingPacing.flexibleForecastTotal||0):0;
-  var flexibleForecastBreakdown=limitingPacing&&Array.isArray(limitingPacing.flexibleForecastBreakdown)?limitingPacing.flexibleForecastBreakdown:[];
   /* The simple equal split and the forecast-aware flexible allowance answer
      different questions. Keep both visible so Safe to Spend can be audited:
        equal remaining/day = current remaining / days left
@@ -3491,6 +3487,29 @@ function renderBudgetBody(T) {
   var reserveVariancePerDay=limitingPacing&&limitingPacing.days?round2(((limitingPacing.cadenceAdjustment||0)+(limitingPacing.scheduledAdjustment||0))/limitingPacing.days):0;
   var forecastStart=effectiveRangeStart(period.startStr),forecastDays=daysBetween(forecastStart,period.endStr)+1,budgetForecast=(isCurrent&&stats.rows.length)?computeForecastNumbers(stats.rows,forecastDays,forecastStart,'budget'):null;
   var projectedSpend=budgetForecast?budgetForecast.projectedSpend:stats.spent,projectedSaving=round2(target-projectedSpend),progress=target>0?Math.max(0,Math.min(100,stats.spent/target*100)):0;
+  /* v70: The compact summary must reconcile exactly with the Forecast card.
+     v69 used the Safe-to-Spend opening-of-day model here, while the chart used
+     the live now-forward forecast. That made figures such as 215 + 3 appear
+     above a chart saying only 174 AED remained. The summary is display-only,
+     so derive it from the SAME live forecast breakdown as the chart. Safe-to-
+     Spend math itself continues to use its conservative opening-day reserves. */
+  var protectedBreakdown=[],flexibleForecastBreakdown=[],protectedTotal=0,flexibleForecastTotal=0;
+  if(budgetForecast&&Array.isArray(budgetForecast.forecastBreakdown)){
+    budgetForecast.forecastBreakdown.forEach(function(x){
+      var amount=round2(Math.max(0,Number(x.amount)||0)); if(amount<=0)return;
+      var label=x.label||"Uncategorised";
+      var row={category:label,amount:amount,kind:x.kind||""};
+      var protectedEssential=subcategoryEssentialForSafeSpend(label)&&(x.kind==="cadence"||x.kind==="scheduled");
+      if(protectedEssential){protectedBreakdown.push(row);protectedTotal=round2(protectedTotal+amount);}
+      else {flexibleForecastBreakdown.push(row);flexibleForecastTotal=round2(flexibleForecastTotal+amount);}
+    });
+    protectedBreakdown.sort(function(a,b){return b.amount-a.amount;});
+    flexibleForecastBreakdown.sort(function(a,b){return b.amount-a.amount;});
+    /* Absorb only rounding dust so displayed groups always add to the card's
+       headline remaining forecast without inventing a material category. */
+    var displayDiff=round2((budgetForecast.remainingForecast||0)-protectedTotal-flexibleForecastTotal);
+    if(Math.abs(displayDiff)>0&&Math.abs(displayDiff)<1){flexibleForecastTotal=round2(flexibleForecastTotal+displayDiff);}
+  }
   var h='<div class="row between" style="align-items:center;margin-bottom:10px;"><div class="eyebrow">Budget</div><div class="row gap2"><button data-action="toggle-budget-reorder" class="btn-plain" style="font-size:12px;">'+(state.budgetReorderMode?'Done':'Customize')+'</button><button data-action="open-budget-settings" class="btn-outline" style="padding:6px 10px;font-size:12px;">Edit budget</button></div></div>';
   h+='<div class="seg" style="margin-bottom:12px;">';['week','month','year'].forEach(function(v){h+='<button class="seg-btn" role="tab" aria-selected="'+(state.view===v)+'" data-action="switch-view" data-view="'+v+'" style="text-transform:capitalize;">'+v+'</button>';});h+='</div>';
   h+='<div class="row between card" style="padding:8px 10px;margin-bottom:12px;"><button data-action="nav-offset" data-delta="-1" class="icon-btn" style="border-radius:10px;">'+ICONS.chevronLeft+'</button><div style="text-align:center;"><div class="subhead" style="font-weight:600;">'+esc(period.title)+'</div><div class="muted caption">'+esc(period.sub)+(isClosed?' · closed':'')+'</div></div><button data-action="nav-offset" data-delta="1" class="icon-btn" style="border-radius:10px;'+(isCurrent?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';
@@ -3511,7 +3530,7 @@ function renderBudgetBody(T) {
       : (savingsTighter ? fmt(bsc.pct,0)+'% savings goal sets the limit' : 'Your set monthly budget sets the limit');
     var relationColor=(savingsTighter||(effectiveInfo&&effectiveInfo.adaptiveOverride))?'var(--amber)':'var(--positive)';
     summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);">';
-    summary+='<div class="row between" style="gap:12px;align-items:baseline;"><div><div class="subhead" style="font-weight:700;">Effective monthly budget</div><div class="muted caption" style="margin-top:2px;">One live spending limit from budget + savings goal.</div></div><div style="text-align:right;flex-shrink:0;"><div class="mono subhead" style="font-weight:800;color:'+relationColor+';">≈ '+fmt(effectiveInfo.effectiveBudget,0)+' AED</div><div class="caption" style="font-weight:700;color:'+relationColor+';">'+esc(relationText)+'</div></div></div>';
+    summary+='<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:4px;align-items:start;"><div><div class="subhead" style="font-weight:700;">Effective monthly budget</div><div class="muted caption" style="margin-top:2px;line-height:1.35;">One live spending limit from budget + savings goal.</div></div><div class="mono subhead" style="font-weight:800;color:'+relationColor+';text-align:right;white-space:nowrap;">≈ '+fmt(effectiveInfo.effectiveBudget,0)+' AED</div><div class="caption" style="grid-column:1/-1;font-weight:700;color:'+relationColor+';line-height:1.35;white-space:normal;">'+esc(relationText)+'</div></div>';
     summary+='<div style="margin-top:10px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
     summary+='<div class="row between" style="padding:7px 0;"><span class="muted caption">Your set budget</span><span class="mono caption" style="font-weight:700;">'+fmt(bsc.configuredBudget,0)+' AED</span></div>';
     summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Savings-compatible limit</span><span class="mono caption" style="font-weight:750;">≈ '+fmt(bsc.compatibleBudget,0)+' AED</span></div>';
@@ -5047,6 +5066,20 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
   });
   breakdown.sort(function(a,b){return b.amount-a.amount;});
 
+  /* v70: keep model evidence available even when the selected period has no
+     future calendar days (for example Sunday in the Week view). This lets the
+     collapsible Forecast details remain inspectable instead of disappearing. */
+  var profileEvidence=[];
+  Object.keys(behavioral.profiles||{}).forEach(function(k){
+    var p=behavioral.profiles[k]; if(!p||p.mode==="sparse")return;
+    var bx=behavioral.bySubcategory&&behavioral.bySubcategory[k];
+    var prob=null;
+    if(bx&&bx.kind==="cadence"&&bx.probability!=null) prob=bx.probability;
+    else if(p._forecastProbability!=null) prob=p._forecastProbability;
+    profileEvidence.push({label:p.label,mode:p.mode,txnCount:p.txnCount,activeDays:p.activeDays,gap:p.gap,typicalAmount:round2(p.typicalAmount||0),confidence:p.confidence,lastDate:p.lastDate,probability:prob});
+  });
+  profileEvidence.sort(function(a,b){return (a.label||"").localeCompare(b.label||"");});
+
   var suppressed=[],seen={};
   (behavioral.suppressed||[]).forEach(function(p){
     if(!p||seen[p.key])return;seen[p.key]=1;
@@ -5061,7 +5094,7 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
     cadenceSafeReserveFuture:cadenceSafeReserveFuture,frequentExpectedFuture:round2(behavioral.frequentExpectedTotal||0),safeReserveFuture:safeReserveFuture,
     hasForecast:hasForecast,projectedSpend:projectedSpend,forecastValues:forecastValues,
     rangeLow:rangeLow==null?null:round2(rangeLow),rangeHigh:rangeHigh==null?null:round2(rangeHigh),
-    remainingForecast:round2(Math.max(0,projectedSpend-actualSpentSoFar)),forecastBreakdown:breakdown,
+    remainingForecast:round2(Math.max(0,projectedSpend-actualSpentSoFar)),forecastBreakdown:breakdown,profileEvidence:profileEvidence,
     recentlySatisfied:suppressed,eventModeledCount:evidenceCount,personModeledCount:0,overallModeledCount:evidenceCount
   };
 }
@@ -5189,11 +5222,14 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   var detailsOpen = scope === "budget" ? !!state.budgetForecastDetailsOpen : !!state.analysisForecastDetailsOpen;
   var detailRows = fc.forecastBreakdown || [];
   var satisfiedRows = fc.recentlySatisfied || [];
-  if (hasForecast) {
+  var profileEvidence = fc.profileEvidence || [];
+  var showForecastDetails = hasForecast || profileEvidence.length || satisfiedRows.length;
+  if (showForecastDetails) {
     s += '<button data-action="toggle-forecast-details" data-scope="'+scope+'" class="row between" style="width:100%;background:none;border:none;border-top:1px solid var(--sep);padding:12px 0 0;margin-top:12px;color:inherit;text-align:left;">';
-    s += '<span class="subhead" style="font-weight:650;">Forecast details</span><span class="row gap2"><span class="mono muted caption">'+fmt(fc.remainingForecast||0,0)+' AED remaining</span><span style="display:flex;transform:rotate('+(detailsOpen?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
+    s += '<span class="subhead" style="font-weight:650;">Forecast details</span><span class="row gap2"><span class="mono muted caption">'+(hasForecast?(fmt(fc.remainingForecast||0,0)+' AED remaining'):'No future days')+'</span><span style="display:flex;transform:rotate('+(detailsOpen?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
     if (detailsOpen) {
       s += '<div style="margin-top:8px;">';
+      if(!hasForecast) s += '<div class="muted caption" style="padding:2px 0 9px;line-height:1.4;">This period has no future calendar days left. Frequency evidence is still shown below; remaining-period probability is 0%.</div>';
       detailRows.forEach(function(x,i){
         var tag=x.kind==='scheduled'?'Scheduled':(x.kind==='cadence'?'Cadence':(x.kind==='frequent'?'Frequent':'Behavior'));
         var evidence=x.metaText?('<div class="muted caption" style="margin-top:2px;white-space:normal;">'+esc(x.metaText)+'</div>'):'';
@@ -5204,6 +5240,17 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
         var rightLabel=x.kind==='cadence'?'<div class="muted caption" style="text-align:right;margin-top:1px;">expected</div>':'';
         s += '<div class="row between" style="padding:9px 0;gap:12px;'+(i?'border-top:1px solid var(--sep);':'')+'"><div style="min-width:0;flex:1;"><div class="subhead" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.label)+'</div><div class="muted caption">'+tag+'</div>'+evidence+cadenceMetrics+'</div><div style="flex-shrink:0;"><div class="mono subhead" style="font-weight:650;text-align:right;">'+fmt(x.amount,0)+' AED</div>'+rightLabel+'</div></div>';
       });
+      if(!detailRows.length && profileEvidence.length){
+        profileEvidence.forEach(function(p,i){
+          var bits=[];
+          if(p.txnCount!=null) bits.push(p.txnCount+' txn'+(p.txnCount===1?'':'s'));
+          if(p.gap!=null) bits.push('every '+Number(p.gap).toFixed(1)+' days');
+          if(p.lastDate) bits.push('last '+(p.lastDate===todayStr()?'Today':shortLabel(p.lastDate)));
+          if(p.confidence) bits.push(p.confidence+' confidence');
+          var chance=p.mode==='cadence'?'<div class="caption" style="margin-top:4px;font-weight:650;">0% remaining-period chance · Likely txn '+fmt(p.typicalAmount||0,0)+' AED</div>':'';
+          s += '<div style="padding:9px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="subhead" style="font-weight:600;">'+esc(p.label)+'</div><div class="muted caption" style="margin-top:2px;white-space:normal;">'+esc((p.mode==='frequent'?'Frequent':'Cadence')+(bits.length?' · '+bits.join(' · '):''))+'</div>'+chance+'</div>';
+        });
+      }
       satisfiedRows.forEach(function(x){
         if ((x.amount||0) >= 5) return;
         var pPct=Math.round(Math.max(0,Math.min(1,x.probability||0))*100);
