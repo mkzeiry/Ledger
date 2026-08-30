@@ -381,7 +381,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v67";
+var APP_VERSION = "v68";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -3514,29 +3514,29 @@ function renderBudgetBody(T) {
       summary+='</div><div class="muted caption" style="margin-top:8px;line-height:1.35;">The lower limit becomes your effective budget automatically. If it falls below half of your recent spending pace, The Ledger can temporarily use the higher limit and will state the override.</div></div>';
     }
   }
+  /* v68: Keep Safe-to-Spend decision content compact. The summary only shows
+     which subcategories are protected/forecast and their amounts. Forecast
+     evidence (frequency, probability, usual amount, confidence, timing) lives
+     in the collapsible Forecast details directly beneath the forecast chart. */
   if(isCurrent&&(protectedTotal>0||flexibleForecastTotal>0)){
-    var protectedDays=limitingPacing&&limitingPacing.days?limitingPacing.days:0;
     summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);">';
     if(protectedTotal>0){
-      summary+='<div class="row between" style="gap:12px;align-items:baseline;"><div><span class="subhead" style="font-weight:650;">Protected essentials</span><div class="muted caption" style="margin-top:2px;">Essential cadence / plans · '+esc(limitingHorizon==='adaptive'?'Adaptive limit':(limitingHorizon==='effective'?'Effective budget':(limitingHorizon==='savings'?'Savings goal':((limitingHorizon||'budget').charAt(0).toUpperCase()+(limitingHorizon||'budget').slice(1)))))+' limit</div></div><div style="text-align:right;flex-shrink:0;"><div class="mono subhead" style="font-weight:750;">'+fmt(protectedTotal,0)+' AED</div>'+(protectedDays>0?'<div class="muted mono caption">≈ '+fmt(protectedTotal/protectedDays,0)+' AED/day</div>':'')+'</div></div>';
-      if(flexibleAllowancePerDay!=null){
-        var reconText=fmt(flexibleAllowancePerDay,0)+' allowance';
-        if(flexibleSpentToday>0) reconText+=' − '+fmt(flexibleSpentToday,0)+' spent today';
-        if(Math.abs(reserveVariancePerDay)>=0.5) reconText+=(reserveVariancePerDay>0?' − ':' + ')+fmt(Math.abs(reserveVariancePerDay),0)+' essential reserve variance/day';
-        reconText+=' = '+fmt(safeToday||0,0)+' safe now';
-        summary+='<div class="muted caption" style="margin-top:8px;line-height:1.35;"><span style="font-weight:650;color:var(--text);">Safe-to-spend math:</span> '+esc(reconText)+'</div>';
-      }
+      summary+='<div class="row between" style="gap:12px;align-items:baseline;"><span class="subhead" style="font-weight:650;">Protected essentials</span><span class="mono subhead" style="font-weight:750;">'+fmt(protectedTotal,0)+' AED</span></div>';
       if(protectedBreakdown.length){
-        summary+='<div style="margin-top:9px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
-        protectedBreakdown.forEach(function(x,i){summary+='<div class="row between" style="padding:8px 0;gap:12px;align-items:flex-start;'+(i?'border-top:1px solid var(--sep);':'')+'"><div style="min-width:0;flex:1;"><div class="caption" style="font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div>'+budgetForecastEvidenceHtml(x,true)+'</div><div style="text-align:right;flex-shrink:0;"><div class="mono caption" style="font-weight:750;">'+fmt(x.amount,0)+' AED</div><div class="muted caption">protected</div></div></div>';});
+        summary+='<div style="margin-top:8px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
+        protectedBreakdown.forEach(function(x,i){
+          summary+='<div class="row between" style="padding:8px 0;gap:12px;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="caption" style="font-weight:650;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div><div class="mono caption" style="font-weight:750;flex-shrink:0;">'+fmt(x.amount,0)+' AED</div></div>';
+        });
         summary+='</div>';
       }
     }
     if(flexibleForecastTotal>0){
-      summary+='<div class="'+(protectedTotal>0?'hairline-top':'')+'" style="margin-top:'+(protectedTotal>0?'13px':'0')+';padding-top:'+(protectedTotal>0?'12px':'0')+';"><div class="row between" style="gap:12px;align-items:baseline;"><div><span class="subhead" style="font-weight:650;">Upcoming forecast spend</span><div class="muted caption" style="margin-top:2px;">Frequent + flexible cadence · not separately pre-reserved</div></div><div class="mono subhead" style="font-weight:700;color:var(--text-muted);">≈ '+fmt(flexibleForecastTotal,0)+' AED</div></div>';
+      summary+='<div class="'+(protectedTotal>0?'hairline-top':'')+'" style="margin-top:'+(protectedTotal>0?'12px':'0')+';padding-top:'+(protectedTotal>0?'11px':'0')+';"><div class="row between" style="gap:12px;align-items:baseline;"><span class="subhead" style="font-weight:650;">Upcoming forecast spend</span><span class="mono subhead" style="font-weight:700;color:var(--text-muted);">≈ '+fmt(flexibleForecastTotal,0)+' AED</span></div>';
       if(flexibleForecastBreakdown.length){
-        summary+='<div style="margin-top:9px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
-        flexibleForecastBreakdown.forEach(function(x,i){summary+='<div class="row between" style="padding:8px 0;gap:12px;align-items:flex-start;'+(i?'border-top:1px solid var(--sep);':'')+'"><div style="min-width:0;flex:1;"><div class="caption" style="font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div>'+budgetForecastEvidenceHtml(x,false)+'</div><div style="text-align:right;flex-shrink:0;"><div class="mono caption muted" style="font-weight:750;">≈ '+fmt(x.amount,0)+' AED</div><div class="muted caption">expected</div></div></div>';});
+        summary+='<div style="margin-top:8px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
+        flexibleForecastBreakdown.forEach(function(x,i){
+          summary+='<div class="row between" style="padding:8px 0;gap:12px;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="caption" style="font-weight:650;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div><div class="mono caption muted" style="font-weight:750;flex-shrink:0;">≈ '+fmt(x.amount,0)+' AED</div></div>';
+        });
         summary+='</div>';
       }
       summary+='</div>';
@@ -5167,11 +5167,13 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
     s += '<div class="row gap2" style="margin-top:10px; flex-wrap:wrap;">'+legendSwatch(T.positive,"Actual")+legendSwatch(T.accent,"Projected")+legendSwatch(T.textMuted,compareLabel)+'</div>';
   }
   /* Keep the forecast card visual-first. Details stay collapsed unless the
-     user wants to inspect what is driving the remaining estimate. */
+     user wants to inspect what is driving the remaining estimate. v68 restores
+     this same drill-down on Budget so frequency/probability evidence no longer
+     crowds the Safe-to-Spend summary. */
   var detailsOpen = scope === "budget" ? !!state.budgetForecastDetailsOpen : !!state.analysisForecastDetailsOpen;
   var detailRows = fc.forecastBreakdown || [];
   var satisfiedRows = fc.recentlySatisfied || [];
-  if (hasForecast && scope !== "budget") {
+  if (hasForecast) {
     s += '<button data-action="toggle-forecast-details" data-scope="'+scope+'" class="row between" style="width:100%;background:none;border:none;border-top:1px solid var(--sep);padding:12px 0 0;margin-top:12px;color:inherit;text-align:left;">';
     s += '<span class="subhead" style="font-weight:650;">Forecast details</span><span class="row gap2"><span class="mono muted caption">'+fmt(fc.remainingForecast||0,0)+' AED remaining</span><span style="display:flex;transform:rotate('+(detailsOpen?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
     if (detailsOpen) {
