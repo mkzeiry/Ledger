@@ -381,7 +381,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v65";
+var APP_VERSION = "v66";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -1086,6 +1086,7 @@ var state = {
   loading: true,
   saveError: null,
   storageOK: null,
+  dataProtection: { available:null, primaryStatus:"checking", lastBackupAt:null, snapshotCount:0, protectedTxnCount:0, recentSnapshots:[], error:null },
   view: "week",
   offset: 0,
   showSettings: false,
@@ -1400,18 +1401,193 @@ function referenceForDate(ds) { return allowanceForDate(ds); }
 
 
 /* ---------------- persistence ---------------- */
+/* Primary storage remains localStorage["ledger-data"] for full backward
+   compatibility. IndexedDB is a second, automatic recovery layer on the same
+   device/browser origin. It protects against a bad/accidental save, but it is
+   not a substitute for an off-device/cloud backup if the phone is lost or
+   browser data is cleared. */
+var BACKUP_DB_NAME = "ledger-local-recovery";
+var BACKUP_DB_VERSION = 1;
+var BACKUP_STORE = "snapshots";
+var dataProtectionReady = false;
+var dataProtectionBooting = true;
+var localBackupTimer = null;
+var primaryStorageHealth = "checking";
+
+function ledgerPayload(settings, entries) {
+  return JSON.stringify({ settings: settings, entries: entries });
+}
+function ledgerChecksum(str) {
+  /* Fast non-cryptographic integrity fingerprint. JSON is also shape-validated
+     before a snapshot can ever be restored. */
+  var h = 2166136261;
+  for (var i=0;i<str.length;i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(16).padStart(8,"0");
+}
+function ledgerTxnCount(entries) {
+  var n=0; Object.keys(entries||{}).forEach(function(d){ var day=entries[d]; n += day&&Array.isArray(day.items)?day.items.length:0; }); return n;
+}
+function openBackupDB() {
+  return new Promise(function(resolve,reject){
+    if (!window.indexedDB) { reject(new Error("IndexedDB unavailable")); return; }
+    var req=indexedDB.open(BACKUP_DB_NAME,BACKUP_DB_VERSION);
+    req.onupgradeneeded=function(){
+      var db=req.result;
+      if(!db.objectStoreNames.contains(BACKUP_STORE)){
+        var store=db.createObjectStore(BACKUP_STORE,{keyPath:"id"});
+        store.createIndex("createdAt","createdAt",{unique:false});
+      }
+    };
+    req.onsuccess=function(){resolve(req.result);};
+    req.onerror=function(){reject(req.error||new Error("Could not open local recovery database"));};
+  });
+}
+function idbRequest(req) { return new Promise(function(resolve,reject){req.onsuccess=function(){resolve(req.result);};req.onerror=function(){reject(req.error||new Error("IndexedDB request failed"));};}); }
+async function getAllLocalSnapshots() {
+  var db=await openBackupDB();
+  try { var tx=db.transaction(BACKUP_STORE,"readonly"), store=tx.objectStore(BACKUP_STORE); return (await idbRequest(store.getAll()))||[]; }
+  finally { db.close(); }
+}
+async function getLocalSnapshot(id) {
+  var db=await openBackupDB();
+  try { var tx=db.transaction(BACKUP_STORE,"readonly"), store=tx.objectStore(BACKUP_STORE); return await idbRequest(store.get(id)); }
+  finally { db.close(); }
+}
+function snapshotIsHealthy(s) {
+  try {
+    if(!s||typeof s.payload!=="string"||!s.payload) return false;
+    if(s.checksum && ledgerChecksum(s.payload)!==s.checksum) return false;
+    var p=JSON.parse(s.payload);
+    return !!(p&&typeof p==="object"&&validateBackupEntries(p.entries||{}));
+  } catch(e) { return false; }
+}
+async function latestHealthyLocalSnapshot() {
+  var all=await getAllLocalSnapshots();
+  all.sort(function(a,b){return String(a.createdAt||"")<String(b.createdAt||"")?1:-1;});
+  for(var i=0;i<all.length;i++) if(snapshotIsHealthy(all[i])) return all[i];
+  return null;
+}
+async function pruneLocalSnapshots() {
+  var all=await getAllLocalSnapshots();
+  all.sort(function(a,b){return String(a.createdAt||"")<String(b.createdAt||"")?1:-1;});
+  if(all.length<=42) return;
+  var keep={}, days={};
+  /* Keep the 12 most recent save-points plus one snapshot per calendar day
+     for roughly the last month. */
+  all.slice(0,12).forEach(function(s){keep[s.id]=true;});
+  var now=Date.now();
+  all.forEach(function(s){
+    var ms=Date.parse(s.createdAt||""); if(!isFinite(ms)||now-ms>31*86400000) return;
+    var day=String(s.createdAt||"").slice(0,10);
+    if(!days[day]){days[day]=true;keep[s.id]=true;}
+  });
+  var db=await openBackupDB();
+  try {
+    var tx=db.transaction(BACKUP_STORE,"readwrite"),store=tx.objectStore(BACKUP_STORE);
+    all.forEach(function(s){if(!keep[s.id])store.delete(s.id);});
+    await new Promise(function(resolve,reject){tx.oncomplete=resolve;tx.onerror=function(){reject(tx.error||new Error("Prune failed"));};tx.onabort=function(){reject(tx.error||new Error("Prune aborted"));};});
+  } finally { db.close(); }
+}
+async function refreshDataProtectionStatus() {
+  try {
+    var all=await getAllLocalSnapshots();
+    all=all.filter(snapshotIsHealthy).sort(function(a,b){return String(a.createdAt||"")<String(b.createdAt||"")?1:-1;});
+    state.dataProtection.available=true;
+    state.dataProtection.error=null;
+    state.dataProtection.snapshotCount=all.length;
+    state.dataProtection.lastBackupAt=all.length?all[0].createdAt:null;
+    state.dataProtection.protectedTxnCount=all.length?(Number(all[0].txnCount)||0):0;
+    state.dataProtection.recentSnapshots=all.slice(0,6).map(function(s){return {id:s.id,createdAt:s.createdAt,txnCount:Number(s.txnCount)||0,reason:s.reason||"automatic",appVersion:s.appVersion||""};});
+  } catch(e) {
+    state.dataProtection.available=false;
+    state.dataProtection.error="Automatic local recovery is not available in this browser context.";
+    state.dataProtection.snapshotCount=0; state.dataProtection.recentSnapshots=[];
+  }
+}
+async function writeLocalBackup(reason, settings, entries) {
+  if(!dataProtectionReady) return false;
+  settings=settings||state.settings; entries=entries||state.entries;
+  var payload=ledgerPayload(settings,entries), checksum=ledgerChecksum(payload);
+  try {
+    var all=await getAllLocalSnapshots();
+    all.sort(function(a,b){return String(a.createdAt||"")<String(b.createdAt||"")?1:-1;});
+    if(all.length && all[0].checksum===checksum){ await refreshDataProtectionStatus(); return true; }
+    var now=new Date().toISOString();
+    var snap={id:String(Date.now())+"-"+Math.random().toString(36).slice(2,8),createdAt:now,reason:reason||"automatic",appVersion:APP_VERSION,checksum:checksum,txnCount:ledgerTxnCount(entries),payload:payload};
+    var db=await openBackupDB();
+    try {
+      var tx=db.transaction(BACKUP_STORE,"readwrite"); tx.objectStore(BACKUP_STORE).put(snap);
+      await new Promise(function(resolve,reject){tx.oncomplete=resolve;tx.onerror=function(){reject(tx.error||new Error("Snapshot save failed"));};tx.onabort=function(){reject(tx.error||new Error("Snapshot save aborted"));};});
+    } finally { db.close(); }
+    await pruneLocalSnapshots();
+    await refreshDataProtectionStatus();
+    return true;
+  } catch(e) {
+    state.dataProtection.available=false;
+    state.dataProtection.error="Automatic local recovery could not save a snapshot.";
+    return false;
+  }
+}
+function scheduleLocalBackup(reason, settings, entries) {
+  if(!dataProtectionReady||dataProtectionBooting) return;
+  if(localBackupTimer) clearTimeout(localBackupTimer);
+  /* Capture the exact successful primary save rather than a later mutated
+     state object. */
+  var s=settings,e=entries;
+  localBackupTimer=setTimeout(function(){localBackupTimer=null;writeLocalBackup(reason||"automatic",s,e);},650);
+}
+function formatLocalBackupTime(iso) {
+  if(!iso) return "Not yet";
+  try { return new Date(iso).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}); } catch(e) { return iso; }
+}
+async function initDataProtection(primaryStatus) {
+  state.dataProtection.primaryStatus=primaryStatus;
+  try { await openBackupDB().then(function(db){db.close();}); dataProtectionReady=true; state.dataProtection.available=true; }
+  catch(e){ dataProtectionReady=false; state.dataProtection.available=false; state.dataProtection.error="Automatic local recovery is unavailable in this browser context."; return; }
+  if(primaryStatus==="healthy") {
+    await writeLocalBackup("startup",state.settings,state.entries);
+    return;
+  }
+  /* If the primary copy vanished or became unreadable, never overwrite the
+     recovery database with defaults. Look for the newest verified snapshot. */
+  try {
+    var snap=await latestHealthyLocalSnapshot();
+    if(snap){
+      localStorage.setItem(STORAGE_KEY,snap.payload);
+      try { sessionStorage.setItem("ledger-recovery-notice","Recovered automatically from local snapshot · "+formatLocalBackupTime(snap.createdAt)); } catch(ignore) {}
+      location.reload();
+      return;
+    }
+  } catch(e) {}
+  await refreshDataProtectionStatus();
+}
+async function restoreLocalSnapshotById(id) {
+  try {
+    var snap=await getLocalSnapshot(id);
+    if(!snapshotIsHealthy(snap)){showToast("That recovery snapshot is not healthy");return;}
+    if(!window.confirm("Restore this local snapshot? Your current ledger will be saved as a recovery point first.")) return;
+    await writeLocalBackup("before local restore",state.settings,state.entries);
+    localStorage.setItem(STORAGE_KEY,snap.payload);
+    try { sessionStorage.setItem("ledger-recovery-notice","Restored local snapshot · "+formatLocalBackupTime(snap.createdAt)); } catch(ignore) {}
+    location.reload();
+  } catch(e) { showToast("Could not restore that local snapshot"); }
+}
+
 function loadInitial() {
+  primaryStorageHealth="missing";
   try {
     var raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       var parsed = JSON.parse(raw);
+      if(!parsed||typeof parsed!=="object"||!validateBackupEntries(parsed.entries||{})) throw new Error("invalid primary data");
+      primaryStorageHealth="healthy";
       state.settings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings||{});
       if (!state.settings.rateHistory || !state.settings.rateHistory.length) {
         state.settings.rateHistory = [{ from: "1900-01-01", weeklyTarget: state.settings.weeklyTarget }];
       }
       state.entries = migrateEntries(parsed.entries||{}, dailyAllowance());
     }
-  } catch(e) { /* first run */ }
+  } catch(e) { primaryStorageHealth="corrupt"; }
   if (!state.settings.rateHistory || !state.settings.rateHistory.length) {
     state.settings.rateHistory = [{ from: "1900-01-01", weeklyTarget: state.settings.weeklyTarget }];
   }
@@ -1446,14 +1622,15 @@ function loadInitial() {
   state.settings.peopleAnalysisExcluded = normalizePeopleAnalysisExcluded(state.settings.peopleAnalysisExcluded, state.settings.categories);
   state.settings.defaultPerson = normalizeDefaultPerson(state.settings.defaultPerson, state.settings.people);
   state.settings.recurringRules = normalizeRecurringRules(state.settings.recurringRules);
-  /* Neither recurring catch-up nor forecast backtesting is allowed to block
-     the first paint. They are maintenance tasks; if one ever hits malformed
-     historical data, the core ledger must still open normally. */
+  /* Do not run maintenance against empty defaults when primary storage is
+     missing/corrupt; IndexedDB recovery gets first chance. */
   var recurringChanged = false, snapshotChanged = false;
-  try { recurringChanged = runRecurringCatchUp(); } catch(e) { recurringChanged = false; }
-  try { snapshotChanged = captureForecastSnapshotsIfNeeded(); } catch(e) { snapshotChanged = false; }
-  if (recurringChanged || snapshotChanged || analysisForecastV52MigrationChanged) {
-    persistAll(state.settings, state.entries, recurringChanged ? "recurring payments" : (snapshotChanged ? "forecast learning" : "analysis forecast"));
+  if(primaryStorageHealth==="healthy"){
+    try { recurringChanged = runRecurringCatchUp(); } catch(e) { recurringChanged = false; }
+    try { snapshotChanged = captureForecastSnapshotsIfNeeded(); } catch(e) { snapshotChanged = false; }
+    if (recurringChanged || snapshotChanged || analysisForecastV52MigrationChanged) {
+      persistAll(state.settings, state.entries, recurringChanged ? "recurring payments" : (snapshotChanged ? "forecast learning" : "analysis forecast"));
+    }
   }
   state.loading = false;
   try {
@@ -1462,6 +1639,13 @@ function loadInitial() {
     localStorage.removeItem(TEST_KEY);
     state.storageOK = ok;
   } catch(e) { state.storageOK = false; }
+  dataProtectionBooting=false;
+  initDataProtection(primaryStorageHealth).then(function(){
+    try {
+      var notice=sessionStorage.getItem("ledger-recovery-notice");
+      if(notice){sessionStorage.removeItem("ledger-recovery-notice");setTimeout(function(){showToast(notice);},250);}
+    } catch(ignore) {}
+  });
 }
 
 function persistAll(nextSettings, nextEntries, label) {
@@ -1470,8 +1654,11 @@ function persistAll(nextSettings, nextEntries, label) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ settings: nextSettings, entries: nextEntries }));
     state.saveError = null;
+    state.dataProtection.primaryStatus="healthy";
+    scheduleLocalBackup(label||"automatic",nextSettings,nextEntries);
   } catch(e) {
     state.saveError = { nextSettings: nextSettings, nextEntries: nextEntries, label: label };
+    state.dataProtection.primaryStatus="write error";
   }
 }
 
@@ -3396,7 +3583,7 @@ function renderBudgetBody(T) {
 
 function renderSettingsPage() {
   var section = state.settingsSection || "";
-  var titles = { budget:"Monthly budget", savings:"Savings target", currency:"Currencies", forecastAccuracy:"Forecast accuracy", categories:"Categories", people:"People", tags:"Transaction tags", theme:"Appearance", tracking:"Tracking start", backup:"Backup & restore", clearEntries:"Clear all entries" };
+  var titles = { budget:"Monthly budget", savings:"Savings target", currency:"Currencies", forecastAccuracy:"Forecast accuracy", categories:"Categories", people:"People", tags:"Transaction tags", theme:"Appearance", tracking:"Tracking start", backup:"Data & Backup", clearEntries:"Clear all entries" };
   var categoryHeaderTitle = "Categories";
   if (section === "categories") {
     if (state.settingsSubcategorySelected) categoryHeaderTitle = state.settingsSubcategorySelected;
@@ -3437,7 +3624,7 @@ function renderSettingsPage() {
     h += '<div class="settings-group-title">Data</div><div class="settings-list">';
     h += '<button class="settings-row" data-action="settings-section" data-section="forecastAccuracy"><span class="settings-row-main"><span class="settings-row-label">Forecast accuracy</span><span class="settings-row-sub">Backtesting and forecast error over time</span></span><span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="tracking"><span class="settings-row-main"><span class="settings-row-label">Tracking start</span><span class="settings-row-sub">Where budget history should begin</span></span><span class="row gap2"><span class="settings-row-value">'+esc(trackLabel)+'</span>'+ICONS.chevronRight+'</span></button>';
-    h += '<button class="settings-row" data-action="settings-section" data-section="backup"><span class="settings-row-main"><span class="settings-row-label">Backup & restore</span><span class="settings-row-sub">Copy, restore or move your ledger</span></span><span>'+ICONS.chevronRight+'</span></button>';
+    h += '<button class="settings-row" data-action="settings-section" data-section="backup"><span class="settings-row-main"><span class="settings-row-label">Data & Backup</span><span class="settings-row-sub">Automatic local recovery + manual backup</span></span><span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row settings-danger" data-action="settings-section" data-section="clearEntries"><span class="settings-row-main"><span class="settings-row-label">Clear all entries</span><span class="settings-row-sub">Danger zone · permanently erase transactions</span></span><span>'+ICONS.chevronRight+'</span></button>';
     h += '</div>';
     h += '</div></div>';
@@ -3689,10 +3876,29 @@ function renderSettingsPage() {
 
   if (section === "backup") {
     var backupText = JSON.stringify({settings:state.settings, entries:state.entries}, null, 2);
-    h += '<div class="muted" style="font-size:12px; margin-bottom:10px;">Copy your full ledger as text. Keep it somewhere safe before major code changes or when moving devices.</div>';
-    h += '<textarea readonly class="field mono" style="height:150px; font-size:11px; margin-bottom:8px; resize:none;" onfocus="this.select()">'+esc(backupText)+'</textarea>';
+    var dp=state.dataProtection||{}, dpHealthy=dp.primaryStatus==="healthy", autoOn=dp.available===true;
+    h += '<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow">LOCAL DATA PROTECTION</div>';
+    h += '<div class="row between" style="margin-top:11px;"><span class="muted subhead">Primary ledger</span><span class="subhead" style="font-weight:650;color:'+(dpHealthy?'var(--positive)':'var(--rust)')+';">'+(dpHealthy?'Healthy':esc(dp.primaryStatus||'Checking'))+'</span></div>';
+    h += '<div class="row between" style="margin-top:9px;"><span class="muted subhead">Automatic recovery</span><span class="subhead" style="font-weight:650;color:'+(autoOn?'var(--positive)':'var(--rust)')+';">'+(autoOn?'Active':(dp.available===null?'Checking':'Unavailable'))+'</span></div>';
+    h += '<div class="row between" style="margin-top:9px;"><span class="muted subhead">Last local snapshot</span><span class="mono subhead">'+esc(formatLocalBackupTime(dp.lastBackupAt))+'</span></div>';
+    h += '<div class="row between" style="margin-top:9px;"><span class="muted subhead">Recovery snapshots</span><span class="mono subhead">'+(Number(dp.snapshotCount)||0)+'</span></div>';
+    h += '<div class="row between" style="margin-top:9px;"><span class="muted subhead">Transactions protected</span><span class="mono subhead">'+(Number(dp.protectedTxnCount)||0)+'</span></div>';
+    if(dp.error) h += '<div style="color:var(--rust);font-size:12px;margin-top:10px;">'+esc(dp.error)+'</div>';
+    h += '<button data-action="create-local-backup" class="btn-outline" style="width:100%;margin-top:14px;">Create recovery snapshot now</button>';
+    h += '<div class="muted caption" style="margin-top:9px;">The Ledger keeps recent save-points plus daily snapshots automatically. If the primary copy becomes missing or unreadable, the newest healthy local snapshot is recovered on startup.</div></div>';
+    if((dp.recentSnapshots||[]).length){
+      h += '<label class="eyebrow">Recent recovery points</label><div class="settings-list" style="margin-top:8px;margin-bottom:18px;">';
+      (dp.recentSnapshots||[]).forEach(function(s){
+        h += '<button class="settings-row" data-action="restore-local-snapshot" data-snapshot-id="'+esc(s.id)+'"><span class="settings-row-main"><span class="settings-row-label">'+esc(formatLocalBackupTime(s.createdAt))+'</span><span class="settings-row-sub">'+esc(s.reason||'automatic')+' · '+s.txnCount+' txns'+(s.appVersion?' · '+esc(s.appVersion):'')+'</span></span><span>'+ICONS.chevronRight+'</span></button>';
+      });
+      h += '</div>';
+    }
+    h += '<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow">OFF-DEVICE SAFETY</div><div class="muted subhead" style="margin-top:7px;">Local recovery stays on this phone/browser. It cannot protect you if the phone is lost or all browser data is cleared. Keep an occasional copied backup somewhere outside the app.</div></div>';
+    h += '<label class="eyebrow">Manual backup</label>';
+    h += '<div class="muted" style="font-size:12px; margin:6px 0 10px;">Copy your full ledger as text before major changes or when moving devices.</div>';
+    h += '<textarea readonly class="field mono" style="height:130px; font-size:11px; margin-bottom:8px; resize:none;" onfocus="this.select()">'+esc(backupText)+'</textarea>';
     h += '<button id="copyBackupBtn" data-action="copy-backup" class="btn-accent" style="width:100%; margin-bottom:24px;">Copy backup</button>';
-    h += '<div class="hairline-top" style="padding-top:18px;"><label class="eyebrow">Restore</label>';
+    h += '<div class="hairline-top" style="padding-top:18px;"><label class="eyebrow">Restore pasted backup</label>';
     h += '<div class="muted" style="font-size:12px; margin:6px 0 10px;">Paste a backup created by The Ledger.</div>';
     h += '<textarea id="restoreInput" class="field mono" style="height:110px; font-size:11px; margin-bottom:8px; resize:none;" placeholder="Paste backup text here"></textarea>';
     if (state.restoreError) h += '<div style="color:var(--rust); font-size:12px; margin-bottom:8px;">'+esc(state.restoreError)+'</div>';
@@ -6109,6 +6315,7 @@ function handleRestore() {
     nextSettings.recurringRules = normalizeRecurringRules(nextSettings.recurringRules);
     var restoreFallback = nextSettings.monthlyBudget ? (Number(nextSettings.monthlyBudget)/daysInMonth(new Date())) : (nextSettings.weeklyTarget/7);
     var nextEntries = migrateEntries(parsed.entries||{}, restoreFallback);
+    if(dataProtectionReady) writeLocalBackup("before pasted restore",state.settings,state.entries);
     state.settings = nextSettings;
     state.entries = nextEntries;
     runRecurringCatchUp();
@@ -7002,11 +7209,18 @@ document.addEventListener("click", function(e) {
         if(status) status.textContent="Updated for "+shortLabel(todayStr())+" · saved locally";
       })();
       break;
+    case "create-local-backup":
+      writeLocalBackup("manual",state.settings,state.entries).then(function(ok){showToast(ok?"Recovery snapshot saved":"Could not save local snapshot"); if(state.showSettings&&state.settingsSection==="backup")render();});
+      break;
+    case "restore-local-snapshot":
+      restoreLocalSnapshotById(el.dataset.snapshotId||"");
+      break;
     case "copy-backup": handleCopyBackup(); break;
     case "restore-backup": handleRestore(); break;
     case "confirm-reset":
       var clearInput=document.getElementById("clearConfirmInput");
       if(!clearInput || String(clearInput.value||"").trim().toUpperCase()!=="CLEAR") { showToast("Type CLEAR first"); break; }
+      if(dataProtectionReady) writeLocalBackup("before clear all entries",state.settings,state.entries);
       persistAll(Object.assign({},state.settings,{forecastSnapshots:[]}), {}, "reset");
       state.showResetConfirm = false;
       showToast("All entries cleared");
