@@ -381,7 +381,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v63";
+var APP_VERSION = "v64";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -2900,45 +2900,65 @@ function liveBudgetPacing() {
     var buckets = todaySpendBuckets(openingProfiles, scope);
 
     var cadenceReserveBySub = {}, openingCadenceReserve = 0, reserveBreakdownBySub = {}, flexibleForecastBySub = {};
-    function addReserveBreakdown(key, amount, kind) {
+    /* v64 keeps the forecast evidence next to the Safe-to-Spend decision instead
+       of forcing the user to hunt for a second details panel under the chart.
+       Each subcategory can carry one or more forecast-driver components so a
+       scheduled plan and a learned cadence can coexist without losing context. */
+    function addForecastDriver(target, meta) {
+      if(!target || !meta) return;
+      if(!target.details) target.details=[];
+      target.details.push(meta);
+    }
+    function addReserveBreakdown(key, amount, kind, meta) {
       amount=round2(Math.max(0,Number(amount)||0)); if(amount<=0)return;
       var label=key==="__uncategorised__"?"Uncategorised":key;
-      if(!reserveBreakdownBySub[label]) reserveBreakdownBySub[label]={category:label,amount:0,cadence:0,scheduled:0};
+      if(!reserveBreakdownBySub[label]) reserveBreakdownBySub[label]={category:label,amount:0,cadence:0,scheduled:0,frequent:0,details:[]};
       reserveBreakdownBySub[label].amount=round2(reserveBreakdownBySub[label].amount+amount);
       reserveBreakdownBySub[label][kind]=round2((reserveBreakdownBySub[label][kind]||0)+amount);
+      addForecastDriver(reserveBreakdownBySub[label],meta);
     }
-    function addFlexibleForecast(key, amount, kind) {
+    function addFlexibleForecast(key, amount, kind, meta) {
       amount=round2(Math.max(0,Number(amount)||0)); if(amount<=0)return;
       var label=key==="__uncategorised__"?"Uncategorised":key;
-      if(!flexibleForecastBySub[label]) flexibleForecastBySub[label]={category:label,amount:0,cadence:0,scheduled:0};
+      if(!flexibleForecastBySub[label]) flexibleForecastBySub[label]={category:label,amount:0,cadence:0,scheduled:0,frequent:0,details:[]};
       flexibleForecastBySub[label].amount=round2(flexibleForecastBySub[label].amount+amount);
       flexibleForecastBySub[label][kind]=round2((flexibleForecastBySub[label][kind]||0)+amount);
+      addForecastDriver(flexibleForecastBySub[label],meta);
     }
     Object.keys(openingBehavior.bySubcategory||{}).forEach(function(k){
-      var x=openingBehavior.bySubcategory[k]; if(!x||x.kind!=="cadence")return;
-      var r=round2(Math.max(0,x.safeReserve||x.amount||0));
-      if(subcategoryEssentialForSafeSpend(k)){ cadenceReserveBySub[k]=r; openingCadenceReserve+=r; addReserveBreakdown(k,r,"cadence"); }
-      else addFlexibleForecast(k,r,"cadence");
+      var x=openingBehavior.bySubcategory[k]; if(!x)return;
+      if(x.kind==="cadence"){
+        var expected=round2(Math.max(0,x.amount||0));
+        var r=round2(Math.max(0,x.safeReserve||x.amount||0));
+        var cadenceMeta={kind:"cadence",expectedAmount:expected,protectedAmount:r,probability:x.probability==null?null:x.probability,likelyAmount:round2(x.likelyAmount||(x.profile&&x.profile.typicalAmount)||0),profile:x.profile||null,reason:x.reason||""};
+        if(subcategoryEssentialForSafeSpend(k)){ cadenceReserveBySub[k]=r; openingCadenceReserve+=r; addReserveBreakdown(k,r,"cadence",cadenceMeta); }
+        else addFlexibleForecast(k,expected,"cadence",cadenceMeta);
+      } else if(x.kind==="frequent") {
+        /* Frequent categories (including essential Restaurants/Groceries) are
+           forecast drivers but are not hard-reserved; the daily allowance is
+           what gives them room. Show their expected contribution here. */
+        addFlexibleForecast(k,round2(Math.max(0,x.amount||0)),"frequent",{kind:"frequent",expectedAmount:round2(Math.max(0,x.amount||0)),likelyAmount:round2((x.profile&&x.profile.typicalAmount)||0),profile:x.profile||null});
+      }
     });
     openingCadenceReserve=round2(openingCadenceReserve);
 
     var futureScheduledBySub=scheduledExpenseBreakdown(today,per.endStr,scope), futureScheduledAfterToday=0;
     Object.keys(futureScheduledBySub).forEach(function(k){
-      var a=round2(futureScheduledBySub[k]||0);
-      if(subcategoryEssentialForSafeSpend(k)){futureScheduledAfterToday+=a;addReserveBreakdown(k,a,"scheduled");}
-      else addFlexibleForecast(k,a,"scheduled");
+      var a=round2(futureScheduledBySub[k]||0), scheduledMeta={kind:"scheduled",expectedAmount:a,protectedAmount:a,probability:1,likelyAmount:a,profile:null};
+      if(subcategoryEssentialForSafeSpend(k)){futureScheduledAfterToday+=a;addReserveBreakdown(k,a,"scheduled",scheduledMeta);}
+      else addFlexibleForecast(k,a,"scheduled",scheduledMeta);
     });
     futureScheduledAfterToday=round2(futureScheduledAfterToday);
     var dueTodayBySub=scheduledExpenseBreakdown(yesterday,today,scope), dueTodayEssential=0, dueTodayEssentialBySub={};
     Object.keys(dueTodayBySub).forEach(function(k){
       var a=round2(dueTodayBySub[k]||0);
       if(subcategoryEssentialForSafeSpend(k)){dueTodayEssential+=a;dueTodayEssentialBySub[k]=a;}
-      else addFlexibleForecast(k,a,"scheduled");
+      else addFlexibleForecast(k,a,"scheduled",{kind:"scheduled",expectedAmount:a,protectedAmount:a,probability:1,likelyAmount:a,profile:null});
     });
     dueTodayEssential=round2(dueTodayEssential);
     var openingScheduledToday=round2(Math.max(dueTodayEssential,buckets.recurring));
     var todayScheduledBreakdown=buckets.recurring>=dueTodayEssential?buckets.recurringBySub:dueTodayEssentialBySub;
-    Object.keys(todayScheduledBreakdown||{}).forEach(function(k){addReserveBreakdown(k,todayScheduledBreakdown[k],"scheduled");});
+    Object.keys(todayScheduledBreakdown||{}).forEach(function(k){var a=round2(todayScheduledBreakdown[k]||0);addReserveBreakdown(k,a,"scheduled",{kind:"scheduled",expectedAmount:a,protectedAmount:a,probability:1,likelyAmount:a,profile:null});});
     var openingScheduledReserve=round2(futureScheduledAfterToday+openingScheduledToday);
 
     var openingReserve=round2(openingCadenceReserve+openingScheduledReserve);
@@ -3208,6 +3228,39 @@ function renderHomeBody(T, da) {
   return h;
 }
 
+function budgetForecastEvidenceHtml(x, protectedMode) {
+  var details=(x&&x.details)||[];
+  if(!details.length) return '';
+  var out='';
+  details.forEach(function(d,idx){
+    if(!d)return;
+    if(d.kind==='cadence'){
+      var pct=Math.round(Math.max(0,Math.min(1,d.probability==null?0:d.probability))*100);
+      var usual=round2(d.likelyAmount||0), p=d.profile||{};
+      var metrics=[];
+      metrics.push('<span style="font-weight:700;color:var(--text);">'+pct+'% chance</span>');
+      if(usual>0) metrics.push('usual '+fmt(usual,0)+' AED');
+      if(p.gap!=null) metrics.push('every '+Number(p.gap).toFixed(1)+' days');
+      out+='<div class="muted caption" style="margin-top:3px;line-height:1.35;white-space:normal;">'+metrics.join(' · ')+'</div>';
+      var evidence=[];
+      if(p.txnCount!=null) evidence.push(p.txnCount+' txn'+(p.txnCount===1?'':'s'));
+      if(p.confidence) evidence.push(p.confidence+' confidence');
+      if(protectedMode && d.expectedAmount!=null && Math.abs((d.protectedAmount||0)-(d.expectedAmount||0))>=0.5) evidence.push('forecast ≈ '+fmt(d.expectedAmount,0)+' AED');
+      if(evidence.length) out+='<div class="muted caption" style="margin-top:1px;line-height:1.3;white-space:normal;">'+evidence.join(' · ')+'</div>';
+    } else if(d.kind==='frequent'){
+      var fp=d.profile||{}, bits=['Frequent'];
+      if(fp.txnCount!=null) bits.push(fp.txnCount+' txn'+(fp.txnCount===1?'':'s'));
+      if(fp.gap!=null) bits.push('every '+Number(fp.gap).toFixed(1)+' days');
+      if(fp.typicalAmount>0) bits.push('usual active day '+fmt(fp.typicalAmount,0)+' AED');
+      if(fp.confidence) bits.push(fp.confidence+' confidence');
+      out+='<div class="muted caption" style="margin-top:3px;line-height:1.35;white-space:normal;">'+bits.join(' · ')+'</div>';
+    } else if(d.kind==='scheduled'){
+      out+='<div class="muted caption" style="margin-top:3px;line-height:1.35;white-space:normal;"><span style="font-weight:700;color:var(--text);">100% scheduled</span> · planned '+fmt(d.expectedAmount||0,0)+' AED</div>';
+    }
+  });
+  return out;
+}
+
 function renderBudgetBody(T) {
   lastForecastChartData=null;lastChartData=null;lastBudgetTrendChartData=null;
   var da=dailyAllowance(),period=getPeriodBounds(state.view,state.offset,currentWeeklyTarget(),da),stats=periodStatsBudget(period.startStr,period.endStr);
@@ -3288,15 +3341,15 @@ function renderBudgetBody(T) {
       }
       if(protectedBreakdown.length){
         summary+='<div style="margin-top:9px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
-        protectedBreakdown.forEach(function(x,i){summary+='<div class="row between" style="padding:7px 0;gap:12px;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="caption" style="font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</span><span class="mono caption" style="font-weight:700;flex-shrink:0;">'+fmt(x.amount,0)+' AED</span></div>';});
+        protectedBreakdown.forEach(function(x,i){summary+='<div class="row between" style="padding:8px 0;gap:12px;align-items:flex-start;'+(i?'border-top:1px solid var(--sep);':'')+'"><div style="min-width:0;flex:1;"><div class="caption" style="font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div>'+budgetForecastEvidenceHtml(x,true)+'</div><div style="text-align:right;flex-shrink:0;"><div class="mono caption" style="font-weight:750;">'+fmt(x.amount,0)+' AED</div><div class="muted caption">protected</div></div></div>';});
         summary+='</div>';
       }
     }
     if(flexibleForecastTotal>0){
-      summary+='<div class="'+(protectedTotal>0?'hairline-top':'')+'" style="margin-top:'+(protectedTotal>0?'13px':'0')+';padding-top:'+(protectedTotal>0?'12px':'0')+';"><div class="row between" style="gap:12px;align-items:baseline;"><div><span class="subhead" style="font-weight:650;">Upcoming flexible forecasts</span><div class="muted caption" style="margin-top:2px;">Forecast only · not deducted from Safe to Spend</div></div><div class="mono subhead" style="font-weight:700;color:var(--text-muted);">≈ '+fmt(flexibleForecastTotal,0)+' AED</div></div>';
+      summary+='<div class="'+(protectedTotal>0?'hairline-top':'')+'" style="margin-top:'+(protectedTotal>0?'13px':'0')+';padding-top:'+(protectedTotal>0?'12px':'0')+';"><div class="row between" style="gap:12px;align-items:baseline;"><div><span class="subhead" style="font-weight:650;">Upcoming forecast spend</span><div class="muted caption" style="margin-top:2px;">Frequent + flexible cadence · not separately pre-reserved</div></div><div class="mono subhead" style="font-weight:700;color:var(--text-muted);">≈ '+fmt(flexibleForecastTotal,0)+' AED</div></div>';
       if(flexibleForecastBreakdown.length){
         summary+='<div style="margin-top:9px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
-        flexibleForecastBreakdown.forEach(function(x,i){summary+='<div class="row between" style="padding:7px 0;gap:12px;'+(i?'border-top:1px solid var(--sep);':'')+'"><span class="caption" style="font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</span><span class="mono caption muted" style="font-weight:700;flex-shrink:0;">≈ '+fmt(x.amount,0)+' AED</span></div>';});
+        flexibleForecastBreakdown.forEach(function(x,i){summary+='<div class="row between" style="padding:8px 0;gap:12px;align-items:flex-start;'+(i?'border-top:1px solid var(--sep);':'')+'"><div style="min-width:0;flex:1;"><div class="caption" style="font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div>'+budgetForecastEvidenceHtml(x,false)+'</div><div style="text-align:right;flex-shrink:0;"><div class="mono caption muted" style="font-weight:750;">≈ '+fmt(x.amount,0)+' AED</div><div class="muted caption">expected</div></div></div>';});
         summary+='</div>';
       }
       summary+='</div>';
@@ -4883,7 +4936,7 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   var detailsOpen = scope === "budget" ? !!state.budgetForecastDetailsOpen : !!state.analysisForecastDetailsOpen;
   var detailRows = fc.forecastBreakdown || [];
   var satisfiedRows = fc.recentlySatisfied || [];
-  if (hasForecast) {
+  if (hasForecast && scope !== "budget") {
     s += '<button data-action="toggle-forecast-details" data-scope="'+scope+'" class="row between" style="width:100%;background:none;border:none;border-top:1px solid var(--sep);padding:12px 0 0;margin-top:12px;color:inherit;text-align:left;">';
     s += '<span class="subhead" style="font-weight:650;">Forecast details</span><span class="row gap2"><span class="mono muted caption">'+fmt(fc.remainingForecast||0,0)+' AED remaining</span><span style="display:flex;transform:rotate('+(detailsOpen?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
     if (detailsOpen) {
