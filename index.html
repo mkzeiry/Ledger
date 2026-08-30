@@ -381,7 +381,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v70";
+var APP_VERSION = "v71";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -1813,6 +1813,19 @@ function subcategoryKey(it){ return (it && it.category) ? it.category : "__uncat
    recurring-generated transactions because the question here is descriptive:
    "how often does this category actually happen?" Forecasting still excludes
    those same items from statistical inference because their future is known. */
+/* One shared definition of occurrence frequency across Analysis and Forecast.
+   A transaction is one occurrence, even when several happen on the same day.
+   This keeps descriptive frequency and forecast cadence aligned:
+
+     observed interval = full observed calendar days / transaction occurrences
+
+   Daily active-day history is still retained separately for estimating spend
+   AMOUNTS on frequent categories; it is not used to relabel occurrence cadence. */
+function observedOccurrenceInterval(observedDays, occurrenceCount) {
+  observedDays=Number(observedDays)||0; occurrenceCount=Number(occurrenceCount)||0;
+  return (observedDays>0&&occurrenceCount>0)?observedDays/occurrenceCount:null;
+}
+
 function activityFrequencyStats(opts, asOfDate) {
   opts=opts||{}; asOfDate=asOfDate||todayStr();
   var datesAll=Object.keys(state.entries).sort(), first=datesAll.length?datesAll[0]:asOfDate;
@@ -1843,7 +1856,7 @@ function activityFrequencyStats(opts, asOfDate) {
   eventDates.sort();
   var n=eventDates.length;
   var observedDays=start<=asOfDate?Math.max(1,daysBetween(start,asOfDate)+1):0;
-  var avgGap=(n>0&&observedDays>0)?observedDays/n:null;
+  var avgGap=observedOccurrenceInterval(observedDays,n);
   return {
     txnCount:n,
     avgGap:avgGap,
@@ -4829,7 +4842,12 @@ function forecastCategoryProfiles(scope, asOfDate) {
        it occurs much less often. */
     var interarrivalGap=medianNumber(gaps);
     var span=Math.max(1,daysBetween(start,asOfDate)+1);
-    var gap=dates.length?span/dates.length:null;
+    /* v71: use the exact same occurrence-frequency definition as Analysis.
+       `dates.length` is active DAYS and can halve the apparent frequency when
+       two restaurant/café transactions happen on one day. `txnCount` is the
+       occurrence count the user sees in both screens, so span / txnCount is
+       the only cadence label/interval used by Forecast as well. */
+    var gap=observedOccurrenceInterval(span,m.txnCount);
     var activeRate=dates.length/span, dayAmounts=dates.map(function(d){return m.daily[d];}), typicalAmount=medianNumber(dayAmounts)||0;
     var gapMad=interarrivalGap==null?null:medianNumber(gaps.map(function(g){return Math.abs(g-interarrivalGap);}));
     var gapDev=gapMad==null?null:gapMad*1.4826;
