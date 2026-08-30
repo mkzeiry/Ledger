@@ -381,7 +381,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v68";
+var APP_VERSION = "v69";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -1816,7 +1816,16 @@ function subcategoryKey(it){ return (it && it.category) ? it.category : "__uncat
 function activityFrequencyStats(opts, asOfDate) {
   opts=opts||{}; asOfDate=asOfDate||todayStr();
   var datesAll=Object.keys(state.entries).sort(), first=datesAll.length?datesAll[0]:asOfDate;
-  var floor=toStr(addDays(parseD(asOfDate),-364)), start=first>floor?first:floor;
+  /* Frequency is an exposure-rate calculation, not just the mean of gaps
+     between observed transactions. Using only the first-to-last event span
+     makes a short cluster look artificially frequent (e.g. four Parking
+     payments within one week can read as every ~2 days even though the full
+     tracked month contains only four payments). The observation window starts
+     at the user's tracking start when available, otherwise the first ledger
+     date, and is capped to the most recent 12 months. */
+  var floor=toStr(addDays(parseD(asOfDate),-364));
+  var natural=state.settings.trackingStartDate||first;
+  var start=natural>floor?natural:floor;
   var eventDates=[], amounts=[];
   Object.keys(state.entries).sort().forEach(function(ds){
     if(ds<start||ds>asOfDate) return;
@@ -1832,14 +1841,14 @@ function activityFrequencyStats(opts, asOfDate) {
     });
   });
   eventDates.sort();
-  var n=eventDates.length, avgGap=null;
-  if(n>=2){
-    var span=Math.max(0,daysBetween(eventDates[0],eventDates[n-1]));
-    avgGap=span/(n-1);
-  }
+  var n=eventDates.length;
+  var observedDays=start<=asOfDate?Math.max(1,daysBetween(start,asOfDate)+1):0;
+  var avgGap=(n>0&&observedDays>0)?observedDays/n:null;
   return {
     txnCount:n,
     avgGap:avgGap,
+    observedDays:observedDays,
+    observationStart:start,
     typicalAmount:medianNumber(amounts)||0,
     lastDate:n?eventDates[n-1]:null,
     enough:n>=3 && avgGap!=null,
@@ -4794,9 +4803,16 @@ function forecastCategoryProfiles(scope, asOfDate) {
   Object.keys(maps).forEach(function(k){
     var m=maps[k], dates=Object.keys(m.daily).sort(), gaps=[];
     for(var i=1;i<dates.length;i++){var g=daysBetween(dates[i-1],dates[i]);if(g>0)gaps.push(g);}
-    var gap=medianNumber(gaps), span=dates.length?Math.max(1,daysBetween(dates[0],asOfDate)+1):1;
+    /* Use the full observed history as exposure when estimating cadence.
+       Median gaps between active dates are retained only as a variability
+       signal. This prevents a recent cluster from teaching Forecast that the
+       category repeats every couple of days when the full tracked period says
+       it occurs much less often. */
+    var interarrivalGap=medianNumber(gaps);
+    var span=Math.max(1,daysBetween(start,asOfDate)+1);
+    var gap=dates.length?span/dates.length:null;
     var activeRate=dates.length/span, dayAmounts=dates.map(function(d){return m.daily[d];}), typicalAmount=medianNumber(dayAmounts)||0;
-    var gapMad=gap==null?null:medianNumber(gaps.map(function(g){return Math.abs(g-gap);}));
+    var gapMad=interarrivalGap==null?null:medianNumber(gaps.map(function(g){return Math.abs(g-interarrivalGap);}));
     var gapDev=gapMad==null?null:gapMad*1.4826;
     var amountMad=typicalAmount>0?medianNumber(dayAmounts.map(function(a){return Math.abs(a-typicalAmount);})):null;
     var amountDev=amountMad==null?null:amountMad*1.4826;
@@ -4805,7 +4821,7 @@ function forecastCategoryProfiles(scope, asOfDate) {
     var confidence=dates.length>=10?"High":(dates.length>=5?"Medium":"Low");
     out[k]={
       key:k,label:k==="__uncategorised__"?"Uncategorised":k,daily:m.daily,txnCount:m.txnCount,
-      timedCount:m.timedCount,activeDates:dates,activeDays:dates.length,gaps:gaps,gap:gap,gapDev:gapDev,
+      timedCount:m.timedCount,activeDates:dates,activeDays:dates.length,gaps:gaps,gap:gap,interarrivalGap:interarrivalGap,gapDev:gapDev,
       minGap:gaps.length?Math.min.apply(null,gaps):null,maxGap:gaps.length?Math.max.apply(null,gaps):null,
       typicalAmount:typicalAmount,amountDev:amountDev,
       lastDate:dates.length?dates[dates.length-1]:null,spanDays:span,activeRate:activeRate,historyStart:start,
@@ -5692,7 +5708,7 @@ function renderAnalysisBody(T) {
     var activeTitle=drillGroup?(drillGroup==="Ungrouped"?"Uncategorized":drillGroup):"";
     var headerLeft=drillGroup?'<button data-action="clear-analysis-frequency-group" class="btn-plain">← '+esc(activeTitle)+'</button>':'<span class="eyebrow">Frequency</span>';
     var headerRight=personFilter?'<span class="muted caption">'+esc(personFilter)+'</span>':(topLevel?'<span class="muted caption">Tap category</span>':'');
-    var subtitle=drillGroup?'Subcategory frequency · average interval · last 12 months':'Average interval between transactions · last 12 months';
+    var subtitle=drillGroup?'Subcategory frequency · full observed window · up to 12 months':'Observed frequency · full tracked window · up to 12 months';
     var s='<div id="analysisFrequencyCard" class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:4px;">'+headerLeft+headerRight+'</div><div class="muted caption" style="margin-bottom:12px;">'+subtitle+'</div>';
     targets.forEach(function(x,i){
       var st=x.stats, label=frequencyLabel(st), rate=st.enough?(st.avgGap<=0?maxRate:1/st.avgGap):0, w=maxRate>0?Math.max(4,Math.min(100,rate/maxRate*100)):0;
@@ -5700,7 +5716,7 @@ function renderAnalysisBody(T) {
       if(clickable) s+='<button data-action="drill-analysis-frequency-group" data-group="'+esc(x.groupKey)+'" style="display:block;width:100%;text-align:left;background:none;border:none;color:inherit;padding:0;">';
       s+='<div style="padding:10px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="row between" style="gap:12px;"><span class="subhead" style="font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(x.label)+'</span><span class="row" style="gap:8px;flex-shrink:0;"><span class="mono subhead" style="font-weight:700;">'+esc(label)+'</span>'+(clickable?ICONS.chevronRight:'')+'</span></div>';
       s+='<div style="height:5px;background:var(--fill);border-radius:999px;margin-top:7px;overflow:hidden;"><div style="height:100%;width:'+w.toFixed(1)+'%;background:'+x.color+';border-radius:999px;"></div></div>';
-      s+='<div class="muted caption" style="margin-top:5px;">'+(st.typicalAmount>0?'Typical '+fmt(st.typicalAmount,0)+' AED · ':'')+st.txnCount+' transaction'+(st.txnCount===1?'':'s')+'</div></div>';
+      s+='<div class="muted caption" style="margin-top:5px;">'+(st.typicalAmount>0?'Typical '+fmt(st.typicalAmount,0)+' AED · ':'')+st.txnCount+' transaction'+(st.txnCount===1?'':'s')+(st.observedDays?' · '+st.observedDays+' days observed':'')+'</div></div>';
       if(clickable) s+='</button>';
     });
     return s+'</div>';
