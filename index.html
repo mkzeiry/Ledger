@@ -383,7 +383,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v85";
+var APP_VERSION = "v86";
 var FORECAST_MODEL_VERSION = "v77-hybrid-3";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
@@ -1170,6 +1170,7 @@ var state = {
   forecastCompareMode: "previous",
   budgetForecastDetailsOpen: false,
   analysisForecastDetailsOpen: false,
+  budgetSummaryDetailsOpen: false,
   budgetProtectedOpen: false,
   budgetUpcomingOpen: false,
   entryTimeDraft: null,
@@ -3714,20 +3715,9 @@ function renderBudgetBody(T) {
   var budgetUsedPct = target>0 ? (stats.spent/target*100) : 0;
   var summary='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="align-items:baseline;"><div><div class="muted caption">'+(isCurrent?'EFFECTIVE BUDGET SPENT':'BUDGET SPENT')+'</div><div class="mono" style="font-size:30px;font-weight:700;margin-top:2px;">'+fmt(stats.spent,0)+' AED</div></div><div style="text-align:right;"><div class="mono muted subhead">of '+fmt(target,0)+' AED</div><div class="mono caption" style="margin-top:3px;font-weight:700;color:'+(budgetUsedPct>100?'var(--rust)':'var(--text-muted)')+';">'+budgetUsedPct.toFixed(0)+'% used</div></div></div><div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 14px;"><div style="height:100%;width:'+progress+'%;background:'+(stats.spent>target?'var(--rust)':'var(--accent)')+';"></div></div><div class="stat-grid">';
   summary+=statBlock('Remaining',(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED',remaining>=0?'var(--positive)':'var(--rust)');
-  summary+=statBlock('Equal remaining / day',isCurrent&&selectedDailyAllowance!=null?((selectedDailyAllowance<0?'−':'')+fmt(Math.abs(selectedDailyAllowance),0)+' AED/day'):'—',selectedDailyAllowance!=null&&selectedDailyAllowance<0?'var(--rust)':'var(--text)');
-  summary+=statBlock('Flexible allowance / day',isCurrent&&flexibleAllowancePerDay!=null?((flexibleAllowancePerDay<0?'−':'')+fmt(Math.abs(flexibleAllowancePerDay),0)+' AED/day'):'—',flexibleAllowancePerDay!=null&&flexibleAllowancePerDay<0?'var(--rust)':'var(--text)');
-  /* v78: At the start of a day Safe-to-Spend often equals the full flexible
-     allowance exactly. Repeating the same AED number in adjacent tiles adds
-     noise, so show the state instead; once spending/adjustments make the live
-     amount differ, show the live numeric Safe-to-Spend value again. */
-  var safeMatchesFullAllowance=isCurrent&&safeToday!=null&&flexibleAllowancePerDay!=null&&Math.abs(safeToday-flexibleAllowancePerDay)<0.5&&Math.abs(spentToday)<0.01&&overSafeToday<=0;
-  summary+=statBlock('Safe to spend today',isCurrent&&safeToday!=null?(safeMatchesFullAllowance?'Full allowance':(fmt(safeToday,0)+' AED')):'—',safeMatchesFullAllowance?'var(--positive)':'var(--text)');
+  summary+=statBlock('Safe to spend today',isCurrent&&safeToday!=null?(fmt(safeToday,0)+' AED'):'—',safeToday!=null&&safeToday<0?'var(--rust)':'var(--text)');
   summary+=statBlock('Spent today',isCurrent?fmt(spentToday,0)+' AED':'—','var(--text)');
   summary+=statBlock('Projected vs budget',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div>';
-  if(isCurrent&&limitingPacing&&limitingPacing.days>0&&flexibleAllowancePerDay!=null){
-    var pacingLabel=limitingHorizon==='week'?'Week':'Month';
-    summary+='<div class="muted caption" style="margin-top:9px;line-height:1.35;">Flexible allowance ('+pacingLabel+' limit): ('+fmt(limitingPacing.openingRemaining,0)+' opening − '+fmt(limitingPacing.futureReserve||0,0)+' protected) ÷ '+limitingPacing.days+' day'+(limitingPacing.days===1?'':'s')+' = '+fmt(flexibleAllowancePerDay,0)+' AED/day</div>';
-  }
   if(budgetSavingsComparison){
     var bsc=budgetSavingsComparison, savingsTighter=effectiveInfo&&effectiveInfo.savingsTight;
     var relationText=effectiveInfo&&effectiveInfo.adaptiveOverride
@@ -3747,45 +3737,64 @@ function renderBudgetBody(T) {
       summary+='</div><div class="muted caption" style="margin-top:8px;line-height:1.35;">The lower limit becomes your effective budget automatically. If it falls below half of your recent spending pace, The Ledger can temporarily use the higher limit and will state the override.</div></div>';
     }
   }
-  /* v77: Both Safe-to-Spend evidence groups are collapsible. The protected
-     group shows the actual reserve used by the allowance calculation plus the
-     expected-value evidence underneath; Upcoming forecast shows only non-
-     protected expected spend. */
-  if(isCurrent&&(protectedTotal>0||flexibleForecastTotal>0)){
+  /* v86: Keep the summary card decision-first. The four headline metrics stay
+     visible; all explanatory/audit information lives behind one Budget details
+     disclosure. Protected essentials and Upcoming forecast remain independently
+     collapsible inside it. */
+  if(isCurrent){
+    var budgetDetailsOpen=!!state.budgetSummaryDetailsOpen;
     summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);">';
-    if(protectedTotal>0){
-      var protectedOpen=!!state.budgetProtectedOpen;
-      summary+='<button data-action="toggle-budget-protected" class="row between" style="width:100%;background:none;border:none;padding:0;color:inherit;text-align:left;gap:12px;align-items:center;"><span class="subhead" style="font-weight:650;">Protected essentials</span><span class="row gap2"><span class="mono subhead" style="font-weight:750;">'+fmt(protectedTotal,0)+' AED</span><span style="display:flex;transform:rotate('+(protectedOpen?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
-      if(protectedOpen&&protectedBreakdown.length){
-        summary+='<div class="muted caption" style="margin-top:5px;line-height:1.35;">Actual money ring-fenced by Safe-to-Spend. Expected spend may be lower because high-probability essential events can reserve the full likely purchase.</div>';
-        summary+='<div style="margin-top:8px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
-        protectedBreakdown.forEach(function(x,i){
-          summary+='<div style="padding:9px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="row between" style="gap:12px;"><div class="caption" style="font-weight:650;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div><div style="flex-shrink:0;text-align:right;"><div class="mono caption" style="font-weight:750;">'+fmt(x.amount,0)+' AED</div><div class="muted caption">protected</div></div></div>'+budgetForecastEvidenceHtml(x,true)+'</div>';
-        });
-        summary+='</div>';
-      }
-    }
-    if(flexibleForecastTotal>0){
-      var upcomingOpen=!!state.budgetUpcomingOpen;
-      summary+='<div class="'+(protectedTotal>0?'hairline-top':'')+'" style="margin-top:'+(protectedTotal>0?'12px':'0')+';padding-top:'+(protectedTotal>0?'11px':'0')+';"><button data-action="toggle-budget-upcoming" class="row between" style="width:100%;background:none;border:none;padding:0;color:inherit;text-align:left;gap:12px;align-items:center;"><span class="subhead" style="font-weight:650;">Upcoming forecast spend</span><span class="row gap2"><span class="mono subhead" style="font-weight:700;color:var(--text-muted);">≈ '+fmt(flexibleForecastTotal,0)+' AED</span><span style="display:flex;transform:rotate('+(upcomingOpen?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
-      if(upcomingOpen&&flexibleForecastBreakdown.length){
-        summary+='<div class="muted caption" style="margin-top:5px;line-height:1.35;">Expected spend not hard-reserved above. It influences the forecast, while remaining available inside your flexible allowance.</div>';
-        summary+='<div style="margin-top:8px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
-        flexibleForecastBreakdown.forEach(function(x,i){
-          summary+='<div style="padding:9px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="row between" style="gap:12px;"><div class="caption" style="font-weight:650;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div><div class="mono caption muted" style="font-weight:750;flex-shrink:0;">≈ '+fmt(x.amount,0)+' AED</div></div>'+budgetForecastEvidenceHtml(x,false)+'</div>';
-        });
-        summary+='</div>';
+    summary+='<button data-action="toggle-budget-summary-details" class="row between" style="width:100%;background:none;border:none;padding:0;color:inherit;text-align:left;gap:12px;align-items:center;"><span class="subhead" style="font-weight:700;">Budget details</span><span class="row gap2"><span class="muted caption">'+(budgetDetailsOpen?'Hide':'View')+'</span><span style="display:flex;transform:rotate('+(budgetDetailsOpen?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
+    if(budgetDetailsOpen){
+      summary+='<div style="margin-top:11px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
+      summary+='<div class="row between" style="padding:8px 0;"><span class="muted caption">Equal remaining / day</span><span class="mono caption" style="font-weight:700;">'+(selectedDailyAllowance!=null?((selectedDailyAllowance<0?'−':'')+fmt(Math.abs(selectedDailyAllowance),0)+' AED/day'):'—')+'</span></div>';
+      summary+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Flexible daily base</span><span class="mono caption" style="font-weight:700;">'+(flexibleAllowancePerDay!=null?((flexibleAllowancePerDay<0?'−':'')+fmt(Math.abs(flexibleAllowancePerDay),0)+' AED/day'):'—')+'</span></div>';
+      if(limitingHorizon){
+        var limitName=limitingHorizon==='adaptive'?'Adaptive limit':(limitingHorizon==='effective'?'Effective budget':(limitingHorizon==='savings'?'Savings goal':(limitingHorizon.charAt(0).toUpperCase()+limitingHorizon.slice(1))));
+        summary+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Safe-to-spend limit</span><span class="caption" style="font-weight:700;">'+esc(limitName)+'</span></div>';
       }
       summary+='</div>';
+      if(limitingPacing&&limitingPacing.days>0&&flexibleAllowancePerDay!=null){
+        var pacingLabel=limitingHorizon==='week'?'Week':'Month';
+        summary+='<div class="muted caption" style="margin-top:8px;line-height:1.4;">'+pacingLabel+' base: ('+fmt(limitingPacing.openingRemaining,0)+' opening − '+fmt(limitingPacing.futureReserve||0,0)+' protected) ÷ '+limitingPacing.days+' day'+(limitingPacing.days===1?'':'s')+' = '+fmt(flexibleAllowancePerDay,0)+' AED/day</div>';
+      }
+      if(protectedTotal>0||flexibleForecastTotal>0){
+        summary+='<div style="margin-top:12px;padding-top:11px;border-top:1px solid var(--sep);">';
+        if(protectedTotal>0){
+          var protectedOpen=!!state.budgetProtectedOpen;
+          summary+='<button data-action="toggle-budget-protected" class="row between" style="width:100%;background:none;border:none;padding:0;color:inherit;text-align:left;gap:12px;align-items:center;"><span class="subhead" style="font-weight:650;">Protected essentials</span><span class="row gap2"><span class="mono subhead" style="font-weight:750;">'+fmt(protectedTotal,0)+' AED</span><span style="display:flex;transform:rotate('+(protectedOpen?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
+          if(protectedOpen&&protectedBreakdown.length){
+            summary+='<div class="muted caption" style="margin-top:5px;line-height:1.35;">Money ring-fenced by Safe-to-Spend for essential upcoming events.</div>';
+            summary+='<div style="margin-top:8px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
+            protectedBreakdown.forEach(function(x,i){
+              summary+='<div style="padding:9px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="row between" style="gap:12px;"><div class="caption" style="font-weight:650;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div><div style="flex-shrink:0;text-align:right;"><div class="mono caption" style="font-weight:750;">'+fmt(x.amount,0)+' AED</div><div class="muted caption">protected</div></div></div>'+budgetForecastEvidenceHtml(x,true)+'</div>';
+            });
+            summary+='</div>';
+          }
+        }
+        if(flexibleForecastTotal>0){
+          var upcomingOpen=!!state.budgetUpcomingOpen;
+          summary+='<div class="'+(protectedTotal>0?'hairline-top':'')+'" style="margin-top:'+(protectedTotal>0?'12px':'0')+';padding-top:'+(protectedTotal>0?'11px':'0')+';"><button data-action="toggle-budget-upcoming" class="row between" style="width:100%;background:none;border:none;padding:0;color:inherit;text-align:left;gap:12px;align-items:center;"><span class="subhead" style="font-weight:650;">Upcoming forecast</span><span class="row gap2"><span class="mono subhead" style="font-weight:700;color:var(--text-muted);">≈ '+fmt(flexibleForecastTotal,0)+' AED</span><span style="display:flex;transform:rotate('+(upcomingOpen?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
+          if(upcomingOpen&&flexibleForecastBreakdown.length){
+            summary+='<div class="muted caption" style="margin-top:5px;line-height:1.35;">Expected spend that is forecast but not hard-reserved above.</div>';
+            summary+='<div style="margin-top:8px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
+            flexibleForecastBreakdown.forEach(function(x,i){
+              summary+='<div style="padding:9px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="row between" style="gap:12px;"><div class="caption" style="font-weight:650;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div><div class="mono caption muted" style="font-weight:750;flex-shrink:0;">≈ '+fmt(x.amount,0)+' AED</div></div>'+budgetForecastEvidenceHtml(x,false)+'</div>';
+            });
+            summary+='</div>';
+          }
+          summary+='</div>';
+        }
+        summary+='</div>';
+      }
+      if(overSafeToday>0){
+        summary+='<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--sep);" class="row between"><span class="caption" style="font-weight:650;color:var(--rust);">Over today\'s safe allowance</span><span class="mono caption" style="font-weight:750;color:var(--rust);">'+fmt(overSafeToday,0)+' AED</span></div>';
+      }
+      if(adjustmentNeeded>0){
+        summary+='<div style="margin-top:8px;" class="row between"><span class="caption" style="font-weight:650;color:var(--rust);">Adjustment needed</span><span class="mono caption" style="font-weight:700;color:var(--rust);">'+fmt(adjustmentNeeded,0)+' AED</span></div>';
+      }
     }
     summary+='</div>';
-  }
-  if(isCurrent&&overSafeToday>0){
-    summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);" class="row between"><span class="subhead" style="font-weight:650;color:var(--rust);">Over today\'s safe allowance</span><span class="mono subhead" style="font-weight:750;color:var(--rust);">'+fmt(overSafeToday,0)+' AED</span></div>';
-  }
-  if(isCurrent&&limitingHorizon){
-    summary+='<div style="margin-top:'+(overSafeToday>0?'8px':'14px')+';padding-top:'+(overSafeToday>0?'0':'12px')+';'+(overSafeToday>0?'':'border-top:1px solid var(--sep);')+'" class="row between"><span class="muted subhead" style="font-weight:600;">Safe-to-spend limit</span><span class="subhead" style="font-weight:700;">'+esc(limitingHorizon==='adaptive'?'Adaptive limit':(limitingHorizon==='effective'?'Effective budget':(limitingHorizon==='savings'?'Savings goal':(limitingHorizon.charAt(0).toUpperCase()+limitingHorizon.slice(1)))))+'</span></div>';
-    if(adjustmentNeeded>0) summary+='<div style="margin-top:8px;" class="row between"><span class="subhead" style="font-weight:650;color:var(--rust);">'+esc(limitingHorizon==='adaptive'?'Adaptive limit':(limitingHorizon==='effective'?'Effective budget':(limitingHorizon==='savings'?'Savings goal':(limitingHorizon.charAt(0).toUpperCase()+limitingHorizon.slice(1)))))+' cut needed</span><span class="mono subhead" style="font-weight:700;color:var(--rust);">'+fmt(adjustmentNeeded,0)+' AED</span></div>';
   }
   summary+='</div>';
   sections.summary=summary;
@@ -7558,6 +7567,10 @@ document.addEventListener("click", function(e) {
     case "toggle-forecast-details":
       if (el.dataset.scope === "budget") state.budgetForecastDetailsOpen = !state.budgetForecastDetailsOpen;
       else state.analysisForecastDetailsOpen = !state.analysisForecastDetailsOpen;
+      render();
+      break;
+    case "toggle-budget-summary-details":
+      state.budgetSummaryDetailsOpen = !state.budgetSummaryDetailsOpen;
       render();
       break;
     case "toggle-budget-protected":
