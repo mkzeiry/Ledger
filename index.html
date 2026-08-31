@@ -381,7 +381,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v82";
+var APP_VERSION = "v83";
 var FORECAST_MODEL_VERSION = "v77-hybrid-3";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
@@ -1413,6 +1413,69 @@ function effectiveBudgetPaceReferenceForDate(ds,info){
   var ref=effectiveBudgetReferenceForDate(ds,info);
   if(ds===todayStr()) ref*=currentDayElapsedFraction();
   return round2(ref);
+}
+/* v83: the Week Ahead/Behind chart uses true hourly pace points instead of
+   only one point per calendar day. The allowance accrues continuously and
+   budget-counted transactions are applied in the hour they occurred when a
+   transaction time is available. Legacy/untimed items are placed at day-end
+   for completed days and at the live point for today, so the final cumulative
+   position always reconciles with the headline. */
+function txnMinuteOfDay(it){
+  var t=it&&it.time;
+  if(!t) return null;
+  var m=String(t).match(/^(\d{1,2}):(\d{2})$/);
+  if(!m) return null;
+  var hh=Number(m[1]),mm=Number(m[2]);
+  if(!isFinite(hh)||!isFinite(mm)||hh<0||hh>23||mm<0||mm>59) return null;
+  return hh*60+mm;
+}
+function shortHourLabel(ds,minute,isLive){
+  var d=parseD(ds), h=Math.floor(Math.max(0,Math.min(1439,minute))/60), m=Math.floor(Math.max(0,Math.min(1439,minute))%60);
+  var ap=h>=12?'PM':'AM', h12=h%12||12, time=h12+(m?(':'+String(m).padStart(2,'0')):'')+' '+ap;
+  var day=d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+  return (isLive?'Today · ':day+' · ')+time;
+}
+function hourlyBudgetPositionData(rows,info){
+  rows=rows||[]; if(!rows.length) return [];
+  var today=todayStr(), now=new Date(), currentMinute=now.getHours()*60+now.getMinutes()+now.getSeconds()/60;
+  var out=[], cumulative=0, previousBalance=0;
+  function spendThrough(row,minuteLimit){
+    var total=0, isToday=row.date===today;
+    (row.items||[]).forEach(function(it){
+      if(!isExpenseItem(it)||!itemCountsTowardBudget(it)) return;
+      var tm=txnMinuteOfDay(it);
+      if(tm!=null){ if(tm<=minuteLimit) total+=Number(it.amount)||0; }
+      else if((!isToday&&minuteLimit>=1440)||(isToday&&minuteLimit>=currentMinute)) total+=Number(it.amount)||0;
+    });
+    return total;
+  }
+  rows.forEach(function(row,rowIndex){
+    var ds=row.date, isToday=ds===today, fullRef=effectiveBudgetReferenceForDate(ds,info);
+    var dayStartBalance=cumulative;
+    if(rowIndex===0){
+      out.push({label:shortHourLabel(ds,0,false),date:ds,balance:round2(dayStartBalance),delta:0,hourly:true});
+      previousBalance=dayStartBalance;
+    }
+    var limits=[];
+    if(isToday){
+      var whole=Math.floor(currentMinute/60);
+      for(var h=1;h<=whole;h++) limits.push(h*60);
+      if(currentMinute>whole*60 || !limits.length) limits.push(currentMinute);
+    }else{
+      for(var h2=1;h2<=24;h2++) limits.push(h2*60);
+    }
+    limits.forEach(function(limit,idx){
+      var frac=Math.max(0,Math.min(1,limit/1440));
+      var spent=spendThrough(row,limit);
+      var bal=round2(dayStartBalance + fullRef*frac - spent);
+      var live=isToday && idx===limits.length-1 && Math.abs(limit-currentMinute)<0.01;
+      var label=limit>=1440 ? (shortLabel(ds)+' · end') : shortHourLabel(ds,limit,live);
+      out.push({label:label,date:ds,balance:bal,delta:round2(bal-previousBalance),hourly:true});
+      previousBalance=bal;
+    });
+    cumulative=out.length?out[out.length-1].balance:dayStartBalance;
+  });
+  return out;
 }
 function effectiveBudgetTargetForRange(startStr,endStr,info){
   info=info||currentEffectiveBudgetInfo();
@@ -3728,8 +3791,17 @@ function renderBudgetBody(T) {
   sections.forecast=buildForecastCard(stats.rows,forecastDays,target,forecastStart,T,(isCurrent&&effectiveInfo&&effectiveInfo.adaptiveOverride?'Adaptive limit':(isCurrent&&effectiveInfo&&effectiveInfo.savingsTight?'Effective budget':'Budget')),state.view,compareRows,'budget');
   sections.spendTrend=buildBudgetTrendCard(state.view,state.offset,T);
   if(stats.rows.length){
-    var acc=0,savingData=stats.rows.map(function(r){var ref=isCurrent?effectiveBudgetPaceReferenceForDate(r.date,effectiveInfo):r.allowance;var d=round2(ref-r.spent);acc=round2(acc+d);return{label:shortLabel(r.date),date:r.date,balance:acc,delta:d};});
-    sections.progress='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Ahead / behind budget</span><span class="mono footnote" style="color:'+(acc>=0?'var(--positive)':'var(--rust)')+';font-weight:600;">'+(acc>=0?'+':'−')+fmt(Math.abs(acc),0)+' AED</span></div><div class="muted caption" style="margin-bottom:10px;">Cumulative position versus your budget pace. Today is time-adjusted as the day progresses.</div><div id="budgetSavingChartWrap" style="position:relative;"><div id="balanceChartTip" class="mono footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:8px;padding:4px 9px;max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;z-index:2;"></div>'+renderChart(savingData,T)+'</div></div>';lastChartData=savingData;
+    var acc=0,savingData;
+    if(state.view==='week'){
+      savingData=hourlyBudgetPositionData(stats.rows,effectiveInfo);
+      acc=savingData.length?round2(savingData[savingData.length-1].balance):0;
+    }else{
+      savingData=stats.rows.map(function(r){var ref=isCurrent?effectiveBudgetPaceReferenceForDate(r.date,effectiveInfo):r.allowance;var d=round2(ref-r.spent);acc=round2(acc+d);return{label:shortLabel(r.date),date:r.date,balance:acc,delta:d};});
+    }
+    var paceCaption=state.view==='week'
+      ? ('Hourly cumulative position versus your budget pace.'+(isCurrent?' Current hour updates live.':''))
+      : 'Cumulative position versus your budget pace. Today is time-adjusted as the day progresses.';
+    sections.progress='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Ahead / behind budget</span><span class="mono footnote" style="color:'+(acc>=0?'var(--positive)':'var(--rust)')+';font-weight:600;">'+(acc>=0?'+':'−')+fmt(Math.abs(acc),0)+' AED</span></div><div class="muted caption" style="margin-bottom:10px;">'+paceCaption+'</div><div id="budgetSavingChartWrap" style="position:relative;"><div id="balanceChartTip" class="mono footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:8px;padding:4px 9px;max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;z-index:2;"></div>'+renderChart(savingData,T)+'</div></div>';lastChartData=savingData;
   } else {sections.progress='';}
 
   var catFilter=state.budgetCategoryFilter||'',personFilter=state.budgetPersonFilter||'',groupFilter=state.budgetSelectedGroup||'';
