@@ -381,7 +381,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v80";
+var APP_VERSION = "v81";
 var FORECAST_MODEL_VERSION = "v77-hybrid-3";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
@@ -2962,6 +2962,33 @@ function restoreAnalysisAnchor() {
   });
 }
 
+function renderResetConfirmationOverlays() {
+  var html = "";
+  if (state.showResetConfirm) {
+    html += '<div class="modal-backdrop" data-action="close-reset" style="padding:0 24px;">';
+    html += '<div class="modal-card" style="border-radius:16px;" data-action="noop">';
+    html += '<div class="sheet-title" style="margin-bottom:8px;">Clear all entries?</div>';
+    html += '<div class="muted" style="font-size:14px; margin-bottom:12px;">Every logged transaction is removed. Your settings stay, but forecast-learning history is reset. This can\'t be undone.</div>';
+    html += '<label class="eyebrow">Type CLEAR to confirm</label><input id="clearConfirmInput" class="field" autocomplete="off" autocapitalize="characters" placeholder="CLEAR" style="margin:6px 0 14px;" />';
+    html += '<div class="row gap2">';
+    html += '<button data-action="close-reset" class="btn-outline" style="flex:1;">Cancel</button>';
+    html += '<button id="clearConfirmBtn" data-action="confirm-reset" class="btn-rust row gap2" style="flex:1; justify-content:center; align-items:center;opacity:.4;" disabled>'+ICONS.rotate+' Clear</button>';
+    html += '</div></div></div>';
+  }
+  if (state.showFactoryResetConfirm) {
+    html += '<div class="modal-backdrop" data-action="close-factory-reset" style="padding:0 24px;">';
+    html += '<div class="modal-card" style="border-radius:16px;" data-action="noop">';
+    html += '<div class="sheet-title" style="margin-bottom:8px;">Reset app to defaults?</div>';
+    html += '<div class="muted" style="font-size:14px; margin-bottom:12px;">Everything in The Ledger on this device is erased, including local recovery snapshots. The app restarts with the current defaults and today as the tracking start date. This cannot be undone.</div>';
+    html += '<label class="eyebrow">Type RESET to confirm</label><input id="factoryResetConfirmInput" class="field" autocomplete="off" autocapitalize="characters" placeholder="RESET" style="margin:6px 0 14px;" />';
+    html += '<div class="row gap2">';
+    html += '<button data-action="close-factory-reset" class="btn-outline" style="flex:1;">Cancel</button>';
+    html += '<button id="factoryResetConfirmBtn" data-action="confirm-factory-reset" class="btn-rust row gap2" style="flex:1; justify-content:center; align-items:center;opacity:.4;" disabled>'+ICONS.rotate+' Reset</button>';
+    html += '</div></div></div>';
+  }
+  return html;
+}
+
 function render() {
   var root = document.getElementById("root");
   var T = effectivePalette();
@@ -3008,9 +3035,12 @@ function render() {
   }
 
   if (state.showSettings) {
-    root.innerHTML = renderSettingsPage();
+    root.innerHTML = renderSettingsPage() + renderResetConfirmationOverlays();
     applyReportingCurrencyText(root);
-    window.scrollTo(0, savedSettingsScrollY);
+    /* Keep the Settings page in place behind the confirmation sheet. The v80
+       renderer returned before modal markup was added, so tapping either
+       reset action from Settings changed state but displayed nothing. */
+    if (!(state.showResetConfirm || state.showFactoryResetConfirm)) window.scrollTo(0, savedSettingsScrollY);
     return;
   }
 
@@ -3075,29 +3105,7 @@ function render() {
     html += '</div></div>';
   }
 
-  if (state.showResetConfirm) {
-    html += '<div class="modal-backdrop" data-action="close-reset" style="padding:0 24px;">';
-    html += '<div class="modal-card" style="border-radius:16px;" data-action="noop">';
-    html += '<div class="sheet-title" style="margin-bottom:8px;">Clear all entries?</div>';
-    html += '<div class="muted" style="font-size:14px; margin-bottom:12px;">Every logged transaction is removed. Your settings stay, but forecast-learning history is reset. This can\'t be undone.</div>';
-    html += '<label class="eyebrow">Type CLEAR to confirm</label><input id="clearConfirmInput" class="field" autocomplete="off" autocapitalize="characters" placeholder="CLEAR" style="margin:6px 0 14px;" />';
-    html += '<div class="row gap2">';
-    html += '<button data-action="close-reset" class="btn-outline" style="flex:1;">Cancel</button>';
-    html += '<button id="clearConfirmBtn" data-action="confirm-reset" class="btn-rust row gap2" style="flex:1; justify-content:center; align-items:center;opacity:.4;" disabled>'+ICONS.rotate+' Clear</button>';
-    html += '</div></div></div>';
-  }
-
-  if (state.showFactoryResetConfirm) {
-    html += '<div class="modal-backdrop" data-action="close-factory-reset" style="padding:0 24px;">';
-    html += '<div class="modal-card" style="border-radius:16px;" data-action="noop">';
-    html += '<div class="sheet-title" style="margin-bottom:8px;">Reset app to defaults?</div>';
-    html += '<div class="muted" style="font-size:14px; margin-bottom:12px;">Everything in The Ledger on this device is erased, including local recovery snapshots. The app restarts with the current defaults and today as the tracking start date. This cannot be undone.</div>';
-    html += '<label class="eyebrow">Type RESET to confirm</label><input id="factoryResetConfirmInput" class="field" autocomplete="off" autocapitalize="characters" placeholder="RESET" style="margin:6px 0 14px;" />';
-    html += '<div class="row gap2">';
-    html += '<button data-action="close-factory-reset" class="btn-outline" style="flex:1;">Cancel</button>';
-    html += '<button id="factoryResetConfirmBtn" data-action="confirm-factory-reset" class="btn-rust row gap2" style="flex:1; justify-content:center; align-items:center;opacity:.4;" disabled>'+ICONS.rotate+' Reset</button>';
-    html += '</div></div></div>';
-  }
+  html += renderResetConfirmationOverlays();
 
   if (state.toastMessage) {
     html += '<div style="position:fixed; top:calc(env(safe-area-inset-top,0px) + 16px); left:50%; transform:translateX(-50%); background:var(--positive); color:#0C1322; font-size:13px; font-weight:600; padding:9px 18px; border-radius:999px; box-shadow:0 4px 14px rgba(0,0,0,0.35); z-index:60;">'+esc(state.toastMessage)+'</div>';
