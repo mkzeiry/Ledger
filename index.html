@@ -381,7 +381,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v79";
+var APP_VERSION = "v80";
 var FORECAST_MODEL_VERSION = "v77-hybrid-3";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
@@ -1113,6 +1113,7 @@ var state = {
   showSettings: false,
   showBackup: false,
   showResetConfirm: false,
+  showFactoryResetConfirm: false,
   restoreError: null,
   page: "home",
   calendarOffset: 0,
@@ -1489,6 +1490,45 @@ async function getLocalSnapshot(id) {
   var db=await openBackupDB();
   try { var tx=db.transaction(BACKUP_STORE,"readonly"), store=tx.objectStore(BACKUP_STORE); return await idbRequest(store.get(id)); }
   finally { db.close(); }
+}
+async function clearAllLocalRecoverySnapshots() {
+  if (!window.indexedDB) return true;
+  var db=await openBackupDB();
+  try {
+    var tx=db.transaction(BACKUP_STORE,"readwrite");
+    tx.objectStore(BACKUP_STORE).clear();
+    await new Promise(function(resolve,reject){
+      tx.oncomplete=resolve;
+      tx.onerror=function(){reject(tx.error||new Error("Could not clear local recovery"));};
+      tx.onabort=function(){reject(tx.error||new Error("Local recovery clear aborted"));};
+    });
+    return true;
+  } finally { db.close(); }
+}
+function freshDefaultSettingsForToday() {
+  var fresh=JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  fresh.trackingStartDate=todayStr();
+  return fresh;
+}
+async function performFactoryReset() {
+  /* A factory reset deliberately removes the recovery safety net too. Stop any
+     queued automatic snapshot first, clear IndexedDB, then replace the primary
+     ledger with a pristine default payload. Reloading re-initializes local
+     protection with only the new clean state. */
+  if(localBackupTimer){clearTimeout(localBackupTimer);localBackupTimer=null;}
+  dataProtectionBooting=true;
+  try {
+    await clearAllLocalRecoverySnapshots();
+    var fresh=freshDefaultSettingsForToday();
+    localStorage.setItem(STORAGE_KEY,JSON.stringify({settings:fresh,entries:{}}));
+    try { sessionStorage.removeItem("ledger-recovery-notice"); } catch(ignore) {}
+    location.reload();
+  } catch(e) {
+    dataProtectionBooting=false;
+    state.showFactoryResetConfirm=false;
+    showToast("Factory reset cancelled · recovery data could not be cleared");
+    render();
+  }
 }
 function snapshotIsHealthy(s) {
   try {
@@ -2928,7 +2968,7 @@ function render() {
   applyTheme(T);
   document.documentElement.classList.toggle("simple-home", state.page === "home" && !!state.settings.homeSimpleView && !state.showAddTxn && !state.showSettings);
 
-  var anyModalOpen = state.showBackup || state.showResetConfirm;
+  var anyModalOpen = state.showBackup || state.showResetConfirm || state.showFactoryResetConfirm;
   if (anyModalOpen) lockBodyScroll(); else unlockBodyScroll();
 
   /* root.innerHTML = html below destroys and recreates every element on every
@@ -3044,6 +3084,18 @@ function render() {
     html += '<div class="row gap2">';
     html += '<button data-action="close-reset" class="btn-outline" style="flex:1;">Cancel</button>';
     html += '<button id="clearConfirmBtn" data-action="confirm-reset" class="btn-rust row gap2" style="flex:1; justify-content:center; align-items:center;opacity:.4;" disabled>'+ICONS.rotate+' Clear</button>';
+    html += '</div></div></div>';
+  }
+
+  if (state.showFactoryResetConfirm) {
+    html += '<div class="modal-backdrop" data-action="close-factory-reset" style="padding:0 24px;">';
+    html += '<div class="modal-card" style="border-radius:16px;" data-action="noop">';
+    html += '<div class="sheet-title" style="margin-bottom:8px;">Reset app to defaults?</div>';
+    html += '<div class="muted" style="font-size:14px; margin-bottom:12px;">Everything in The Ledger on this device is erased, including local recovery snapshots. The app restarts with the current defaults and today as the tracking start date. This cannot be undone.</div>';
+    html += '<label class="eyebrow">Type RESET to confirm</label><input id="factoryResetConfirmInput" class="field" autocomplete="off" autocapitalize="characters" placeholder="RESET" style="margin:6px 0 14px;" />';
+    html += '<div class="row gap2">';
+    html += '<button data-action="close-factory-reset" class="btn-outline" style="flex:1;">Cancel</button>';
+    html += '<button id="factoryResetConfirmBtn" data-action="confirm-factory-reset" class="btn-rust row gap2" style="flex:1; justify-content:center; align-items:center;opacity:.4;" disabled>'+ICONS.rotate+' Reset</button>';
     html += '</div></div></div>';
   }
 
@@ -3724,7 +3776,7 @@ function renderBudgetBody(T) {
 
 function renderSettingsPage() {
   var section = state.settingsSection || "";
-  var titles = { budget:"Monthly budget", savings:"Savings target", currency:"Currencies", forecastAccuracy:"Forecast accuracy", categories:"Categories", people:"People", tags:"Transaction tags", theme:"Appearance", tracking:"Tracking start", backup:"Data & Backup", clearEntries:"Clear all entries" };
+  var titles = { budget:"Monthly budget", savings:"Savings target", currency:"Currencies", forecastAccuracy:"Forecast accuracy", categories:"Categories", people:"People", tags:"Transaction tags", theme:"Appearance", tracking:"Tracking start", backup:"Data & Backup", clearEntries:"Clear all entries", factoryReset:"Reset app to defaults" };
   var categoryHeaderTitle = "Categories";
   if (section === "categories") {
     if (state.settingsSubcategorySelected) categoryHeaderTitle = state.settingsSubcategorySelected;
@@ -3767,6 +3819,7 @@ function renderSettingsPage() {
     h += '<button class="settings-row" data-action="settings-section" data-section="tracking"><span class="settings-row-main"><span class="settings-row-label">Tracking start</span><span class="settings-row-sub">Where budget history should begin</span></span><span class="row gap2"><span class="settings-row-value">'+esc(trackLabel)+'</span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="backup"><span class="settings-row-main"><span class="settings-row-label">Data & Backup</span><span class="settings-row-sub">Automatic local recovery + manual backup</span></span><span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row settings-danger" data-action="settings-section" data-section="clearEntries"><span class="settings-row-main"><span class="settings-row-label">Clear all entries</span><span class="settings-row-sub">Danger zone · permanently erase transactions</span></span><span>'+ICONS.chevronRight+'</span></button>';
+    h += '<button class="settings-row settings-danger" data-action="settings-section" data-section="factoryReset"><span class="settings-row-main"><span class="settings-row-label">Reset app to defaults</span><span class="settings-row-sub">Factory reset · erase data, settings and recovery history</span></span><span>'+ICONS.chevronRight+'</span></button>';
     h += '</div>';
     h += '</div></div>';
     return h;
@@ -4013,6 +4066,16 @@ function renderSettingsPage() {
   if (section === "clearEntries") {
     var txnCount=0; Object.keys(state.entries).forEach(function(d){txnCount+=(state.entries[d].items||[]).length;});
     h += '<div class="card card-pad"><div class="eyebrow" style="color:var(--rust);">DANGER ZONE</div><div class="headline" style="margin-top:6px;">Clear all transaction history</div><div class="muted subhead" style="margin-top:7px;">This removes '+txnCount+' logged transaction'+(txnCount===1?'':'s')+'. Budgets, categories, tags, appearance and other settings stay.</div><button data-action="open-reset" class="btn-rust" style="width:100%;margin-top:18px;justify-content:center;">'+ICONS.trash+' Clear all entries</button><div class="muted caption" style="margin-top:9px;">A second confirmation is required: you must type CLEAR before deletion is enabled.</div></div>';
+  }
+
+  if (section === "factoryReset") {
+    var resetTxnCount=ledgerTxnCount(state.entries);
+    var recoveryCount=Number((state.dataProtection||{}).snapshotCount)||0;
+    h += '<div class="card card-pad"><div class="eyebrow" style="color:var(--rust);">FACTORY RESET</div><div class="headline" style="margin-top:6px;">Reset The Ledger to defaults</div>';
+    h += '<div class="muted subhead" style="margin-top:7px;">This permanently removes '+resetTxnCount+' transaction'+(resetTxnCount===1?'':'s')+', all budgets, income/savings settings, people, tags, recurring plans, category customizations, forecast history and '+recoveryCount+' local recovery snapshot'+(recoveryCount===1?'':'s')+'.</div>';
+    h += '<div class="muted subhead" style="margin-top:9px;">The app then starts clean with the current '+APP_VERSION+' defaults. Tracking start becomes today.</div>';
+    h += '<button data-action="open-factory-reset" class="btn-rust" style="width:100%;margin-top:18px;justify-content:center;">'+ICONS.rotate+' Reset app to defaults</button>';
+    h += '<div class="muted caption" style="margin-top:9px;">This cannot be undone from local recovery. Type RESET in the confirmation screen to continue.</div></div>';
   }
 
   if (section === "backup") {
@@ -6673,6 +6736,8 @@ document.addEventListener("click", function(e) {
     case "close-settings": settingsRootSnapshot = null; settingsNavStack = []; state.settingsSection = null; state.showSettings = false; render(); break;
     case "open-reset": state.showResetConfirm = true; render(); break;
     case "close-reset": state.showResetConfirm = false; render(); break;
+    case "open-factory-reset": state.showFactoryResetConfirm = true; render(); break;
+    case "close-factory-reset": state.showFactoryResetConfirm = false; render(); break;
     case "toggle-theme":
       persistAll(Object.assign({}, state.settings, { theme: state.settings.theme==="dark"?"light":"dark" }), state.entries, "your settings");
       render();
@@ -7566,6 +7631,11 @@ document.addEventListener("click", function(e) {
       showToast("All entries cleared");
       render();
       break;
+    case "confirm-factory-reset":
+      var factoryInput=document.getElementById("factoryResetConfirmInput");
+      if(!factoryInput || String(factoryInput.value||"").trim().toUpperCase()!=="RESET") { showToast("Type RESET first"); break; }
+      performFactoryReset();
+      break;
   }
 });
 
@@ -7576,6 +7646,11 @@ document.addEventListener("input", function(e) {
   if (e.target && e.target.id === "clearConfirmInput") {
     var cb=document.getElementById("clearConfirmBtn"), ok=String(e.target.value||"").trim().toUpperCase()==="CLEAR";
     if(cb){cb.disabled=!ok;cb.style.opacity=ok?"1":".4";}
+    return;
+  }
+  if (e.target && e.target.id === "factoryResetConfirmInput") {
+    var fb=document.getElementById("factoryResetConfirmBtn"), fok=String(e.target.value||"").trim().toUpperCase()==="RESET";
+    if(fb){fb.disabled=!fok;fb.style.opacity=fok?"1":".4";}
     return;
   }
   if (e.target && e.target.id === "txnSearchInput") {
