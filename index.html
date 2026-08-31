@@ -381,8 +381,8 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v75";
-var FORECAST_MODEL_VERSION = "v75-hybrid-1";
+var APP_VERSION = "v77";
+var FORECAST_MODEL_VERSION = "v77-hybrid-3";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 1800, monthlyBudget: null, monthlyBudgetHistory: null, theme: "dark", trackingStartDate: null, categories: ["Food & Dining","Groceries","Transport","Shopping","Bills & Utilities","Health","Entertainment","Other"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: false, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: null, customCardLightness: null, categoryStyles: null, categoryGroupStyles: null, recurringRules: null, categoryGroups: null, categoryGroupOf: null, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -1167,6 +1167,8 @@ var state = {
   forecastCompareMode: "previous",
   budgetForecastDetailsOpen: false,
   analysisForecastDetailsOpen: false,
+  budgetProtectedOpen: false,
+  budgetUpcomingOpen: false,
   entryTimeDraft: null,
   incomeDraftMode: null,
   incomeDraftAmount: null,
@@ -3467,30 +3469,30 @@ function budgetForecastEvidenceHtml(x, protectedMode) {
   var details=(x&&x.details)||[];
   if(!details.length) return '';
   var out='';
-  details.forEach(function(d,idx){
+  details.forEach(function(d){
     if(!d)return;
-    if(d.kind==='cadence'){
+    var p=d.profile||{};
+    if(d.kind==='cadence'||d.kind==='lumpy'){
       var pct=Math.round(Math.max(0,Math.min(1,d.probability==null?0:d.probability))*100);
-      var usual=round2(d.likelyAmount||0), p=d.profile||{};
-      var metrics=[];
-      metrics.push('<span style="font-weight:700;color:var(--text);">'+pct+'% chance</span>');
-      if(usual>0) metrics.push('usual '+fmt(usual,0)+' AED');
-      if(p.eventGap!=null) metrics.push('event ~every '+Number(p.eventGap).toFixed(1)+' days');
-      out+='<div class="muted caption" style="margin-top:3px;line-height:1.35;white-space:normal;">'+metrics.join(' · ')+'</div>';
-      var evidence=[];
-      if(p.txnCount!=null) evidence.push(p.txnCount+' txn'+(p.txnCount===1?'':'s'));
-      if(p.confidence) evidence.push(p.confidence+' confidence');
-      if(protectedMode && d.expectedAmount!=null && Math.abs((d.protectedAmount||0)-(d.expectedAmount||0))>=0.5) evidence.push('forecast ≈ '+fmt(d.expectedAmount,0)+' AED');
-      if(evidence.length) out+='<div class="muted caption" style="margin-top:1px;line-height:1.3;white-space:normal;">'+evidence.join(' · ')+'</div>';
+      var likely=round2(d.likelyAmount||0), expected=round2(d.expectedAmount||0), bits=[];
+      bits.push('<span style="font-weight:700;color:var(--text);">'+pct+'% chance</span>');
+      if(expected>0) bits.push('≈ '+fmt(expected,0)+' AED expected');
+      if(likely>0) bits.push('likely '+(d.kind==='lumpy'?'event':'txn')+' '+fmt(likely,0)+' AED');
+      if(p.confidence) bits.push(p.confidence+' confidence');
+      out+='<div class="muted caption" style="margin-top:4px;line-height:1.35;white-space:normal;">'+bits.join(' · ')+'</div>';
+      var cadence=[];
+      if(d.kind==='cadence'&&p.eventGap!=null) cadence.push('event ~every '+Number(p.eventGap).toFixed(1)+' days');
+      if(p.lastDate) cadence.push('last '+(p.lastDate===todayStr()?'Today':shortLabel(p.lastDate)));
+      if(d.kind==='cadence'&&p.lastDate&&p.eventGap!=null) cadence.push('next ~'+shortLabel(toStr(addDays(parseD(p.lastDate),Math.max(1,Math.round(p.eventGap))))));
+      if(cadence.length) out+='<div class="muted caption" style="margin-top:1px;line-height:1.3;white-space:normal;">'+cadence.join(' · ')+'</div>';
     } else if(d.kind==='frequent'){
-      var fp=d.profile||{}, bits=['Frequent'];
+      var fp=p, bits=['Frequent'];
       if(fp.txnCount!=null) bits.push(fp.txnCount+' txn'+(fp.txnCount===1?'':'s'));
       if(fp.occurrenceGap!=null) bits.push(occurrenceFrequencyText(fp.occurrenceGap,true));
-      if(fp.typicalAmount>0) bits.push('usual active day '+fmt(fp.typicalAmount,0)+' AED');
       if(fp.confidence) bits.push(fp.confidence+' confidence');
-      out+='<div class="muted caption" style="margin-top:3px;line-height:1.35;white-space:normal;">'+bits.join(' · ')+'</div>';
+      out+='<div class="muted caption" style="margin-top:4px;line-height:1.35;white-space:normal;">'+bits.join(' · ')+'</div>';
     } else if(d.kind==='scheduled'){
-      out+='<div class="muted caption" style="margin-top:3px;line-height:1.35;white-space:normal;"><span style="font-weight:700;color:var(--text);">100% scheduled</span> · planned '+fmt(d.expectedAmount||0,0)+' AED</div>';
+      out+='<div class="muted caption" style="margin-top:4px;line-height:1.35;white-space:normal;"><span style="font-weight:700;color:var(--text);">100% scheduled</span> · '+fmt(d.expectedAmount||0,0)+' AED expected</div>';
     }
   });
   return out;
@@ -3515,7 +3517,7 @@ function renderBudgetBody(T) {
     else if(state.view==='month' && livePacing) selectedDailyAllowance=livePacing.month.avg;
     else { var selectedDaysLeft=Math.max(0,daysBetween(todayStr(),period.endStr)+1); selectedDailyAllowance=selectedDaysLeft>0?remaining/selectedDaysLeft:null; }
   }
-  var limitingPacing=(livePacing&&limitingHorizon)?livePacing[limitingHorizon]:null;
+  var limitingPacing=(livePacing&&limitingHorizon)?(limitingHorizon==="week"?livePacing.week:livePacing.month):null;
   /* The simple equal split and the forecast-aware flexible allowance answer
      different questions. Keep both visible so Safe to Spend can be audited:
        equal remaining/day = current remaining / days left
@@ -3526,28 +3528,29 @@ function renderBudgetBody(T) {
   var reserveVariancePerDay=limitingPacing&&limitingPacing.days?round2(((limitingPacing.cadenceAdjustment||0)+(limitingPacing.scheduledAdjustment||0))/limitingPacing.days):0;
   var forecastStart=effectiveRangeStart(period.startStr),forecastDays=daysBetween(forecastStart,period.endStr)+1,budgetForecast=(isCurrent&&stats.rows.length)?computeForecastNumbers(stats.rows,forecastDays,forecastStart,'budget'):null;
   var projectedSpend=budgetForecast?budgetForecast.projectedSpend:stats.spent,projectedSaving=round2(target-projectedSpend),progress=target>0?Math.max(0,Math.min(100,stats.spent/target*100)):0;
-  /* v70: The compact summary must reconcile exactly with the Forecast card.
-     v69 used the Safe-to-Spend opening-of-day model here, while the chart used
-     the live now-forward forecast. That made figures such as 215 + 3 appear
-     above a chart saying only 174 AED remained. The summary is display-only,
-     so derive it from the SAME live forecast breakdown as the chart. Safe-to-
-     Spend math itself continues to use its conservative opening-day reserves. */
-  var protectedBreakdown=[],flexibleForecastBreakdown=[],protectedTotal=0,flexibleForecastTotal=0;
+  /* v77: Protected essentials now shows the ACTUAL reserve used by the
+     Safe-to-Spend calculation. This makes Flexible allowance/day auditable.
+     Upcoming forecast remains the live expected-value forecast, but excludes
+     every category already hard-protected so the same category is not shown in
+     both groups. Frequent essentials (Restaurants/Groceries) stay flexible by
+     design because daily allowance, not a hard reserve, paces them. */
+  var protectedBreakdown=[],flexibleForecastBreakdown=[],protectedTotal=0,flexibleForecastTotal=0,protectedLabels={};
+  if(limitingPacing&&Array.isArray(limitingPacing.reserveBreakdown)){
+    protectedBreakdown=limitingPacing.reserveBreakdown.map(function(x){
+      var row={category:x.category||"Uncategorised",amount:round2(Math.max(0,Number(x.amount)||0)),kind:"protected",details:(x.details||[])};
+      protectedLabels[row.category]=true; protectedTotal=round2(protectedTotal+row.amount); return row;
+    }).filter(function(x){return x.amount>0;});
+    protectedBreakdown.sort(function(a,b){return b.amount-a.amount;});
+  }
   if(budgetForecast&&Array.isArray(budgetForecast.forecastBreakdown)){
     budgetForecast.forecastBreakdown.forEach(function(x){
       var amount=round2(Math.max(0,Number(x.amount)||0)); if(amount<=0)return;
       var label=x.label||"Uncategorised";
-      var row={category:label,amount:amount,kind:x.kind||""};
-      var protectedEssential=subcategoryEssentialForSafeSpend(label)&&(x.kind==="cadence"||x.kind==="scheduled");
-      if(protectedEssential){protectedBreakdown.push(row);protectedTotal=round2(protectedTotal+amount);}
-      else {flexibleForecastBreakdown.push(row);flexibleForecastTotal=round2(flexibleForecastTotal+amount);}
+      if(protectedLabels[label]) return;
+      flexibleForecastBreakdown.push({category:label,amount:amount,kind:x.kind||"",details:[{kind:x.kind||"",expectedAmount:amount,probability:x.probability==null?null:x.probability,likelyAmount:round2(x.likelyAmount||0),profile:x.profile||null}]});
+      flexibleForecastTotal=round2(flexibleForecastTotal+amount);
     });
-    protectedBreakdown.sort(function(a,b){return b.amount-a.amount;});
     flexibleForecastBreakdown.sort(function(a,b){return b.amount-a.amount;});
-    /* Absorb only rounding dust so displayed groups always add to the card's
-       headline remaining forecast without inventing a material category. */
-    var displayDiff=round2((budgetForecast.remainingForecast||0)-protectedTotal-flexibleForecastTotal);
-    if(Math.abs(displayDiff)>0&&Math.abs(displayDiff)<1){flexibleForecastTotal=round2(flexibleForecastTotal+displayDiff);}
   }
   var h='<div class="row between" style="align-items:center;margin-bottom:10px;"><div class="eyebrow">Budget</div><div class="row gap2"><button data-action="toggle-budget-reorder" class="btn-plain" style="font-size:12px;">'+(state.budgetReorderMode?'Done':'Customize')+'</button><button data-action="open-budget-settings" class="btn-outline" style="padding:6px 10px;font-size:12px;">Edit budget</button></div></div>';
   h+='<div class="seg" style="margin-bottom:12px;">';['week','month','year'].forEach(function(v){h+='<button class="seg-btn" role="tab" aria-selected="'+(state.view===v)+'" data-action="switch-view" data-view="'+v+'" style="text-transform:capitalize;">'+v+'</button>';});h+='</div>';
@@ -3562,6 +3565,10 @@ function renderBudgetBody(T) {
   summary+=statBlock('Safe to spend today',isCurrent&&safeToday!=null?(fmt(safeToday,0)+' AED'):'—','var(--text)');
   summary+=statBlock('Spent today',isCurrent?fmt(spentToday,0)+' AED':'—','var(--text)');
   summary+=statBlock('Projected vs budget',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div>';
+  if(isCurrent&&limitingPacing&&limitingPacing.days>0&&flexibleAllowancePerDay!=null){
+    var pacingLabel=limitingHorizon==='week'?'Week':'Month';
+    summary+='<div class="muted caption" style="margin-top:9px;line-height:1.35;">Flexible allowance ('+pacingLabel+' limit): ('+fmt(limitingPacing.openingRemaining,0)+' opening − '+fmt(limitingPacing.futureReserve||0,0)+' protected) ÷ '+limitingPacing.days+' day'+(limitingPacing.days===1?'':'s')+' = '+fmt(flexibleAllowancePerDay,0)+' AED/day</div>';
+  }
   if(budgetSavingsComparison){
     var bsc=budgetSavingsComparison, savingsTighter=effectiveInfo&&effectiveInfo.savingsTight;
     var relationText=effectiveInfo&&effectiveInfo.adaptiveOverride
@@ -3581,28 +3588,32 @@ function renderBudgetBody(T) {
       summary+='</div><div class="muted caption" style="margin-top:8px;line-height:1.35;">The lower limit becomes your effective budget automatically. If it falls below half of your recent spending pace, The Ledger can temporarily use the higher limit and will state the override.</div></div>';
     }
   }
-  /* v68: Keep Safe-to-Spend decision content compact. The summary only shows
-     which subcategories are protected/forecast and their amounts. Forecast
-     evidence (frequency, probability, usual amount, confidence, timing) lives
-     in the collapsible Forecast details directly beneath the forecast chart. */
+  /* v77: Both Safe-to-Spend evidence groups are collapsible. The protected
+     group shows the actual reserve used by the allowance calculation plus the
+     expected-value evidence underneath; Upcoming forecast shows only non-
+     protected expected spend. */
   if(isCurrent&&(protectedTotal>0||flexibleForecastTotal>0)){
     summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);">';
     if(protectedTotal>0){
-      summary+='<div class="row between" style="gap:12px;align-items:baseline;"><span class="subhead" style="font-weight:650;">Protected essentials</span><span class="mono subhead" style="font-weight:750;">'+fmt(protectedTotal,0)+' AED</span></div>';
-      if(protectedBreakdown.length){
+      var protectedOpen=!!state.budgetProtectedOpen;
+      summary+='<button data-action="toggle-budget-protected" class="row between" style="width:100%;background:none;border:none;padding:0;color:inherit;text-align:left;gap:12px;align-items:center;"><span class="subhead" style="font-weight:650;">Protected essentials</span><span class="row gap2"><span class="mono subhead" style="font-weight:750;">'+fmt(protectedTotal,0)+' AED</span><span style="display:flex;transform:rotate('+(protectedOpen?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
+      if(protectedOpen&&protectedBreakdown.length){
+        summary+='<div class="muted caption" style="margin-top:5px;line-height:1.35;">Actual money ring-fenced by Safe-to-Spend. Expected spend may be lower because high-probability essential events can reserve the full likely purchase.</div>';
         summary+='<div style="margin-top:8px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
         protectedBreakdown.forEach(function(x,i){
-          summary+='<div class="row between" style="padding:8px 0;gap:12px;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="caption" style="font-weight:650;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div><div class="mono caption" style="font-weight:750;flex-shrink:0;">'+fmt(x.amount,0)+' AED</div></div>';
+          summary+='<div style="padding:9px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="row between" style="gap:12px;"><div class="caption" style="font-weight:650;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div><div style="flex-shrink:0;text-align:right;"><div class="mono caption" style="font-weight:750;">'+fmt(x.amount,0)+' AED</div><div class="muted caption">protected</div></div></div>'+budgetForecastEvidenceHtml(x,true)+'</div>';
         });
         summary+='</div>';
       }
     }
     if(flexibleForecastTotal>0){
-      summary+='<div class="'+(protectedTotal>0?'hairline-top':'')+'" style="margin-top:'+(protectedTotal>0?'12px':'0')+';padding-top:'+(protectedTotal>0?'11px':'0')+';"><div class="row between" style="gap:12px;align-items:baseline;"><span class="subhead" style="font-weight:650;">Upcoming forecast spend</span><span class="mono subhead" style="font-weight:700;color:var(--text-muted);">≈ '+fmt(flexibleForecastTotal,0)+' AED</span></div>';
-      if(flexibleForecastBreakdown.length){
+      var upcomingOpen=!!state.budgetUpcomingOpen;
+      summary+='<div class="'+(protectedTotal>0?'hairline-top':'')+'" style="margin-top:'+(protectedTotal>0?'12px':'0')+';padding-top:'+(protectedTotal>0?'11px':'0')+';"><button data-action="toggle-budget-upcoming" class="row between" style="width:100%;background:none;border:none;padding:0;color:inherit;text-align:left;gap:12px;align-items:center;"><span class="subhead" style="font-weight:650;">Upcoming forecast spend</span><span class="row gap2"><span class="mono subhead" style="font-weight:700;color:var(--text-muted);">≈ '+fmt(flexibleForecastTotal,0)+' AED</span><span style="display:flex;transform:rotate('+(upcomingOpen?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
+      if(upcomingOpen&&flexibleForecastBreakdown.length){
+        summary+='<div class="muted caption" style="margin-top:5px;line-height:1.35;">Expected spend not hard-reserved above. It influences the forecast, while remaining available inside your flexible allowance.</div>';
         summary+='<div style="margin-top:8px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
         flexibleForecastBreakdown.forEach(function(x,i){
-          summary+='<div class="row between" style="padding:8px 0;gap:12px;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="caption" style="font-weight:650;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div><div class="mono caption muted" style="font-weight:750;flex-shrink:0;">≈ '+fmt(x.amount,0)+' AED</div></div>';
+          summary+='<div style="padding:9px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="row between" style="gap:12px;"><div class="caption" style="font-weight:650;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div><div class="mono caption muted" style="font-weight:750;flex-shrink:0;">≈ '+fmt(x.amount,0)+' AED</div></div>'+budgetForecastEvidenceHtml(x,false)+'</div>';
         });
         summary+='</div>';
       }
@@ -4885,13 +4896,30 @@ function forecastCategoryProfiles(scope, asOfDate) {
     var cadence=!frequent && dates.length>=3 && eventGap!=null && eventGap>=2.0 && typicalAmount>0;
     var lumpy=!frequent && !cadence && dates.length>=1 && typicalAmount>0;
     var evidence=frequent?m.txnCount:dates.length;
+    var cadenceGapCv=(gapDev!=null&&eventGap>0)?gapDev/eventGap:null;
+    var cadenceAmountCv=(amountDev!=null&&typicalAmount>0)?amountDev/typicalAmount:null;
+    var timingConsistency=cadenceGapCv==null?.78:Math.max(.45,Math.min(1,1-cadenceGapCv*.28));
+    var amountConsistency=cadenceAmountCv==null?.82:Math.max(.50,Math.min(1,1-cadenceAmountCv*.22));
     var confidence=evidence>=10?"High":(evidence>=5?"Medium":"Low");
+    /* v77: confidence measures evidence quality, not event likelihood. For
+       cadence categories, sample size, timing consistency and amount
+       consistency all matter. Four clean observations (Fuel: 5/7/9-day gaps
+       with tightly clustered fills) are enough for Medium confidence, while a
+       larger but erratic sample does not automatically become High. */
+    if(cadence){
+      var nEvents=dates.length;
+      if(nEvents>=8 && (cadenceGapCv==null||cadenceGapCv<=.35) && (cadenceAmountCv==null||cadenceAmountCv<=.30)) confidence="High";
+      else if(nEvents>=4 && (cadenceGapCv==null||cadenceGapCv<=.55) && (cadenceAmountCv==null||cadenceAmountCv<=.45)) confidence="Medium";
+      else if(nEvents>=5) confidence="Medium";
+      else confidence="Low";
+    }
     out[k]={
       key:k,label:k==="__uncategorised__"?"Uncategorised":k,daily:m.daily,txnAmounts:m.txnAmounts,txnCount:m.txnCount,
       timedCount:m.timedCount,activeDates:dates,activeDays:dates.length,gaps:gaps,
       gap:occurrenceGap,occurrenceGap:occurrenceGap,eventGap:eventGap,interarrivalGap:interarrivalGap,gapDev:gapDev,
       minGap:gaps.length?Math.min.apply(null,gaps):null,maxGap:gaps.length?Math.max.apply(null,gaps):null,
       typicalAmount:typicalAmount,typicalTxnAmount:typicalTxnAmount,amountDev:amountDev,
+      timingCv:cadenceGapCv,amountCv:cadenceAmountCv,timingConsistency:timingConsistency,amountConsistency:amountConsistency,
       lastDate:dates.length?dates[dates.length-1]:null,spanDays:span,activeRate:activeRate,txnRate:txnRate,historyStart:start,
       mode:frequent?"frequent":(cadence?"cadence":(lumpy?"lumpy":"sparse")),confidence:confidence
     };
@@ -4952,31 +4980,38 @@ function cadenceEventForecast(profile, fromStr, throughStr) {
   var availableDays=Math.max(0,horizon-(lastToday?1:0));
   if(availableDays<=0)return {byDate:byDate,total:0,variance:0,probability:0,safeReserve:0,reason:"Recently satisfied"};
   var daysSince=Math.max(0,daysBetween(profile.lastDate,fromStr));
-  var amountCv=(profile.amountDev!=null&&profile.typicalAmount>0)?profile.amountDev/profile.typicalAmount:null;
-  var reliability=(profile.activeDays||0)>=8?.96:((profile.activeDays||0)>=5?.90:.80);
-  if(amountCv!=null)reliability*=Math.max(.65,Math.min(1,1-amountCv*.35));
+  var amountCv=(profile.amountCv!=null)?profile.amountCv:((profile.amountDev!=null&&profile.typicalAmount>0)?profile.amountDev/profile.typicalAmount:null);
+  var timingCv=(profile.timingCv!=null)?profile.timingCv:((profile.gapDev!=null&&gap>0)?profile.gapDev/gap:null);
+  var nEvents=Math.max(0,Number(profile.activeDays)||0);
+  var sampleQuality=nEvents>=8?.98:(nEvents>=6?.95:(nEvents>=5?.93:(nEvents>=4?.90:(nEvents>=3?.80:.65))));
+  var timingQuality=timingCv==null?.78:Math.max(.45,Math.min(1,1-timingCv*.28));
+  var amountQuality=amountCv==null?.82:Math.max(.50,Math.min(1,1-amountCv*.22));
+  /* Likelihood and confidence are deliberately separate. A small but very
+     regular sample can imply that an event is highly likely inside a broad
+     seven-day window while still only earning Medium confidence. */
+  var evidenceQuality=.45*sampleQuality+.35*timingQuality+.20*amountQuality;
   var overdueRatio=gap>0?daysSince/gap:0;
   var staleFactor=1;
   if(overdueRatio>2.1)staleFactor=Math.exp(-.45*(overdueRatio-2.1));
   if(overdueRatio>3.6)staleFactor*=.35;
-  reliability*=staleFactor;
 
-  /* First-event probability is phase-aware: if the learned next event falls
-     inside this horizon, a regular category such as Fuel should be highly
-     likely, not merely horizon/gap. The stationary event rate then provides a
-     floor that allows >1 expected event for faster cadence categories. */
+  /* First-event probability combines four signals: whether the learned timing
+     window lands inside the horizon, sample size, timing consistency and
+     amount consistency. Evidence quality applies a modest uncertainty penalty
+     rather than dragging a clearly in-window event back toward 50%. */
   var wait=lastToday?gap:Math.max(0,gap-daysSince);
   var inside=wait<=availableDays;
   var firstRaw=inside?(0.75+0.20*Math.min(1,availableDays/gap)):(0.72*Math.exp(-Math.max(0,wait-availableDays)/Math.max(1,gap*.45)));
   firstRaw=Math.max(0,Math.min(.98,firstRaw));
-  var firstProb=Math.max(0,Math.min(.98,.50+reliability*(firstRaw-.50)));
+  var evidenceMultiplier=Math.max(.86,Math.min(.985,1-(.02+.08*(1-evidenceQuality))));
+  var firstProb=Math.max(0,Math.min(.98,firstRaw*evidenceMultiplier*staleFactor));
   if(firstRaw<.08)firstProb=Math.min(firstProb,firstRaw);
-  var stationaryCount=(availableDays/gap)*reliability;
-  var expectedCount=Math.max(firstProb,stationaryCount);
-  /* Keep the short-horizon cadence model bounded. More than three expected
-     events belongs in the frequent daily-spend model instead. */
-  expectedCount=Math.min(3,Math.max(0,expectedCount));
-  var targetTotal=expectedCount*profile.typicalAmount;
+  /* v76: a cadence detail row is presented as
+       chance × likely event amount = expected amount. Keep that identity exact.
+       Categories capable of multiple events per week belong in the frequent
+       daily-spend model; cadence represents one next repeat event. */
+  var expectedCount=firstProb;
+  var targetTotal=firstProb*profile.typicalAmount;
 
   var sigma=Math.max(.9,profile.gapDev||0,gap*.25), weights=[],weightSum=0;
   for(var i=0;i<horizon;i++){
@@ -5048,7 +5083,7 @@ function portfolioUnscheduledPaceForecast(scope, profileAsOfStr, forecastFromStr
 function buildBehavioralForecast(scope, profileAsOfStr, forecastFromStr, throughStr) {
   /* Backward-compatible 3-argument call: old callers supplied (scope, from, through). */
   if(throughStr==null){throughStr=forecastFromStr;forecastFromStr=profileAsOfStr;}
-  var profiles=forecastCategoryProfiles(scope,profileAsOfStr),byDate={},bySub={},varianceByDate={},suppressed=[];
+  var profiles=forecastCategoryProfiles(scope,profileAsOfStr),byDate={},bySub={},varianceByDate={},suppressed=[],frequentByDate={},frequentVarianceByDate={};
   var cadenceSafeReserveTotal=0,frequentExpectedTotal=0,lumpyExpectedTotal=0;
   Object.keys(profiles).forEach(function(k){
     var p=profiles[k];
@@ -5056,7 +5091,12 @@ function buildBehavioralForecast(scope, profileAsOfStr, forecastFromStr, through
       var d=parseD(forecastFromStr),end=parseD(throughStr),totalF=0;
       while(d<=end){
         var ds=toStr(d),e=expectedFrequentCategoryForDate(p,ds,profileAsOfStr),amt=e.mean||0;
-        if(amt>0){byDate[ds]=(byDate[ds]||0)+amt;varianceByDate[ds]=(varianceByDate[ds]||0)+(e.dev||0)*(e.dev||0);totalF+=amt;}
+        if(amt>0){
+          var v=(e.dev||0)*(e.dev||0);
+          byDate[ds]=(byDate[ds]||0)+amt;varianceByDate[ds]=(varianceByDate[ds]||0)+v;
+          frequentByDate[ds]=(frequentByDate[ds]||0)+amt;frequentVarianceByDate[ds]=(frequentVarianceByDate[ds]||0)+v;
+          totalF+=amt;
+        }
         d=addDays(d,1);
       }
       if(totalF>0){bySub[k]={amount:totalF,kind:"frequent",profile:p,safeReserve:0};frequentExpectedTotal+=totalF;}
@@ -5075,17 +5115,27 @@ function buildBehavioralForecast(scope, profileAsOfStr, forecastFromStr, through
   });
   var categoryTotal=0;Object.keys(bySub).forEach(function(k){categoryTotal+=Number(bySub[k].amount)||0;});
   var portfolio=portfolioUnscheduledPaceForecast(scope,profileAsOfStr,forecastFromStr,throughStr),blendFactor=1;
-  if(categoryTotal>0&&portfolio.total>0&&portfolio.blendWeight>0){
+  /* v76: the whole-budget guardrail may tune only the flexible frequent-spend
+     component. It no longer multiplies cadence/lumpy rows, because doing so
+     broke the visible identity chance × likely transaction = expected amount. */
+  if(categoryTotal>0&&portfolio.total>0&&portfolio.blendWeight>0&&frequentExpectedTotal>0){
     var blendedTotal=categoryTotal*(1-portfolio.blendWeight)+portfolio.total*portfolio.blendWeight;
-    blendFactor=Math.max(.82,Math.min(1.22,blendedTotal/categoryTotal));
+    var nonFrequentTotal=Math.max(0,categoryTotal-frequentExpectedTotal);
+    var desiredFrequent=Math.max(0,blendedTotal-nonFrequentTotal);
+    blendFactor=Math.max(.75,Math.min(1.35,desiredFrequent/frequentExpectedTotal));
     if(Math.abs(blendFactor-1)>.005){
-      Object.keys(byDate).forEach(function(ds){byDate[ds]*=blendFactor;});
-      Object.keys(varianceByDate).forEach(function(ds){varianceByDate[ds]*=blendFactor*blendFactor;});
-      Object.keys(bySub).forEach(function(k){bySub[k].amount*=blendFactor;});
-      frequentExpectedTotal*=blendFactor;lumpyExpectedTotal*=blendFactor;
+      Object.keys(frequentByDate).forEach(function(ds){
+        var base=frequentByDate[ds]||0,delta=base*(blendFactor-1);
+        byDate[ds]=(byDate[ds]||0)+delta;frequentByDate[ds]=base*blendFactor;
+        var fv=frequentVarianceByDate[ds]||0;
+        varianceByDate[ds]=(varianceByDate[ds]||0)-fv+fv*blendFactor*blendFactor;
+        frequentVarianceByDate[ds]=fv*blendFactor*blendFactor;
+      });
+      Object.keys(bySub).forEach(function(k){if(bySub[k].kind==="frequent")bySub[k].amount*=blendFactor;});
+      frequentExpectedTotal*=blendFactor;
     }
   }
-  return {profiles:profiles,byDate:byDate,bySubcategory:bySub,varianceByDate:varianceByDate,suppressed:suppressed,
+  return {profiles:profiles,byDate:byDate,bySubcategory:bySub,varianceByDate:varianceByDate,frequentByDate:frequentByDate,frequentVarianceByDate:frequentVarianceByDate,suppressed:suppressed,
     cadenceSafeReserveTotal:round2(cadenceSafeReserveTotal),frequentExpectedTotal:round2(frequentExpectedTotal),lumpyExpectedTotal:round2(lumpyExpectedTotal),safeReserveTotal:round2(cadenceSafeReserveTotal),
     portfolioPace:round2(portfolio.pace||0),portfolioExpected:round2(portfolio.total||0),portfolioBlendWeight:portfolio.blendWeight||0,portfolioBlendFactor:blendFactor};
 }
@@ -5129,11 +5179,24 @@ function forecastCalibrationFactor(scope,totalDays) {
 }
 function scaleBehavioralForecastForCalibration(behavioral,factor){
   factor=Number(factor)||1;if(!behavioral||Math.abs(factor-1)<.005)return behavioral;
-  Object.keys(behavioral.byDate||{}).forEach(function(ds){behavioral.byDate[ds]*=factor;});
-  Object.keys(behavioral.varianceByDate||{}).forEach(function(ds){behavioral.varianceByDate[ds]*=factor*factor;});
-  Object.keys(behavioral.bySubcategory||{}).forEach(function(k){var x=behavioral.bySubcategory[k];x.amount*=factor;});
-  behavioral.frequentExpectedTotal=(behavioral.frequentExpectedTotal||0)*factor;
-  behavioral.lumpyExpectedTotal=(behavioral.lumpyExpectedTotal||0)*factor;
+  /* v76: backtest calibration also leaves event-probability categories intact.
+     Any aggregate correction is absorbed by flexible frequent-spend pace so
+     cadence rows remain auditable: chance × likely amount = expected amount. */
+  var currentTotal=0;Object.keys(behavioral.byDate||{}).forEach(function(ds){currentTotal+=Number(behavioral.byDate[ds])||0;});
+  var frequentTotal=Number(behavioral.frequentExpectedTotal)||0;if(!(currentTotal>0)||!(frequentTotal>0))return behavioral;
+  var nonFrequent=Math.max(0,currentTotal-frequentTotal),desiredTotal=currentTotal*factor,desiredFrequent=Math.max(0,desiredTotal-nonFrequent);
+  var frequentFactor=Math.max(.75,Math.min(1.35,desiredFrequent/frequentTotal));
+  if(Math.abs(frequentFactor-1)<.005)return behavioral;
+  Object.keys(behavioral.frequentByDate||{}).forEach(function(ds){
+    var base=behavioral.frequentByDate[ds]||0,delta=base*(frequentFactor-1);
+    behavioral.byDate[ds]=(behavioral.byDate[ds]||0)+delta;behavioral.frequentByDate[ds]=base*frequentFactor;
+    var fv=(behavioral.frequentVarianceByDate&&behavioral.frequentVarianceByDate[ds])||0;
+    behavioral.varianceByDate[ds]=(behavioral.varianceByDate[ds]||0)-fv+fv*frequentFactor*frequentFactor;
+    if(behavioral.frequentVarianceByDate)behavioral.frequentVarianceByDate[ds]=fv*frequentFactor*frequentFactor;
+  });
+  Object.keys(behavioral.bySubcategory||{}).forEach(function(k){var x=behavioral.bySubcategory[k];if(x.kind==="frequent")x.amount*=frequentFactor;});
+  behavioral.frequentExpectedTotal=frequentTotal*frequentFactor;
+  behavioral.calibrationFrequentFactor=frequentFactor;
   return behavioral;
 }
 
@@ -5370,7 +5433,7 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
       s += '<div style="margin-top:8px;">';
       if(!hasForecast) s += '<div class="muted caption" style="padding:2px 0 9px;line-height:1.4;">This period has no future calendar days left. Frequency evidence is still shown below; remaining-period probability is 0%.</div>';
       if(fc.calibrationCount>0&&Math.abs((fc.calibrationFactor||1)-1)>=.01) s += '<div class="muted caption" style="padding:2px 0 9px;line-height:1.4;">Backtest calibration '+((fc.calibrationFactor||1)>1?'+':'')+fmt(((fc.calibrationFactor||1)-1)*100,0)+'% from '+fc.calibrationCount+' completed early-period forecast'+(fc.calibrationCount===1?'':'s')+'.</div>';
-      if(Math.abs((fc.portfolioBlendFactor||1)-1)>=.03) s += '<div class="muted caption" style="padding:2px 0 9px;line-height:1.4;">Whole-budget pace guardrail '+((fc.portfolioBlendFactor||1)>1?'raised':'lowered')+' category estimates by '+fmt(Math.abs((fc.portfolioBlendFactor||1)-1)*100,0)+'% · robust pace '+fmt(fc.portfolioPace||0,0)+' AED/day.</div>';
+      if(Math.abs((fc.portfolioBlendFactor||1)-1)>=.03) s += '<div class="muted caption" style="padding:2px 0 9px;line-height:1.4;">Whole-budget pace guardrail '+((fc.portfolioBlendFactor||1)>1?'raised':'lowered')+' frequent-spend estimates by '+fmt(Math.abs((fc.portfolioBlendFactor||1)-1)*100,0)+'% · robust pace '+fmt(fc.portfolioPace||0,0)+' AED/day.</div>';
       detailRows.forEach(function(x,i){
         var tag=x.kind==='scheduled'?'Scheduled':(x.kind==='cadence'?'Cadence':(x.kind==='frequent'?'Frequent':(x.kind==='lumpy'?'Lumpy':'Behavior')));
         var evidence=x.metaText?('<div class="muted caption" style="margin-top:2px;white-space:normal;">'+esc(x.metaText)+'</div>'):'';
@@ -7314,6 +7377,14 @@ document.addEventListener("click", function(e) {
     case "toggle-forecast-details":
       if (el.dataset.scope === "budget") state.budgetForecastDetailsOpen = !state.budgetForecastDetailsOpen;
       else state.analysisForecastDetailsOpen = !state.analysisForecastDetailsOpen;
+      render();
+      break;
+    case "toggle-budget-protected":
+      state.budgetProtectedOpen = !state.budgetProtectedOpen;
+      render();
+      break;
+    case "toggle-budget-upcoming":
+      state.budgetUpcomingOpen = !state.budgetUpcomingOpen;
       render();
       break;
     case "open-income-settings":
