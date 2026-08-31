@@ -383,10 +383,10 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v87";
+var APP_VERSION = "v86";
 var FORECAST_MODEL_VERSION = "v77-hybrid-3";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, firstRunSetupComplete: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
 function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
@@ -409,7 +409,7 @@ function normalizeForecastSnapshots(list) {
 }
 
 var DEFAULT_BUDGET_ORDER = ["summary","forecast","spendTrend","progress","category","person"];
-var BUDGET_SECTION_LABELS = { summary:"Budget summary", forecast:"Forecast", spendTrend:"Spend trend", progress:"Ahead / behind pace", category:"Spend by category", person:"Spend by person" };
+var BUDGET_SECTION_LABELS = { summary:"Budget summary", forecast:"Forecast", spendTrend:"Spend trend", progress:"Ahead / behind budget", category:"Spend by category", person:"Spend by person" };
 function normalizeBudgetOrder(order) {
   var valid = DEFAULT_BUDGET_ORDER;
   var out = (order||[]).filter(function(id){ return valid.indexOf(id)!==-1; });
@@ -1116,7 +1116,6 @@ var state = {
   showBackup: false,
   showResetConfirm: false,
   showFactoryResetConfirm: false,
-  showOnboarding: false,
   restoreError: null,
   page: "home",
   calendarOffset: 0,
@@ -1575,7 +1574,6 @@ async function clearAllLocalRecoverySnapshots() {
 function freshDefaultSettingsForToday() {
   var fresh=JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
   fresh.trackingStartDate=todayStr();
-  fresh.firstRunSetupComplete=false;
   return fresh;
 }
 async function performFactoryReset() {
@@ -1735,10 +1733,6 @@ function loadInitial() {
       if(!parsed||typeof parsed!=="object"||!validateBackupEntries(parsed.entries||{})) throw new Error("invalid primary data");
       primaryStorageHealth="healthy";
       state.settings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings||{});
-      /* v87 onboarding migration: an existing ledger created before v87 is
-         already "set up". Only an explicit false value (new install/factory
-         reset) should show onboarding. */
-      if (!parsed.settings || !Object.prototype.hasOwnProperty.call(parsed.settings,"firstRunSetupComplete")) state.settings.firstRunSetupComplete = true;
       if (!state.settings.rateHistory || !state.settings.rateHistory.length) {
         state.settings.rateHistory = [{ from: "1900-01-01", weeklyTarget: state.settings.weeklyTarget }];
       }
@@ -1748,9 +1742,8 @@ function loadInitial() {
   /* First-run tracking starts on the calendar date the app is first opened.
      Do this only when there is no primary ledger; IndexedDB recovery still gets
      first chance before these defaults are persisted. */
-  if (primaryStorageHealth === "missing") {
-    if (!state.settings.trackingStartDate) state.settings.trackingStartDate = todayStr();
-    state.settings.firstRunSetupComplete = false;
+  if (primaryStorageHealth === "missing" && !state.settings.trackingStartDate) {
+    state.settings.trackingStartDate = todayStr();
   }
   if (!state.settings.rateHistory || !state.settings.rateHistory.length) {
     state.settings.rateHistory = [{ from: "1900-01-01", weeklyTarget: state.settings.weeklyTarget }];
@@ -1786,7 +1779,6 @@ function loadInitial() {
   state.settings.peopleAnalysisExcluded = normalizePeopleAnalysisExcluded(state.settings.peopleAnalysisExcluded, state.settings.categories);
   state.settings.defaultPerson = normalizeDefaultPerson(state.settings.defaultPerson, state.settings.people);
   state.settings.recurringRules = normalizeRecurringRules(state.settings.recurringRules);
-  state.showOnboarding = state.settings.firstRunSetupComplete === false;
   /* Do not run maintenance against empty defaults when primary storage is
      missing/corrupt; IndexedDB recovery gets first chance. */
   var recurringChanged = false, snapshotChanged = false;
@@ -3063,28 +3055,6 @@ function renderResetConfirmationOverlays() {
   return html;
 }
 
-function renderOnboardingPage() {
-  var pct=normalizeSavingsTargetPct(state.settings.savingsTargetPct);
-  var income=Number(state.settings.incomeAmount)||0;
-  var budget=Number(state.settings.monthlyBudget)||0;
-  var h='<div class="txn-entry-page"><div class="txn-entry-shell" style="max-width:520px;">';
-  h+='<div class="txn-entry-content" style="padding-top:calc(env(safe-area-inset-top,0px) + 28px);">';
-  h+='<div class="brand-title" style="font-size:34px;line-height:1.05;">The Ledger</div>';
-  h+='<div class="headline" style="margin-top:24px;">Set up your money plan</div>';
-  h+='<div class="muted subhead" style="margin-top:7px;line-height:1.45;">Three numbers are enough to make Budget, Safe-to-Spend and savings projections useful. You can change them anytime.</div>';
-  h+='<div class="card" style="padding:16px;margin-top:22px;">';
-  h+='<label class="eyebrow" style="display:block;margin-bottom:6px;">Monthly income</label><div class="field fx-amount-shell" style="margin-bottom:16px;border-radius:14px;"><span class="fx-currency-select" style="display:flex;align-items:center;justify-content:center;pointer-events:none;">AED</span><input id="onboardingIncome" type="number" inputmode="decimal" step="1" min="0" class="mono fx-amount-input" placeholder="0" value="'+(income>0?esc(String(income)):'')+'" /></div>';
-  h+='<label class="eyebrow" style="display:block;margin-bottom:6px;">Monthly spending budget</label><div class="field fx-amount-shell" style="margin-bottom:16px;border-radius:14px;"><span class="fx-currency-select" style="display:flex;align-items:center;justify-content:center;pointer-events:none;">AED</span><input id="onboardingBudget" type="number" inputmode="decimal" step="1" min="0" class="mono fx-amount-input" placeholder="0" value="'+(budget>0?esc(String(budget)):'')+'" /></div>';
-  h+='<label class="eyebrow" style="display:block;margin-bottom:6px;">Savings target</label><div class="field" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><input id="onboardingSavings" type="number" inputmode="decimal" step="1" min="0" max="90" class="mono" style="border:none;background:none;color:var(--text);font-size:18px;min-width:0;flex:1;outline:none;" value="'+esc(String(pct))+'" /><span class="muted">%</span></div>';
-  h+='<div class="muted caption">Tracking starts '+esc(shortLabel(state.settings.trackingStartDate||todayStr()))+'. Your default categories, light appearance and AED currency are ready.</div>';
-  h+='</div>';
-  h+='<button data-action="complete-onboarding" class="btn-accent" style="width:100%;justify-content:center;margin-top:18px;padding:13px 16px;">Start using The Ledger</button>';
-  h+='<button data-action="skip-onboarding" class="btn-plain" style="width:100%;justify-content:center;margin-top:9px;padding:11px 16px;">Skip for now</button>';
-  h+='<div class="muted caption" style="text-align:center;margin-top:12px;line-height:1.4;">No account required. Your ledger stays on this device.</div>';
-  h+='</div></div></div>';
-  return h;
-}
-
 function render() {
   var root = document.getElementById("root");
   var T = effectivePalette();
@@ -3115,12 +3085,6 @@ function render() {
 
   if (state.loading) {
     root.innerHTML = '<div class="row" style="min-height:100vh; align-items:center; justify-content:center;"><div class="muted" style="font-size:14px;">Loading your ledger…</div></div>';
-    return;
-  }
-
-  if (state.showOnboarding) {
-    root.innerHTML = renderOnboardingPage();
-    applyReportingCurrencyText(root);
     return;
   }
 
@@ -3198,7 +3162,6 @@ function render() {
     html += '<div class="modal-sticky-header"><div class="grabber"></div>';
     html += '<div class="row between">'+'<div class="sheet-title">Backup & restore</div><button data-action="close-backup" style="background:none;border:none;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
     html += '<div class="muted" style="font-size:12px; margin-bottom:8px; margin-top:14px;">Use this to move data to another device, or as a safety net.</div>';
-    html += '<div class="row gap2" style="margin-bottom:12px;"><button data-action="export-backup-file" class="btn-accent" style="flex:1;justify-content:center;">Export file</button><button data-action="import-backup-file" class="btn-outline" style="flex:1;justify-content:center;">Import file</button></div><input id="backupFileInput" type="file" accept="application/json,.json" style="display:none;" />';
     html += '<textarea readonly class="field mono" style="height:120px; font-size:11px; margin-bottom:8px; resize:none;" onfocus="this.select()">'+esc(backupText)+'</textarea>';
     html += '<button id="copyBackupBtn" data-action="copy-backup" class="btn-accent" style="width:100%; margin-bottom:20px;">Copy backup</button>';
     html += '<div class="muted" style="font-size:12px; margin-bottom:8px;">Restore from a backup:</div>';
@@ -3543,7 +3506,7 @@ function renderHomeBody(T, da) {
     budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between" style="align-items:baseline;gap:10px;"><span class="muted subhead">Budget spending pace</span><span class="mono caption" style="font-weight:750;color:'+detailedTrendColor+';">'+esc(detailedTrendText)+'</span></div><div class="row" style="margin-top:9px;gap:18px;"><div style="flex:1;"><div class="muted caption">DAILY AVG (MTD)</div><div class="mono subhead" style="font-weight:700;margin-top:2px;">'+(budgetDailyAvg==null?'—':fmt(budgetDailyAvg,0)+' AED/day')+'</div></div><div style="flex:1;"><div class="muted caption">LAST 7 DAYS</div><div class="mono subhead" style="font-weight:700;margin-top:2px;color:'+detailedTrendColor+';">'+(budgetLast7Avg==null?'—':fmt(budgetLast7Avg,0)+' AED/day')+'</div></div></div><div class="muted caption" style="margin-top:6px;">Completed days · budget-counted spending only</div></div>';
   }
   if(homeBudgetPositionData.length){
-    budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between"><span class="muted subhead">Ahead / behind pace now</span><span class="mono subhead" style="font-weight:700;color:'+(homeBudgetPosition>=0?'var(--positive)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED '+(homeBudgetPosition>=0?'ahead':'behind')+'</span></div><div class="muted caption" style="margin-top:3px;">Today accrues with elapsed time.</div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
+    budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between"><span class="muted subhead">Ahead / behind budget</span><span class="mono subhead" style="font-weight:700;color:'+(homeBudgetPosition>=0?'var(--positive)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED '+(homeBudgetPosition>=0?'ahead':'behind')+'</span></div><div class="muted caption" style="margin-top:3px;">Today accrues with elapsed time.</div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
   }
   budgetCard += '<button data-action="go-page" data-page="budget" class="btn-plain" style="margin-top:12px;">Open budget →</button></div>';
   cards.budget = budgetCard;
@@ -3619,8 +3582,13 @@ function renderHomeBody(T, da) {
         : ('Effective budget '+fmt(target,0)+' AED · '+(homeEffectiveInfo.savingsTight?(fmt(homeBudgetSavings.pct,0)+'% savings goal limiting'):('your '+fmt(configuredTarget,0)+' AED budget limiting')));
       h += '<div class="simple-budget-meta" style="margin-top:8px;color:'+((homeEffectiveInfo.savingsTight||homeEffectiveInfo.adaptiveOverride)?'var(--amber)':'var(--text-muted)')+';">'+esc(shbMsg)+'</div>';
     }
+    if(budgetDailyAvg!=null||budgetLast7Avg!=null){
+      var simpleTrendColor=budgetTrendPct==null?'var(--text-muted)':(budgetTrendPct<0?'var(--positive)':(budgetTrendPct>0?'var(--rust)':'var(--text-muted)'));
+      var simpleTrendText=budgetTrendPct==null?'—':((budgetTrendPct>0?'+':'')+fmt(budgetTrendPct,0)+'%');
+      h += '<div class="hairline-top" style="margin-top:12px;padding-top:11px;"><div class="row between" style="gap:10px;align-items:baseline;"><span class="muted caption" style="font-weight:650;">BUDGET SPENDING PACE</span><span class="mono caption" style="font-weight:800;color:'+simpleTrendColor+';">'+esc(simpleTrendText)+'</span></div><div class="row" style="margin-top:7px;gap:16px;"><div style="flex:1;"><div class="muted caption">Daily avg</div><div class="mono subhead" style="font-weight:750;">'+(budgetDailyAvg==null?'—':fmt(budgetDailyAvg,0)+' AED/day')+'</div></div><div style="flex:1;"><div class="muted caption">Last 7 days</div><div class="mono subhead" style="font-weight:750;color:'+simpleTrendColor+';">'+(budgetLast7Avg==null?'—':fmt(budgetLast7Avg,0)+' AED/day')+'</div></div></div><div class="muted caption" style="margin-top:4px;">'+(budgetTrendPct==null?'Completed days only':('Last 7 days '+(budgetTrendPct<0?'below':(budgetTrendPct>0?'above':'equal to'))+' your daily average'))+'</div></div>';
+    }
     if(homeBudgetPositionData.length){
-      h += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between" style="gap:10px;"><span class="muted caption" style="font-weight:650;">AHEAD / BEHIND PACE NOW</span><span class="mono subhead" style="font-weight:750;color:'+(homeBudgetPosition>=0?'var(--positive)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED</span></div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
+      h += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between" style="gap:10px;"><span class="muted caption" style="font-weight:650;">AHEAD / BEHIND BUDGET</span><span class="mono subhead" style="font-weight:750;color:'+(homeBudgetPosition>=0?'var(--positive)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED</span></div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
     }
     h += '</div>';
 
@@ -3749,7 +3717,7 @@ function renderBudgetBody(T) {
   summary+=statBlock('Remaining',(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED',remaining>=0?'var(--positive)':'var(--rust)');
   summary+=statBlock('Safe to spend today',isCurrent&&safeToday!=null?(fmt(safeToday,0)+' AED'):'—',safeToday!=null&&safeToday<0?'var(--rust)':'var(--text)');
   summary+=statBlock('Spent today',isCurrent?fmt(spentToday,0)+' AED':'—','var(--text)');
-  summary+=statBlock(projectedSaving>=0?'Expected under budget':'Expected over budget',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div>';
+  summary+=statBlock('Projected vs budget',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div>';
   if(budgetSavingsComparison){
     var bsc=budgetSavingsComparison, savingsTighter=effectiveInfo&&effectiveInfo.savingsTight;
     var relationText=effectiveInfo&&effectiveInfo.adaptiveOverride
@@ -3844,7 +3812,7 @@ function renderBudgetBody(T) {
     var paceCaption=state.view==='week'
       ? ('Hourly cumulative position versus your budget pace.'+(isCurrent?' Current hour updates live.':''))
       : 'Cumulative position versus your budget pace. Today is time-adjusted as the day progresses.';
-    sections.progress='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Ahead / behind pace now</span><span class="mono footnote" style="color:'+(acc>=0?'var(--positive)':'var(--rust)')+';font-weight:600;">'+(acc>=0?'+':'−')+fmt(Math.abs(acc),0)+' AED</span></div><div class="muted caption" style="margin-bottom:10px;">'+paceCaption+'</div><div id="budgetSavingChartWrap" style="position:relative;"><div id="balanceChartTip" class="mono footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:8px;padding:4px 9px;max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;z-index:2;"></div>'+renderChart(savingData,T)+'</div></div>';lastChartData=savingData;
+    sections.progress='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Ahead / behind budget</span><span class="mono footnote" style="color:'+(acc>=0?'var(--positive)':'var(--rust)')+';font-weight:600;">'+(acc>=0?'+':'−')+fmt(Math.abs(acc),0)+' AED</span></div><div class="muted caption" style="margin-bottom:10px;">'+paceCaption+'</div><div id="budgetSavingChartWrap" style="position:relative;"><div id="balanceChartTip" class="mono footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:8px;padding:4px 9px;max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;z-index:2;"></div>'+renderChart(savingData,T)+'</div></div>';lastChartData=savingData;
   } else {sections.progress='';}
 
   var catFilter=state.budgetCategoryFilter||'',personFilter=state.budgetPersonFilter||'',groupFilter=state.budgetSelectedGroup||'';
@@ -4221,11 +4189,8 @@ function renderSettingsPage() {
       h += '</div>';
     }
     h += '<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow">OFF-DEVICE SAFETY</div><div class="muted subhead" style="margin-top:7px;">Local recovery stays on this phone/browser. It cannot protect you if the phone is lost or all browser data is cleared. Keep an occasional copied backup somewhere outside the app.</div></div>';
-    h += '<label class="eyebrow">Off-device backup</label>';
-    h += '<div class="muted" style="font-size:12px; margin:6px 0 10px;">Export a dated JSON backup file for iCloud Drive, Files or another safe location.</div>';
-    h += '<div class="row gap2" style="margin-bottom:14px;"><button data-action="export-backup-file" class="btn-accent" style="flex:1;justify-content:center;">Export backup file</button><button data-action="import-backup-file" class="btn-outline" style="flex:1;justify-content:center;">Import file</button></div><input id="backupFileInput" type="file" accept="application/json,.json" style="display:none;" />';
-    h += '<label class="eyebrow">Manual text backup</label>';
-    h += '<div class="muted" style="font-size:12px; margin:6px 0 10px;">Copy the full ledger as text if you prefer.</div>';
+    h += '<label class="eyebrow">Manual backup</label>';
+    h += '<div class="muted" style="font-size:12px; margin:6px 0 10px;">Copy your full ledger as text before major changes or when moving devices.</div>';
     h += '<textarea readonly class="field mono" style="height:130px; font-size:11px; margin-bottom:8px; resize:none;" onfocus="this.select()">'+esc(backupText)+'</textarea>';
     h += '<button id="copyBackupBtn" data-action="copy-backup" class="btn-accent" style="width:100%; margin-bottom:24px;">Copy backup</button>';
     h += '<div class="hairline-top" style="padding-top:18px;"><label class="eyebrow">Restore pasted backup</label>';
@@ -4236,23 +4201,6 @@ function renderSettingsPage() {
   }
   h += '</div></div></div>';
   return h;
-}
-
-function recentTxnPresets(limit) {
-  limit=limit||4;
-  var out=[],seen={};
-  Object.keys(state.entries).sort().reverse().some(function(ds){
-    newestFirst(state.entries[ds].items||[]).forEach(function(it){
-      if(out.length>=limit||isIncomeItem(it)||!it.category||it.personSplit&&it.personSplit.length) return;
-      var tags=normalizeItemTags(it.tags), currency=String(it.currency||reportingCurrency()).toUpperCase();
-      var sig=[it.category||"",it.person||"",currency,tags.slice().sort().join("|")].join("||");
-      if(seen[sig]) return;
-      seen[sig]=true;
-      out.push({category:it.category||"",person:it.person||"",currency:currency,tags:tags});
-    });
-    return out.length>=limit;
-  });
-  return out;
 }
 
 function renderAddTxnPage() {
@@ -4309,16 +4257,6 @@ function renderAddTxnPage() {
   h += '<button class="seg-btn" role="tab" aria-selected="'+(txnKind==="expense")+'" data-action="set-txn-kind" data-kind="expense">Expense</button>';
   h += '<button class="seg-btn" role="tab" aria-selected="'+(txnKind==="income")+'" data-action="set-txn-kind" data-kind="income">Income</button>';
   h += '</div>';
-
-  var recentPresets=(!editingItem&&txnKind==="expense")?recentTxnPresets(4):[];
-  if(recentPresets.length){
-    h += '<div class="eyebrow" style="margin-bottom:7px;">Recent setups</div><div class="txn-hscroll" style="gap:8px;margin:0 -8px 14px;padding:0 8px 4px;">';
-    recentPresets.forEach(function(p,idx){
-      var meta=[]; if(p.person)meta.push(p.person); if(p.tags.length)meta.push(p.tags.join(', ')); if(p.currency!==reportingCurrency())meta.push(p.currency);
-      h += '<button data-action="apply-txn-preset" data-index="'+idx+'" style="flex:0 0 auto;max-width:170px;background:var(--fill);border:none;border-radius:12px;padding:9px 11px;color:var(--text);text-align:left;"><span style="display:block;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.category)+'</span><span class="muted" style="display:block;font-size:10px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(meta.length?meta.join(' · '):'Tap to prefill')+'</span></button>';
-    });
-    h += '</div>';
-  }
 
   h += '<div class="eyebrow" style="margin-bottom:6px;">Amount</div>';
   h += '<div class="field fx-amount-shell" style="margin-bottom:18px;border-radius:14px;">';
@@ -4569,7 +4507,6 @@ function renderTxnRow(date, it) {
   if(normalizeItemTags(it.tags).length)h+='<span style="display:flex;align-items:center;gap:4px;margin-top:4px;overflow:hidden;">'+transactionTagChipsHtml(it.tags,3)+'</span>';
   h+='</span></button>';
   h+='<div class="mono" style="font-size:14px;font-weight:650;color:'+(income?'var(--positive)':'var(--text)')+';flex-shrink:0;">'+(income?'+':'−')+fmt(toReporting(it.amount),2)+'</div>';
-  h+='<button data-action="repeat-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:5px;color:var(--text-muted);flex-shrink:0;" aria-label="Repeat transaction">'+ICONS.repeat+'</button>';
   h+='<button data-action="ask-delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:none;border:none;padding:5px;color:var(--text-muted);flex-shrink:0;" aria-label="Delete">'+ICONS.trash+'</button></div>';
   return h;
 }
@@ -5600,29 +5537,9 @@ function forecastAccuracySummary(scope,period) {
    conditional events first; a transaction today resets that subcategory's
    repeat clock. Frequent subcategories use their own recency-weighted weekday behavior;
    sparse subcategories forecast zero. Scheduled expenses remain exact. */
-function forecastLearningState(scope) {
-  scope=scope||"overall";
-  var dates=Object.keys(state.entries).sort();
-  var first=dates.length?dates[0]:todayStr();
-  var start=scope==="budget"?(state.settings.trackingStartDate||first):first;
-  if(start>todayStr()) return {days:0,label:"Learning your spending",note:"No completed history yet",factor:1.9};
-  var days=Math.max(1,daysBetween(start,todayStr())+1);
-  if(days<7) return {days:days,label:"Learning your spending",note:"Very early estimate · "+days+" day"+(days===1?"":"s")+" observed",factor:1.9};
-  if(days<14) return {days:days,label:"Early estimate",note:"Low confidence · "+days+" days observed",factor:1.6};
-  if(days<30) return {days:days,label:"Developing estimate",note:days+" days observed · range widened while the model learns",factor:1.3};
-  return {days:days,label:null,note:null,factor:1};
-}
-
 function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, periodWord, compareRows, scope, goalTarget, goalPct) {
+  if (!rows.length) return "";
   scope = scope || "overall";
-  if (!rows.length) {
-    var emptyEnd=toStr(addDays(parseD(periodStart),Math.max(0,totalDays-1)));
-    if(periodStart<=todayStr()&&todayStr()<=emptyEnd){
-      var emptyLearning=forecastLearningState(scope);
-      return '<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow">Forecasted '+(scope==="budget"?'budget spend':'total spend')+'</div><div class="headline" style="margin-top:10px;">Learning your spending</div><div class="muted subhead" style="margin-top:6px;line-height:1.45;">Log a few days of transactions and The Ledger will start estimating your pace, recurring tendencies and likely range. Early forecasts are deliberately marked as lower confidence.</div><div class="muted caption" style="margin-top:10px;">'+esc(emptyLearning.note||'No spending history yet')+'</div></div>';
-    }
-    return "";
-  }
   /* Normalize row.spent to the requested scope so chart geometry and compare
      curves always represent the same definition of spend. */
   var scopedRows = rows.map(function(r){ return Object.assign({}, r, { spent: rowSpentForScope(r, scope) }); });
@@ -5636,12 +5553,6 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   var hasTarget = statusTarget != null;
   var projectedSaved = hasTarget ? statusTarget - projectedSpend : null;
   var actualSoFar = fc.actualSpentSoFar;
-  var learning=forecastLearningState(scope);
-  if(learning.factor>1 && rangeLow!=null && rangeHigh!=null){
-    var lowWidth=Math.max(0,projectedSpend-rangeLow), highWidth=Math.max(0,rangeHigh-projectedSpend);
-    rangeLow=Math.max(actualSoFar,projectedSpend-lowWidth*learning.factor);
-    rangeHigh=projectedSpend+highWidth*learning.factor;
-  }
   /* When Analysis has a savings goal, the goal's maximum-spend line becomes
      the decision threshold while the full Income line remains visible as
      context. Budget forecast continues to use the budget itself. */
@@ -5665,7 +5576,6 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
 
   var s = '<div class="card card-pad" style="margin-bottom:16px;">';
   s += '<div class="eyebrow" style="margin-bottom:10px;">Forecasted '+(scope==="budget"?"budget spend":"total spend")+'</div>';
-  if(learning.label) s += '<div style="margin:-3px 0 11px;"><span class="chip" style="background:var(--fill);color:var(--text-muted);font-weight:700;">'+esc(learning.label)+'</span><div class="muted caption" style="margin-top:5px;">'+esc(learning.note)+'</div></div>';
   s += '<div class="row between" style="align-items:flex-start; margin-bottom:14px;">';
   s += '<div><div class="muted caption">THIS '+esc(periodWord.toUpperCase())+'</div><div class="mono" style="font-size:22px; font-weight:700; margin-top:2px;">'+fmt(projectedSpend,0)+' AED</div>';
   if (rangeLow != null && rangeHigh != null) s += '<div class="muted caption" style="margin-top:3px;">Likely range '+fmt(rangeLow,0)+'–'+fmt(rangeHigh,0)+' AED</div>';
@@ -6810,34 +6720,9 @@ function handleQuickDate(date) {
   }
 }
 
-function ledgerBackupText() {
-  return JSON.stringify({settings:state.settings, entries:state.entries}, null, 2);
-}
-function handleExportBackupFile() {
-  try {
-    var blob=new Blob([ledgerBackupText()],{type:"application/json"});
-    var url=URL.createObjectURL(blob),a=document.createElement("a");
-    a.href=url;a.download="The_Ledger_Backup_"+todayStr()+".json";
-    document.body.appendChild(a);a.click();a.remove();
-    setTimeout(function(){URL.revokeObjectURL(url);},1500);
-    showToast("Backup file created");
-  } catch(e) { showToast("Could not create backup file"); }
-}
-function handleImportBackupFile(file) {
-  if(!file)return;
-  var reader=new FileReader();
-  reader.onload=function(){
-    var target=document.getElementById("restoreInput");
-    if(target)target.value=String(reader.result||"");
-    handleRestore();
-  };
-  reader.onerror=function(){state.restoreError="Could not read that backup file.";render();};
-  reader.readAsText(file);
-}
-
 function handleCopyBackup() {
   var btn = document.getElementById("copyBackupBtn");
-  var text = ledgerBackupText();
+  var text = JSON.stringify({settings:state.settings, entries:state.entries}, null, 2);
   function done(msg) { if (btn) { btn.textContent = msg; setTimeout(function(){ if(btn) btn.textContent = "Copy backup"; }, 2500); } }
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(function(){ done("Copied ✓"); }).catch(function(){ done("Select the text above to copy"); });
@@ -6885,7 +6770,6 @@ function handleRestore() {
     var parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || !validateBackupEntries(parsed.entries)) throw new Error("bad shape");
     var nextSettings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings||{});
-    if (!parsed.settings || !Object.prototype.hasOwnProperty.call(parsed.settings,"firstRunSetupComplete")) nextSettings.firstRunSetupComplete = true;
     nextSettings.analysisSectionOrder = normalizeAnalysisOrder(nextSettings.analysisSectionOrder);
     nextSettings.analysisHiddenSections = normalizeHiddenSections(nextSettings.analysisHiddenSections);
     if (!nextSettings.analysisForecastV52Visible) {
@@ -6925,7 +6809,7 @@ function handleRestore() {
     state.restoreError = null;
     state.showBackup = false;
   } catch(e) {
-    state.restoreError = "That doesn't look like a valid The Ledger backup.";
+    state.restoreError = "That doesn't look like a valid backup — paste the exact text you copied earlier.";
   }
   render();
 }
@@ -6936,18 +6820,6 @@ document.addEventListener("click", function(e) {
   if (!el) return;
   var action = el.dataset.action;
   switch(action) {
-    case "complete-onboarding":
-      var oi=parseFloat((document.getElementById("onboardingIncome")||{}).value||"");
-      var ob=parseFloat((document.getElementById("onboardingBudget")||{}).value||"");
-      var os=parseFloat((document.getElementById("onboardingSavings")||{}).value||"");
-      if(!(oi>0)||!(ob>0)){showToast("Enter monthly income and budget");break;}
-      if(!isFinite(os))os=25; os=Math.max(0,Math.min(90,os));
-      var onboardFrom=state.settings.trackingStartDate||todayStr();
-      var onboardMonth=toStr(startOfMonth(parseD(onboardFrom)));
-      var onboardSettings=Object.assign({},state.settings,{incomeMode:"monthly",incomeAmount:oi,incomeHistory:[{from:onboardFrom,mode:"monthly",amount:oi}],monthlyBudget:ob,monthlyBudgetHistory:[{from:onboardMonth,monthlyBudget:ob}],savingsTargetPct:os,firstRunSetupComplete:true});
-      state.showOnboarding=false;persistAll(onboardSettings,state.entries,"first-run setup");showToast("Setup complete");render();break;
-    case "skip-onboarding":
-      state.showOnboarding=false;persistAll(Object.assign({},state.settings,{firstRunSetupComplete:true}),state.entries,"first-run setup");render();break;
     case "open-backup": state.showBackup = true; render(); break;
     case "close-backup": state.showBackup = false; state.restoreError = null; render(); break;
     case "open-settings": settingsRootSnapshot = captureTxnVisual(); settingsNavStack = []; state.settingsSection = null; state.showSettings = true; render(); break;
@@ -7015,33 +6887,6 @@ document.addEventListener("click", function(e) {
         }
       }
       render();
-      break;
-    case "apply-txn-preset":
-      preserveTxnFormDraft();
-      var presetList=recentTxnPresets(4),preset=presetList[parseInt(el.dataset.index,10)];
-      if(preset){
-        state.entryCategoryDraft=preset.category||"";
-        state.entryPersonDraft=(state.settings.people||[]).indexOf(preset.person)!==-1?preset.person:"";
-        state.entryTagsDraft=normalizeItemTags(preset.tags);
-        state.entryCurrencyDraft=TXN_CURRENCIES.indexOf(preset.currency)!==-1?preset.currency:reportingCurrency();
-        state.entryFxRateDraft=null;state.entryFxSourceDraft=null;state.entryFxDateDraft=null;
-        state.txnPersonSplitMode="single";state.txnShowAllCategories=false;
-        render();
-        if(state.entryCurrencyDraft!==reportingCurrency())setTimeout(function(){refreshEntryFxRate(false);},0);
-      }
-      break;
-    case "repeat-txn":
-      var repeatDay=state.entries[el.dataset.date],repeatItem=repeatDay&&repeatDay.items.find(function(i){return i.id===el.dataset.id;});
-      if(!repeatItem)break;
-      var repeatFromVisual=captureTxnVisual();txnNavSnapshot=repeatFromVisual;state.txnEntryReturnScrollY=window.scrollY||window.pageYOffset||0;state.txnEntryRestoreScroll=false;
-      state.editingItemId=null;state.editingOriginalDate=null;state.entryDate=todayStr();state.showAddTxn=true;state.pendingDeleteKey=null;state.txnSplitMode="single";
-      state.txnKind=isIncomeItem(repeatItem)?"income":"expense";state.txnPersonSplitMode=(repeatItem.personSplit&&repeatItem.personSplit.length&&((state.settings.people||[]).length>=2))?"split":"single";state.txnCategoryGroup=null;state.txnShowAllCategories=false;state.txnAdvancedOpen=false;
-      state.entryAmountDraft=String(repeatItem.originalAmount!=null&&repeatItem.currency?repeatItem.originalAmount:repeatItem.amount||"");state.entryNoteDraft=repeatItem.note||"";state.entrySplitDaysDraft=null;state.entryPersonSplitDraft=null;
-      if(state.txnPersonSplitMode==="split"){state.entryPersonSplitDraft={};repeatItem.personSplit.forEach(function(ps){state.entryPersonSplitDraft[ps.person]=String(ps.pct);});}
-      state.entryCategoryDraft=isIncomeItem(repeatItem)?"":(repeatItem.category||"");state.entryPersonDraft=repeatItem.person||"";state.entryTagsDraft=normalizeItemTags(repeatItem.tags);
-      state.entryCurrencyDraft=String(repeatItem.currency||reportingCurrency()).toUpperCase();state.entryFxRateDraft=repeatItem.fxRate?(Number(repeatItem.fxRate)*reportingRate()):null;state.entryFxSourceDraft=repeatItem.fxSource||null;state.entryFxDateDraft=repeatItem.fxDate||null;state.entryTimeDraft=currentTimeStr();
-      render();animateTxnForward(repeatFromVisual,captureTxnVisual());
-      if(state.entryCurrencyDraft!==reportingCurrency()&&!state.entryFxRateDraft)setTimeout(function(){refreshEntryFxRate(false);},0);
       break;
     case "open-add-txn":
       var txnFromVisual = captureTxnVisual();
@@ -7870,8 +7715,6 @@ document.addEventListener("click", function(e) {
     case "restore-local-snapshot":
       restoreLocalSnapshotById(el.dataset.snapshotId||"");
       break;
-    case "export-backup-file": handleExportBackupFile(); break;
-    case "import-backup-file": var bfi=document.getElementById("backupFileInput"); if(bfi)bfi.click(); break;
     case "copy-backup": handleCopyBackup(); break;
     case "restore-backup": handleRestore(); break;
     case "confirm-reset":
@@ -7894,13 +7737,6 @@ document.addEventListener("click", function(e) {
 /* Live preview for the theme color pickers: recolors the whole UI the instant
    a color is picked, without waiting for Apply or a full re-render (which
    would rebuild the sheet mid-pick and could interrupt the native picker). */
-document.addEventListener("change", function(e) {
-  if(e.target&&e.target.id==="backupFileInput"){
-    var f=e.target.files&&e.target.files[0];
-    if(f)handleImportBackupFile(f);
-  }
-});
-
 document.addEventListener("input", function(e) {
   if (e.target && e.target.id === "clearConfirmInput") {
     var cb=document.getElementById("clearConfirmBtn"), ok=String(e.target.value||"").trim().toUpperCase()==="CLEAR";
