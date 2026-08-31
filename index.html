@@ -277,26 +277,28 @@
      The wrapper becomes a viewport-height flex column and the three cards share
      every pixel left between the top controls and the fixed tab bar. */
   html.simple-home .wrap {
-    /* iOS can report a temporarily shortened layout/visual viewport on first
-       launch. Use the largest stable viewport from the start so Home does not
-       jump taller only after visiting another tab. */
+    /* Keep Simple Home at least viewport-height, but never force its content
+       into a fixed-height box. If a card needs more room (for example Month
+       outlook with Projected close), the page grows and scrolls above the
+       fixed tab bar instead of letting content spill outside the card. */
     min-height:max(var(--stable-vh, 0px), 100lvh);
-    height:max(var(--stable-vh, 0px), 100lvh);
-    padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 86px);
+    height:auto;
+    padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 104px);
     display:flex; flex-direction:column;
   }
   html.simple-home .app-topbar { flex:0 0 auto; }
   .simple-home-stack {
-    flex:1 1 auto; min-height:0;
-    /* The budget card is content-sized so the sparkline does not sit above a
-       large blank block. Hero/outlook share the remaining screen height. */
-    display:grid; grid-template-rows:minmax(0,.86fr) auto minmax(0,1.32fr); gap:10px;
+    flex:1 0 auto; min-height:0;
+    /* Never shrink the first/last cards below their actual content height.
+       They may still share spare viewport space on taller phones. */
+    display:grid; grid-template-rows:minmax(max-content,.86fr) auto minmax(max-content,1.32fr); gap:10px;
   }
-  .simple-home-stack > .card { margin-bottom:0; height:100%; min-height:0; }
+  .simple-home-stack > .card { margin-bottom:0; height:auto; min-height:0; }
   .simple-home-stack .simple-metric-card,
   .simple-home-stack .simple-outlook-card { justify-content:center; }
   .simple-home-stack .simple-budget-card { display:flex; flex-direction:column; justify-content:flex-start; }
   /* Keep the bottom-right FAB from covering Projected close. */
+  html.simple-home .simple-outlook-card { min-height:max-content; overflow:visible; }
   html.simple-home .simple-outlook-row { padding-right:64px; }
   html.simple-home .simple-metric-card.simple-hero .simple-metric-value { font-size:46px; }
   html.simple-home .simple-budget-value { font-size:27px; }
@@ -381,7 +383,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v84";
+var APP_VERSION = "v85";
 var FORECAST_MODEL_VERSION = "v77-hybrid-3";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
