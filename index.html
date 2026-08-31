@@ -392,7 +392,7 @@
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
 var APP_VERSION = "v88";
-var FORECAST_MODEL_VERSION = "v77-hybrid-3";
+var FORECAST_MODEL_VERSION = "v88-canonical-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -1311,15 +1311,19 @@ function currentSavingsBudgetComparison() {
   var per=getPeriodBounds("month",0,currentWeeklyTarget(),dailyAllowance());
   var overall=periodStatsOverall(per.startStr,per.endStr);
   var budget=periodStatsBudget(per.startStr,per.endStr);
-  var projectedIncome=round2((Number(overall.income)||0)+scheduledIncomeInRange(todayStr(),per.endStr));
+  var projectedIncome=projectedIncomeForRange(per.startStr,per.endStr);
   if(!(projectedIncome>0)) return null;
   var start=effectiveRangeStart(per.startStr), totalDays=Math.max(1,daysBetween(start,per.endStr)+1);
   var overallFc=overall.rows.length?computeForecastNumbers(overall.rows,totalDays,start,"overall"):null;
   var budgetFc=budget.rows.length?computeForecastNumbers(budget.rows,totalDays,start,"budget"):null;
+  /* v88 forecasts excluded categories directly instead of subtracting two
+     independently modelled totals. This guarantees the savings bridge is
+     based on the actual outside-budget scope itself. */
+  var excludedFc=overall.rows.length?computeForecastNumbers(overall.rows,totalDays,start,"excluded"):null;
   var projectedOverall=round2(overallFc?overallFc.projectedSpend:overall.spent);
   var projectedBudget=round2(budgetFc?budgetFc.projectedSpend:budget.spent);
-  var projectedExcluded=round2(Math.max(0,projectedOverall-projectedBudget));
   var actualExcluded=round2(Math.max(0,overall.spent-budget.spent));
+  var projectedExcluded=round2(excludedFc?excludedFc.projectedSpend:actualExcluded);
   var spendCeiling=savingsSpendCeilingForIncome(projectedIncome);
   var targetSaving=savingsTargetAmountForIncome(projectedIncome);
   var compatibleBudget=round2(Math.max(0,spendCeiling-projectedExcluded));
@@ -1336,22 +1340,9 @@ function currentSavingsBudgetComparison() {
     delta:delta, tighter:tighter
   };
 }
-/* Budget and savings stay separate INPUTS in Settings. The live app normally
-   follows the lower limit, with the v63 adaptive practicality override defined
-   below. Historical periods keep the budget that actually applied at the time. */
-/* v63: two practical additions around the combined budget/savings limit.
-
-   1) Spending pace is measured on COMPLETED calendar days so opening the app
-      early in the morning does not make the last-7-days average look falsely
-      low just because today's spending has not happened yet.
-
-   2) The lower of Budget vs Savings remains the preferred target, but if that
-      lower target would leave less than 50% of the recent real-world daily
-      pace, The Ledger temporarily uses the higher target instead. This is an
-      explicit "adaptive override", not a hidden target change: the UI states
-      which target was relaxed and why. The recent 7-day pace is used when
-      available; otherwise month-to-date pace is the reference. */
-var ADAPTIVE_LIMIT_MIN_PACE_RATIO = 0.50;
+/* Budget and savings stay separate inputs. v88 always enforces the lower live limit. */
+/* Recent completed-day pace remains a diagnostic for Budget Status, but v88
+   never uses it to relax or override a user-set budget/savings constraint. */
 function currentBudgetSpendPaceStats(){
   var per=getPeriodBounds("month",0,currentWeeklyTarget(),dailyAllowance());
   var today=todayStr(), completedEnd=toStr(addDays(parseD(today),-1));
@@ -1389,18 +1380,15 @@ function currentEffectiveBudgetInfo(){
   var lowerDaily=round2((lower-monthStats.spent)/daysLeft);
   var higherDaily=round2((higher-monthStats.spent)/daysLeft);
   var paceReference=pace&&pace.paceReference!=null?Math.max(0,pace.paceReference):null;
-  var realisticFloor=paceReference!=null?round2(paceReference*ADAPTIVE_LIMIT_MIN_PACE_RATIO):null;
-  var enoughHistory=!!(pace&&pace.completedDays>=5&&paceReference!=null&&paceReference>0);
-  var adaptiveOverride=!!(comparison&&higher>lower+0.5&&enoughHistory&&realisticFloor!=null&&lowerDaily<realisticFloor-0.5&&higherDaily>lowerDaily+0.5);
-  var effective=adaptiveOverride?higher:lower;
-  var activeSource=adaptiveOverride?higherSource:lowerSource;
+  /* v88: budget enforcement is strict. The Ledger can warn that a target is
+     difficult, but it never silently raises the user's spending limit. */
   return {
     monthStart:per.startStr,monthEnd:per.endStr,configuredBudget:configured,
-    effectiveBudget:effective,baseEffectiveBudget:lower,higherBudget:higher,
-    comparison:comparison,savingsTight:!!(comparison&&activeSource==="savings"&&effective<configured-0.5),
-    activeSource:activeSource,lowerSource:lowerSource,higherSource:higherSource,
-    adaptiveOverride:adaptiveOverride,lowerDailyAllowance:lowerDaily,
-    higherDailyAllowance:higherDaily,realisticDailyFloor:realisticFloor,
+    effectiveBudget:lower,baseEffectiveBudget:lower,higherBudget:higher,
+    comparison:comparison,savingsTight:!!(comparison&&lowerSource==="savings"&&lower<configured-0.5),
+    activeSource:lowerSource,lowerSource:lowerSource,higherSource:higherSource,
+    adaptiveOverride:false,lowerDailyAllowance:lowerDaily,
+    higherDailyAllowance:higherDaily,realisticDailyFloor:null,
     paceReference:paceReference,pace:pace
   };
 }
@@ -1504,6 +1492,43 @@ function normalizeIncomeHistory(hist) {
     else dedup.push(out[i]);
   }
   return dedup;
+}
+
+/* v88: the Income setting is a real planning input, not merely metadata.
+   Planned income supplies the baseline for a live period. Actual income plus
+   explicitly scheduled future income replaces that baseline whenever the known
+   amount is higher, which avoids double-counting a monthly salary while still
+   allowing bonuses/extra income to increase the projection. */
+function incomePlanForDate(ds){
+  var hist=normalizeIncomeHistory(state.settings.incomeHistory), chosen=null;
+  for(var i=0;i<hist.length;i++){if(hist[i].from<=ds)chosen=hist[i];else break;}
+  if(!chosen) chosen={mode:state.settings.incomeMode||"monthly",amount:Number(state.settings.incomeAmount)||0};
+  return {mode:chosen.mode||"monthly",amount:Math.max(0,Number(chosen.amount)||0)};
+}
+function plannedIncomeForDate(ds){
+  var p=incomePlanForDate(ds);
+  return p.mode==="daily"?p.amount:(p.amount/daysInMonth(parseD(ds)));
+}
+function plannedIncomeForRange(startStr,endStr){
+  var start=effectiveRangeStart(startStr); if(start>endStr)return 0;
+  var total=0,d=parseD(start);
+  while(toStr(d)<=endStr){total+=plannedIncomeForDate(toStr(d));d=addDays(d,1);}
+  return round2(total);
+}
+function actualIncomeInRange(startStr,endStr){
+  var total=0;
+  Object.keys(state.entries).forEach(function(ds){
+    if(ds<startStr||ds>endStr)return;
+    total+=sumIncome(state.entries[ds]);
+  });
+  return round2(total);
+}
+function projectedIncomeForRange(startStr,endStr){
+  var start=effectiveRangeStart(startStr); if(start>endStr)return 0;
+  var planned=plannedIncomeForRange(start,endStr);
+  var actual=actualIncomeInRange(start,endStr);
+  var future=endStr>=todayStr()?scheduledIncomeInRange(todayStr(),endStr):0;
+  return round2(Math.max(planned,actual+future));
 }
 
 /* The single number every savings calculation compares a day's spending
@@ -1849,7 +1874,9 @@ function fullPeriodTarget(startStr, endStr) {
    part of the allowance being paced against, so they mustn't shape the pace. */
 function expenseCountsForScope(it, scope) {
   if (!isExpenseItem(it)) return false;
-  return scope === "budget" ? itemCountsTowardBudget(it) : true;
+  if (scope === "budget") return itemCountsTowardBudget(it);
+  if (scope === "excluded") return !itemCountsTowardBudget(it);
+  return true;
 }
 function rowSpentForScope(r, scope) {
   return (r.items||[]).reduce(function(s,it){ return expenseCountsForScope(it, scope) ? s+it.amount : s; }, 0);
@@ -1863,6 +1890,7 @@ function scheduledExpenseByDate(afterStr, throughStr, scope) {
   (state.settings.recurringRules||[]).forEach(function(rule){
     if (!rule.active || rule.entryKind === "income") return;
     if (scope === "budget" && categoryExcludedFromBudget(rule.category)) return;
+    if (scope === "excluded" && !categoryExcludedFromBudget(rule.category)) return;
     var n = rule.occurrencesLogged || 0, guard = 0;
     while (guard < 500) {
       if (rule.occurrencesTotal != null && n >= rule.occurrencesTotal) break;
@@ -1889,6 +1917,7 @@ function scheduledExpenseBreakdown(afterStr, throughStr, scope) {
   (state.settings.recurringRules||[]).forEach(function(rule){
     if (!rule.active || rule.entryKind === "income") return;
     if (scope === "budget" && categoryExcludedFromBudget(rule.category)) return;
+    if (scope === "excluded" && !categoryExcludedFromBudget(rule.category)) return;
     var n = rule.occurrencesLogged || 0, guard = 0;
     while (guard < 500) {
       if (rule.occurrencesTotal != null && n >= rule.occurrencesTotal) break;
@@ -1990,6 +2019,21 @@ function observedOccurrenceInterval(observedDays, occurrenceCount) {
   observedDays=Number(observedDays)||0; occurrenceCount=Number(occurrenceCount)||0;
   return (observedDays>0&&occurrenceCount>0)?observedDays/occurrenceCount:null;
 }
+/* v88: when today is part of the observation window, count only the fraction
+   of today that has actually elapsed. Transactions entered today and exposure
+   now advance together instead of today's transactions being divided only by
+   completed days. */
+function observedExposureDays(startStr, asOfDate){
+  if(!startStr||!asOfDate||startStr>asOfDate)return 0;
+  if(asOfDate!==todayStr())return Math.max(0,daysBetween(startStr,asOfDate)+1);
+  var yesterday=toStr(addDays(parseD(asOfDate),-1));
+  var completed=startStr<=yesterday?Math.max(0,daysBetween(startStr,yesterday)+1):0;
+  return completed+currentDayElapsedFraction();
+}
+function displayProbabilityPct(prob){
+  var p=Math.max(0,Math.min(1,Number(prob)||0));
+  return Math.max(0,Math.min(100,Math.round(p*20)*5));
+}
 function occurrenceFrequencyText(gap, lowerCase) {
   if(gap==null||!isFinite(gap)||gap<=0) return "Not enough history";
   var rate=1/gap, lead=lowerCase?"every ":"Every ";
@@ -2003,12 +2047,7 @@ function occurrenceFrequencyText(gap, lowerCase) {
 function activityFrequencyStats(opts, asOfDate) {
   opts=opts||{}; asOfDate=asOfDate||todayStr();
   var datesAll=Object.keys(state.entries).sort(), first=datesAll.length?datesAll[0]:asOfDate;
-  /* Current-day exposure is incomplete. Use completed calendar days for the
-     denominator while still allowing a transaction logged today to appear in
-     the occurrence count/last-date fields. This prevents an early-morning app
-     open from diluting every frequency estimate by a whole zero-spend day. */
-  var exposureEnd=asOfDate===todayStr()?toStr(addDays(parseD(asOfDate),-1)):asOfDate;
-  var floor=toStr(addDays(parseD(exposureEnd),-364));
+  var floor=toStr(addDays(parseD(asOfDate),-364));
   var natural=state.settings.trackingStartDate||first;
   var start=natural>floor?natural:floor;
   var eventDates=[], amounts=[];
@@ -2025,7 +2064,7 @@ function activityFrequencyStats(opts, asOfDate) {
   });
   eventDates.sort();
   var n=eventDates.length;
-  var observedDays=start<=exposureEnd?Math.max(1,daysBetween(start,exposureEnd)+1):1;
+  var observedDays=observedExposureDays(start,asOfDate);
   var avgGap=observedOccurrenceInterval(observedDays,n);
   return {
     txnCount:n, avgGap:avgGap, observedDays:observedDays, observationStart:start,
@@ -3330,7 +3369,7 @@ function liveBudgetPacing() {
       } else if(x.kind==="lumpy") {
         var lExpected=round2(Math.max(0,x.amount||0)), lReserve=round2(Math.max(0,x.safeReserve||lExpected));
         var lMeta={kind:"lumpy",expectedAmount:lExpected,protectedAmount:lReserve,probability:x.probability==null?null:x.probability,likelyAmount:round2(x.likelyAmount||(x.profile&&x.profile.typicalAmount)||0),profile:x.profile||null,reason:x.reason||""};
-        if(subcategoryEssentialForSafeSpend(k)){openingCadenceReserve+=lReserve;addReserveBreakdown(k,lReserve,"lumpy",lMeta);}
+        if(subcategoryEssentialForSafeSpend(k)){cadenceReserveBySub[k]=lReserve;openingCadenceReserve+=lReserve;addReserveBreakdown(k,lReserve,"lumpy",lMeta);}
         else addFlexibleForecast(k,lExpected,"lumpy",lMeta);
       } else if(x.kind==="frequent") {
         /* Frequent categories (including essential Restaurants/Groceries) are
@@ -3397,7 +3436,7 @@ function liveBudgetPacing() {
   var savings=null, savingsPct=savingsTargetPct();
   if(savingsPct>0){
     var monthOverall=periodStatsOverall(monthPer.startStr,monthPer.endStr);
-    var projectedIncome=round2((Number(monthOverall.income)||0)+scheduledIncomeInRange(today,monthPer.endStr));
+    var projectedIncome=projectedIncomeForRange(monthPer.startStr,monthPer.endStr);
     if(projectedIncome>0){
       var spendCeiling=savingsSpendCeilingForIncome(projectedIncome);
       savings={mode:"savings",projectedIncome:projectedIncome,savingsTargetPct:savingsPct,savingsTargetAmount:savingsTargetAmountForIncome(projectedIncome),spendCeiling:spendCeiling};
@@ -3406,7 +3445,7 @@ function liveBudgetPacing() {
 
   var avgVals=[week.avg,month.avg].filter(function(v){return v!=null;});
   var dailyAverage=avgVals.length?Math.min.apply(null,avgVals):null;
-  var monthKey=effectiveInfo.adaptiveOverride?"adaptive":(effectiveInfo.savingsTight?"effective":"month");
+  var monthKey=effectiveInfo.savingsTight?"effective":"month";
   var candidates=[{key:"week",obj:week},{key:monthKey,obj:month}];
   var limiting=null;
   candidates.forEach(function(c){if(c.obj&&c.obj.rawSafe!=null&&(!limiting||c.obj.rawSafe<limiting.obj.rawSafe))limiting=c;});
@@ -3457,8 +3496,7 @@ function renderHomeBody(T, da) {
   var projectedBudgetSpend = budgetFc ? budgetFc.projectedSpend : budget.spent;
   var projectedSaving = round2(target - projectedBudgetSpend);
   var income = overall.income;
-  var futureIncome = scheduledIncomeInRange(todayStr(), month.endStr);
-  var projectedIncome = round2(income + futureIncome);
+  var projectedIncome = projectedIncomeForRange(month.startStr,month.endStr);
   var incomeReference = projectedIncome > 0 ? projectedIncome : (income > 0 ? income : 0);
   var projectedCashSaving = incomeReference > 0 ? round2(incomeReference - projected) : null;
   var projectedCashSavingPct = incomeReference > 0 ? (projectedCashSaving/incomeReference*100) : null;
@@ -3495,7 +3533,7 @@ function renderHomeBody(T, da) {
   cards.spending = spending;
 
   var budgetCard = '<div class="card card-pad">';
-  budgetCard += '<div class="row between" style="align-items:baseline;"><div><div class="eyebrow">Effective budget</div>'+(homeEffectiveInfo.adaptiveOverride?'<div class="caption" style="margin-top:2px;color:var(--amber);">Adaptive override · using higher '+fmt(target,0)+' AED limit</div>':(homeEffectiveInfo.savingsTight?'<div class="muted caption" style="margin-top:2px;">Savings goal tightened set budget '+fmt(configuredTarget,0)+' → ≈'+fmt(target,0)+' AED</div>':''))+'</div><span class="row" style="align-items:baseline;gap:8px;"><span class="mono subhead" style="font-weight:600;">'+fmt(budget.spent,0)+' / '+fmt(target,0)+' AED</span><span class="mono caption" style="font-weight:700;color:'+(budgetPctRaw>100?'var(--rust)':'var(--text-muted)')+';">'+budgetPctRaw.toFixed(0)+'%</span></span></div>';
+  budgetCard += '<div class="row between" style="align-items:baseline;"><div><div class="eyebrow">Effective budget</div>'+(homeEffectiveInfo.savingsTight?'<div class="muted caption" style="margin-top:2px;">Savings goal tightened set budget '+fmt(configuredTarget,0)+' → ≈'+fmt(target,0)+' AED</div>':'')+'</div><span class="row" style="align-items:baseline;gap:8px;"><span class="mono subhead" style="font-weight:600;">'+fmt(budget.spent,0)+' / '+fmt(target,0)+' AED</span><span class="mono caption" style="font-weight:700;color:'+(budgetPctRaw>100?'var(--rust)':'var(--text-muted)')+';">'+budgetPctRaw.toFixed(0)+'%</span></span></div>';
   budgetCard += '<div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 16px;"><div style="height:100%;width:'+progress+'%;background:'+(budget.spent>target?'var(--rust)':'var(--accent)')+';"></div></div>';
   budgetCard += '<div class="muted caption">SAFE TO SPEND TODAY</div>';
   budgetCard += '<div class="mono" style="font-size:34px;font-weight:700;margin-top:3px;color:var(--text);">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted" style="font-size:17px;">AED</span>'))+'</div>';
@@ -3505,7 +3543,7 @@ function renderHomeBody(T, da) {
   budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Spent today</span><span class="mono subhead" style="font-weight:600;">'+fmt(spentToday,0)+' AED</span></div>';
   budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Remaining this month</span><span class="mono subhead" style="font-weight:600;color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED</span></div>';
   if(homeBudgetSavings){
-    budgetCard += '<div class="row between" style="margin-top:8px;gap:12px;"><span class="muted subhead">Set budget / savings goal</span><span class="mono subhead" style="font-weight:650;color:'+((homeEffectiveInfo.savingsTight||homeEffectiveInfo.adaptiveOverride)?'var(--amber)':'var(--text-muted)')+';">'+fmt(configuredTarget,0)+' AED · '+fmt(homeBudgetSavings.pct,0)+'%</span></div>';
+    budgetCard += '<div class="row between" style="margin-top:8px;gap:12px;"><span class="muted subhead">Set budget / savings goal</span><span class="mono subhead" style="font-weight:650;color:'+(homeEffectiveInfo.savingsTight?'var(--amber)':'var(--text-muted)')+';">'+fmt(configuredTarget,0)+' AED · '+fmt(homeBudgetSavings.pct,0)+'%</span></div>';
   }
   budgetCard += '</div>';
   if(budgetDailyAvg!=null||budgetLast7Avg!=null){
@@ -3552,7 +3590,7 @@ function renderHomeBody(T, da) {
       return '<div class="simple-progress"><span style="width:'+pw+'%;background:'+(over?'var(--rust)':'var(--accent)')+';"></span></div>';
     }
     var limitingLabel=(pacing.limitingHorizon||'budget');
-    limitingLabel=limitingLabel==='adaptive'?'Adaptive limit':(limitingLabel==='effective'?'Effective budget':(limitingLabel==='savings'?'Savings goal':(limitingLabel.charAt(0).toUpperCase()+limitingLabel.slice(1))));
+    limitingLabel=limitingLabel==='effective'?'Effective budget':(limitingLabel==='savings'?'Savings goal':(limitingLabel.charAt(0).toUpperCase()+limitingLabel.slice(1)));
     var simpleStatus='', simpleStatusColor='var(--text-muted)';
     if (overSafeToday>0) {
       simpleStatus='Over today\'s safe allowance by '+fmt(overSafeToday,0)+' AED · '+limitingLabel+' is limiting';
@@ -3631,7 +3669,7 @@ function budgetForecastEvidenceHtml(x, protectedMode) {
     if(!d)return;
     var p=d.profile||{};
     if(d.kind==='cadence'||d.kind==='lumpy'){
-      var pct=Math.round(Math.max(0,Math.min(1,d.probability==null?0:d.probability))*100);
+      var pct=displayProbabilityPct(d.probability);
       var likely=round2(d.likelyAmount||0), expected=round2(d.expectedAmount||0), bits=[];
       bits.push('<span style="font-weight:700;color:var(--text);">'+pct+'% chance</span>');
       if(expected>0) bits.push('≈ '+fmt(expected,0)+' AED expected');
@@ -3676,26 +3714,25 @@ function renderBudgetBody(T) {
     else { var selectedDaysLeft=Math.max(0,daysBetween(todayStr(),period.endStr)+1); selectedDailyAllowance=selectedDaysLeft>0?remaining/selectedDaysLeft:null; }
   }
   var limitingPacing=(livePacing&&limitingHorizon)?(limitingHorizon==="week"?livePacing.week:livePacing.month):null;
-  /* v88: Forecast evidence shown on a selected Budget tab must use that tab's
-     horizon. Safe-to-Spend may still be constrained by the tighter Week/Month
-     horizon, but a Month-ending one-day probability must never overwrite the
-     visible Week probability (e.g. Fuel 25% vs the correct ~91% for the week). */
-  var selectedForecastPacing=livePacing?(state.view==="week"?livePacing.week:(state.view==="month"?livePacing.month:limitingPacing)):null;
-  var selectedForecastHorizon=state.view==="week"?"week":(state.view==="month"?"month":limitingHorizon);
   /* The simple equal split and the forecast-aware flexible allowance answer
-     different questions. Safe-to-Spend itself still uses limitingPacing. */
+     different questions. Keep both visible so Safe to Spend can be audited:
+       equal remaining/day = current remaining / days left
+       flexible allowance/day = start-of-day money after cadence/plan reserves / days
+     The latter is the base that Safe to Spend actually consumes. */
   var flexibleAllowancePerDay=limitingPacing&&limitingPacing.openingSafe!=null?round2(limitingPacing.openingSafe):null;
   var flexibleSpentToday=limitingPacing?round2(limitingPacing.todayFlexibleSpent||0):0;
   var reserveVariancePerDay=limitingPacing&&limitingPacing.days?round2(((limitingPacing.cadenceAdjustment||0)+(limitingPacing.scheduledAdjustment||0))/limitingPacing.days):0;
   var forecastStart=effectiveRangeStart(period.startStr),forecastDays=daysBetween(forecastStart,period.endStr)+1,budgetForecast=(isCurrent&&stats.rows.length)?computeForecastNumbers(stats.rows,forecastDays,forecastStart,'budget'):null;
   var projectedSpend=budgetForecast?budgetForecast.projectedSpend:stats.spent,projectedSaving=round2(target-projectedSpend),progress=target>0?Math.max(0,Math.min(100,stats.spent/target*100)):0;
-  /* v88: Protected essentials is a selected-period forecast view. Its rows
-     therefore come from selectedForecastPacing (Week on Week, Month on Month).
-     The Safe-to-Spend daily-base audit above remains tied to limitingPacing, so
-     a tighter Month constraint can coexist transparently with Week evidence. */
+  /* v77: Protected essentials now shows the ACTUAL reserve used by the
+     Safe-to-Spend calculation. This makes Flexible allowance/day auditable.
+     Upcoming forecast remains the live expected-value forecast, but excludes
+     every category already hard-protected so the same category is not shown in
+     both groups. Frequent essentials (Restaurants/Groceries) stay flexible by
+     design because daily allowance, not a hard reserve, paces them. */
   var protectedBreakdown=[],flexibleForecastBreakdown=[],protectedTotal=0,flexibleForecastTotal=0,protectedLabels={};
-  if(selectedForecastPacing&&Array.isArray(selectedForecastPacing.reserveBreakdown)){
-    protectedBreakdown=selectedForecastPacing.reserveBreakdown.map(function(x){
+  if(limitingPacing&&Array.isArray(limitingPacing.reserveBreakdown)){
+    protectedBreakdown=limitingPacing.reserveBreakdown.map(function(x){
       var row={category:x.category||"Uncategorised",amount:round2(Math.max(0,Number(x.amount)||0)),kind:"protected",details:(x.details||[])};
       protectedLabels[row.category]=true; protectedTotal=round2(protectedTotal+row.amount); return row;
     }).filter(function(x){return x.amount>0;});
@@ -3724,22 +3761,15 @@ function renderBudgetBody(T) {
   summary+=statBlock('Projected vs budget',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div>';
   if(budgetSavingsComparison){
     var bsc=budgetSavingsComparison, savingsTighter=effectiveInfo&&effectiveInfo.savingsTight;
-    var relationText=effectiveInfo&&effectiveInfo.adaptiveOverride
-      ? ('Adaptive override · higher '+fmt(effectiveInfo.effectiveBudget,0)+' AED limit used')
-      : (savingsTighter ? fmt(bsc.pct,0)+'% savings goal sets the limit' : 'Your set monthly budget sets the limit');
-    var relationColor=(savingsTighter||(effectiveInfo&&effectiveInfo.adaptiveOverride))?'var(--amber)':'var(--positive)';
+    var relationText=savingsTighter ? fmt(bsc.pct,0)+'% savings goal sets the limit' : 'Your set monthly budget sets the limit';
+    var relationColor=savingsTighter?'var(--amber)':'var(--positive)';
     summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);">';
     summary+='<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:4px;align-items:start;"><div><div class="subhead" style="font-weight:700;">Effective monthly budget</div><div class="muted caption" style="margin-top:2px;line-height:1.35;">One live spending limit from budget + savings goal.</div></div><div class="mono subhead" style="font-weight:800;color:'+relationColor+';text-align:right;white-space:nowrap;">≈ '+fmt(effectiveInfo.effectiveBudget,0)+' AED</div><div class="caption" style="grid-column:1/-1;font-weight:700;color:'+relationColor+';line-height:1.35;white-space:normal;">'+esc(relationText)+'</div></div>';
     summary+='<div style="margin-top:10px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
     summary+='<div class="row between" style="padding:7px 0;"><span class="muted caption">Your set budget</span><span class="mono caption" style="font-weight:700;">'+fmt(bsc.configuredBudget,0)+' AED</span></div>';
     summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Savings-compatible limit</span><span class="mono caption" style="font-weight:750;">≈ '+fmt(bsc.compatibleBudget,0)+' AED</span></div>';
     summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Projected outside-budget spend</span><span class="mono caption" style="font-weight:700;">≈ '+fmt(bsc.projectedExcluded,0)+' AED</span></div>';
-    if(effectiveInfo&&effectiveInfo.adaptiveOverride){
-      var relaxedLabel=effectiveInfo.lowerSource==='savings'?(fmt(bsc.pct,0)+'% savings goal'):'set monthly budget';
-      summary+='</div><div class="caption" style="margin-top:8px;line-height:1.4;color:var(--amber);">The lower '+esc(relaxedLabel)+' limit would leave ≈ '+fmt(effectiveInfo.lowerDailyAllowance,0)+' AED/day versus a recent pace of ≈ '+fmt(effectiveInfo.paceReference,0)+' AED/day. The higher limit is being used for practicality, so the relaxed target may be missed.</div></div>';
-    } else {
-      summary+='</div><div class="muted caption" style="margin-top:8px;line-height:1.35;">The lower limit becomes your effective budget automatically. If it falls below half of your recent spending pace, The Ledger can temporarily use the higher limit and will state the override.</div></div>';
-    }
+    summary+='</div><div class="muted caption" style="margin-top:8px;line-height:1.35;">The lower limit is always enforced. If your spending makes that target unreachable, Safe to Spend falls to zero and the required adjustment is shown instead of relaxing the target.</div></div>';
   }
   /* v86: Keep the summary card decision-first. The four headline metrics stay
      visible; all explanatory/audit information lives behind one Budget details
@@ -3754,7 +3784,7 @@ function renderBudgetBody(T) {
       summary+='<div class="row between" style="padding:8px 0;"><span class="muted caption">Equal remaining / day</span><span class="mono caption" style="font-weight:700;">'+(selectedDailyAllowance!=null?((selectedDailyAllowance<0?'−':'')+fmt(Math.abs(selectedDailyAllowance),0)+' AED/day'):'—')+'</span></div>';
       summary+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Flexible daily base</span><span class="mono caption" style="font-weight:700;">'+(flexibleAllowancePerDay!=null?((flexibleAllowancePerDay<0?'−':'')+fmt(Math.abs(flexibleAllowancePerDay),0)+' AED/day'):'—')+'</span></div>';
       if(limitingHorizon){
-        var limitName=limitingHorizon==='adaptive'?'Adaptive limit':(limitingHorizon==='effective'?'Effective budget':(limitingHorizon==='savings'?'Savings goal':(limitingHorizon.charAt(0).toUpperCase()+limitingHorizon.slice(1))));
+        var limitName=limitingHorizon==='effective'?'Effective budget':(limitingHorizon==='savings'?'Savings goal':(limitingHorizon.charAt(0).toUpperCase()+limitingHorizon.slice(1)));
         summary+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Safe-to-spend limit</span><span class="caption" style="font-weight:700;">'+esc(limitName)+'</span></div>';
       }
       summary+='</div>';
@@ -3768,12 +3798,7 @@ function renderBudgetBody(T) {
           var protectedOpen=!!state.budgetProtectedOpen;
           summary+='<button data-action="toggle-budget-protected" class="row between" style="width:100%;background:none;border:none;padding:0;color:inherit;text-align:left;gap:12px;align-items:center;"><span class="subhead" style="font-weight:650;">Protected essentials</span><span class="row gap2"><span class="mono subhead" style="font-weight:750;">'+fmt(protectedTotal,0)+' AED</span><span style="display:flex;transform:rotate('+(protectedOpen?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
           if(protectedOpen&&protectedBreakdown.length){
-            var protectedPeriodName=selectedForecastHorizon==='week'?'Week':(selectedForecastHorizon==='month'?'Month':'Selected period');
-            summary+='<div class="muted caption" style="margin-top:5px;line-height:1.35;">'+protectedPeriodName+' reserve for essential upcoming events.</div>';
-            if(limitingHorizon&&selectedForecastHorizon&&limitingHorizon!==selectedForecastHorizon){
-              var safeLimitPeriod=limitingHorizon==='week'?'Week':'Month';
-              summary+='<div class="muted caption" style="margin-top:3px;line-height:1.35;">Safe-to-Spend today is currently limited by '+safeLimitPeriod+'; its daily-base reserve is shown above.</div>';
-            }
+            summary+='<div class="muted caption" style="margin-top:5px;line-height:1.35;">Money ring-fenced by Safe-to-Spend for essential upcoming events.</div>';
             summary+='<div style="margin-top:8px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
             protectedBreakdown.forEach(function(x,i){
               summary+='<div style="padding:9px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="row between" style="gap:12px;"><div class="caption" style="font-weight:650;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div><div style="flex-shrink:0;text-align:right;"><div class="mono caption" style="font-weight:750;">'+fmt(x.amount,0)+' AED</div><div class="muted caption">protected</div></div></div>'+budgetForecastEvidenceHtml(x,true)+'</div>';
@@ -3808,7 +3833,7 @@ function renderBudgetBody(T) {
   summary+='</div>';
   sections.summary=summary;
   var compareRows=previousPeriodRows(state.view,state.offset,period.startStr,period.endStr,'budget');
-  sections.forecast=buildForecastCard(stats.rows,forecastDays,target,forecastStart,T,(isCurrent&&effectiveInfo&&effectiveInfo.adaptiveOverride?'Adaptive limit':(isCurrent&&effectiveInfo&&effectiveInfo.savingsTight?'Effective budget':'Budget')),state.view,compareRows,'budget');
+  sections.forecast=buildForecastCard(stats.rows,forecastDays,target,forecastStart,T,(isCurrent&&effectiveInfo&&effectiveInfo.savingsTight?'Effective budget':'Budget'),state.view,compareRows,'budget');
   sections.spendTrend=buildBudgetTrendCard(state.view,state.offset,T);
   if(stats.rows.length){
     var acc=0,savingData;
@@ -3944,7 +3969,7 @@ function renderSettingsPage() {
   if (section === "savings") {
     var savePct=savingsTargetPct();
     h += '<label class="eyebrow">Target saving</label>';
-    h += '<div class="muted caption" style="margin:4px 0 10px;">The percentage of full/projected income you want to keep. The Ledger converts this into a maximum-spend ceiling. Normally the lower of your budget and savings-compatible limit is used; if that lower limit becomes unrealistically restrictive versus recent spending pace, the app can temporarily use the higher limit and clearly flag the override.</div>';
+    h += '<div class="muted caption" style="margin:4px 0 10px;">The percentage of full/projected income you want to keep. The Ledger converts this into a maximum-spend ceiling. The lower of your set budget and the savings-compatible limit is always enforced; the app never relaxes that limit automatically.</div>';
     h += '<div style="position:relative;margin:6px 0 8px;"><input id="savingsTargetPctInput" type="number" inputmode="decimal" min="0" max="100" step="1" class="field mono" style="padding-right:40px;font-size:20px;font-weight:650;" value="'+savePct+'"/><span class="muted" style="position:absolute;right:13px;top:50%;transform:translateY(-50%);font-weight:650;">%</span></div>';
     h += '<div class="muted caption" style="margin-bottom:16px;">Default is 25%. Set 0% if you want to disable the savings-goal constraint.</div>';
     var settingsSavingsCompare=currentSavingsBudgetComparison();
@@ -3956,9 +3981,6 @@ function renderSettingsPage() {
       h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Max total spending</span><span class="mono subhead" style="font-weight:650;">'+fmt(ssc.spendCeiling,0)+' AED</span></div>';
       var settingsEffectiveInfo=currentEffectiveBudgetInfo();
       h += '<div class="muted caption" style="margin-top:9px;line-height:1.35;">Based on ≈ '+fmt(ssc.projectedExcluded,0)+' AED projected outside-budget spending. '+(ssc.tighter==='equal'?'The two limits are currently aligned.':(sscTight?'The savings goal is currently the tighter monthly constraint.':'Your configured budget is currently tighter than the savings goal.'))+'</div>';
-      if(settingsEffectiveInfo.adaptiveOverride){
-        h += '<div class="caption" style="margin-top:8px;line-height:1.4;color:var(--amber);font-weight:650;">Adaptive override active: the lower limit allows ≈ '+fmt(settingsEffectiveInfo.lowerDailyAllowance,0)+' AED/day, below the 50% realism floor of ≈ '+fmt(settingsEffectiveInfo.realisticDailyFloor,0)+' AED/day. The higher '+fmt(settingsEffectiveInfo.effectiveBudget,0)+' AED limit is currently being used.</div>';
-      }
       h += '</div>';
     }
     h += '<button data-action="save-savings-target" class="btn-accent" style="width:100%;">Save savings target</button>';
@@ -4905,9 +4927,9 @@ function wireForecastChart(data) {
 }
 
 
-/* Future income is intentionally forecast only when it is explicitly scheduled
-   as an active recurring income plan. We do not invent future salary/bonus
-   amounts from past income transactions. */
+/* Explicit recurring income remains exact on its due date. v88 also uses the
+   Income setting as the planned baseline, with actual/scheduled income replacing
+   that baseline when the known amount is higher. */
 function scheduledIncomeByDate(afterStr, throughStr) {
   var out = {};
   (state.settings.recurringRules||[]).forEach(function(rule){
@@ -4934,8 +4956,7 @@ function scheduledIncomeInRange(afterStr, throughStr) {
 function periodSavingsGoalMetrics(info, cs) {
   var today=todayStr();
   var hasFuture=info&&info.end>=today&&info.start<=today;
-  var futureIncome=hasFuture?scheduledIncomeInRange(today,info.end):0;
-  var projectedIncome=round2((Number(cs.income)||0)+futureIncome);
+  var projectedIncome=hasFuture?projectedIncomeForRange(info.start,info.end):round2(Number(cs.income)||0);
   var projectedSpend=Number(cs.spent)||0;
   if(hasFuture&&cs.rows&&cs.rows.length){
     var start=effectiveRangeStart(info.start),days=Math.max(1,daysBetween(start,info.end)+1),fc=computeForecastNumbers(cs.rows,days,start,"overall");
@@ -4990,8 +5011,7 @@ function buildAnalysisForecastCard(info, cs, T) {
      plus active recurring income still due before the period closes. */
   var forecastStart = effectiveRangeStart(info.start);
   var forecastDays = Math.max(1, daysBetween(forecastStart, info.end) + 1);
-  var futureIncome = info.isCurrent ? scheduledIncomeInRange(todayStr(), info.end) : 0;
-  var projectedIncome = round2((Number(cs.income) || 0) + futureIncome);
+  var projectedIncome = info.isCurrent ? projectedIncomeForRange(info.start,info.end) : round2(Number(cs.income)||0);
   var incomeTarget = projectedIncome > 0 ? projectedIncome : null;
   var goalPct=savingsTargetPct();
   var savingsSpendCeiling=(incomeTarget!=null && goalPct>0)?savingsSpendCeilingForIncome(projectedIncome):null;
@@ -5051,9 +5071,8 @@ function buildAnalysisForecastCard(info, cs, T) {
 function forecastCategoryProfiles(scope, asOfDate) {
   scope=scope||"overall"; asOfDate=asOfDate||todayStr();
   var allDates=Object.keys(state.entries).sort(), first=allDates.length?allDates[0]:asOfDate;
-  var exposureEnd=asOfDate===todayStr()?toStr(addDays(parseD(asOfDate),-1)):asOfDate;
-  var natural=scope==="budget"?(state.settings.trackingStartDate||first):first;
-  var floor=toStr(addDays(parseD(exposureEnd),-364));
+  var natural=scope==="overall"?first:(state.settings.trackingStartDate||first);
+  var floor=toStr(addDays(parseD(asOfDate),-364));
   var start=natural>floor?natural:floor, maps={};
   Object.keys(state.entries).forEach(function(ds){
     if(ds<start||ds>asOfDate) return;
@@ -5072,7 +5091,7 @@ function forecastCategoryProfiles(scope, asOfDate) {
     var m=maps[k], dates=Object.keys(m.daily).sort(), gaps=[];
     for(var i=1;i<dates.length;i++){var g=daysBetween(dates[i-1],dates[i]);if(g>0)gaps.push(g);}
     var interarrivalGap=medianNumber(gaps);
-    var span=start<=exposureEnd?Math.max(1,daysBetween(start,exposureEnd)+1):1;
+    var span=Math.max(0.001,observedExposureDays(start,asOfDate));
     /* v75 deliberately separates TRANSACTION frequency from EVENT cadence.
        Multiple restaurant/café transactions on one day are real transactions,
        but one active day is the forecasting unit for daily/category behavior. */
@@ -5117,6 +5136,7 @@ function forecastCategoryProfiles(scope, asOfDate) {
       minGap:gaps.length?Math.min.apply(null,gaps):null,maxGap:gaps.length?Math.max.apply(null,gaps):null,
       typicalAmount:typicalAmount,typicalTxnAmount:typicalTxnAmount,amountDev:amountDev,
       timingCv:cadenceGapCv,amountCv:cadenceAmountCv,timingConsistency:timingConsistency,amountConsistency:amountConsistency,
+      evidenceQuality:Math.max(.45,Math.min(1,.45*(dates.length>=8?.98:(dates.length>=6?.95:(dates.length>=5?.93:(dates.length>=4?.90:(dates.length>=3?.80:.65)))))+.35*timingConsistency+.20*amountConsistency)),
       lastDate:dates.length?dates[dates.length-1]:null,spanDays:span,activeRate:activeRate,txnRate:txnRate,historyStart:start,
       mode:frequent?"frequent":(cadence?"cadence":(lumpy?"lumpy":"sparse")),confidence:confidence
     };
@@ -5165,6 +5185,17 @@ function expectedFrequentCategoryForDate(profile, ds, asOfDate) {
   }
   profile.pace30=pace.p30;profile.pace14=pace.p14;profile.pace7=pace.p7;profile.paceTrendPct=pace.trendPct;profile.paceMean=pace.mean;
   return {mean:Math.max(0,mean||0),dev:Math.max(0,dev||0),count:same.length,pace:pace};
+}
+
+function smoothProtectedReserve(probability, likelyAmount, expectedAmount, evidenceQuality, kind){
+  var p=Math.max(0,Math.min(1,Number(probability)||0));
+  var likely=Math.max(0,Number(likelyAmount)||0), expected=Math.max(0,Number(expectedAmount)||0);
+  var q=Math.max(.45,Math.min(1,Number(evidenceQuality)||.70));
+  /* Expected value is the floor. The uncertainty premium grows continuously
+     with probability and evidence quality, so there are no 50%/75% cliffs. */
+  var strength=kind==="lumpy"?.45:.72;
+  var reserveProb=Math.min(1,p+(1-p)*p*q*strength);
+  return round2(Math.max(expected,reserveProb*likely));
 }
 
 function cadenceEventForecast(profile, fromStr, throughStr) {
@@ -5225,8 +5256,7 @@ function cadenceEventForecast(profile, fromStr, throughStr) {
   var eventVar=firstProb*(1-firstProb)*profile.typicalAmount*profile.typicalAmount;
   var amountVar=(profile.amountDev||0)*(profile.amountDev||0)*Math.max(.25,expectedCount);
   variance=eventVar+amountVar;
-  var reserveProb=firstProb>=.75?1:(firstProb>=.5?firstProb+(1-firstProb)*.5:firstProb);
-  var safeReserve=Math.max(targetTotal,reserveProb*profile.typicalAmount);
+  var safeReserve=smoothProtectedReserve(firstProb,profile.typicalAmount,targetTotal,evidenceQuality,"cadence");
   return {byDate:byDate,total:total,variance:variance,probability:firstProb,safeReserve:safeReserve,expectedCount:expectedCount,reason:"Cadence probability",expectedDate:toStr(addDays(parseD(profile.lastDate),Math.max(1,Math.round(gap))))};
 }
 
@@ -5245,12 +5275,13 @@ function lumpyEventForecast(profile, fromStr, throughStr) {
   var days=[];for(var i=0;i<horizon;i++){if(profile.lastDate===fromStr&&i===0)continue;days.push(toStr(addDays(parseD(fromStr),i)));}
   if(days.length&&expectedTotal>0){var share=expectedTotal/days.length;days.forEach(function(ds){byDate[ds]=share;total+=share;});}
   variance=prob*(1-prob)*profile.typicalAmount*profile.typicalAmount+(profile.amountDev||0)*(profile.amountDev||0)*Math.max(.15,expectedEvents);
-  return {byDate:byDate,total:total,variance:variance,probability:prob,safeReserve:expectedTotal,expectedCount:expectedEvents,reason:"Irregular expected value"};
+  var safeReserve=smoothProtectedReserve(prob,profile.typicalAmount,expectedTotal,reliability,"lumpy");
+  return {byDate:byDate,total:total,variance:variance,probability:prob,safeReserve:safeReserve,expectedCount:expectedEvents,reason:"Irregular expected value"};
 }
 
 function portfolioUnscheduledPaceForecast(scope, profileAsOfStr, forecastFromStr, throughStr) {
   var histEnd=forecastHistoryEnd(profileAsOfStr), allDates=Object.keys(state.entries).sort(), first=allDates.length?allDates[0]:histEnd;
-  var natural=scope==="budget"?(state.settings.trackingStartDate||first):first;
+  var natural=scope==="overall"?first:(state.settings.trackingStartDate||first);
   function daySpend(ds){
     var e=state.entries[ds],sum=0;if(!e||!Array.isArray(e.items))return 0;
     e.items.forEach(function(it){if(expenseCountsForScope(it,scope)&&!it.recurringId)sum+=Number(it.amount)||0;});return sum;
@@ -5277,13 +5308,11 @@ function portfolioUnscheduledPaceForecast(scope, profileAsOfStr, forecastFromStr
   return {total:total,pace:pace,dev:dev,historyDays:maxCount,blendWeight:blendWeight,p30:w30?w30.mean:0,p14:w14?w14.mean:0,p7:w7?w7.mean:0};
 }
 
-function buildBehavioralForecast(scope, profileAsOfStr, forecastFromStr, throughStr) {
-  /* Backward-compatible 3-argument call: old callers supplied (scope, from, through). */
-  if(throughStr==null){throughStr=forecastFromStr;forecastFromStr=profileAsOfStr;}
-  var profiles=forecastCategoryProfiles(scope,profileAsOfStr),byDate={},bySub={},varianceByDate={},suppressed=[],frequentByDate={},frequentVarianceByDate={};
-  var cadenceSafeReserveTotal=0,frequentExpectedTotal=0,lumpyExpectedTotal=0;
+function buildBehavioralForecastRaw(scope, profileAsOfStr, forecastFromStr, throughStr) {
+  var profiles=forecastCategoryProfiles(scope,profileAsOfStr),byDate={},bySub={},bySubDate={},varianceByDate={},suppressed=[],frequentByDate={},frequentVarianceByDate={};
+  var cadenceSafeReserveTotal=0,lumpySafeReserveTotal=0,frequentExpectedTotal=0,lumpyExpectedTotal=0;
   Object.keys(profiles).forEach(function(k){
-    var p=profiles[k];
+    var p=profiles[k]; bySubDate[k]={};
     if(p.mode==="frequent"){
       var d=parseD(forecastFromStr),end=parseD(throughStr),totalF=0;
       while(d<=end){
@@ -5292,29 +5321,26 @@ function buildBehavioralForecast(scope, profileAsOfStr, forecastFromStr, through
           var v=(e.dev||0)*(e.dev||0);
           byDate[ds]=(byDate[ds]||0)+amt;varianceByDate[ds]=(varianceByDate[ds]||0)+v;
           frequentByDate[ds]=(frequentByDate[ds]||0)+amt;frequentVarianceByDate[ds]=(frequentVarianceByDate[ds]||0)+v;
-          totalF+=amt;
+          bySubDate[k][ds]=amt; totalF+=amt;
         }
         d=addDays(d,1);
       }
       if(totalF>0){bySub[k]={amount:totalF,kind:"frequent",profile:p,safeReserve:0};frequentExpectedTotal+=totalF;}
     }else if(p.mode==="cadence"){
       var c=cadenceEventForecast(p,forecastFromStr,throughStr),totalC=0;
-      Object.keys(c.byDate).forEach(function(ds){var a=c.byDate[ds];byDate[ds]=(byDate[ds]||0)+a;totalC+=a;});
+      Object.keys(c.byDate).forEach(function(ds){var a=c.byDate[ds];byDate[ds]=(byDate[ds]||0)+a;bySubDate[k][ds]=a;totalC+=a;});
       if(c.variance>0){var dates=Object.keys(c.byDate);if(dates.length){var share=c.variance/dates.length;dates.forEach(function(ds){varianceByDate[ds]=(varianceByDate[ds]||0)+share;});}}
       if(totalC>0.005){bySub[k]={amount:totalC,kind:"cadence",profile:p,probability:c.probability||0,reason:c.reason||"",likelyAmount:p.typicalAmount||0,safeReserve:c.safeReserve||totalC,expectedCount:c.expectedCount||0};cadenceSafeReserveTotal+=(c.safeReserve||totalC);}
       if(p.lastDate===forecastFromStr||totalC<=0.005){p._forecastReason=c.reason||"";p._forecastProbability=c.probability||0;p._forecastSafeReserve=c.safeReserve||0;suppressed.push(p);}
     }else if(p.mode==="lumpy"){
       var l=lumpyEventForecast(p,forecastFromStr,throughStr),totalL=0;
-      Object.keys(l.byDate).forEach(function(ds){var a=l.byDate[ds];byDate[ds]=(byDate[ds]||0)+a;totalL+=a;});
+      Object.keys(l.byDate).forEach(function(ds){var a=l.byDate[ds];byDate[ds]=(byDate[ds]||0)+a;bySubDate[k][ds]=a;totalL+=a;});
       if(l.variance>0){var ldates=Object.keys(l.byDate);if(ldates.length){var lshare=l.variance/ldates.length;ldates.forEach(function(ds){varianceByDate[ds]=(varianceByDate[ds]||0)+lshare;});}}
-      if(totalL>0.005){bySub[k]={amount:totalL,kind:"lumpy",profile:p,probability:l.probability||0,reason:l.reason||"",likelyAmount:p.typicalAmount||0,safeReserve:l.safeReserve||0,expectedCount:l.expectedCount||0};lumpyExpectedTotal+=totalL;}
+      if(totalL>0.005){bySub[k]={amount:totalL,kind:"lumpy",profile:p,probability:l.probability||0,reason:l.reason||"",likelyAmount:p.typicalAmount||0,safeReserve:l.safeReserve||0,expectedCount:l.expectedCount||0};lumpyExpectedTotal+=totalL;lumpySafeReserveTotal+=(l.safeReserve||0);}
     }
   });
   var categoryTotal=0;Object.keys(bySub).forEach(function(k){categoryTotal+=Number(bySub[k].amount)||0;});
   var portfolio=portfolioUnscheduledPaceForecast(scope,profileAsOfStr,forecastFromStr,throughStr),blendFactor=1;
-  /* v76: the whole-budget guardrail may tune only the flexible frequent-spend
-     component. It no longer multiplies cadence/lumpy rows, because doing so
-     broke the visible identity chance × likely transaction = expected amount. */
   if(categoryTotal>0&&portfolio.total>0&&portfolio.blendWeight>0&&frequentExpectedTotal>0){
     var blendedTotal=categoryTotal*(1-portfolio.blendWeight)+portfolio.total*portfolio.blendWeight;
     var nonFrequentTotal=Math.max(0,categoryTotal-frequentExpectedTotal);
@@ -5328,13 +5354,58 @@ function buildBehavioralForecast(scope, profileAsOfStr, forecastFromStr, through
         varianceByDate[ds]=(varianceByDate[ds]||0)-fv+fv*blendFactor*blendFactor;
         frequentVarianceByDate[ds]=fv*blendFactor*blendFactor;
       });
-      Object.keys(bySub).forEach(function(k){if(bySub[k].kind==="frequent")bySub[k].amount*=blendFactor;});
+      Object.keys(bySub).forEach(function(k){if(bySub[k].kind==="frequent"){bySub[k].amount*=blendFactor;Object.keys(bySubDate[k]||{}).forEach(function(ds){bySubDate[k][ds]*=blendFactor;});}});
       frequentExpectedTotal*=blendFactor;
     }
   }
-  return {profiles:profiles,byDate:byDate,bySubcategory:bySub,varianceByDate:varianceByDate,frequentByDate:frequentByDate,frequentVarianceByDate:frequentVarianceByDate,suppressed:suppressed,
-    cadenceSafeReserveTotal:round2(cadenceSafeReserveTotal),frequentExpectedTotal:round2(frequentExpectedTotal),lumpyExpectedTotal:round2(lumpyExpectedTotal),safeReserveTotal:round2(cadenceSafeReserveTotal),
+  return {profiles:profiles,byDate:byDate,bySubcategory:bySub,bySubcategoryDate:bySubDate,varianceByDate:varianceByDate,frequentByDate:frequentByDate,frequentVarianceByDate:frequentVarianceByDate,suppressed:suppressed,
+    cadenceSafeReserveTotal:round2(cadenceSafeReserveTotal),lumpySafeReserveTotal:round2(lumpySafeReserveTotal),frequentExpectedTotal:round2(frequentExpectedTotal),lumpyExpectedTotal:round2(lumpyExpectedTotal),safeReserveTotal:round2(cadenceSafeReserveTotal+lumpySafeReserveTotal),
     portfolioPace:round2(portfolio.pace||0),portfolioExpected:round2(portfolio.total||0),portfolioBlendWeight:portfolio.blendWeight||0,portfolioBlendFactor:blendFactor};
+}
+function canonicalForecastEnd(forecastFromStr, requestedEndStr){
+  if(forecastFromStr!==todayStr())return requestedEndStr;
+  var w=getPeriodBounds("week",0,currentWeeklyTarget(),dailyAllowance()).endStr;
+  var m=getPeriodBounds("month",0,currentWeeklyTarget(),dailyAllowance()).endStr;
+  var anchor=w>m?w:m;
+  return requestedEndStr>anchor?requestedEndStr:anchor;
+}
+function sliceBehavioralForecast(raw,fromStr,throughStr){
+  if(!raw)return raw;
+  var byDate={},varianceByDate={},frequentByDate={},frequentVarianceByDate={},bySub={},bySubDate={};
+  Object.keys(raw.byDate||{}).forEach(function(ds){if(ds>=fromStr&&ds<=throughStr)byDate[ds]=raw.byDate[ds];});
+  Object.keys(raw.varianceByDate||{}).forEach(function(ds){if(ds>=fromStr&&ds<=throughStr)varianceByDate[ds]=raw.varianceByDate[ds];});
+  Object.keys(raw.frequentByDate||{}).forEach(function(ds){if(ds>=fromStr&&ds<=throughStr)frequentByDate[ds]=raw.frequentByDate[ds];});
+  Object.keys(raw.frequentVarianceByDate||{}).forEach(function(ds){if(ds>=fromStr&&ds<=throughStr)frequentVarianceByDate[ds]=raw.frequentVarianceByDate[ds];});
+  var cadenceReserve=0,lumpyReserve=0,frequentTotal=0,lumpyTotal=0;
+  Object.keys(raw.bySubcategory||{}).forEach(function(k){
+    var x=raw.bySubcategory[k], path=(raw.bySubcategoryDate&&raw.bySubcategoryDate[k])||{}, amount=0, sliced={};
+    Object.keys(path).forEach(function(ds){if(ds>=fromStr&&ds<=throughStr){sliced[ds]=path[ds];amount+=Number(path[ds])||0;}});
+    if(amount<=.005)return;
+    var y=Object.assign({},x,{amount:amount}),likely=Number(x.likelyAmount||(x.profile&&x.profile.typicalAmount)||0);
+    bySubDate[k]=sliced;
+    if(x.kind==="cadence"){
+      var prob=likely>0?Math.max(0,Math.min(1,amount/likely)):0;
+      y.probability=prob;y.expectedCount=prob;y.safeReserve=smoothProtectedReserve(prob,likely,amount,x.profile&&x.profile.evidenceQuality,"cadence");
+      cadenceReserve+=y.safeReserve;
+    }else if(x.kind==="lumpy"){
+      var fraction=(Number(x.amount)||0)>0?Math.max(0,Math.min(1,amount/Number(x.amount))):0;
+      var expectedCount=(Number(x.expectedCount)||0)*fraction;
+      var probL=1-Math.exp(-expectedCount);
+      y.probability=probL;y.expectedCount=expectedCount;y.safeReserve=smoothProtectedReserve(probL,likely,amount,x.profile&&x.profile.evidenceQuality,"lumpy");
+      lumpyReserve+=y.safeReserve;lumpyTotal+=amount;
+    }else if(x.kind==="frequent") frequentTotal+=amount;
+    bySub[k]=y;
+  });
+  var requestedDays=Math.max(1,daysBetween(fromStr,throughStr)+1), rawDates=Object.keys(raw.byDate||{}), rawDays=rawDates.length||requestedDays;
+  return {profiles:raw.profiles,byDate:byDate,bySubcategory:bySub,bySubcategoryDate:bySubDate,varianceByDate:varianceByDate,frequentByDate:frequentByDate,frequentVarianceByDate:frequentVarianceByDate,suppressed:raw.suppressed||[],
+    cadenceSafeReserveTotal:round2(cadenceReserve),lumpySafeReserveTotal:round2(lumpyReserve),frequentExpectedTotal:round2(frequentTotal),lumpyExpectedTotal:round2(lumpyTotal),safeReserveTotal:round2(cadenceReserve+lumpyReserve),
+    portfolioPace:raw.portfolioPace||0,portfolioExpected:round2((raw.portfolioExpected||0)*(requestedDays/rawDays)),portfolioBlendWeight:raw.portfolioBlendWeight||0,portfolioBlendFactor:raw.portfolioBlendFactor||1};
+}
+function buildBehavioralForecast(scope, profileAsOfStr, forecastFromStr, throughStr) {
+  if(throughStr==null){throughStr=forecastFromStr;forecastFromStr=profileAsOfStr;}
+  var canonicalEnd=canonicalForecastEnd(forecastFromStr,throughStr);
+  var raw=buildBehavioralForecastRaw(scope,profileAsOfStr,forecastFromStr,canonicalEnd);
+  return sliceBehavioralForecast(raw,forecastFromStr,throughStr);
 }
 function forecastProfileMetaText(p, kind, probability, reason) {
   if(!p)return kind==="scheduled"?"Scheduled plan":"";
@@ -5361,29 +5432,22 @@ function forecastProfileMetaText(p, kind, probability, reason) {
 
 
 function forecastCalibrationFactor(scope,totalDays) {
-  var period=totalDays<=8?"week":"month", rows=forecastAccuracyRows().filter(function(x){return x.scope===scope&&x.period===period&&x.modelVersion===FORECAST_MODEL_VERSION;});
+  var rows=forecastAccuracyRows().filter(function(x){return x.scope===scope&&x.modelVersion===FORECAST_MODEL_VERSION;});
   if(!rows.length)return {factor:1,count:0};
-  /* One completed period should contribute one genuinely early forecast, not
-     seven increasingly-actual late snapshots. Keep the earliest/lowest actual
-     snapshot per period and require it to have been made near the start. */
   var byPeriod={};
-  rows.forEach(function(x){var k=x.periodStart+"|"+x.periodEnd,cur=byPeriod[k];if(!cur||x.actualSoFar<cur.actualSoFar||(x.actualSoFar===cur.actualSoFar&&x.snapshotDate<cur.snapshotDate))byPeriod[k]=x;});
+  rows.forEach(function(x){var k=x.period+"|"+x.periodStart+"|"+x.periodEnd,cur=byPeriod[k];if(!cur||x.actualSoFar<cur.actualSoFar||(x.actualSoFar===cur.actualSoFar&&x.snapshotDate<cur.snapshotDate))byPeriod[k]=x;});
   var ratios=[];
-  Object.keys(byPeriod).forEach(function(k){var x=byPeriod[k],actual=x.actual;if(!(actual>0)||!(x.forecastClose>0))return;if(x.actualSoFar>actual*.18)return;ratios.push(Math.max(.70,Math.min(1.40,actual/x.forecastClose)));});
-  ratios=ratios.slice(-8);if(!ratios.length)return {factor:1,count:0};
-  var med=medianNumber(ratios)||1,reliability=Math.min(.70,ratios.length*.18),factor=1+(med-1)*reliability;
+  Object.keys(byPeriod).forEach(function(k){var x=byPeriod[k],actual=x.actual;if(!(actual>0)||!(x.forecastClose>0))return;if(x.actualSoFar>actual*.18)return;ratios.push({date:x.periodEnd,ratio:Math.max(.70,Math.min(1.40,actual/x.forecastClose))});});
+  ratios.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});
+  ratios=ratios.slice(-10);if(!ratios.length)return {factor:1,count:0};
+  var med=medianNumber(ratios.map(function(x){return x.ratio;}))||1,reliability=Math.min(.70,ratios.length*.14),factor=1+(med-1)*reliability;
   return {factor:Math.max(.88,Math.min(1.18,factor)),count:ratios.length};
 }
 function scaleBehavioralForecastForCalibration(behavioral,factor){
   factor=Number(factor)||1;if(!behavioral||Math.abs(factor-1)<.005)return behavioral;
-  /* v76: backtest calibration also leaves event-probability categories intact.
-     Any aggregate correction is absorbed by flexible frequent-spend pace so
-     cadence rows remain auditable: chance × likely amount = expected amount. */
-  var currentTotal=0;Object.keys(behavioral.byDate||{}).forEach(function(ds){currentTotal+=Number(behavioral.byDate[ds])||0;});
-  var frequentTotal=Number(behavioral.frequentExpectedTotal)||0;if(!(currentTotal>0)||!(frequentTotal>0))return behavioral;
-  var nonFrequent=Math.max(0,currentTotal-frequentTotal),desiredTotal=currentTotal*factor,desiredFrequent=Math.max(0,desiredTotal-nonFrequent);
-  var frequentFactor=Math.max(.75,Math.min(1.35,desiredFrequent/frequentTotal));
-  if(Math.abs(frequentFactor-1)<.005)return behavioral;
+  /* v88 calibration is horizon-independent and adjusts only frequent spend,
+     so the same calendar date keeps the same forecast in Week and Month. */
+  var frequentFactor=Math.max(.75,Math.min(1.35,factor));
   Object.keys(behavioral.frequentByDate||{}).forEach(function(ds){
     var base=behavioral.frequentByDate[ds]||0,delta=base*(frequentFactor-1);
     behavioral.byDate[ds]=(behavioral.byDate[ds]||0)+delta;behavioral.frequentByDate[ds]=base*frequentFactor;
@@ -5391,14 +5455,18 @@ function scaleBehavioralForecastForCalibration(behavioral,factor){
     behavioral.varianceByDate[ds]=(behavioral.varianceByDate[ds]||0)-fv+fv*frequentFactor*frequentFactor;
     if(behavioral.frequentVarianceByDate)behavioral.frequentVarianceByDate[ds]=fv*frequentFactor*frequentFactor;
   });
-  Object.keys(behavioral.bySubcategory||{}).forEach(function(k){var x=behavioral.bySubcategory[k];if(x.kind==="frequent")x.amount*=frequentFactor;});
-  behavioral.frequentExpectedTotal=frequentTotal*frequentFactor;
+  Object.keys(behavioral.bySubcategory||{}).forEach(function(k){
+    var x=behavioral.bySubcategory[k];if(x.kind!=="frequent")return;
+    x.amount*=frequentFactor;
+    Object.keys((behavioral.bySubcategoryDate&&behavioral.bySubcategoryDate[k])||{}).forEach(function(ds){behavioral.bySubcategoryDate[k][ds]*=frequentFactor;});
+  });
+  behavioral.frequentExpectedTotal=(Number(behavioral.frequentExpectedTotal)||0)*frequentFactor;
   behavioral.calibrationFrequentFactor=frequentFactor;
   return behavioral;
 }
 
 
-function computeForecastNumbers(rows, totalDays, periodStart, scope) {
+function computeForecastNumbersCore(rows, totalDays, periodStart, scope) {
   if(!rows.length) return null;
   scope=scope||"overall";
   var today=todayStr(), todayIncluded=rows[rows.length-1].date===today;
@@ -5417,7 +5485,8 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
      forecast: scheduled commitments + cadence events only. Frequent spending
      remains in the flexible pool and is distributed across the days left. */
   var cadenceSafeReserveFuture=round2(behavioral.cadenceSafeReserveTotal||0);
-  var safeReserveFuture=round2(cadenceSafeReserveFuture+scheduledUpcoming);
+  var lumpySafeReserveFuture=round2(behavioral.lumpySafeReserveTotal||0);
+  var safeReserveFuture=round2(cadenceSafeReserveFuture+lumpySafeReserveFuture+scheduledUpcoming);
 
   /* We started collecting time-of-day in v36, but old history has no timestamps.
      Until enough timed observations accumulate, today itself is NOT padded with
@@ -5490,13 +5559,59 @@ function computeForecastNumbers(rows, totalDays, periodStart, scope) {
     actualSpentSoFar:round2(actualSpentSoFar),knownSpent:round2(actualSpentSoFar),
     avgSpentPerDay:daysToEstimate>0?expectedFutureTotal/daysToEstimate:null,stillBlending:false,currentWeight:1,historyDays:0,
     daysToEstimate:daysToEstimate,scheduledUpcoming:scheduledUpcoming,remainingVariableToday:remainingVariableToday,
-    cadenceSafeReserveFuture:cadenceSafeReserveFuture,frequentExpectedFuture:round2(behavioral.frequentExpectedTotal||0),lumpyExpectedFuture:round2(behavioral.lumpyExpectedTotal||0),safeReserveFuture:safeReserveFuture,portfolioPace:round2(behavioral.portfolioPace||0),portfolioExpected:round2(behavioral.portfolioExpected||0),portfolioBlendWeight:behavioral.portfolioBlendWeight||0,portfolioBlendFactor:behavioral.portfolioBlendFactor||1,calibrationFactor:calibration.factor,calibrationCount:calibration.count,
+    cadenceSafeReserveFuture:cadenceSafeReserveFuture,lumpySafeReserveFuture:lumpySafeReserveFuture,frequentExpectedFuture:round2(behavioral.frequentExpectedTotal||0),lumpyExpectedFuture:round2(behavioral.lumpyExpectedTotal||0),safeReserveFuture:safeReserveFuture,portfolioPace:round2(behavioral.portfolioPace||0),portfolioExpected:round2(behavioral.portfolioExpected||0),portfolioBlendWeight:behavioral.portfolioBlendWeight||0,portfolioBlendFactor:behavioral.portfolioBlendFactor||1,calibrationFactor:calibration.factor,calibrationCount:calibration.count,
     hasForecast:hasForecast,projectedSpend:projectedSpend,forecastValues:forecastValues,
     rangeLow:rangeLow==null?null:round2(rangeLow),rangeHigh:rangeHigh==null?null:round2(rangeHigh),
     remainingForecast:round2(Math.max(0,projectedSpend-actualSpentSoFar)),forecastBreakdown:breakdown,profileEvidence:profileEvidence,
     recentlySatisfied:suppressed,eventModeledCount:evidenceCount,personModeledCount:0,overallModeledCount:evidenceCount
   };
 }
+
+/* v88: overall spending is the exact composition of the two disjoint scopes
+   that matter to budgeting: budget-counted + outside-budget. This removes the
+   last source of drift where an independently calibrated overall model could
+   disagree with the sum of its parts. */
+function combineForecastScopes(a,b){
+  if(!a&&!b)return null;if(!a)return b;if(!b)return a;
+  var n=Math.max((a.forecastValues||[]).length,(b.forecastValues||[]).length),vals=[];
+  for(var i=0;i<n;i++)vals[i]=round2(Number((a.forecastValues||[])[i]||0)+Number((b.forecastValues||[])[i]||0));
+  var breakdown=(a.forecastBreakdown||[]).concat(b.forecastBreakdown||[]).sort(function(x,y){return (y.amount||0)-(x.amount||0);});
+  var evidence=(a.profileEvidence||[]).concat(b.profileEvidence||[]).sort(function(x,y){return (x.label||"").localeCompare(y.label||"");});
+  var days=Math.max(Number(a.daysToEstimate)||0,Number(b.daysToEstimate)||0);
+  var remaining=round2((Number(a.remainingForecast)||0)+(Number(b.remainingForecast)||0));
+  return {
+    todayIncluded:a.todayIncluded||b.todayIncluded,pastDays:Math.max(a.pastDays||0,b.pastDays||0),
+    pastSpent:round2((a.pastSpent||0)+(b.pastSpent||0)),pastDiscretionary:0,
+    actualSpentSoFar:round2((a.actualSpentSoFar||0)+(b.actualSpentSoFar||0)),knownSpent:round2((a.knownSpent||0)+(b.knownSpent||0)),
+    avgSpentPerDay:days>0?remaining/days:null,stillBlending:false,currentWeight:1,historyDays:0,
+    daysToEstimate:days,scheduledUpcoming:round2((a.scheduledUpcoming||0)+(b.scheduledUpcoming||0)),
+    remainingVariableToday:round2((a.remainingVariableToday||0)+(b.remainingVariableToday||0)),
+    cadenceSafeReserveFuture:round2((a.cadenceSafeReserveFuture||0)+(b.cadenceSafeReserveFuture||0)),
+    lumpySafeReserveFuture:round2((a.lumpySafeReserveFuture||0)+(b.lumpySafeReserveFuture||0)),
+    frequentExpectedFuture:round2((a.frequentExpectedFuture||0)+(b.frequentExpectedFuture||0)),
+    lumpyExpectedFuture:round2((a.lumpyExpectedFuture||0)+(b.lumpyExpectedFuture||0)),
+    safeReserveFuture:round2((a.safeReserveFuture||0)+(b.safeReserveFuture||0)),
+    portfolioPace:round2((a.portfolioPace||0)+(b.portfolioPace||0)),portfolioExpected:round2((a.portfolioExpected||0)+(b.portfolioExpected||0)),
+    portfolioBlendWeight:null,portfolioBlendFactor:null,calibrationFactor:null,calibrationCount:(a.calibrationCount||0)+(b.calibrationCount||0),
+    hasForecast:!!(a.hasForecast||b.hasForecast),projectedSpend:round2((a.projectedSpend||0)+(b.projectedSpend||0)),forecastValues:vals,
+    rangeLow:(a.rangeLow!=null&&b.rangeLow!=null)?round2(a.rangeLow+b.rangeLow):null,
+    rangeHigh:(a.rangeHigh!=null&&b.rangeHigh!=null)?round2(a.rangeHigh+b.rangeHigh):null,
+    remainingForecast:remaining,forecastBreakdown:breakdown,profileEvidence:evidence,
+    recentlySatisfied:(a.recentlySatisfied||[]).concat(b.recentlySatisfied||[]),
+    eventModeledCount:(a.eventModeledCount||0)+(b.eventModeledCount||0),personModeledCount:0,overallModeledCount:(a.overallModeledCount||0)+(b.overallModeledCount||0)
+  };
+}
+function computeForecastNumbers(rows, totalDays, periodStart, scope) {
+  scope=scope||"overall";
+  if(scope==="overall"){
+    return combineForecastScopes(
+      computeForecastNumbersCore(rows,totalDays,periodStart,"budget"),
+      computeForecastNumbersCore(rows,totalDays,periodStart,"excluded")
+    );
+  }
+  return computeForecastNumbersCore(rows,totalDays,periodStart,scope);
+}
+
 
 /* ---------------- forecast backtesting ----------------
    One immutable snapshot per day/horizon is saved. We never rewrite a past
@@ -5636,7 +5751,7 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
         var evidence=x.metaText?('<div class="muted caption" style="margin-top:2px;white-space:normal;">'+esc(x.metaText)+'</div>'):'';
         var cadenceMetrics='';
         if(x.kind==='cadence'||x.kind==='lumpy'){
-          cadenceMetrics='<div class="row gap2" style="margin-top:5px;flex-wrap:wrap;"><span class="caption" style="font-weight:650;">'+Math.round(Math.max(0,Math.min(1,x.probability||0))*100)+'% chance</span><span class="muted caption">·</span><span class="caption">Likely '+(x.kind==='lumpy'?'event':'txn')+' '+fmt(x.likelyAmount||0,0)+' AED</span></div>';
+          cadenceMetrics='<div class="row gap2" style="margin-top:5px;flex-wrap:wrap;"><span class="caption" style="font-weight:650;">'+displayProbabilityPct(x.probability)+'% chance</span><span class="muted caption">·</span><span class="caption">Likely '+(x.kind==='lumpy'?'event':'txn')+' '+fmt(x.likelyAmount||0,0)+' AED</span></div>';
         }
         var rightLabel=(x.kind==='cadence'||x.kind==='lumpy')?'<div class="muted caption" style="text-align:right;margin-top:1px;">expected</div>':'';
         s += '<div class="row between" style="padding:9px 0;gap:12px;'+(i?'border-top:1px solid var(--sep);':'')+'"><div style="min-width:0;flex:1;"><div class="subhead" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.label)+'</div><div class="muted caption">'+tag+'</div>'+evidence+cadenceMetrics+'</div><div style="flex-shrink:0;"><div class="mono subhead" style="font-weight:650;text-align:right;">'+fmt(x.amount,0)+' AED</div>'+rightLabel+'</div></div>';
@@ -5654,7 +5769,7 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
       }
       satisfiedRows.forEach(function(x){
         if ((x.amount||0) >= 5) return;
-        var pPct=Math.round(Math.max(0,Math.min(1,x.probability||0))*100);
+        var pPct=displayProbabilityPct(x.probability);
         var extra=(x.likelyAmount||0)>0?('<div class="row gap2" style="margin-top:5px;flex-wrap:wrap;"><span class="caption" style="font-weight:650;">'+pPct+'% chance</span><span class="muted caption">·</span><span class="caption">Likely txn '+fmt(x.likelyAmount,0)+' AED</span></div>'):'';
         s += '<div class="row between" style="padding:9px 0;gap:12px;border-top:1px solid var(--sep);"><div style="min-width:0;flex:1;"><div class="subhead" style="font-weight:600;">'+esc(x.label)+'</div><div class="muted caption" style="white-space:normal;">'+esc(x.metaText||('Recent event · typical repeat '+Number(x.gap||0).toFixed(1)+' days'))+'</div>'+extra+'</div><div><div class="mono subhead muted" style="text-align:right;">0 AED</div><div class="muted caption" style="text-align:right;">expected</div></div></div>';
       });
@@ -6164,7 +6279,7 @@ function renderAnalysisBody(T) {
       if(clickable) s+='<button data-action="drill-analysis-frequency-group" data-group="'+esc(x.groupKey)+'" style="display:block;width:100%;text-align:left;background:none;border:none;color:inherit;padding:0;">';
       s+='<div style="padding:10px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="row between" style="gap:12px;"><span class="subhead" style="font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(x.label)+'</span><span class="row" style="gap:8px;flex-shrink:0;"><span class="mono subhead" style="font-weight:700;">'+esc(label)+'</span>'+(clickable?ICONS.chevronRight:'')+'</span></div>';
       s+='<div style="height:5px;background:var(--fill);border-radius:999px;margin-top:7px;overflow:hidden;"><div style="height:100%;width:'+w.toFixed(1)+'%;background:'+x.color+';border-radius:999px;"></div></div>';
-      s+='<div class="muted caption" style="margin-top:5px;">'+(st.typicalAmount>0?'Typical '+fmt(st.typicalAmount,0)+' AED · ':'')+st.txnCount+' transaction'+(st.txnCount===1?'':'s')+(st.observedDays?' · '+st.observedDays+' days observed':'')+'</div></div>';
+      s+='<div class="muted caption" style="margin-top:5px;">'+(st.typicalAmount>0?'Typical '+fmt(st.typicalAmount,0)+' AED · ':'')+st.txnCount+' transaction'+(st.txnCount===1?'':'s')+(st.observedDays?' · '+(Math.abs(st.observedDays-Math.round(st.observedDays))<.05?Math.round(st.observedDays):st.observedDays.toFixed(1))+' days observed':'')+'</div></div>';
       if(clickable) s+='</button>';
     });
     return s+'</div>';
