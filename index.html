@@ -694,7 +694,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v109";
+var APP_VERSION = "v110";
 var FORECAST_MODEL_VERSION = "v103-yearly-bill-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly" };
@@ -1625,6 +1625,10 @@ var state = {
   recurringStartDateDraft: null,
   recurringCountDraft: null,
   recurringEndDateDraft: null,
+  editingRecurringId: null,
+  planCategoryPickerOpen: false,
+  planCategoryPickerSearch: "",
+  planCategoryPickerReturnScrollY: 0,
   txnSplitMode: "single",
   txnKind: null,
   txnPersonSplitMode: "single",
@@ -3730,9 +3734,14 @@ function render() {
     return;
   }
 
-  /* Creating a plan is also a dedicated screen. This keeps the fixed app tab
-     bar out of the keyboard area and avoids the visual-viewport overlap that
-     made the inline form look broken on iPhone. */
+  /* Creating/editing a plan is also a dedicated screen. Category selection
+     uses the same full-screen grouped picker as transaction entry. */
+  if (state.page === "plans" && state.plansCreateOpen && state.planCategoryPickerOpen) {
+    root.innerHTML = renderPlanCategoryPickerPage();
+    applyReportingCurrencyText(root);
+    window.scrollTo(0, 0);
+    return;
+  }
   if (state.page === "plans" && state.plansCreateOpen) {
     root.innerHTML = renderPlanEditorPage();
     applyReportingCurrencyText(root);
@@ -4315,7 +4324,7 @@ function renderHomeBody(T, da) {
     if(simpleStatus) hero+='<div class="simple-status" style="color:'+simpleStatusColor+';">'+esc(simpleStatus)+'</div>';
     simpleCards.hero=hero+'</div>';
 
-    var budgetStatus='<div class="card simple-budget-card"><div class="row between"><div class="eyebrow">Budget status</div><div class="muted caption">Month</div></div><div class="simple-budget-grid" style="grid-template-columns:1fr;">';
+    var budgetStatus='<div class="card simple-budget-card"><div class="row between" style="align-items:flex-start;gap:12px;"><div><div class="eyebrow">Budget status</div><div class="muted caption" style="margin-top:2px;">Month</div></div><div style="text-align:right;flex-shrink:0;"><div class="muted caption" style="font-weight:700;">PROJECTED BUDGET SPEND</div><div class="mono subhead" style="margin-top:2px;font-weight:800;color:'+(projectedBudgetSpend>target?'var(--rust)':'var(--text)')+';">'+fmt(projectedBudgetSpend,0)+' AED</div></div></div><div class="simple-budget-grid" style="grid-template-columns:1fr;">';
     budgetStatus+='<div class="simple-budget-cell" style="padding-right:0;"><div class="muted caption">THIS MONTH</div><div class="mono simple-budget-value" style="color:'+(remaining>=0?'var(--text)':'var(--rust)')+';">'+(remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' <span class="simple-budget-unit">AED '+(remaining>=0?'left':'over')+'</span></div><div class="muted caption" style="margin-top:2px;">of '+fmt(target,0)+' AED</div>'+pctBar(progress,budgetPctRaw>100)+'<div class="simple-budget-meta">'+(target>0?(budgetPctRaw.toFixed(0)+'% used · '+monthDaysLeft+' day'+(monthDaysLeft===1?'':'s')+' left'):'—')+'</div>'+paceBadge(monthBudgetPosition)+'</div></div>';
     if(homeBudgetPositionData&&homeBudgetPositionData.length){budgetStatus+='<div class="hairline-top" style="margin-top:11px;padding-top:9px;"><div class="row between" style="align-items:baseline;"><span class="muted caption" style="font-weight:700;">AHEAD / BEHIND</span><span class="muted caption">vs monthly pace · '+esc(homeAheadBehindResolutionLabel(homeChartResolution))+'</span></div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';}
     if(budgetDailyAvg!=null||budgetLast7Avg!=null){
@@ -5160,11 +5169,14 @@ function renderAddTxnPage() {
   h += '<div class="eyebrow" style="margin-bottom:6px;">Note</div>';
   h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:10px;" placeholder="Merchant or what it was for" value="'+(state.entryNoteDraft!=null?esc(state.entryNoteDraft):(editingItem?esc(editingItem.note||""):""))+'" />';
 
-  h += '<button data-action="toggle-txn-advanced" class="row between" style="width:100%;background:none;border:none;padding:8px 0 10px;color:var(--text-muted);font-size:13px;"><span>'+(advancedOpen?'Fewer options':'More options')+'</span><span style="display:flex;transform:rotate('+(advancedOpen?'90':'0')+'deg);">'+ICONS.chevronRight+'</span></button>';
+  /* The only advanced transaction control is the spread-across-days option,
+     which applies only while creating a new expense. Do not show an empty
+     More/Fewer row on Edit Transaction or Income. */
+  if (!editingItem && txnKind === "expense") {
+    h += '<button data-action="toggle-txn-advanced" class="row between" style="width:100%;background:none;border:none;padding:8px 0 10px;color:var(--text-muted);font-size:13px;"><span>'+(advancedOpen?'Fewer options':'More options')+'</span><span style="display:flex;transform:rotate('+(advancedOpen?'90':'0')+'deg);">'+ICONS.chevronRight+'</span></button>';
 
-  if (advancedOpen) {
-    h += '<div class="card" style="padding:12px;margin-bottom:12px;">';
-    if (!editingItem && txnKind === "expense") {
+    if (advancedOpen) {
+      h += '<div class="card" style="padding:12px;margin-bottom:12px;">';
       h += '<div class="eyebrow" style="margin-bottom:6px;">Timing</div><div class="seg" style="margin-bottom:'+(splitMode==='split'?'8':'0')+'px;">';
       h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==='single')+'" data-action="set-txn-split-mode" data-mode="single">Single day</button>';
       h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==='split')+'" data-action="set-txn-split-mode" data-mode="split">Spread across days</button></div>';
@@ -5172,8 +5184,8 @@ function renderAddTxnPage() {
         h += '<input id="splitDaysInput" type="number" inputmode="numeric" min="2" step="1" class="field" style="margin-top:8px;" placeholder="Number of days" value="'+(state.entrySplitDaysDraft!=null?esc(state.entrySplitDaysDraft):"")+'" />';
         h += '<div class="muted caption" style="margin-top:7px;">The total is spread evenly from this date; future shares are added as their day arrives.</div>';
       }
+      h += '</div>';
     }
-    h += '</div>';
   }
 
   var saveLabel;
@@ -7329,21 +7341,62 @@ function ruleLoggedAmount(rule) {
   return round2(sum);
 }
 
+function renderPlanCategoryPickerPage() {
+  var cats=(state.settings.categories||[]).slice();
+  var groups=state.settings.categoryGroups||[];
+  var selected=state.recurringCategoryDraft||"";
+  var q=String(state.planCategoryPickerSearch||"").trim().toLowerCase();
+  function matches(c){ return !q || c.toLowerCase().indexOf(q)!==-1 || String(categoryGroupOf(c)||"").toLowerCase().indexOf(q)!==-1; }
+  function rows(list){
+    var out="";
+    list.filter(matches).forEach(function(c){
+      var sel=selected===c;
+      out+='<button class="category-picker-row" data-action="choose-plan-category" data-cat="'+esc(c)+'">'+catIconCircle(c)+'<span style="flex:1;min-width:0;"><span style="display:block;font-size:16px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(c)+'</span></span><span style="display:flex;color:'+(sel?'var(--accent)':'var(--text-muted)')+';">'+(sel?ICONS.check:ICONS.chevronRight)+'</span></button>';
+    });
+    return out;
+  }
+  var h='<div class="txn-category-picker-page"><div class="txn-entry-shell">';
+  h+='<div class="txn-entry-header"><button data-action="close-plan-category-picker" class="txn-entry-back" aria-label="Back">'+ICONS.chevronLeft+'</button><div class="txn-entry-header-title">Choose category</div><span></span></div>';
+  h+='<div class="txn-entry-content">';
+  h+='<div style="position:relative;margin:8px 0 8px;"><span style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text-muted);display:flex;">'+ICONS.search+'</span><input id="planCategoryPickerSearchInput" type="search" class="field" placeholder="Search categories" value="'+esc(state.planCategoryPickerSearch||"")+'" style="width:100%;padding-left:41px;" /></div>';
+  if(!q){
+    h+='<div class="category-picker-group-title">General</div><div class="category-picker-list"><button class="category-picker-row" data-action="choose-plan-category" data-cat=""><span style="width:32px;height:32px;border-radius:50%;background:var(--fill);display:flex;align-items:center;justify-content:center;color:var(--text-muted);">'+ICONS.x+'</span><span style="flex:1;font-size:16px;font-weight:650;">No category</span><span style="display:flex;color:'+(selected?'var(--text-muted)':'var(--accent)')+';">'+(!selected?ICONS.check:ICONS.chevronRight)+'</span></button></div>';
+  }
+  var any=false;
+  groups.forEach(function(g){
+    var members=cats.filter(function(c){return categoryGroupOf(c)===g && matches(c);});
+    if(!members.length)return;
+    any=true;
+    h+='<div class="category-picker-group-title">'+esc(g)+'</div><div class="category-picker-list">'+rows(members)+'</div>';
+  });
+  var ungrouped=cats.filter(function(c){return !categoryGroupOf(c)&&matches(c);});
+  if(ungrouped.length){ any=true; h+='<div class="category-picker-group-title">Other</div><div class="category-picker-list">'+rows(ungrouped)+'</div>'; }
+  if(q&&!any) h+='<div class="muted" style="text-align:center;padding:42px 16px;">No categories match “'+esc(state.planCategoryPickerSearch||"")+'”.</div>';
+  h+='</div></div></div>';
+  return h;
+}
+
 function renderPlanEditorPage() {
   var today = todayStr();
-  var recKind = state.recurringKindDraft || 'expense';
+  var editingRule = state.editingRecurringId ? (state.settings.recurringRules||[]).find(function(r){return r.id===state.editingRecurringId;}) : null;
+  var recKind = state.recurringKindDraft || (editingRule&&editingRule.entryKind) || 'expense';
   var limitMode = state.recurringLimitMode || 'ongoing';
+  var selectedCategory=state.recurringCategoryDraft||"";
+  var selectedCategoryGroup=selectedCategory?categoryGroupOf(selectedCategory):"";
   var h = '<div class="plan-entry-page"><div class="txn-entry-shell">';
-  h += '<div class="txn-entry-header"><button data-action="toggle-plan-create" class="txn-entry-back" aria-label="Back">'+ICONS.chevronLeft+'</button><div class="txn-entry-header-title">New plan</div><span></span></div>';
+  h += '<div class="txn-entry-header"><button data-action="toggle-plan-create" class="txn-entry-back" aria-label="Back">'+ICONS.chevronLeft+'</button><div class="txn-entry-header-title">'+(editingRule?'Edit plan':'New plan')+'</div><span></span></div>';
   h += '<div class="txn-entry-content">';
   h += '<div class="seg" style="margin-bottom:16px;"><button class="seg-btn" role="tab" aria-selected="'+(recKind==='expense')+'" data-action="set-recurring-kind" data-kind="expense">Expense</button><button class="seg-btn" role="tab" aria-selected="'+(recKind==='income')+'" data-action="set-recurring-kind" data-kind="income">Income</button></div>';
   h += '<label class="eyebrow">Amount</label><div style="position:relative;margin:7px 0 16px;"><span class="muted" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:15px;">'+reportingCurrency()+'</span><input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding:15px 14px 15px 50px;font-size:28px;font-weight:700;" placeholder="0.00" value="'+(state.recurringAmountDraft!=null?esc(state.recurringAmountDraft):'')+'" /></div>';
   h += '<label class="eyebrow">Name</label><input id="recurringNoteInput" type="text" class="field" style="margin:7px 0 16px;" placeholder="'+(recKind==='income'?'Salary, freelance…':'Rent, subscription…')+'" value="'+(state.recurringNoteDraft!=null?esc(state.recurringNoteDraft):'')+'" />';
   if (recKind === 'expense') {
-    h += '<label class="eyebrow">Subcategory</label><select id="recurringCategoryInput" class="field" style="margin:7px 0 16px;"><option value="">No subcategory</option>';
-    (state.settings.categories||[]).forEach(function(c){ var g=categoryGroupOf(c); h += '<option value="'+esc(c)+'"'+(state.recurringCategoryDraft===c?' selected':'')+'>'+esc(g?g+' — '+c:c)+'</option>'; });
-    h += '</select>';
-  }
+    h += '<div class="row between" style="margin-bottom:7px;"><label class="eyebrow">Subcategory</label>'+(selectedCategoryGroup?'<span class="muted caption">'+esc(selectedCategoryGroup)+'</span>':'')+'</div>';
+    h += '<button data-action="open-plan-category-picker" class="field row between" style="width:100%;margin:0 0 16px;text-align:left;border:none;gap:10px;">';
+    if(selectedCategory) h += '<span class="row" style="gap:10px;align-items:center;min-width:0;">'+catIconCircle(selectedCategory)+'<span style="font-size:15px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(selectedCategory)+'</span></span>';
+    else h += '<span class="muted" style="font-size:15px;">Choose category</span>';
+    h += '<span style="display:flex;color:var(--text-muted);">'+ICONS.chevronRight+'</span></button>';
+    h += '<input id="recurringCategoryInput" type="hidden" value="'+esc(selectedCategory)+'" />';
+  } else h += '<input id="recurringCategoryInput" type="hidden" value="" />';
   if ((state.settings.people||[]).length) {
     var rp = state.recurringPersonDraft!=null ? state.recurringPersonDraft : (state.settings.defaultPerson||'');
     h += '<label class="eyebrow">For</label><select id="recurringPersonInput" class="field" style="margin:7px 0 16px;"><option value="">Unassigned</option>';
@@ -7355,9 +7408,10 @@ function renderPlanEditorPage() {
   h += '<label class="eyebrow">Ends</label><div class="seg" style="margin:7px 0 12px;">';
   [['ongoing','Ongoing'],['count','After #'],['until','On date']].forEach(function(o){ h += '<button class="seg-btn" role="tab" aria-selected="'+(limitMode===o[0])+'" data-action="set-recurring-limit-mode" data-mode="'+o[0]+'">'+o[1]+'</button>'; });
   h += '</div>';
-  if (limitMode === 'count') h += '<input id="recurringCountInput" type="number" inputmode="numeric" min="1" step="1" class="field" style="margin-bottom:16px;" placeholder="Number of payments" value="'+(state.recurringCountDraft!=null?esc(state.recurringCountDraft):'')+'" />';
+  if (limitMode === 'count') h += '<input id="recurringCountInput" type="number" inputmode="numeric" min="1" step="1" class="field" style="margin-bottom:16px;" placeholder="Total number of payments" value="'+(state.recurringCountDraft!=null?esc(state.recurringCountDraft):'')+'" />';
   else if (limitMode === 'until') h += '<input id="recurringEndDateInput" type="date" class="field mono" style="margin-bottom:16px;" value="'+(state.recurringEndDateDraft||'')+'" />';
-  h += '<button data-action="add-recurring" class="btn-accent txn-entry-save" style="width:100%;">Create '+(recKind==='income'?'income':'expense')+' plan</button>';
+  if(editingRule && (editingRule.occurrencesLogged||0)>0) h += '<div class="muted caption" style="margin:-2px 0 12px;">Changes apply to future occurrences. '+(editingRule.occurrencesLogged||0)+' already logged transaction'+((editingRule.occurrencesLogged||0)===1?' remains':'s remain')+' unchanged.</div>';
+  h += '<button data-action="add-recurring" class="btn-accent txn-entry-save" style="width:100%;">'+(editingRule?'Save plan changes':('Create '+(recKind==='income'?'income':'expense')+' plan'))+'</button>';
   h += '</div></div></div>';
   return h;
 }
@@ -7431,6 +7485,7 @@ function renderPlansBody() {
       s+='</div><div style="height:5px;background:var(--fill);border-radius:999px;overflow:hidden;margin-top:6px;"><div style="height:100%;width:'+pct+'%;background:'+(complete?'var(--positive)':'var(--accent)')+';"></div></div></div>';
     }
     s+='<div class="row between hairline-top" style="margin-top:11px;padding-top:9px;"><span class="muted caption">'+(next&&!paused?'Next '+shortLabel(next.due)+(rule.endDate?' · ends '+shortLabel(rule.endDate):''):(complete?'Completed':paused?'Automatic logging paused':'Ongoing'))+'</span><span class="row gap2">';
+    if(rule.kind==='recurring') s+='<button data-action="edit-recurring" data-id="'+esc(rule.id)+'" class="btn-outline" style="padding:6px 9px;font-size:11px;">Edit</button>';
     if(!complete) s+='<button data-action="toggle-recurring-active" data-id="'+esc(rule.id)+'" class="btn-outline" style="padding:6px 9px;font-size:11px;">'+(rule.active?'Pause':'Resume')+'</button>';
     s+='<button data-action="delete-recurring" data-id="'+esc(rule.id)+'" class="icon-btn" style="padding:7px;color:var(--rust);" aria-label="Delete">'+ICONS.trash+'</button></span></div></div>';
     return s;
@@ -7806,6 +7861,21 @@ function handleDeleteTxn(date, id) {
    limit-mode segmented control (or pausing/deleting a DIFFERENT rule on the
    same page) rebuilds the DOM and silently erases whatever's been typed
    into this form. Called before any such action mutates state and renders. */
+function resetRecurringFormDraft() {
+  state.recurringLimitMode = "ongoing";
+  state.recurringKindDraft = "expense";
+  state.recurringAmountDraft = null;
+  state.recurringCategoryDraft = null;
+  state.recurringPersonDraft = null;
+  state.recurringNoteDraft = null;
+  state.recurringFrequencyDraft = null;
+  state.recurringStartDateDraft = null;
+  state.recurringCountDraft = null;
+  state.recurringEndDateDraft = null;
+  state.planCategoryPickerOpen = false;
+  state.planCategoryPickerSearch = "";
+}
+
 function preserveRecurringFormDraft() {
   var pairs = [
     ["recurringAmountInput","recurringAmountDraft"],
@@ -8269,6 +8339,47 @@ document.addEventListener("click", function(e) {
         render();
       }
       break;
+    case "edit-recurring":
+      var editRuleId=el.dataset.id;
+      var editRule=(state.settings.recurringRules||[]).find(function(r){return r.id===editRuleId;});
+      if(!editRule || editRule.kind!=="recurring") break;
+      state.plansReturnScrollY = window.scrollY || window.pageYOffset || 0;
+      state.editingRecurringId = editRule.id;
+      state.recurringKindDraft = editRule.entryKind||"expense";
+      state.recurringAmountDraft = String(round2(toReporting(editRule.amount)));
+      state.recurringCategoryDraft = editRule.category||"";
+      state.recurringPersonDraft = editRule.person||"";
+      state.recurringNoteDraft = editRule.note||"";
+      state.recurringFrequencyDraft = editRule.frequency||"weekly";
+      state.recurringStartDateDraft = editRule.startDate||todayStr();
+      state.recurringCountDraft = editRule.occurrencesTotal!=null?String(editRule.occurrencesTotal):null;
+      state.recurringEndDateDraft = editRule.endDate||null;
+      state.recurringLimitMode = editRule.occurrencesTotal!=null?"count":(editRule.endDate?"until":"ongoing");
+      state.planCategoryPickerOpen=false;
+      state.planCategoryPickerSearch="";
+      state.plansCreateOpen=true;
+      render();
+      break;
+    case "open-plan-category-picker":
+      preserveRecurringFormDraft();
+      state.planCategoryPickerReturnScrollY = window.scrollY || window.pageYOffset || 0;
+      state.planCategoryPickerSearch = "";
+      state.planCategoryPickerOpen = true;
+      render();
+      break;
+    case "close-plan-category-picker":
+      state.planCategoryPickerOpen = false;
+      state.planCategoryPickerSearch = "";
+      render();
+      window.scrollTo(0, state.planCategoryPickerReturnScrollY || 0);
+      break;
+    case "choose-plan-category":
+      state.recurringCategoryDraft = el.dataset.cat || "";
+      state.planCategoryPickerOpen = false;
+      state.planCategoryPickerSearch = "";
+      render();
+      window.scrollTo(0, state.planCategoryPickerReturnScrollY || 0);
+      break;
     case "set-recurring-kind":
       preserveRecurringFormDraft();
       state.recurringKindDraft = el.dataset.kind;
@@ -8288,12 +8399,18 @@ document.addEventListener("click", function(e) {
       if (isNaN(recAmountShown) || recAmountShown < 0 || !recStart) break;
       var recKindForRule = state.recurringKindDraft || "expense";
       var recLimitMode = state.recurringLimitMode || "ongoing";
+      var existingRecurringRule = state.editingRecurringId ? (state.settings.recurringRules||[]).find(function(r){return r.id===state.editingRecurringId;}) : null;
       var recCount = null;
       var recEndDate = null;
       if (recLimitMode === "count") {
         var recCountEl = document.getElementById("recurringCountInput");
         var parsedCount = parseInt(recCountEl ? recCountEl.value : "", 10);
         if (isNaN(parsedCount) || parsedCount < 1) break;
+        if(existingRecurringRule && parsedCount < (existingRecurringRule.occurrencesLogged||0)) {
+          showToast("Total payments cannot be below already logged payments");
+          render();
+          break;
+        }
         recCount = parsedCount;
       } else if (recLimitMode === "until") {
         var recEndEl = document.getElementById("recurringEndDateInput");
@@ -8304,8 +8421,8 @@ document.addEventListener("click", function(e) {
       var recPersonEl = document.getElementById("recurringPersonInput");
       var recNoteEl = document.getElementById("recurringNoteInput");
       var recFreqEl = document.getElementById("recurringFrequencyInput");
-      var newRule = {
-        id: Date.now()+"-"+Math.random().toString(36).slice(2,7),
+      var savedRule = {
+        id: existingRecurringRule ? existingRecurringRule.id : (Date.now()+"-"+Math.random().toString(36).slice(2,7)),
         kind: "recurring",
         entryKind: recKindForRule,
         amount: recAmount,
@@ -8317,23 +8434,18 @@ document.addEventListener("click", function(e) {
         startDate: recStart,
         endDate: recEndDate,
         occurrencesTotal: recCount,
-        occurrencesLogged: 0,
-        active: true
+        occurrencesLogged: existingRecurringRule ? (existingRecurringRule.occurrencesLogged||0) : 0,
+        active: existingRecurringRule ? existingRecurringRule.active!==false : true
       };
-      state.settings = Object.assign({}, state.settings, { recurringRules: (state.settings.recurringRules||[]).concat([newRule]) });
+      var nextRecurringRules;
+      if(existingRecurringRule) nextRecurringRules=(state.settings.recurringRules||[]).map(function(r){return r.id===savedRule.id?savedRule:r;});
+      else nextRecurringRules=(state.settings.recurringRules||[]).concat([savedRule]);
+      state.settings = Object.assign({}, state.settings, { recurringRules: nextRecurringRules });
       runRecurringCatchUp();
       persistAll(state.settings, state.entries, "your settings");
-      state.recurringLimitMode = "ongoing";
-      state.recurringAmountDraft = null;
-      state.recurringCategoryDraft = null;
-      state.recurringPersonDraft = null;
-      state.recurringNoteDraft = null;
-      state.recurringFrequencyDraft = null;
-      state.recurringStartDateDraft = null;
-      state.recurringCountDraft = null;
-      state.recurringEndDateDraft = null;
-      showToast(recKindForRule === "income" ? "Recurring income added" : "Recurring payment added");
-      state.recurringKindDraft = "expense";
+      showToast(existingRecurringRule ? "Plan updated" : (recKindForRule === "income" ? "Recurring income added" : "Recurring payment added"));
+      state.editingRecurringId = null;
+      resetRecurringFormDraft();
       state.plansCreateOpen = false;
       state.plansRestoreScroll = true;
       render();
@@ -8642,12 +8754,16 @@ document.addEventListener("click", function(e) {
       render();
       break;
     case "toggle-plan-create":
-      preserveRecurringFormDraft();
+      if (state.plansCreateOpen) preserveRecurringFormDraft();
       if (!state.plansCreateOpen) {
         state.plansReturnScrollY = window.scrollY || window.pageYOffset || 0;
+        state.editingRecurringId = null;
+        resetRecurringFormDraft();
         state.plansCreateOpen = true;
       } else {
         state.plansCreateOpen = false;
+        state.editingRecurringId = null;
+        resetRecurringFormDraft();
         state.plansRestoreScroll = true;
       }
       render();
@@ -9005,6 +9121,17 @@ document.addEventListener("input", function(e) {
   if (e.target && e.target.id === "factoryResetConfirmInput") {
     var fb=document.getElementById("factoryResetConfirmBtn"), fok=String(e.target.value||"").trim().toUpperCase()==="RESET";
     if(fb){fb.disabled=!fok;fb.style.opacity=fok?"1":".4";}
+    return;
+  }
+  if (e.target && e.target.id === "planCategoryPickerSearchInput") {
+    state.planCategoryPickerSearch = e.target.value;
+    var planPickerCaret = e.target.selectionStart;
+    render();
+    var planPickerSearchEl = document.getElementById("planCategoryPickerSearchInput");
+    if (planPickerSearchEl) {
+      try { planPickerSearchEl.focus({preventScroll:true}); } catch(err) { planPickerSearchEl.focus(); }
+      try { planPickerSearchEl.setSelectionRange(planPickerCaret, planPickerCaret); } catch(err2) {}
+    }
     return;
   }
   if (e.target && e.target.id === "txnCategoryPickerSearchInput") {
