@@ -291,6 +291,10 @@
   .simple-budget-unit { font-size:11.5px; font-weight:650; color:var(--text-muted); }
   .simple-budget-meta { margin-top:5px; font-size:10.5px; color:var(--text-muted); font-weight:650; }
   .simple-outlook-card { padding:13px 16px 12px; margin-bottom:8px; }
+  .simple-today-card { padding:12px 16px; }
+  .simple-today-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0; }
+  .simple-today-icon { width:32px; height:32px; border-radius:50%; color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .simple-today-icon svg { width:16px; height:16px; }
   .simple-outlook-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:8px; }
   .simple-outlook-label { color:var(--text-muted); font-size:10.5px; font-weight:650; letter-spacing:.03em; text-transform:uppercase; }
   .simple-outlook-value { margin-top:2px; font-size:22px; line-height:1.06; font-weight:760; letter-spacing:-0.035em; }
@@ -322,9 +326,9 @@
   html.simple-home .app-topbar { flex:0 0 auto; }
   .simple-home-stack {
     flex:1 0 auto; min-height:0;
-    /* Never shrink the first/last cards below their actual content height.
-       They may still share spare viewport space on taller phones. */
-    display:grid; grid-template-rows:minmax(max-content,.86fr) auto minmax(max-content,1.32fr); gap:10px;
+    /* Natural card heights keep the dashboard airy without stretching Month
+       outlook simply to fill the viewport. */
+    display:flex; flex-direction:column; gap:10px;
   }
   .simple-home-stack > .card { margin-bottom:0; height:auto; min-height:0; }
   .simple-home-stack .simple-metric-card,
@@ -666,7 +670,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v96";
+var APP_VERSION = "v97";
 var FORECAST_MODEL_VERSION = "v96-canonical-2";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
@@ -3582,7 +3586,7 @@ function liveBudgetPacing() {
   var spentTodayAll = state.entries[today] ? sumSpentAll(state.entries[today]) : 0;
 
   function todaySpendBuckets(openingProfiles, scope) {
-    var flexible = 0, recurring = 0, cadence = 0, cadenceBySub = {}, recurringBySub = {};
+    var flexible = 0, recurring = 0, cadence = 0, cadenceBySub = {}, recurringBySub = {}, cadenceCountBySub = {}, recurringCountBySub = {};
     todayItems.forEach(function(it){
       if (!expenseCountsForScope(it, scope)) return;
       var amount = Number(it.amount) || 0;
@@ -3591,6 +3595,7 @@ function liveBudgetPacing() {
         if (subcategoryEssentialForSafeSpend(key)) {
           recurring += amount;
           recurringBySub[key] = round2((recurringBySub[key] || 0) + amount);
+          recurringCountBySub[key] = 1;
         } else flexible += amount;
         return;
       }
@@ -3598,9 +3603,12 @@ function liveBudgetPacing() {
       if (p && (p.mode === "cadence" || p.mode === "lumpy") && subcategoryEssentialForSafeSpend(key)) {
         cadence += amount;
         cadenceBySub[key] = round2((cadenceBySub[key] || 0) + amount);
+        /* Cadence is learned from active event DAYS, so several transactions in
+           the same subcategory today satisfy one cadence event, not several. */
+        cadenceCountBySub[key] = 1;
       } else flexible += amount;
     });
-    return { flexible:round2(flexible), recurring:round2(recurring), cadence:round2(cadence), cadenceBySub:cadenceBySub, recurringBySub:recurringBySub };
+    return { flexible:round2(flexible), recurring:round2(recurring), cadence:round2(cadence), cadenceBySub:cadenceBySub, recurringBySub:recurringBySub, cadenceCountBySub:cadenceCountBySub, recurringCountBySub:recurringCountBySub };
   }
 
   /* The same reserve→actual substitution model can pace either the controllable
@@ -3624,7 +3632,7 @@ function liveBudgetPacing() {
     var openingBehavior = buildBehavioralForecast(scope, yesterday, today, per.endStr);
     var buckets = todaySpendBuckets(openingProfiles, scope);
 
-    var cadenceReserveBySub = {}, openingCadenceReserve = 0, reserveBreakdownBySub = {}, flexibleForecastBySub = {};
+    var cadenceReserveBySub = {}, cadenceKindBySub = {}, cadenceLikelyBySub = {}, openingCadenceReserve = 0, reserveBreakdownBySub = {}, flexibleForecastBySub = {};
     /* v64 keeps the forecast evidence next to the Safe-to-Spend decision instead
        of forcing the user to hunt for a second details panel under the chart.
        Each subcategory can carry one or more forecast-driver components so a
@@ -3655,13 +3663,15 @@ function liveBudgetPacing() {
       if(x.kind==="cadence"){
         var expected=round2(Math.max(0,x.amount||0));
         var r=round2(Math.max(0,x.safeReserve||x.amount||0));
-        var cadenceMeta={kind:"cadence",expectedAmount:expected,protectedAmount:r,probability:x.probability==null?null:x.probability,expectedCount:x.expectedCount==null?null:x.expectedCount,likelyAmount:round2(x.likelyAmount||(x.profile&&x.profile.typicalAmount)||0),profile:x.profile||null,reason:x.reason||""};
-        if(subcategoryEssentialForSafeSpend(k)){ cadenceReserveBySub[k]=r; openingCadenceReserve+=r; addReserveBreakdown(k,r,"cadence",cadenceMeta); }
+        var cadenceLikely=round2(x.likelyAmount||(x.profile&&x.profile.typicalAmount)||0);
+        var cadenceMeta={kind:"cadence",expectedAmount:expected,protectedAmount:r,probability:x.probability==null?null:x.probability,expectedCount:x.expectedCount==null?null:x.expectedCount,likelyAmount:cadenceLikely,events:(x.events||[]).map(function(ev){return Object.assign({},ev);}),profile:x.profile||null,reason:x.reason||""};
+        if(subcategoryEssentialForSafeSpend(k)){ cadenceReserveBySub[k]=r; cadenceKindBySub[k]="cadence"; cadenceLikelyBySub[k]=cadenceLikely; openingCadenceReserve+=r; addReserveBreakdown(k,r,"cadence",cadenceMeta); }
         else addFlexibleForecast(k,expected,"cadence",cadenceMeta);
       } else if(x.kind==="lumpy") {
         var lExpected=round2(Math.max(0,x.amount||0)), lReserve=round2(Math.max(0,x.safeReserve||lExpected));
-        var lMeta={kind:"lumpy",expectedAmount:lExpected,protectedAmount:lReserve,probability:x.probability==null?null:x.probability,likelyAmount:round2(x.likelyAmount||(x.profile&&x.profile.typicalAmount)||0),profile:x.profile||null,reason:x.reason||""};
-        if(subcategoryEssentialForSafeSpend(k)){cadenceReserveBySub[k]=lReserve;openingCadenceReserve+=lReserve;addReserveBreakdown(k,lReserve,"lumpy",lMeta);}
+        var lLikely=round2(x.likelyAmount||(x.profile&&x.profile.typicalAmount)||0);
+        var lMeta={kind:"lumpy",expectedAmount:lExpected,protectedAmount:lReserve,probability:x.probability==null?null:x.probability,expectedCount:x.expectedCount==null?null:x.expectedCount,likelyAmount:lLikely,profile:x.profile||null,reason:x.reason||""};
+        if(subcategoryEssentialForSafeSpend(k)){cadenceReserveBySub[k]=lReserve;cadenceKindBySub[k]="lumpy";cadenceLikelyBySub[k]=lLikely;openingCadenceReserve+=lReserve;addReserveBreakdown(k,lReserve,"lumpy",lMeta);}
         else addFlexibleForecast(k,lExpected,"lumpy",lMeta);
       } else if(x.kind==="frequent") {
         /* Frequent categories (including essential Restaurants/Groceries) are
@@ -3692,14 +3702,63 @@ function liveBudgetPacing() {
     var openingScheduledReserve=round2(futureScheduledAfterToday+openingScheduledToday);
 
     var openingReserve=round2(openingCadenceReserve+openingScheduledReserve);
-    var reserveBreakdown=Object.keys(reserveBreakdownBySub).map(function(k){return reserveBreakdownBySub[k];}).sort(function(a,b){return b.amount-a.amount;});
+    var openingReserveBreakdown=Object.keys(reserveBreakdownBySub).map(function(k){return reserveBreakdownBySub[k];}).sort(function(a,b){return b.amount-a.amount;});
+
+    /* v97: Protected essentials is a LIVE remaining reserve. Opening-of-day
+       reserves still anchor today's allowance, but once an essential cadence,
+       lumpy event or scheduled item is actually logged, that satisfied event
+       disappears from the disclosed reserve immediately. For multi-event
+       Month horizons, only the fulfilled occurrence is removed. */
+    var liveReserveBySub={};
+    openingReserveBreakdown.forEach(function(row){
+      liveReserveBySub[row.category]={category:row.category,amount:round2(row.amount||0),cadence:round2(row.cadence||0),lumpy:round2(row.lumpy||0),scheduled:round2(row.scheduled||0),frequent:round2(row.frequent||0),details:(row.details||[]).map(function(d){return Object.assign({},d,{events:(d.events||[]).map(function(ev){return Object.assign({},ev);})});})};
+    });
+    function recalcLiveCadenceComponent(key,count){
+      var row=liveReserveBySub[key]; if(!row||!count)return 0;
+      var kind=cadenceKindBySub[key]||"cadence", oldComponent=Math.max(0,Number(row[kind])||0), newComponent=oldComponent;
+      var detail=(row.details||[]).find(function(d){return d&&d.kind===kind;});
+      if(kind==="cadence"&&detail&&Array.isArray(detail.events)&&detail.events.length){
+        var remainingEvents=detail.events.slice(Math.max(0,count));
+        var expectedCount=0, expectedAmount=0, noEvent=1;
+        remainingEvents.forEach(function(ev){var p=Math.max(0,Math.min(1,Number(ev.probability)||0));expectedCount+=p;expectedAmount+=Math.max(0,Number(ev.expectedAmount)||0);noEvent*=Math.max(0,1-p);});
+        var probability=Math.max(0,Math.min(1,1-noEvent));
+        var likely=Math.max(0,Number(detail.likelyAmount)||cadenceLikelyBySub[key]||0);
+        var quality=detail.profile&&detail.profile.evidenceQuality;
+        newComponent=cadenceMultiProtectedReserve(probability,likely,expectedAmount,quality,expectedCount);
+        detail.events=remainingEvents; detail.expectedCount=expectedCount; detail.expectedAmount=round2(expectedAmount); detail.probability=probability; detail.protectedAmount=newComponent;
+      } else {
+        var likelyFallback=Math.max(0,cadenceLikelyBySub[key]||0);
+        newComponent=round2(Math.max(0,oldComponent-count*(likelyFallback||oldComponent)));
+        if(detail){
+          if(detail.expectedCount!=null)detail.expectedCount=Math.max(0,(Number(detail.expectedCount)||0)-count);
+          if(detail.expectedAmount!=null)detail.expectedAmount=round2(Math.max(0,(Number(detail.expectedAmount)||0)-count*(likelyFallback||Number(detail.expectedAmount)||0)));
+          detail.protectedAmount=newComponent;
+          if(newComponent<=0)detail.probability=0;
+        }
+      }
+      row[kind]=round2(newComponent); row.amount=round2(Math.max(0,(Number(row.amount)||0)-oldComponent+newComponent));
+      return round2(Math.max(0,oldComponent-newComponent));
+    }
+    function reduceLiveScheduled(key,amount){
+      var row=liveReserveBySub[key]; if(!row)return 0;
+      var oldComponent=Math.max(0,Number(row.scheduled)||0), reduction=Math.min(oldComponent,Math.max(0,Number(amount)||0));
+      row.scheduled=round2(oldComponent-reduction); row.amount=round2(Math.max(0,(Number(row.amount)||0)-reduction));
+      var left=reduction;
+      (row.details||[]).forEach(function(d){if(!d||d.kind!=="scheduled"||left<=0)return;var old=Math.max(0,Number(d.protectedAmount)||Number(d.expectedAmount)||0),take=Math.min(old,left);d.protectedAmount=round2(old-take);d.expectedAmount=round2(Math.max(0,(Number(d.expectedAmount)||0)-take));left-=take;});
+      return round2(reduction);
+    }
+    var fulfilledCadenceReserveBySub={};
+    Object.keys(buckets.cadenceCountBySub||{}).forEach(function(k){fulfilledCadenceReserveBySub[k]=recalcLiveCadenceComponent(k,buckets.cadenceCountBySub[k]||0);});
+    Object.keys(buckets.recurringBySub||{}).forEach(function(k){reduceLiveScheduled(k,buckets.recurringBySub[k]||0);});
+    var reserveBreakdown=Object.keys(liveReserveBySub).map(function(k){return liveReserveBySub[k];}).filter(function(x){return x.amount>0.005;}).sort(function(a,b){return b.amount-a.amount;});
+    var liveReserve=round2(reserveBreakdown.reduce(function(s,x){return s+(Number(x.amount)||0);},0));
     var flexibleForecastBreakdown=Object.keys(flexibleForecastBySub).map(function(k){return flexibleForecastBySub[k];}).sort(function(a,b){return b.amount-a.amount;});
     var flexibleForecastTotal=round2(flexibleForecastBreakdown.reduce(function(s,x){return s+x.amount;},0));
     var openingFlexiblePool=round2(openingRemaining-openingReserve);
     var openingSafe=days>0?round2(openingFlexiblePool/days):openingFlexiblePool;
 
     var cadenceAdjustment=0;
-    Object.keys(buckets.cadenceBySub||{}).forEach(function(k){cadenceAdjustment+=(buckets.cadenceBySub[k]||0)-(cadenceReserveBySub[k]||0);});
+    Object.keys(buckets.cadenceBySub||{}).forEach(function(k){cadenceAdjustment+=(buckets.cadenceBySub[k]||0)-(fulfilledCadenceReserveBySub[k]||0);});
     cadenceAdjustment=round2(cadenceAdjustment);
     var scheduledAdjustment=buckets.recurring>0?round2(buckets.recurring-openingScheduledToday):0;
 
@@ -3711,7 +3770,7 @@ function liveBudgetPacing() {
     var forecastStart=effectiveRangeStart(per.startStr), forecastDays=Math.max(1,daysBetween(forecastStart,per.endStr)+1);
     var fc=stats.rows.length?computeForecastNumbers(stats.rows,forecastDays,forecastStart,scope):null;
 
-    return {mode:mode,scope:scope,target:target,avg:avg,openingRemaining:openingRemaining,currentRemaining:currentRemaining,days:days,safe:safe,rawSafe:rawSafe,openingSafe:openingSafe,adjustmentNeeded:adjustmentNeeded,futureReserve:openingReserve,reserveBreakdown:reserveBreakdown,flexibleForecastTotal:flexibleForecastTotal,flexibleForecastBreakdown:flexibleForecastBreakdown,openingCadenceReserve:openingCadenceReserve,openingScheduledReserve:openingScheduledReserve,flexiblePool:flexiblePool,todayFlexibleSpent:buckets.flexible,todayCadenceSpent:buckets.cadence,cadenceAdjustment:cadenceAdjustment,scheduledAdjustment:scheduledAdjustment,spentTodayScope:spentTodayScope,forecast:fc};
+    return {mode:mode,scope:scope,target:target,avg:avg,openingRemaining:openingRemaining,currentRemaining:currentRemaining,days:days,safe:safe,rawSafe:rawSafe,openingSafe:openingSafe,adjustmentNeeded:adjustmentNeeded,futureReserve:openingReserve,liveFutureReserve:liveReserve,reserveBreakdown:reserveBreakdown,openingReserveBreakdown:openingReserveBreakdown,flexibleForecastTotal:flexibleForecastTotal,flexibleForecastBreakdown:flexibleForecastBreakdown,openingCadenceReserve:openingCadenceReserve,openingScheduledReserve:openingScheduledReserve,flexiblePool:flexiblePool,todayFlexibleSpent:buckets.flexible,todayCadenceSpent:buckets.cadence,cadenceAdjustment:cadenceAdjustment,scheduledAdjustment:scheduledAdjustment,spentTodayScope:spentTodayScope,forecast:fc};
   }
 
   var effectiveInfo=currentEffectiveBudgetInfo();
@@ -3844,7 +3903,7 @@ function renderHomeBody(T, da) {
     budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between" style="align-items:baseline;gap:10px;"><span class="muted subhead">Budget spending pace</span><span class="mono caption" style="font-weight:750;color:'+detailedTrendColor+';">'+esc(detailedTrendText)+'</span></div><div class="row" style="margin-top:9px;gap:18px;"><div style="flex:1;"><div class="muted caption">DAILY AVG (MTD)</div><div class="mono subhead" style="font-weight:700;margin-top:2px;">'+(budgetDailyAvg==null?'—':fmt(budgetDailyAvg,0)+' AED/day')+'</div></div><div style="flex:1;"><div class="muted caption">LAST 7 DAYS</div><div class="mono subhead" style="font-weight:700;margin-top:2px;color:'+detailedTrendColor+';">'+(budgetLast7Avg==null?'—':fmt(budgetLast7Avg,0)+' AED/day')+'</div></div></div><div class="muted caption" style="margin-top:6px;">Completed days · budget-counted spending only</div></div>';
   }
   if(homeBudgetPositionData.length){
-    budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between"><span class="muted subhead">Ahead / behind budget</span><span class="mono subhead" style="font-weight:700;color:'+(homeBudgetPosition>=0?'var(--positive)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED '+(homeBudgetPosition>=0?'ahead':'behind')+'</span></div><div class="muted caption" style="margin-top:3px;">Today accrues with elapsed time.</div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
+    budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between"><span class="muted subhead">Ahead / behind budget</span><span class="mono subhead" style="font-weight:700;color:'+(homeBudgetPosition>=0?'var(--accent)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED '+(homeBudgetPosition>=0?'ahead':'behind')+'</span></div><div class="muted caption" style="margin-top:3px;">Today accrues with elapsed time.</div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
   }
   budgetCard += '<button data-action="go-page" data-page="budget" class="btn-plain" style="margin-top:12px;">Open budget →</button></div>';
   cards.budget = budgetCard;
@@ -3890,15 +3949,15 @@ function renderHomeBody(T, da) {
     } else if (adjustmentNeeded>0) {
       simpleStatus=limitingLabel+' needs a '+fmt(adjustmentNeeded,0)+' AED cut to get back on track';
       simpleStatusColor='var(--rust)';
-    } else if (homeSavingsGap!=null) {
-      if(homeSavingsGap>=0){ simpleStatus='Savings target met · '+(projectedCashSavingPct==null?'—':projectedCashSavingPct.toFixed(0)+'%')+' projected saving'; simpleStatusColor='var(--positive)'; }
-      else { simpleStatus=fmt(Math.abs(homeSavingsGap),0)+' AED short of '+fmt(homeSavingsPct,0)+'% savings target'; simpleStatusColor='var(--amber)'; }
-    } else if (projectedSaving>=0) {
-      simpleStatus='On track this month · projected '+fmt(projectedSaving,0)+' AED under budget';
-      simpleStatusColor='var(--positive)';
-    } else {
+    } else if (homeSavingsGap!=null&&homeSavingsGap<0) {
+      simpleStatus=fmt(Math.abs(homeSavingsGap),0)+' AED short of savings target'; simpleStatusColor='var(--amber)';
+    } else if (projectedSaving<0) {
       simpleStatus='Projected '+fmt(Math.abs(projectedSaving),0)+' AED over budget · reduce the remaining pace';
       simpleStatusColor='var(--rust)';
+    } else {
+      /* A healthy dashboard does not need a green congratulatory sentence.
+         The numbers already show the position; reserve status text for action. */
+      simpleStatus='';
     }
 
     h += '<div class="simple-home-stack">';
@@ -3907,22 +3966,40 @@ function renderHomeBody(T, da) {
     h += '<div class="simple-hero-cell"><div class="muted caption">SAFE TO SPEND TODAY</div><div class="mono simple-hero-value" style="color:var(--text);">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'))+'</div></div>';
     h += '<div class="simple-hero-cell"><div class="muted caption">SPENT TODAY</div><div class="mono simple-hero-value" style="color:var(--text);">'+fmt(spentToday,0)+' <span class="muted simple-metric-unit">AED</span></div></div>';
     h += '</div>';
-    h += '<div class="simple-status" style="color:'+simpleStatusColor+';">'+esc(simpleStatus)+'</div>';
+    if(simpleStatus) h += '<div class="simple-status" style="color:'+simpleStatusColor+';">'+esc(simpleStatus)+'</div>';
     h += '</div>';
 
     h += '<div class="card simple-budget-card">';
     h += '<div class="row between"><div class="eyebrow">Budget status</div><div class="muted caption">'+esc(limitingLabel)+' limiting</div></div>';
     h += '<div class="simple-budget-grid">';
-    h += '<div class="simple-budget-cell"><div class="muted caption">THIS WEEK</div><div class="mono simple-budget-value" style="color:'+(weekRemaining>=0?'var(--positive)':'var(--rust)')+';">'+(weekRemaining<0?'−':'')+fmt(Math.abs(weekRemaining),0)+' <span class="simple-budget-unit">AED '+(weekRemaining>=0?'left':'over')+'</span></div>'+pctBar(weekProgress,weekPctRaw>100)+'<div class="simple-budget-meta">'+(effectiveWeekTarget>0?(weekPctRaw.toFixed(0)+'% used · '+weekDaysLeft+' day'+(weekDaysLeft===1?'':'s')+' left'):'—')+'</div></div>';
-    h += '<div class="simple-budget-cell"><div class="muted caption">THIS MONTH</div><div class="mono simple-budget-value" style="color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' <span class="simple-budget-unit">AED '+(remaining>=0?'left':'over')+'</span></div>'+pctBar(progress,budgetPctRaw>100)+'<div class="simple-budget-meta">'+(target>0?(budgetPctRaw.toFixed(0)+'% used · '+monthDaysLeft+' day'+(monthDaysLeft===1?'':'s')+' left'):'—')+'</div></div>';
+    h += '<div class="simple-budget-cell"><div class="muted caption">THIS WEEK</div><div class="mono simple-budget-value" style="color:'+(weekRemaining>=0?'var(--text)':'var(--rust)')+';">'+(weekRemaining<0?'−':'')+fmt(Math.abs(weekRemaining),0)+' <span class="simple-budget-unit">AED '+(weekRemaining>=0?'left':'over')+'</span></div>'+pctBar(weekProgress,weekPctRaw>100)+'<div class="simple-budget-meta">'+(effectiveWeekTarget>0?(weekPctRaw.toFixed(0)+'% used · '+weekDaysLeft+' day'+(weekDaysLeft===1?'':'s')+' left'):'—')+'</div></div>';
+    h += '<div class="simple-budget-cell"><div class="muted caption">THIS MONTH</div><div class="mono simple-budget-value" style="color:'+(remaining>=0?'var(--text)':'var(--rust)')+';">'+(remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' <span class="simple-budget-unit">AED '+(remaining>=0?'left':'over')+'</span></div>'+pctBar(progress,budgetPctRaw>100)+'<div class="simple-budget-meta">'+(target>0?(budgetPctRaw.toFixed(0)+'% used · '+monthDaysLeft+' day'+(monthDaysLeft===1?'':'s')+' left'):'—')+'</div></div>';
     h += '</div>';
     if(budgetDailyAvg!=null||budgetLast7Avg!=null){
-      var simpleTrendColor=budgetTrendPct==null?'var(--text-muted)':(budgetTrendPct<0?'var(--positive)':(budgetTrendPct>0?'var(--rust)':'var(--text-muted)'));
+      var simpleTrendColor=budgetTrendPct==null?'var(--text-muted)':(budgetTrendPct<0?'var(--accent)':(budgetTrendPct>0?'var(--rust)':'var(--text-muted)'));
       var simpleTrendText=budgetTrendPct==null?'—':((budgetTrendPct>0?'+':'')+fmt(budgetTrendPct,0)+'%');
       h += '<div class="hairline-top" style="margin-top:12px;padding-top:11px;"><div class="row between" style="gap:10px;align-items:baseline;"><span class="muted caption" style="font-weight:650;">BUDGET SPENDING PACE</span><span class="mono caption" style="font-weight:800;color:'+simpleTrendColor+';">'+esc(simpleTrendText)+'</span></div><div class="row" style="margin-top:7px;gap:16px;"><div style="flex:1;"><div class="muted caption">Daily avg</div><div class="mono subhead" style="font-weight:750;">'+(budgetDailyAvg==null?'—':fmt(budgetDailyAvg,0)+' AED/day')+'</div></div><div style="flex:1;"><div class="muted caption">Last 7 days</div><div class="mono subhead" style="font-weight:750;color:'+simpleTrendColor+';">'+(budgetLast7Avg==null?'—':fmt(budgetLast7Avg,0)+' AED/day')+'</div></div></div></div>';
     }
     if(homeBudgetPositionData.length){
-      h += '<div class="hairline-top" style="margin-top:14px;padding-top:14px;"><div class="muted caption" style="font-weight:650;">AHEAD / BEHIND BUDGET</div><div class="mono" style="margin-top:5px;font-size:30px;line-height:1.05;font-weight:780;letter-spacing:-.035em;color:'+(homeBudgetPosition>=0?'var(--positive)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' <span class="muted" style="font-size:14px;font-weight:650;letter-spacing:0;">AED</span></div></div>';
+      h += '<div class="hairline-top" style="margin-top:14px;padding-top:14px;"><div class="muted caption" style="font-weight:650;">AHEAD / BEHIND BUDGET</div><div class="mono" style="margin-top:5px;font-size:30px;line-height:1.05;font-weight:780;letter-spacing:-.035em;color:'+(homeBudgetPosition>=0?'var(--accent)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' <span class="muted" style="font-size:14px;font-weight:650;letter-spacing:0;">AED</span></div></div>';
+    }
+    h += '</div>';
+
+    /* Simple Home uses the space freed by the old chart for something directly
+       actionable: the latest activity today. It is compact, auditable and
+       gives immediate confirmation that a newly-added transaction was saved. */
+    var todayActivity=newestFirst((state.entries[todayHomeStr]&&state.entries[todayHomeStr].items)||[]).slice(0,3);
+    h += '<div class="card simple-today-card"><div class="row between"><div class="eyebrow">Today</div><button data-action="go-page" data-page="transactions" class="btn-plain" style="font-size:12px;">See all</button></div>';
+    if(!todayActivity.length){
+      h += '<div class="muted subhead" style="margin-top:10px;">No transactions yet today</div>';
+    } else {
+      h += '<div style="margin-top:6px;">';
+      todayActivity.forEach(function(it,i){
+        var isInc=isIncomeItem(it), label=isInc?(it.note||'Income'):(it.category||it.note||'Uncategorised');
+        var meta=[]; if(it.time)meta.push(formatTxnTime(it.time)); if(it.note&&!isInc&&it.note!==label)meta.push(it.note);
+        h += '<div class="simple-today-row"'+(i?' style="border-top:1px solid var(--sep);"':'')+'><div class="row" style="gap:9px;min-width:0;">'+(isInc?'<span class="simple-today-icon" style="background:var(--positive);">'+ICONS.plus+'</span>':catIconCircle(it.category||''))+'<div style="min-width:0;"><div class="subhead" style="font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(label)+'</div>'+(meta.length?'<div class="muted caption" style="margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(meta.join(' · '))+'</div>':'')+'</div></div><div class="mono subhead" style="font-weight:700;flex-shrink:0;color:'+(isInc?'var(--positive)':'var(--text)')+';">'+(isInc?'+':'−')+fmt(Math.abs(Number(it.amount)||0),0)+' AED</div></div>';
+      });
+      h += '</div>';
     }
     h += '</div>';
 
@@ -3931,8 +4008,8 @@ function renderHomeBody(T, da) {
     h += '<div class="eyebrow">Month outlook</div>';
     h += '<div class="simple-outlook-grid">';
     h += '<div><div class="simple-outlook-label">Spent so far</div><div class="mono simple-outlook-value">'+fmt(overall.spent,0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(spentVsIncomePct==null?'Income not set':spentVsIncomePct.toFixed(0)+'% of income')+'</div></div>';
-    var simpleSavingColor=simpleSaving<0?'var(--rust)':(homeSavingsGap!=null&&homeSavingsGap<0?'var(--amber)':'var(--positive)');
-    h += '<div><div class="simple-outlook-label">'+simpleSavingLabel+'</div><div class="mono simple-outlook-value" style="color:'+simpleSavingColor+';">'+(simpleSaving>=0?'+':'−')+fmt(Math.abs(simpleSaving),0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub" style="color:'+simpleSavingColor+';">'+(simpleSavingPct==null?'Income not set':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(0)+'% of income'+(homeSavingsTarget!=null?' · '+fmt(homeSavingsPct,0)+'% target':'')))+'</div></div>';
+    var simpleSavingColor=simpleSaving<0?'var(--rust)':(homeSavingsGap!=null&&homeSavingsGap<0?'var(--amber)':'var(--text)');
+    h += '<div><div class="simple-outlook-label">'+simpleSavingLabel+'</div><div class="mono simple-outlook-value" style="color:'+simpleSavingColor+';">'+(simpleSaving>=0?'+':'−')+fmt(Math.abs(simpleSaving),0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(simpleSavingPct==null?'Income not set':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(0)+'% of income'))+'</div></div>';
     h += '</div>';
     if (incomeReference>0) {
       h += pctBar(projectedSpendVsIncomePct, projectedSpendVsIncomePct>100);
@@ -4090,7 +4167,7 @@ function renderBudgetBody(T) {
       summary+='</div>';
       if(limitingPacing&&limitingPacing.days>0&&flexibleAllowancePerDay!=null){
         var pacingLabel=limitingHorizon==='week'?'Week':'Month';
-        summary+='<div class="muted caption" style="margin-top:8px;line-height:1.4;">'+pacingLabel+' base: ('+fmt(limitingPacing.openingRemaining,0)+' opening − '+fmt(limitingPacing.futureReserve||0,0)+' control reserve) ÷ '+limitingPacing.days+' day'+(limitingPacing.days===1?'':'s')+' = '+fmt(flexibleAllowancePerDay,0)+' AED/day</div>';
+        summary+='<div class="muted caption" style="margin-top:8px;line-height:1.4;">'+pacingLabel+' base: ('+fmt(limitingPacing.openingRemaining,0)+' opening − '+fmt(limitingPacing.futureReserve||0,0)+' opening reserve) ÷ '+limitingPacing.days+' day'+(limitingPacing.days===1?'':'s')+' = '+fmt(flexibleAllowancePerDay,0)+' AED/day</div>';
         if((state.view==='week'&&limitingHorizon!=='week')||(state.view==='month'&&limitingHorizon==='week')) summary+='<div class="muted caption" style="margin-top:5px;line-height:1.35;">Safe-to-Spend is currently controlled by '+pacingLabel+'. The forecast sections below still show the selected '+selectedForecastHorizonLabel+' period.</div>';
       }
       if(protectedTotal>0||flexibleForecastTotal>0){
@@ -4099,7 +4176,7 @@ function renderBudgetBody(T) {
           var protectedOpen=!!state.budgetProtectedOpen;
           summary+='<button data-action="toggle-budget-protected" class="row between" style="width:100%;background:none;border:none;padding:0;color:inherit;text-align:left;gap:12px;align-items:center;"><span class="subhead" style="font-weight:650;">Protected essentials <span class="muted caption" style="font-weight:500;">· '+selectedForecastHorizonLabel+'</span></span><span class="row gap2"><span class="mono subhead" style="font-weight:750;">'+fmt(protectedTotal,0)+' AED</span><span style="display:flex;transform:rotate('+(protectedOpen?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
           if(protectedOpen&&protectedBreakdown.length){
-            summary+='<div class="muted caption" style="margin-top:5px;line-height:1.35;">Money ring-fenced by Safe-to-Spend for essential upcoming events.</div>';
+            summary+='<div class="muted caption" style="margin-top:5px;line-height:1.35;">Money still ring-fenced from now through the selected period.</div>';
             summary+='<div style="margin-top:8px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
             protectedBreakdown.forEach(function(x,i){
               summary+='<div style="padding:9px 0;'+(i?'border-top:1px solid var(--sep);':'')+'"><div class="row between" style="gap:12px;"><div class="caption" style="font-weight:650;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.category)+'</div><div style="flex-shrink:0;text-align:right;"><div class="mono caption" style="font-weight:750;">'+fmt(x.amount,0)+' AED</div><div class="muted caption">protected</div></div></div>'+budgetForecastEvidenceHtml(x,true)+'</div>';
@@ -8412,7 +8489,14 @@ document.addEventListener("change", function(e) {
       var parentColorStyles = Object.assign({}, state.settings.categoryGroupStyles||{});
       var parentColorCur = categoryGroupStyle(parentColorGroup);
       parentColorStyles[parentColorGroup] = { icon:parentColorCur.icon, color:parentColorValue };
-      persistAll(Object.assign({}, state.settings, { categoryGroupStyles:parentColorStyles }), state.entries, "your categories");
+      var childColorStyles = Object.assign({}, state.settings.categoryStyles||{});
+      (state.settings.categories||[]).filter(function(c){return categoryGroupOf(c)===parentColorGroup;}).forEach(function(c){
+        var childCur=categoryStyle(c);
+        childColorStyles[c]={icon:childCur.icon,color:parentColorValue};
+      });
+      /* Parent color is the starting color for every child. A child can still
+         be recolored afterwards from its own Subcategory screen. */
+      persistAll(Object.assign({}, state.settings, { categoryGroupStyles:parentColorStyles, categoryStyles:childColorStyles }), state.entries, "your categories");
       render();
     },300);
   }
