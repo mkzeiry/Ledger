@@ -694,10 +694,10 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v108";
+var APP_VERSION = "v109";
 var FORECAST_MODEL_VERSION = "v103-yearly-bill-1";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50 };
+var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly" };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
 function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
@@ -734,8 +734,8 @@ function normalizeBudgetOrder(order) {
   valid.forEach(function(id){ if(out.indexOf(id)===-1) out.push(id); });
   return out;
 }
-var DEFAULT_ANALYSIS_ORDER = ["balance","cashFlow","forecastedSpend","spendTrend","category","frequency","person","topTransactions"];
-var ANALYSIS_SECTION_LABELS = { balance:"Cash balance", cashFlow:"Cash flow", forecastedSpend:"Forecasted total spend", spendTrend:"Spend trend", category:"Spend by category", frequency:"Frequency", person:"Spend by person", topTransactions:"Biggest transactions" };
+var DEFAULT_ANALYSIS_ORDER = ["balance","budgetScope","cashFlow","forecastedSpend","spendTrend","category","frequency","person","topTransactions"];
+var ANALYSIS_SECTION_LABELS = { balance:"Cash balance", budgetScope:"Budget vs outside budget", cashFlow:"Cash flow", forecastedSpend:"Forecasted total spend", spendTrend:"Spend trend", category:"Spend by category", frequency:"Frequency", person:"Spend by person", topTransactions:"Biggest transactions" };
 function normalizeAnalysisOrder(order) {
   var valid = DEFAULT_ANALYSIS_ORDER;
   var out = (order||[]).filter(function(id){ return valid.indexOf(id)!==-1; });
@@ -743,6 +743,12 @@ function normalizeAnalysisOrder(order) {
      sections is present, start from the new sensible default instead of
      inheriting a legacy order that would put Cash balance at the bottom. */
   if (!out.length || out.indexOf("balance")===-1) return valid.slice();
+  /* v109: existing layouts predate Budget vs outside budget. Insert the new
+     visual beside Cash balance instead of silently appending it at the end. */
+  if(out.indexOf("budgetScope")===-1){
+    var balanceIdx=out.indexOf("balance");
+    out.splice(balanceIdx>=0?balanceIdx+1:0,0,"budgetScope");
+  }
   valid.forEach(function(id){ if (out.indexOf(id)===-1) out.push(id); });
   return out;
 }
@@ -1589,6 +1595,7 @@ var state = {
   analysisBudgetScope: "all",
   analysisSelectedGroup: null,
   analysisFrequencySelectedGroup: null,
+  analysisFrequencyExpanded: false,
   budgetCategoryFilter: "",
   budgetPersonFilter: "",
   budgetSelectedGroup: null,
@@ -1724,6 +1731,15 @@ function normalizeSafeSpendFlexibilityPct(v){
   return best;
 }
 function safeSpendFlexibilityPct(){ return normalizeSafeSpendFlexibilityPct(state.settings.safeSpendFlexibilityPct); }
+function normalizeHomeAheadBehindResolution(v){
+  v=String(v||"hourly").toLowerCase();
+  return v==="4h"||v==="daily" ? v : "hourly";
+}
+function homeAheadBehindResolution(){ return normalizeHomeAheadBehindResolution(state.settings.homeAheadBehindResolution); }
+function homeAheadBehindResolutionLabel(v){
+  v=normalizeHomeAheadBehindResolution(v);
+  return v==="4h" ? "Every 4 hours" : (v==="daily" ? "Daily" : "Hourly");
+}
 function savingsTargetAmountForIncome(income){ return round2(Math.max(0,Number(income)||0)*savingsTargetPct()/100); }
 function savingsSpendCeilingForIncome(income){ return round2(Math.max(0,Number(income)||0)-savingsTargetAmountForIncome(income)); }
 /* Compares the configured MONTHLY budget (budget-counted categories only)
@@ -1903,6 +1919,55 @@ function hourlyBudgetPositionData(rows,info){
       var live=isToday && idx===limits.length-1 && Math.abs(limit-currentMinute)<0.01;
       var label=limit>=1440 ? (shortLabel(ds)+' · end') : shortHourLabel(ds,limit,live);
       out.push({label:label,date:ds,balance:bal,delta:round2(bal-previousBalance),hourly:true});
+      previousBalance=bal;
+    });
+    cumulative=out.length?out[out.length-1].balance:dayStartBalance;
+  });
+  return out;
+}
+/* v109: Home can show the same cumulative monthly pace at three resolutions.
+   The underlying benchmark never changes; only the sampling density does.
+   Completed days use their full daily pace and today accrues continuously. */
+function homeBudgetPositionDataByResolution(rows,info,resolution){
+  rows=rows||[]; if(!rows.length) return [];
+  resolution=normalizeHomeAheadBehindResolution(resolution);
+  var step=resolution==="hourly"?60:(resolution==="4h"?240:1440);
+  var today=todayStr(), now=new Date(), currentMinute=now.getHours()*60+now.getMinutes()+now.getSeconds()/60;
+  var out=[], cumulative=0, previousBalance=0;
+  function spendThrough(row,minuteLimit){
+    var total=0, isToday=row.date===today;
+    (row.items||[]).forEach(function(it){
+      if(!isExpenseItem(it)||!itemCountsTowardBudget(it)) return;
+      var tm=txnMinuteOfDay(it);
+      if(tm!=null){ if(tm<=minuteLimit) total+=Number(it.amount)||0; }
+      else if((!isToday&&minuteLimit>=1440)||(isToday&&minuteLimit>=currentMinute)) total+=Number(it.amount)||0;
+    });
+    return total;
+  }
+  rows.forEach(function(row,rowIndex){
+    var ds=row.date, isToday=ds===today, fullRef=effectiveBudgetReferenceForDate(ds,info), dayStartBalance=cumulative;
+    if(rowIndex===0){
+      out.push({label:shortHourLabel(ds,0,false),date:ds,balance:round2(dayStartBalance),delta:0});
+      previousBalance=dayStartBalance;
+    }
+    var limits=[];
+    if(isToday){
+      if(resolution==="daily") limits.push(currentMinute);
+      else{
+        for(var m=step;m<=currentMinute;m+=step) limits.push(m);
+        if(!limits.length || Math.abs(limits[limits.length-1]-currentMinute)>.01) limits.push(currentMinute);
+      }
+    }else if(resolution==="daily") limits.push(1440);
+    else{
+      for(var m2=step;m2<=1440;m2+=step) limits.push(m2);
+      if(limits[limits.length-1]!==1440) limits.push(1440);
+    }
+    limits.forEach(function(limit,li){
+      var frac=Math.max(0,Math.min(1,limit/1440)), spent=spendThrough(row,limit);
+      var bal=round2(dayStartBalance+fullRef*frac-spent);
+      var live=isToday&&li===limits.length-1;
+      var label=limit>=1440 ? (shortLabel(ds)+" · end") : (resolution==="daily" ? (live?"Today · now":shortLabel(ds)) : shortHourLabel(ds,limit,live));
+      out.push({label:label,date:ds,balance:bal,delta:round2(bal-previousBalance)});
       previousBalance=bal;
     });
     cumulative=out.length?out[out.length-1].balance:dayStartBalance;
@@ -2241,6 +2306,7 @@ function loadInitial() {
   state.settings.incomeHistory = normalizeIncomeHistory(state.settings.incomeHistory);
   state.settings.savingsTargetPct = normalizeSavingsTargetPct(state.settings.savingsTargetPct);
   state.settings.safeSpendFlexibilityPct = normalizeSafeSpendFlexibilityPct(state.settings.safeSpendFlexibilityPct);
+  state.settings.homeAheadBehindResolution = normalizeHomeAheadBehindResolution(state.settings.homeAheadBehindResolution);
   state.settings.monthlyBudgetHistory = normalizeMonthlyBudgetHistory(state.settings.monthlyBudgetHistory);
   state.settings.categoryStyles = normalizeCategoryStyles(state.settings.categoryStyles, state.settings.categories);
   state.settings.categoryGroups = normalizeCategoryGroups(state.settings.categoryGroups);
@@ -4146,7 +4212,8 @@ function renderHomeBody(T, da) {
   }
   var homeMonthPosition=homePacePositionData(budget.rows);
   var homeWeekPosition=homePacePositionData(weekBudget.rows);
-  var homeBudgetPositionData=homeMonthPosition.data;
+  var homeChartResolution=homeAheadBehindResolution();
+  var homeBudgetPositionData=homeBudgetPositionDataByResolution(budget.rows,homeEffectiveInfo,homeChartResolution);
   var homeBudgetPosition=homeMonthPosition.value;
   var weekBudgetPosition=homeWeekPosition.value;
   var monthBudgetPosition=homeMonthPosition.value;
@@ -4184,7 +4251,7 @@ function renderHomeBody(T, da) {
     budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between" style="align-items:baseline;gap:10px;"><span class="muted subhead">Budget spending pace</span><span class="mono caption" style="font-weight:750;color:'+detailedTrendColor+';">'+esc(detailedTrendText)+'</span></div><div class="row" style="margin-top:9px;gap:18px;"><div style="flex:1;"><div class="muted caption">DAILY AVG (MTD)</div><div class="mono subhead" style="font-weight:700;margin-top:2px;">'+(budgetDailyAvg==null?'—':fmt(budgetDailyAvg,0)+' AED/day')+'</div></div><div style="flex:1;"><div class="muted caption">LAST 7 DAYS</div><div class="mono subhead" style="font-weight:700;margin-top:2px;color:'+detailedTrendColor+';">'+(budgetLast7Avg==null?'—':fmt(budgetLast7Avg,0)+' AED/day')+'</div></div></div><div class="muted caption" style="margin-top:6px;">Completed days · budget-counted spending only</div></div>';
   }
   if(homeBudgetPositionData.length){
-    budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between"><span class="muted subhead">Ahead / behind budget</span><span class="mono subhead" style="font-weight:700;color:'+(homeBudgetPosition>=0?'var(--accent)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED '+(homeBudgetPosition>=0?'ahead':'behind')+'</span></div><div class="muted caption" style="margin-top:3px;">Today accrues with elapsed time.</div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
+    budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between"><span class="muted subhead">Ahead / behind budget</span><span class="mono subhead" style="font-weight:700;color:'+(homeBudgetPosition>=0?'var(--accent)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED '+(homeBudgetPosition>=0?'ahead':'behind')+'</span></div><div class="muted caption" style="margin-top:3px;">'+esc(homeAheadBehindResolutionLabel(homeChartResolution))+' · today accrues with elapsed time.</div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
   }
   budgetCard += '<button data-action="go-page" data-page="budget" class="btn-plain" style="margin-top:12px;">Open budget →</button></div>';
   cards.budget = budgetCard;
@@ -4250,7 +4317,7 @@ function renderHomeBody(T, da) {
 
     var budgetStatus='<div class="card simple-budget-card"><div class="row between"><div class="eyebrow">Budget status</div><div class="muted caption">Month</div></div><div class="simple-budget-grid" style="grid-template-columns:1fr;">';
     budgetStatus+='<div class="simple-budget-cell" style="padding-right:0;"><div class="muted caption">THIS MONTH</div><div class="mono simple-budget-value" style="color:'+(remaining>=0?'var(--text)':'var(--rust)')+';">'+(remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' <span class="simple-budget-unit">AED '+(remaining>=0?'left':'over')+'</span></div><div class="muted caption" style="margin-top:2px;">of '+fmt(target,0)+' AED</div>'+pctBar(progress,budgetPctRaw>100)+'<div class="simple-budget-meta">'+(target>0?(budgetPctRaw.toFixed(0)+'% used · '+monthDaysLeft+' day'+(monthDaysLeft===1?'':'s')+' left'):'—')+'</div>'+paceBadge(monthBudgetPosition)+'</div></div>';
-    if(homeBudgetPositionData&&homeBudgetPositionData.length){budgetStatus+='<div class="hairline-top" style="margin-top:11px;padding-top:9px;"><div class="row between" style="align-items:baseline;"><span class="muted caption" style="font-weight:700;">AHEAD / BEHIND</span><span class="muted caption">vs monthly pace</span></div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';}
+    if(homeBudgetPositionData&&homeBudgetPositionData.length){budgetStatus+='<div class="hairline-top" style="margin-top:11px;padding-top:9px;"><div class="row between" style="align-items:baseline;"><span class="muted caption" style="font-weight:700;">AHEAD / BEHIND</span><span class="muted caption">vs monthly pace · '+esc(homeAheadBehindResolutionLabel(homeChartResolution))+'</span></div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';}
     if(budgetDailyAvg!=null||budgetLast7Avg!=null){
       var simpleTrendColor=budgetTrendPct==null?'var(--text-muted)':(budgetTrendPct<0?'var(--accent)':(budgetTrendPct>0?'var(--rust)':'var(--text-muted)'));
       var simpleTrendText=budgetTrendPct==null?'—':((budgetTrendPct>0?'+':'')+fmt(budgetTrendPct,0)+'%');
@@ -4634,6 +4701,10 @@ function renderSettingsPage() {
     var flexOptions=[{v:25,n:"Conservative"},{v:50,n:"Balanced"},{v:75,n:"Flexible"},{v:100,n:"Very flexible"}];
     h += '<div class="taxonomy-form-card" style="margin:0 0 16px;"><div class="eyebrow">Daily flexibility</div><div class="muted caption" style="margin:4px 0 10px;line-height:1.4;">How much future flexible spending can be brought forward into today. Protected essentials are never used. Balanced (+50%) is the default.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
     flexOptions.forEach(function(o){var active=flexPctSetting===o.v;h+='<button data-action="set-safe-spend-flexibility" data-value="'+o.v+'" class="btn-outline" style="padding:10px 8px;background:'+(active?'var(--accent-wash)':'var(--fill)')+';color:'+(active?'var(--accent)':'var(--text)')+';border-color:transparent;"><div style="font-weight:750;">'+esc(o.n)+'</div><div class="caption" style="margin-top:2px;">+'+o.v+'%</div></button>';});
+    h += '</div></div>';
+    var homeChartRes=homeAheadBehindResolution();
+    h += '<div class="taxonomy-form-card" style="margin:0 0 16px;"><div class="eyebrow">Home ahead / behind chart</div><div class="muted caption" style="margin:4px 0 10px;line-height:1.4;">Choose how densely the Home budget pace chart is sampled. This changes only the chart detail, not the budget calculation.</div><div class="seg" style="padding:3px;">';
+    [["hourly","Hourly"],["4h","Every 4 hrs"],["daily","Daily"]].forEach(function(o){h+='<button class="seg-btn" data-action="set-home-ahead-resolution" data-value="'+o[0]+'" aria-selected="'+(homeChartRes===o[0])+'">'+o[1]+'</button>';});
     h += '</div></div>';
     h += '<button data-action="apply-budget" data-scope="future" class="btn-accent" style="width:100%; margin-bottom:8px;">From this month onward</button>';
     h += '<div class="muted" style="font-size:11px; margin-bottom:14px;">Starts '+esc(shortLabel(monthBounds.startStr))+'. Earlier months keep the budget that applied then.</div>';
@@ -7117,17 +7188,18 @@ function renderAnalysisBody(T) {
   scopeBudgetSpend=round2(scopeBudgetSpend);scopeExcludedSpend=round2(scopeExcludedSpend);
   var scopeTotal=round2(scopeBudgetSpend+scopeExcludedSpend),scopeSelected=analysisScopeState==="budget"?"Budget spend":(analysisScopeState==="excluded"?"Outside budget":null);
   var scopeSlices=[{label:"Budget spend",value:scopeBudgetSpend,color:T.accent},{label:"Outside budget",value:scopeExcludedSpend,color:T.textMuted}].filter(function(x){return x.value>0;});
-  h+='<div id="analysisBudgetScopeCard" class="card card-pad" style="margin-bottom:12px;"><div class="row between"><div><div class="eyebrow">Budget vs outside budget</div><div class="muted caption" style="margin-top:2px;">Tap a slice to filter spending visuals</div></div>'+(analysisScopeState!=="all"?'<button class="btn-plain" data-action="clear-analysis-budget-scope">Clear</button>':'')+'</div>';
-  if(scopeSlices.length)h+='<div style="display:flex;justify-content:center;margin:8px 0 4px;">'+renderPieChart(scopeSlices,T,scopeSelected,'Total',scopeTotal,'filter-analysis-budget-scope','scope')+'</div>';
-  else h+='<div class="muted subhead" style="padding:18px 0 8px;">No spending in this period.</div>';
-  if(scopeTotal>0){var bp=scopeBudgetSpend/scopeTotal*100,ep=scopeExcludedSpend/scopeTotal*100;h+='<button data-action="filter-analysis-budget-scope" data-scope="Budget spend" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(analysisScopeState==='excluded'?'opacity:.45;':'')+'"><span class="subhead">Budget spend</span><span class="mono subhead">'+fmt(scopeBudgetSpend,0)+' AED · '+bp.toFixed(0)+'%</span></button><button data-action="filter-analysis-budget-scope" data-scope="Outside budget" class="row between" style="width:100%;background:none;border:none;padding:8px 0;border-top:1px solid var(--sep);'+(analysisScopeState==='budget'?'opacity:.45;':'')+'"><span class="subhead">Outside budget</span><span class="mono subhead">'+fmt(scopeExcludedSpend,0)+' AED · '+ep.toFixed(0)+'%</span></button>';}
-  h+='</div>';
+  var scopeCardHtml='<div id="analysisBudgetScopeCard" class="card card-pad" style="margin-bottom:12px;"><div class="row between"><div><div class="eyebrow">Budget vs outside budget</div><div class="muted caption" style="margin-top:2px;">Tap a slice to filter spending visuals</div></div>'+(analysisScopeState!=="all"?'<button class="btn-plain" data-action="clear-analysis-budget-scope">Clear</button>':'')+'</div>';
+  if(scopeSlices.length)scopeCardHtml+='<div style="display:flex;justify-content:center;margin:8px 0 4px;">'+renderPieChart(scopeSlices,T,scopeSelected,'Total',scopeTotal,'filter-analysis-budget-scope','scope')+'</div>';
+  else scopeCardHtml+='<div class="muted subhead" style="padding:18px 0 8px;">No spending in this period.</div>';
+  if(scopeTotal>0){var bp=scopeBudgetSpend/scopeTotal*100,ep=scopeExcludedSpend/scopeTotal*100;scopeCardHtml+='<button data-action="filter-analysis-budget-scope" data-scope="Budget spend" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(analysisScopeState==='excluded'?'opacity:.45;':'')+'"><span class="subhead">Budget spend</span><span class="mono subhead">'+fmt(scopeBudgetSpend,0)+' AED · '+bp.toFixed(0)+'%</span></button><button data-action="filter-analysis-budget-scope" data-scope="Outside budget" class="row between" style="width:100%;background:none;border:none;padding:8px 0;border-top:1px solid var(--sep);'+(analysisScopeState==='budget'?'opacity:.45;':'')+'"><span class="subhead">Outside budget</span><span class="mono subhead">'+fmt(scopeExcludedSpend,0)+' AED · '+ep.toFixed(0)+'%</span></button>';}
+  scopeCardHtml+='</div>';
   var catFilter=state.analysisCategoryFilter||"",personFilter=state.analysisPersonFilter||"",groupFilter=state.analysisSelectedGroup||"",selKey=state.analysisSelectedBucket;
   function analysisScopeAllowsCategory(cat){if(analysisScope==="overall")return true;var excluded=!!(state.settings.categoryExcludeFromBudget||{})[cat];return analysisScope==="budget"?!excluded:excluded;}
   var buckets=buildAnalysisBuckets(cs.rows,granularity,catFilter,personFilter,groupFilter);function itemCatOf(it){return it.category||'Uncategorised';}
   function keepItemPerson(it){return isExpenseItem(it)&&itemMatchesPersonFilter(it,personFilter)&&(!personFilter||!subcategoryExcludedFromPeopleAnalysis(it.category));}function keepItemCategoryOnly(it){return isExpenseItem(it)&&itemMatchesCategoryScope(it,catFilter,groupFilter);}function keepItem(it){return keepItemCategoryOnly(it)&&keepItemPerson(it);}function filteredSpent(){return cs.rows.reduce(function(t,r){return t+(r.items||[]).reduce(function(u,it){return keepItem(it)?u+personScopedAmount(it,personFilter):u;},0);},0);}
   var showGroupChip=groupFilter&&!catFilter;if(catFilter||personFilter||showGroupChip){h+='<div class="row gap2" style="margin-bottom:12px;align-items:center;flex-wrap:wrap;">';if(showGroupChip)h+='<span class="chip chip-accent">'+esc(groupFilter)+'</span>';if(catFilter)h+='<span class="chip chip-accent">'+esc(catFilter)+'</span>';if(personFilter)h+='<span class="chip" style="background:'+(personFilter==='Unassigned'?'#8595B5':personColor(personFilter))+';color:#fff;font-weight:600;">'+esc(personFilter)+'</span>';if(showGroupChip)h+='<button class="btn-plain" data-action="clear-analysis-group">Clear group</button>';if(catFilter)h+='<button class="btn-plain" data-action="clear-analysis-category">Clear subcategory</button>';if(personFilter)h+='<button class="btn-plain" data-action="clear-analysis-person">Clear person</button>';h+='</div>';}
   var sectionHtml={};
+  sectionHtml.budgetScope=function(){return scopeCardHtml;};
   function bucketDetail(chartId){if(selKey==null)return'';var prefix=chartId+'|';if(selKey.indexOf(prefix)!==0)return'';var key=selKey.slice(prefix.length),b=buckets.find(function(x){return x.key===key;});if(!b)return'';var items=[];cs.rows.filter(function(r){return b.dates.indexOf(r.date)!==-1;}).forEach(function(r){(r.items||[]).forEach(function(it){if(keepItem(it))items.push({date:r.date,it:it});});});items.sort(function(a,b2){return personScopedAmount(b2.it,personFilter)-personScopedAmount(a.it,personFilter);});var total=items.reduce(function(t,x){return t+personScopedAmount(x.it,personFilter);},0);var s='<div class="bucket-detail hairline-top" style="margin-top:12px;padding-top:12px;"><div class="row between" style="margin-bottom:10px;"><div><div class="headline">'+esc(b.title)+'</div><div class="muted footnote">'+fmt(total,0)+' AED spent · '+items.length+' transaction'+(items.length===1?'':'s')+'</div></div><button class="icon-btn" data-action="clear-bucket">'+ICONS.x+'</button></div>';items.forEach(function(x,i){s+='<div class="row" style="align-items:center;gap:10px;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+'">'+catIconCircle(x.it.category)+'<div style="flex:1;min-width:0;"><div class="subhead">'+esc(x.it.note||x.it.category||'Spent')+'</div><div class="muted caption">'+esc((b.dates.length>1?dayLabel(x.date):'')+(x.it.category?' · '+x.it.category:''))+'</div></div><div class="mono subhead">'+fmt(personScopedAmount(x.it,personFilter),2)+'</div></div>';});return s+'</div>';}
 
   sectionHtml.cashFlow=function(){
@@ -7212,7 +7284,8 @@ function renderAnalysisBody(T) {
     var headerRight=personFilter?'<span class="muted caption">'+esc(personFilter)+'</span>':(topLevel?'<span class="muted caption">Tap category</span>':'');
     var subtitle=drillGroup?'Subcategory frequency · full observed window · up to 12 months':'Observed frequency · full tracked window · up to 12 months';
     var s='<div id="analysisFrequencyCard" class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:4px;">'+headerLeft+headerRight+'</div><div class="muted caption" style="margin-bottom:12px;">'+subtitle+'</div>';
-    targets.forEach(function(x,i){
+    var shownTargets=(state.analysisFrequencyExpanded||targets.length<=5)?targets:targets.slice(0,5);
+    shownTargets.forEach(function(x,i){
       var st=x.stats, label=frequencyLabel(st), rate=st.enough?(st.avgGap<=0?maxRate:1/st.avgGap):0, w=maxRate>0?Math.max(4,Math.min(100,rate/maxRate*100)):0;
       var clickable=topLevel&&x.groupKey;
       if(clickable) s+='<button data-action="drill-analysis-frequency-group" data-group="'+esc(x.groupKey)+'" style="display:block;width:100%;text-align:left;background:none;border:none;color:inherit;padding:0;">';
@@ -7221,6 +7294,7 @@ function renderAnalysisBody(T) {
       s+='<div class="muted caption" style="margin-top:5px;">'+(st.typicalAmount>0?'Typical '+fmt(st.typicalAmount,0)+' AED · ':'')+st.txnCount+' transaction'+(st.txnCount===1?'':'s')+(st.observedDays?' · '+(Math.abs(st.observedDays-Math.round(st.observedDays))<.05?Math.round(st.observedDays):st.observedDays.toFixed(1))+' days observed':'')+'</div></div>';
       if(clickable) s+='</button>';
     });
+    if(targets.length>5)s+='<button data-action="toggle-analysis-frequency-expanded" class="btn-outline" style="width:100%;margin-top:10px;padding:9px 12px;">'+(state.analysisFrequencyExpanded?'Show less':'Show all '+targets.length)+'</button>';
     return s+'</div>';
   };
   sectionHtml.person=function(){if(!(state.settings.people||[]).length)return'';var totals={};cs.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!keepItemCategoryOnly(it)||subcategoryExcludedFromPeopleAnalysis(it.category))return;if(it.personSplit&&it.personSplit.length)it.personSplit.forEach(function(ps){totals[ps.person]=(totals[ps.person]||0)+round2(it.amount*ps.pct/100);});else{var k=it.person||'Unassigned';totals[k]=(totals[k]||0)+it.amount;}});});var slices=Object.keys(totals).map(function(k){return{label:k,value:totals[k]};}).sort(function(a,b){return b.value-a.value;}),total=slices.reduce(function(t,x){return t+x.value;},0);if(!slices.length)return'';slices.forEach(function(sl){sl.color=sl.label==='Unassigned'?'#8595B5':personColor(sl.label);});var s='<div id="analysisPersonCard" class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:4px;"><span class="eyebrow">Spend by person</span><span class="muted caption">'+(personFilter?'Tap to clear':'Tap to filter')+'</span></div><div class="muted caption" style="margin-bottom:10px;">Average per completed day in the selected period.</div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(slices,T,personFilter||null,'All',total,'filter-analysis-person','person')+'</div>';slices.forEach(function(sl,i){var p=total?sl.value/total*100:0,isSel=personFilter===sl.label;s+='<button data-action="filter-analysis-person" data-person="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(personFilter&&!isSel?'opacity:.45;':'')+'"><span>'+ (sl.label==='Unassigned'?'<span class="subhead">Unassigned</span>':personChip(sl.label))+'</span><span class="row" style="gap:10px;align-items:center;"><span style="text-align:right;"><span class="mono subhead" style="display:block;">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="display:block;margin-top:2px;">avg '+fmt(analysisDailyAvg(sl.value),0)+'/day</span></span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});return s+'</div>';};
@@ -8157,6 +8231,12 @@ document.addEventListener("click", function(e) {
       showToast("Daily flexibility: +"+fmt(flexPctVal,0)+"%");
       render();
       break;
+    case "set-home-ahead-resolution":
+      var homeResVal=normalizeHomeAheadBehindResolution(el.dataset.value);
+      persistAll(Object.assign({},state.settings,{homeAheadBehindResolution:homeResVal}),state.entries,"home chart resolution");
+      showToast("Home chart: "+homeAheadBehindResolutionLabel(homeResVal));
+      render();
+      break;
     case "save-savings-target":
       var savingsEl=document.getElementById("savingsTargetPctInput");
       var savingsPctVal=normalizeSavingsTargetPct(savingsEl?savingsEl.value:state.settings.savingsTargetPct);
@@ -8606,6 +8686,7 @@ document.addEventListener("click", function(e) {
       state.analysisSelectedBucket = null;
       state.analysisSelectedGroup = null;
       state.analysisFrequencySelectedGroup = null;
+      state.analysisFrequencyExpanded = false;
       render();
       break;
     case "set-cash-balance-range":
@@ -8628,6 +8709,7 @@ document.addEventListener("click", function(e) {
       state.analysisCategoryFilter="";
       state.analysisSelectedGroup=null;
       state.analysisFrequencySelectedGroup=null;
+      state.analysisFrequencyExpanded=false;
       render();
       break;
     case "clear-analysis-budget-scope":
@@ -8662,11 +8744,18 @@ document.addEventListener("click", function(e) {
     case "drill-analysis-frequency-group":
       captureAnalysisAnchor("analysisFrequencyCard");
       state.analysisFrequencySelectedGroup = el.dataset.group || null;
+      state.analysisFrequencyExpanded = false;
       render();
       break;
     case "clear-analysis-frequency-group":
       captureAnalysisAnchor("analysisFrequencyCard");
       state.analysisFrequencySelectedGroup = null;
+      state.analysisFrequencyExpanded = false;
+      render();
+      break;
+    case "toggle-analysis-frequency-expanded":
+      captureAnalysisAnchor("analysisFrequencyCard");
+      state.analysisFrequencyExpanded = !state.analysisFrequencyExpanded;
       render();
       break;
     case "drill-budget-group":
