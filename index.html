@@ -670,7 +670,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v99";
+var APP_VERSION = "v100";
 var FORECAST_MODEL_VERSION = "v99-ewma-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
@@ -1454,6 +1454,7 @@ var state = {
   analysisOffset: 0,
   analysisPeriodFrom: "",
   analysisPeriodTo: "",
+  analysisCashRange: "tracking",
   analysisReorderMode: false,
   budgetReorderMode: false,
   homeReorderMode: false,
@@ -4003,11 +4004,6 @@ function renderHomeBody(T, da) {
     } else if (adjustmentNeeded>0) {
       simpleStatus=limitingLabel+' needs a '+fmt(adjustmentNeeded,0)+' AED cut to get back on track';
       simpleStatusColor='var(--rust)';
-    } else if (homeSavingsGap!=null&&homeSavingsGap<0) {
-      simpleStatus=fmt(Math.abs(homeSavingsGap),0)+' AED short of savings target'; simpleStatusColor='var(--amber)';
-    } else if (projectedSaving<0) {
-      simpleStatus='Projected '+fmt(Math.abs(projectedSaving),0)+' AED over budget · reduce the remaining pace';
-      simpleStatusColor='var(--rust)';
     }
 
     var simpleCards={};
@@ -4027,7 +4023,7 @@ function renderHomeBody(T, da) {
     }
     simpleCards.budgetStatus=budgetStatus+'</div>';
 
-    var todayActivity=txnNewestFirst((state.entries[todayHomeStr]&&state.entries[todayHomeStr].items)||[]).slice(0,3);
+    var todayActivity=txnNewestFirst(((state.entries[todayHomeStr]&&state.entries[todayHomeStr].items)||[]).filter(function(it){return isExpenseItem(it);})).slice(0,3);
     var todayCard='<div class="card simple-today-card"><div class="row between"><div class="eyebrow">Today</div><button data-action="go-page" data-page="transactions" class="btn-plain" style="font-size:12px;">See all</button></div>';
     if(!todayActivity.length){
       todayCard+='<div class="muted subhead" style="margin-top:10px;">No transactions yet today</div>';
@@ -6262,6 +6258,10 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
     s += '<span class="subhead" style="font-weight:650;">Forecast details</span><span class="row gap2"><span class="mono muted caption">'+(hasForecast?(fmt(fc.remainingForecast||0,0)+' AED remaining'):'No future days')+'</span><span style="display:flex;transform:rotate('+(detailsOpen?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
     if (detailsOpen) {
       s += '<div style="margin-top:8px;">';
+      if(hasForecast){
+        var previousTotal=scopedCompareRows.reduce(function(t,r){return t+(Number(r.spent)||0);},0);
+        s += '<div style="background:var(--fill);border-radius:12px;padding:10px 12px;margin:0 0 10px;"><div class="row between"><span class="muted caption">Actual so far</span><span class="mono caption" style="font-weight:700;">'+fmt(actualSoFar,0)+' AED</span></div><div class="row between" style="margin-top:5px;"><span class="muted caption">Remaining forecast</span><span class="mono caption" style="font-weight:700;">'+fmt(fc.remainingForecast||0,0)+' AED</span></div><div class="row between" style="margin-top:5px;"><span class="muted caption">Projected close</span><span class="mono caption" style="font-weight:800;">'+fmt(projectedSpend,0)+' AED</span></div>'+(previousTotal>0?'<div class="row between" style="margin-top:5px;"><span class="muted caption">Last '+esc(periodWord)+'</span><span class="mono caption">'+fmt(previousTotal,0)+' AED</span></div>':'')+'</div>';
+      }
       if(!hasForecast) s += '<div class="muted caption" style="padding:2px 0 9px;line-height:1.4;">This period has no future calendar days left. Frequency evidence is still shown below; remaining-period probability is 0%.</div>';
       if(fc.calibrationCount>0&&Math.abs((fc.calibrationFactor||1)-1)>=.01) s += '<div class="muted caption" style="padding:2px 0 9px;line-height:1.4;">Backtest calibration '+((fc.calibrationFactor||1)>1?'+':'')+fmt(((fc.calibrationFactor||1)-1)*100,0)+'% from '+fc.calibrationCount+' completed early-period forecast'+(fc.calibrationCount===1?'':'s')+'.</div>';
       if(Math.abs((fc.portfolioBlendFactor||1)-1)>=.03) s += '<div class="muted caption" style="padding:2px 0 9px;line-height:1.4;">Whole-budget pace guardrail '+((fc.portfolioBlendFactor||1)>1?'raised':'lowered')+' frequent-spend estimates by '+fmt(Math.abs((fc.portfolioBlendFactor||1)-1)*100,0)+'% · robust pace '+fmt(fc.portfolioPace||0,0)+' AED/day.</div>';
@@ -6401,7 +6401,7 @@ function buildBudgetTrendCard(view, baseOffset, T) {
    selected period while the line stops at the latest elapsed date, matching
    the visual idea of a balance falling/rising through the month without
    inventing future values. */
-function renderCashBalanceLineChart(rows, info, T, targetBalance) {
+function renderCashBalanceLineChart(rows, info, T) {
   if (!rows || !rows.length) return "";
   var w=340,h=205,padL=42,padR=8,padT=14,padB=24,plotW=w-padL-padR,plotH=h-padT-padB;
   var totalDays=Math.max(1, daysBetween(info.start, info.end)+1);
@@ -6413,7 +6413,7 @@ function renderCashBalanceLineChart(rows, info, T, targetBalance) {
     pts.push({date:r.date,label:shortLabel(r.date),balance:acc,dayNet:dayNet,idx:dayIndex});
   });
   if (!pts.length) return "";
-  var vals=pts.map(function(p){return p.balance;}).concat([0]); if(targetBalance!=null)vals.push(targetBalance);
+  var vals=pts.map(function(p){return p.balance;}).concat([0]);
   var min=Math.min.apply(null,vals),max=Math.max.apply(null,vals);
   if (max===min) { max+=1; min-=1; }
   var margin=(max-min)*0.08; max+=margin; min-=margin;
@@ -6427,7 +6427,6 @@ function renderCashBalanceLineChart(rows, info, T, targetBalance) {
     grid+='<text x="'+(padL-5)+'" y="'+(yy+3)+'" font-size="8" fill="'+T.textMuted+'" text-anchor="end">'+tick(v)+'</text>';
   });
   if (min<0 && max>0) grid+='<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+y(0)+'" y2="'+y(0)+'" stroke="'+T.textMuted+'" stroke-width="1.2"/>';
-  if(targetBalance!=null){ var ty=y(targetBalance); grid+='<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+ty+'" y2="'+ty+'" stroke="'+T.amber+'" stroke-width="1.5" stroke-dasharray="6,3"/><text x="'+padL+'" y="'+Math.max(10,ty-5)+'" font-size="8.5" font-weight="600" fill="'+T.amber+'">Savings target '+fmt(targetBalance,0)+' AED</text>'; }
   var xy=pts.map(function(p){return[xIdx(p.idx),y(p.balance)];});
   var curveD=xy.length>=2?smoothPathD(xy):"";
   var baselineY=y(Math.max(min,Math.min(max,0)));
@@ -6456,15 +6455,25 @@ function renderCashBalanceLineChart(rows, info, T, targetBalance) {
     +'</svg>';
 }
 
-function buildCashBalanceCard(info, cs, T) {
-  if (!cs.rows.length || cs.income<=0) return "";
-  var balance=round2(cs.income-cs.spent), goal=periodSavingsGoalMetrics(info,cs);
-  var targetBalance=goal.pct>0&&goal.projectedIncome>0?goal.targetSaving:null;
+function cashBalanceIndependentInfo() {
+  var end=todayStr(), dates=Object.keys(state.entries||{}).sort();
+  var natural=state.settings.trackingStartDate || (dates.length?dates[0]:end);
+  if(natural>end) natural=end;
+  var mode=state.analysisCashRange==='30d'?'30d':'tracking';
+  var thirty=toStr(addDays(parseD(end),-29));
+  var start=mode==='30d' ? (natural>thirty?natural:thirty) : natural;
+  return {start:start,end:end,mode:mode,title:mode==='30d'?'Last 30 days':'Since tracking'};
+}
+
+function buildCashBalanceCard(T) {
+  var info=cashBalanceIndependentInfo(), cs=periodStatsOverall(info.start,info.end);
+  if (!cs.rows.length) return "";
+  var balance=round2(cs.income-cs.spent);
   var s='<div class="card card-pad" style="margin-bottom:16px;">';
-  s+='<div class="row between" style="align-items:flex-end;"><div><div class="eyebrow">Cash balance</div><div class="mono" style="font-size:28px;font-weight:700;margin-top:4px;color:'+(balance>=0?'var(--positive)':'var(--rust)')+';">'+(balance<0?'−':'')+fmt(Math.abs(balance),0)+' AED</div></div><div style="text-align:right;"><div class="muted caption">INCOME − EXPENSES</div><div class="mono subhead">'+fmt(cs.income,0)+' − '+fmt(cs.spent,0)+'</div></div></div>';
-  if(targetBalance!=null)s+='<div class="row between hairline-top" style="margin-top:12px;padding-top:10px;"><span class="muted subhead">Savings target · '+fmt(goal.pct,0)+'%</span><span class="mono subhead" style="font-weight:650;color:var(--amber);">'+fmt(targetBalance,0)+' AED</span></div>';
-  s+='<div id="cashBalanceChartWrap" style="position:relative;margin-top:10px;"><div id="cashBalanceChartTip" class="footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:9px;padding:6px 9px;white-space:nowrap;opacity:0;pointer-events:none;z-index:3;box-shadow:0 3px 10px rgba(0,0,0,.2);"></div>'+renderCashBalanceLineChart(cs.rows,info,T,targetBalance)+'</div>';
-  s+='<div class="muted caption" style="margin-top:4px;">Running net cash flow from the start of this period.</div></div>';
+  s+='<div class="row between" style="align-items:center;gap:12px;"><div><div class="eyebrow">Cash balance</div><div class="mono" style="font-size:28px;font-weight:700;margin-top:4px;color:'+(balance>=0?'var(--positive)':'var(--rust)')+';">'+(balance<0?'−':'')+fmt(Math.abs(balance),0)+' AED</div></div>';
+  s+='<div class="seg" style="width:168px;flex:0 0 168px;"><button class="seg-btn" role="tab" aria-selected="'+(info.mode==='tracking')+'" data-action="set-cash-balance-range" data-range="tracking">Since start</button><button class="seg-btn" role="tab" aria-selected="'+(info.mode==='30d')+'" data-action="set-cash-balance-range" data-range="30d">30 days</button></div></div>';
+  s+='<div id="cashBalanceChartWrap" style="position:relative;margin-top:12px;"><div id="cashBalanceChartTip" class="footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:9px;padding:6px 9px;white-space:nowrap;opacity:0;pointer-events:none;z-index:3;box-shadow:0 3px 10px rgba(0,0,0,.2);"></div>'+renderCashBalanceLineChart(cs.rows,info,T)+'</div>';
+  s+='<div class="muted caption" style="margin-top:4px;">Net cash movement · '+esc(shortLabel(info.start))+' to today.</div></div>';
   return s;
 }
 
@@ -6734,7 +6743,7 @@ function renderAnalysisBody(T) {
     return s+'</div>';
   };
   sectionHtml.forecastedSpend=function(){if(catFilter||personFilter||groupFilter)return'';return buildAnalysisForecastCard(info,cs,T);};
-  sectionHtml.balance=function(){if(catFilter||personFilter||groupFilter)return'';return buildCashBalanceCard(info,cs,T);};
+  sectionHtml.balance=function(){return buildCashBalanceCard(T);};
   sectionHtml.spendTrend=function(){if(catFilter||personFilter||groupFilter)return'';return buildOverallTrendCard(info,cs,T);};
   sectionHtml.category=function(){
     var totals={}, asOf=minStr(info.end,todayStr());
@@ -8162,6 +8171,10 @@ document.addEventListener("click", function(e) {
       state.analysisSelectedBucket = null;
       state.analysisSelectedGroup = null;
       state.analysisFrequencySelectedGroup = null;
+      render();
+      break;
+    case "set-cash-balance-range":
+      state.analysisCashRange = el.dataset.range === "30d" ? "30d" : "tracking";
       render();
       break;
     case "select-bucket":
