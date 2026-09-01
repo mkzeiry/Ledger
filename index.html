@@ -670,7 +670,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v103";
+var APP_VERSION = "v104";
 var FORECAST_MODEL_VERSION = "v103-yearly-bill-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
@@ -4522,12 +4522,12 @@ function renderSettingsPage() {
     var settingsSavingsCompare=currentSavingsBudgetComparison();
     if(settingsSavingsCompare){
       var ssc=settingsSavingsCompare, sscTight=ssc.tighter==='savings';
-      h += '<div class="card card-pad" style="margin-bottom:14px;"><div class="eyebrow">CURRENT MONTH RELATIONSHIP</div>';
+      h += '<div id="savingsRelationshipCard" class="card card-pad" style="margin-bottom:14px;" data-income="'+ssc.projectedIncome+'" data-excluded="'+ssc.projectedExcluded+'" data-budget="'+ssc.configuredBudget+'"><div class="eyebrow">CURRENT MONTH RELATIONSHIP</div>';
       h += '<div class="row between" style="margin-top:9px;"><span class="muted subhead">Set monthly budget</span><span class="mono subhead" style="font-weight:650;">'+fmt(ssc.configuredBudget,0)+' AED</span></div>';
-      h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Savings-compatible budget</span><span class="mono subhead" style="font-weight:700;color:'+(sscTight?'var(--amber)':'var(--text)')+';">≈ '+fmt(ssc.compatibleBudget,0)+' AED</span></div>';
-      h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Max total spending</span><span class="mono subhead" style="font-weight:650;">'+fmt(ssc.spendCeiling,0)+' AED</span></div>';
+      h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Savings-compatible budget</span><span id="savingsCompatiblePreview" class="mono subhead" style="font-weight:700;color:'+(sscTight?'var(--amber)':'var(--text)')+';">≈ '+fmt(ssc.compatibleBudget,0)+' AED</span></div>';
+      h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Max total spending</span><span id="savingsSpendCeilingPreview" class="mono subhead" style="font-weight:650;">'+fmt(ssc.spendCeiling,0)+' AED</span></div>';
       var settingsEffectiveInfo=currentEffectiveBudgetInfo();
-      h += '<div class="muted caption" style="margin-top:9px;line-height:1.35;">Based on ≈ '+fmt(ssc.projectedExcluded,0)+' AED projected outside-budget spending. '+(ssc.tighter==='equal'?'The two limits are currently aligned.':(sscTight?'The savings goal is currently the tighter monthly constraint.':'Your configured budget is currently tighter than the savings goal.'))+'</div>';
+      h += '<div id="savingsRelationshipNote" class="muted caption" style="margin-top:9px;line-height:1.35;">Based on ≈ '+fmt(ssc.projectedExcluded,0)+' AED projected outside-budget spending. '+(ssc.tighter==='equal'?'The two limits are currently aligned.':(sscTight?'The savings goal is currently the tighter monthly constraint.':'Your configured budget is currently tighter than the savings goal.'))+'</div>';
       h += '</div>';
     }
     h += '<button data-action="save-savings-target" class="btn-accent" style="width:100%;">Save savings target</button>';
@@ -4639,7 +4639,7 @@ function renderSettingsPage() {
         h += '<div class="taxonomy-form-card"><label class="eyebrow">Yearly bill setup</label><div class="row gap2" style="margin-top:8px;"><div style="flex:1;"><div class="muted caption" style="margin-bottom:5px;">Annual amount</div><input id="yearlyBillAmountInput" data-cat="'+esc(selectedSub)+'" type="number" inputmode="decimal" min="0" step="0.01" class="field mono" value="'+(ycfg.amount>0?ycfg.amount:'')+'" placeholder="Amount" /></div><div style="width:102px;"><div class="muted caption" style="margin-bottom:5px;">Due month</div><select id="yearlyBillMonthInput" data-cat="'+esc(selectedSub)+'" class="field">';
         monthNames.forEach(function(mn,mi){h+='<option value="'+(mi+1)+'"'+(ycfg.dueMonth===mi+1?' selected':'')+'>'+mn+'</option>';});
         h += '</select></div><div style="width:72px;"><div class="muted caption" style="margin-bottom:5px;">Day</div><input id="yearlyBillDayInput" data-cat="'+esc(selectedSub)+'" type="number" inputmode="numeric" min="1" max="31" step="1" class="field mono" value="'+ycfg.dueDay+'" /></div></div><button data-action="save-yearly-bill-settings" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="width:100%;margin-top:9px;">Save yearly bill</button>';
-        h += '<div class="row between hairline-top" style="margin-top:12px;padding-top:11px;"><div style="padding-right:12px;"><div class="headline">Reserve monthly</div><div class="muted caption" style="margin-top:2px;">'+(ycfg.amount>0?'Protects about '+fmt(ycfg.amount/12,0)+' AED per month toward the next annual payment.':'Set an annual amount to calculate the monthly reserve.')+'</div></div><button data-action="toggle-yearly-bill-reserve" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(ycfg.reserveMonthly?'var(--positive)':'var(--text-muted)')+';">'+(ycfg.reserveMonthly?'On':'Off')+'</button></div></div>';
+        h += '<div class="row between hairline-top" style="margin-top:12px;padding-top:11px;"><div style="padding-right:12px;"><div class="headline">Reserve monthly</div><div id="yearlyBillReservePreview" class="muted caption" style="margin-top:2px;">'+(ycfg.amount>0?'Sets aside about '+fmt(ycfg.amount/12,2)+' AED/month in Safe-to-Spend for the next annual payment. No transaction is created.':'Set an annual amount to calculate the monthly reserve.')+'</div></div><button data-action="toggle-yearly-bill-reserve" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(ycfg.reserveMonthly?'var(--positive)':'var(--text-muted)')+';">'+(ycfg.reserveMonthly?'On':'Off')+'</button></div></div>';
       }
       var safePriority=subcategorySafeSpendPriority(selectedSub), safeEssential=safePriority==='essential';
       h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Safe-to-Spend priority</div><div class="muted caption" style="margin-top:2px;">Essential cadence/plan spending is protected first. Flexible forecasts never block today\'s allowance.</div></div><button data-action="toggle-safe-spend-priority" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(safeEssential?'var(--positive)':'var(--text-muted)')+';">'+(safeEssential?'Essential':'Flexible')+'</button></div></div>';
@@ -8751,6 +8751,36 @@ document.addEventListener("input", function(e) {
       var monthName = new Date().toLocaleDateString("en-GB",{month:"long"});
       derived.textContent = "= " + fmt(perDay,2) + " "+reportingCurrency()+"/day in " + monthName + " · about " + fmt(perDay*7,0) + " "+reportingCurrency()+"/week";
     }
+  }
+  if (e.target && e.target.id === "yearlyBillAmountInput") {
+    var annualPreview = parseFloat(e.target.value);
+    var reservePreview = document.getElementById("yearlyBillReservePreview");
+    if (reservePreview) {
+      reservePreview.textContent = (!isNaN(annualPreview) && annualPreview > 0)
+        ? ("Sets aside about " + fmt(annualPreview/12,2) + " AED/month in Safe-to-Spend for the next annual payment. No transaction is created.")
+        : "Set an annual amount to calculate the monthly reserve.";
+    }
+    return;
+  }
+  if (e.target && e.target.id === "savingsTargetPctInput") {
+    var pctPreview = normalizeSavingsTargetPct(e.target.value);
+    var relCard = document.getElementById("savingsRelationshipCard");
+    if (relCard) {
+      var liveIncome = Number(relCard.dataset.income)||0;
+      var liveExcluded = Number(relCard.dataset.excluded)||0;
+      var liveBudget = Number(relCard.dataset.budget)||0;
+      var liveCeiling = round2(Math.max(0,liveIncome)*(1-pctPreview/100));
+      var liveCompatible = round2(Math.max(0,liveCeiling-liveExcluded));
+      var liveDelta = round2(liveCompatible-liveBudget);
+      var liveTighter = Math.abs(liveDelta)<0.5 ? "equal" : (liveDelta<0 ? "savings" : "budget");
+      var compEl=document.getElementById("savingsCompatiblePreview");
+      var ceilingEl=document.getElementById("savingsSpendCeilingPreview");
+      var noteEl=document.getElementById("savingsRelationshipNote");
+      if(compEl){compEl.textContent="≈ "+fmt(liveCompatible,0)+" AED";compEl.style.color=liveTighter==="savings"?"var(--amber)":"var(--text)";}
+      if(ceilingEl)ceilingEl.textContent=fmt(liveCeiling,0)+" AED";
+      if(noteEl)noteEl.textContent="Based on ≈ "+fmt(liveExcluded,0)+" AED projected outside-budget spending. "+(liveTighter==="equal"?"The two limits are currently aligned.":(liveTighter==="savings"?"The savings goal is currently the tighter monthly constraint.":"Your configured budget is currently tighter than the savings goal."));
+    }
+    return;
   }
   if (e.target && e.target.id === "chromeTransparencyInput") {
     var chromeV=Math.max(0,Math.min(65,Number(e.target.value)||0));
