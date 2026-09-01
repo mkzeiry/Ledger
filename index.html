@@ -199,7 +199,7 @@
   .txn-entry-page input, .txn-entry-page select, .txn-entry-page textarea, .txn-category-picker-page input, .plan-entry-page input, .plan-entry-page select, .plan-entry-page textarea { scroll-margin-top:84px; }
   .txn-entry-save { margin-top:6px; min-height:52px; border-radius:14px !important; font-size:17px !important; }
 
-  /* v105 — native date/time centering + full-screen transaction category picker. */
+  /* v106 — elegant transaction deletion confirmation + editable recent Home activity. */
   .txn-date-time-row input[type="date"], .txn-date-time-row input[type="time"] {
     text-align:center; text-align-last:center; padding-left:10px !important; padding-right:10px !important;
   }
@@ -385,6 +385,11 @@
     overscroll-behavior: contain; transition: max-height 0.15s ease;
   }
   @media (min-width: 480px) { .modal-card { border-radius:16px; padding-top:20px; } }
+  .delete-confirm-card { max-width:390px; padding:22px 20px calc(env(safe-area-inset-bottom,0px) + 18px); text-align:center; }
+  .delete-confirm-icon { width:52px; height:52px; margin:0 auto 12px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--rust-wash); color:var(--rust); }
+  .delete-confirm-icon svg { width:24px; height:24px; }
+  .delete-confirm-summary { margin:16px 0 18px; padding:12px 14px; border-radius:13px; background:var(--fill); text-align:left; }
+  .home-recent-button { width:100%; border:none; background:none; color:inherit; padding:0; text-align:left; display:block; font:inherit; }
   .grabber { width:36px; height:5px; border-radius:999px; background:var(--hairline); margin:0 auto 12px; }
   @media (min-width: 480px) { .grabber { display:none; } }
   .modal-sticky-header {
@@ -689,7 +694,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v105";
+var APP_VERSION = "v106";
 var FORECAST_MODEL_VERSION = "v103-yearly-bill-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
@@ -700,7 +705,7 @@ function normalizeHomeOrder(order) {
   return out;
 }
 var DEFAULT_SIMPLE_HOME_ORDER = ["hero","budgetStatus","today","outlook"];
-var SIMPLE_HOME_SECTION_LABELS = { hero:"Today summary", budgetStatus:"Budget status", today:"Today activity", outlook:"Month outlook" };
+var SIMPLE_HOME_SECTION_LABELS = { hero:"Today summary", budgetStatus:"Budget status", today:"Recent activity", outlook:"Month outlook" };
 function normalizeSimpleHomeOrder(order) {
   var out=(order||[]).filter(function(id){return DEFAULT_SIMPLE_HOME_ORDER.indexOf(id)!==-1;});
   DEFAULT_SIMPLE_HOME_ORDER.forEach(function(id){if(out.indexOf(id)===-1)out.push(id);});
@@ -3536,13 +3541,45 @@ function renderResetConfirmationOverlays() {
   return html;
 }
 
+function pendingDeleteTxn() {
+  if(!state.pendingDeleteKey) return null;
+  var cut=state.pendingDeleteKey.indexOf("|");
+  if(cut<0) return null;
+  var date=state.pendingDeleteKey.slice(0,cut), id=state.pendingDeleteKey.slice(cut+1);
+  var day=state.entries[date];
+  if(!day||!Array.isArray(day.items)) return null;
+  var item=day.items.find(function(it){return it.id===id;});
+  return item?{date:date,id:id,item:item}:null;
+}
+
+function renderTxnDeleteConfirmation() {
+  var pending=pendingDeleteTxn();
+  if(!pending) return "";
+  var it=pending.item, income=isIncomeItem(it);
+  var title=it.note||(income?"Income":(it.category||"Transaction"));
+  var meta=[];
+  if(it.category&&it.note) meta.push(it.category);
+  meta.push(shortLabel(pending.date));
+  if(it.time) meta.push(formatTxnTime(it.time));
+  var html='<div class="modal-backdrop" data-action="cancel-delete-txn" style="padding:0 18px;">';
+  html+='<div class="modal-card delete-confirm-card" data-action="noop">';
+  html+='<div class="delete-confirm-icon">'+ICONS.trash+'</div>';
+  html+='<div class="sheet-title">Delete transaction?</div>';
+  html+='<div class="muted subhead" style="margin-top:7px;">This transaction will be permanently removed from your ledger.</div>';
+  html+='<div class="delete-confirm-summary"><div class="row between" style="gap:12px;align-items:baseline;"><div style="min-width:0;"><div class="subhead" style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(title)+'</div><div class="muted caption" style="margin-top:3px;">'+esc(meta.join(" · "))+'</div></div><div class="mono subhead" style="font-weight:800;flex-shrink:0;color:'+(income?'var(--positive)':'var(--text)')+';">'+(income?'+':'−')+fmt(toReporting(it.amount),2)+' '+reportingCurrency()+'</div></div></div>';
+  if(it.recurringId) html+='<div class="muted caption" style="margin:-7px 4px 16px;">This removes only this logged occurrence. Its recurring plan stays active.</div>';
+  html+='<div class="row gap2"><button data-action="cancel-delete-txn" class="btn-outline" style="flex:1;min-height:48px;">Cancel</button><button data-action="delete-txn" data-date="'+pending.date+'" data-id="'+esc(pending.id)+'" class="btn-rust" style="flex:1;min-height:48px;">Delete</button></div>';
+  html+='</div></div>';
+  return html;
+}
+
 function render() {
   var root = document.getElementById("root");
   var T = effectivePalette();
   applyTheme(T);
   document.documentElement.classList.toggle("simple-home", state.page === "home" && !!state.settings.homeSimpleView && !state.showAddTxn && !state.showSettings);
 
-  var anyModalOpen = state.showBackup || state.showResetConfirm || state.showFactoryResetConfirm;
+  var anyModalOpen = state.showBackup || state.showResetConfirm || state.showFactoryResetConfirm || !!state.pendingDeleteKey;
   if (anyModalOpen) lockBodyScroll(); else unlockBodyScroll();
 
   /* root.innerHTML = html below destroys and recreates every element on every
@@ -3582,7 +3619,7 @@ function render() {
   }
 
   if (state.showAddTxn) {
-    root.innerHTML = renderAddTxnPage();
+    root.innerHTML = renderAddTxnPage() + renderTxnDeleteConfirmation();
     applyReportingCurrencyText(root);
     window.scrollTo(0, savedTxnEntryScrollY);
     return;
@@ -3665,6 +3702,7 @@ function render() {
     html += '<div style="position:fixed; top:calc(env(safe-area-inset-top,0px) + 16px); left:50%; transform:translateX(-50%); background:var(--positive); color:#0C1322; font-size:13px; font-weight:600; padding:9px 18px; border-radius:999px; box-shadow:0 4px 14px rgba(0,0,0,0.35); z-index:60;">'+esc(state.toastMessage)+'</div>';
   }
 
+  html += renderTxnDeleteConfirmation();
   root.innerHTML = html;
   applyReportingCurrencyText(root);
   var newModalCardEl = document.querySelector(".modal-card");
@@ -4123,7 +4161,11 @@ function renderHomeBody(T, da) {
   cards.cashFlow = cash;
 
   var recent = [];
-  Object.keys(state.entries).sort().reverse().some(function(d){ newestFirst(state.entries[d].items||[]).forEach(function(it){ if(recent.length<5) recent.push({date:d,it:it}); }); return recent.length>=5; });
+  Object.keys(state.entries).sort().reverse().some(function(d){
+    if(d>todayStr()) return false;
+    txnNewestFirst(state.entries[d].items||[]).forEach(function(it){ if(recent.length<5 && isExpenseItem(it)) recent.push({date:d,it:it}); });
+    return recent.length>=5;
+  });
   if (recent.length) {
     var recentCard = '<div class="card card-pad"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Recent transactions</span><button data-action="go-page" data-page="transactions" class="btn-plain" style="font-size:12px;">See all</button></div>';
     recent.forEach(function(x,i){ recentCard += '<div style="'+(i?'border-top:1px solid var(--sep);':'')+'">'+renderTxnRow(x.date,x.it)+'</div>'; });
@@ -4175,16 +4217,24 @@ function renderHomeBody(T, da) {
     }
     simpleCards.budgetStatus=budgetStatus+'</div>';
 
-    var todayActivity=txnNewestFirst(((state.entries[todayHomeStr]&&state.entries[todayHomeStr].items)||[]).filter(function(it){return isExpenseItem(it);})).slice(0,3);
-    var todayCard='<div class="card simple-today-card"><div class="row between"><div class="eyebrow">Today</div><button data-action="go-page" data-page="transactions" class="btn-plain" style="font-size:12px;">See all</button></div>';
+    var todayActivity=[];
+    Object.keys(state.entries).sort().reverse().some(function(d){
+      if(d>todayHomeStr)return false;
+      txnNewestFirst(state.entries[d].items||[]).forEach(function(it){if(todayActivity.length<5&&isExpenseItem(it))todayActivity.push({date:d,it:it});});
+      return todayActivity.length>=5;
+    });
+    var todayCard='<div class="card simple-today-card"><div class="row between"><div class="eyebrow">Recent</div><button data-action="go-page" data-page="transactions" class="btn-plain" style="font-size:12px;">See all</button></div>';
     if(!todayActivity.length){
-      todayCard+='<div class="muted subhead" style="margin-top:10px;">No transactions yet today</div>';
+      todayCard+='<div class="muted subhead" style="margin-top:10px;">No expense transactions yet</div>';
     }else{
       todayCard+='<div style="margin-top:6px;">';
-      todayActivity.forEach(function(it,i){
-        var isInc=isIncomeItem(it), label=isInc?(it.note||'Income'):(it.category||it.note||'Uncategorised');
-        var meta=[];if(it.time)meta.push(formatTxnTime(it.time));if(it.note&&!isInc&&it.note!==label)meta.push(it.note);
-        todayCard+='<div class="simple-today-row"'+(i?' style="border-top:1px solid var(--sep);"':'')+'><div class="row" style="gap:9px;min-width:0;">'+(isInc?'<span class="simple-today-icon" style="background:var(--positive);">'+ICONS.plus+'</span>':catIconCircle(it.category||''))+'<div style="min-width:0;"><div class="subhead" style="font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(label)+'</div>'+(meta.length?'<div class="muted caption" style="margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(meta.join(' · '))+'</div>':'')+'</div></div><div class="mono subhead" style="font-weight:700;flex-shrink:0;color:'+(isInc?'var(--positive)':'var(--text)')+';">'+(isInc?'+':'−')+fmt(Math.abs(Number(it.amount)||0),0)+' AED</div></div>';
+      todayActivity.forEach(function(x,i){
+        var it=x.it, label=it.category||it.note||'Uncategorised';
+        var meta=[];
+        if(x.date!==todayHomeStr)meta.push(shortLabel(x.date));
+        if(it.time)meta.push(formatTxnTime(it.time));
+        if(it.note&&it.note!==label)meta.push(it.note);
+        todayCard+='<button class="home-recent-button" data-action="edit-txn" data-date="'+x.date+'" data-id="'+esc(it.id)+'"><div class="simple-today-row"'+(i?' style="border-top:1px solid var(--sep);"':'')+'><div class="row" style="gap:9px;min-width:0;">'+catIconCircle(it.category||'')+'<div style="min-width:0;"><div class="subhead" style="font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(label)+'</div>'+(meta.length?'<div class="muted caption" style="margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(meta.join(' · '))+'</div>':'')+'</div></div><div class="mono subhead" style="font-weight:700;flex-shrink:0;color:var(--text);">−'+fmt(Math.abs(Number(it.amount)||0),0)+' AED</div></div></button>';
       });
       todayCard+='</div>';
     }
@@ -5012,6 +5062,7 @@ function renderAddTxnPage() {
   else if (!isNaN(parsedShown) && parsedShown>0) saveLabel='Add '+fmt(parsedShown,2)+' '+selectedCurrency+' '+(txnKind==='income'?'income':'expense');
   else saveLabel='Add '+(txnKind==='income'?'income':'expense');
   h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent txn-entry-save" style="width:100%;justify-content:center;align-items:center;">'+saveLabel+'</button>';
+  if(editingItem) h += '<button data-action="ask-delete-txn" data-date="'+state.editingOriginalDate+'" data-id="'+esc(editingItem.id)+'" class="btn-outline row gap2" style="width:100%;margin-top:10px;justify-content:center;align-items:center;color:var(--rust);border-color:color-mix(in srgb, var(--rust) 40%, transparent);">'+ICONS.trash+' Delete transaction</button>';
   h += '</div>';
   if (state.toastMessage) h += '<div style="position:fixed;top:calc(env(safe-area-inset-top,0px) + 14px);left:50%;transform:translateX(-50%);background:var(--positive);color:#0C1322;font-size:13px;font-weight:650;padding:9px 16px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,0.35);z-index:80;white-space:nowrap;">'+esc(state.toastMessage)+'</div>';
   h += '</div></div>';
@@ -5113,10 +5164,6 @@ function legendSwatch(bg, label, fg) {
 /* Shared transaction-row renderer used by both the Transactions page and the
    Calendar day-detail panel, so the two never visually drift apart. */
 function renderTxnRow(date, it) {
-  var key=date+"|"+it.id;
-  if(state.pendingDeleteKey===key){
-    return '<div class="row between" style="background:var(--rust-wash);border-radius:8px;padding:8px 10px;margin-bottom:2px;"><span style="font-size:12px;">Delete this?</span><div class="row gap2"><button data-action="delete-txn" data-date="'+date+'" data-id="'+esc(it.id)+'" style="background:var(--rust);border:none;border-radius:5px;padding:4px;color:#fff;">'+ICONS.check+'</button><button data-action="cancel-delete-txn" style="background:none;border:1px solid var(--hairline);border-radius:5px;padding:4px;color:var(--text-muted);">'+ICONS.x+'</button></div></div>';
-  }
   var income=isIncomeItem(it);
   var primary=it.note||(income?"Income":(it.category||"Expense"));
   var secondary=[];
@@ -7595,12 +7642,16 @@ function handleCancelEdit() {
 
 function handleDeleteTxn(date, id) {
   var day = state.entries[date];
-  if (!day) return;
+  if (!day) { state.pendingDeleteKey=null; render(); return; }
+  var deletingFromEditor=!!(state.showAddTxn && state.editingItemId===id && state.editingOriginalDate===date);
   var remaining = day.items.filter(function(i){ return i.id !== id; });
   var nextEntries = Object.assign({}, state.entries);
   if (remaining.length === 0) delete nextEntries[date]; else nextEntries[date] = Object.assign({}, day, { items: remaining });
-  if (state.editingItemId === id) { state.editingItemId = null; state.editingOriginalDate = null; }
+  state.pendingDeleteKey = null;
+  if (deletingFromEditor) { resetTxnEntryForClose(); txnNavSnapshot=null; }
+  else if (state.editingItemId === id) { state.editingItemId = null; state.editingOriginalDate = null; }
   persistAll(state.settings, nextEntries, "your entry");
+  showToast("Transaction deleted");
   render();
 }
 
@@ -7802,7 +7853,6 @@ document.addEventListener("click", function(e) {
     case "add-transaction": handleAddTransaction(); break;
     case "delete-txn":
       handleDeleteTxn(el.dataset.date, el.dataset.id);
-      state.pendingDeleteKey = null;
       break;
     case "ask-delete-txn":
       state.pendingDeleteKey = el.dataset.date+"|"+el.dataset.id;
