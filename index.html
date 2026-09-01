@@ -670,10 +670,10 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v100";
+var APP_VERSION = "v101";
 var FORECAST_MODEL_VERSION = "v99-ewma-1";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
 function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
@@ -2103,6 +2103,7 @@ function loadInitial() {
   state.settings.homeSimpleView = !!state.settings.homeSimpleView;
   state.settings.fxRateCache = normalizeFxCache(state.settings.fxRateCache);
   state.settings.baseCurrency = TXN_CURRENCIES.indexOf(String(state.settings.baseCurrency||"AED").toUpperCase())!==-1 ? String(state.settings.baseCurrency||"AED").toUpperCase() : "AED";
+  state.settings.startingCashBalance = isFinite(Number(state.settings.startingCashBalance)) ? round2(Number(state.settings.startingCashBalance)) : 0;
   state.settings.forecastSnapshots = normalizeForecastSnapshots(state.settings.forecastSnapshots);
   state.settings.transactionTags = normalizeTransactionTags(state.settings.transactionTags);
   state.settings.transactionTagColors = normalizeTransactionTagColors(state.settings.transactionTagColors, state.settings.transactionTags);
@@ -3844,11 +3845,15 @@ function liveBudgetPacing() {
   candidates.forEach(function(c){if(c.obj&&c.obj.rawSafe!=null&&(!limiting||c.obj.rawSafe<limiting.obj.rawSafe))limiting=c;});
   var rawSafeToday=limiting?round2(limiting.obj.rawSafe):null;
   var safeToday=rawSafeToday==null?null:round2(Math.max(0,rawSafeToday));
+  /* Freeze a start-of-day Safe-to-Spend benchmark for status coloring. */
+  var openingSafeVals=[week&&week.openingSafe,month&&month.openingSafe].filter(function(v){return v!=null&&isFinite(v);});
+  var openingSafeToday=openingSafeVals.length?round2(Math.max(0,Math.min.apply(null,openingSafeVals))):null;
+  var safeTodayOpeningRatio=(openingSafeToday!=null&&openingSafeToday>0&&safeToday!=null)?safeToday/openingSafeToday:null;
   var limitingHorizon=limiting?limiting.key:null, limitingObj=limiting?limiting.obj:null;
   var adjustmentNeeded=limitingObj&&limitingObj.adjustmentNeeded!=null?round2(limitingObj.adjustmentNeeded):null;
   var overSafeToday=rawSafeToday!=null?round2(Math.max(0,-rawSafeToday)):null;
 
-  return {week:week,month:month,effective:month,effectiveInfo:effectiveInfo,savings:savings,dailyAverage:dailyAverage,spentToday:spentTodayBudget,spentTodayAll:spentTodayAll,spentTodayForLimit:limitingObj?limitingObj.spentTodayScope:spentTodayBudget,rawSafeToday:rawSafeToday,safeToday:safeToday,overSafeToday:overSafeToday,adjustmentNeeded:adjustmentNeeded,limitingHorizon:limitingHorizon};
+  return {week:week,month:month,effective:month,effectiveInfo:effectiveInfo,savings:savings,dailyAverage:dailyAverage,spentToday:spentTodayBudget,spentTodayAll:spentTodayAll,spentTodayForLimit:limitingObj?limitingObj.spentTodayScope:spentTodayBudget,rawSafeToday:rawSafeToday,safeToday:safeToday,openingSafeToday:openingSafeToday,safeTodayOpeningRatio:safeTodayOpeningRatio,overSafeToday:overSafeToday,adjustmentNeeded:adjustmentNeeded,limitingHorizon:limitingHorizon};
 }
 
 function renderHomeBody(T, da) {
@@ -3876,6 +3881,12 @@ function renderHomeBody(T, da) {
   var budgetLast7Avg = budgetSpendPace.last7Avg;
   var budgetTrendPct = budgetSpendPace.trendPct;
   var safeToday = pacing.safeToday;
+  var safeTodayOpeningRatio = pacing.safeTodayOpeningRatio;
+  var safeTodayColor = 'var(--text)';
+  if(safeTodayOpeningRatio!=null){
+    if(safeTodayOpeningRatio < 0.10) safeTodayColor='var(--rust)';
+    else if(safeTodayOpeningRatio < 0.25) safeTodayColor='var(--amber)';
+  }
   var overSafeToday = pacing.overSafeToday || 0;
   var adjustmentNeeded = pacing.adjustmentNeeded || 0;
   var spentToday = pacing.spentToday;
@@ -3937,7 +3948,7 @@ function renderHomeBody(T, da) {
   budgetCard += '<div class="row between" style="align-items:baseline;"><div><div class="eyebrow">Effective budget</div>'+(homeEffectiveInfo.savingsTight?'<div class="muted caption" style="margin-top:2px;">Savings goal tightened set budget '+fmt(configuredTarget,0)+' → ≈'+fmt(target,0)+' AED</div>':'')+'</div><span class="row" style="align-items:baseline;gap:8px;"><span class="mono subhead" style="font-weight:600;">'+fmt(budget.spent,0)+' / '+fmt(target,0)+' AED</span><span class="mono caption" style="font-weight:700;color:'+(budgetPctRaw>100?'var(--rust)':'var(--text-muted)')+';">'+budgetPctRaw.toFixed(0)+'%</span></span></div>';
   budgetCard += '<div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 16px;"><div style="height:100%;width:'+progress+'%;background:'+(budget.spent>target?'var(--rust)':'var(--accent)')+';"></div></div>';
   budgetCard += '<div class="muted caption">SAFE TO SPEND TODAY</div>';
-  budgetCard += '<div class="mono" style="font-size:34px;font-weight:700;margin-top:3px;color:var(--text);">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted" style="font-size:17px;">AED</span>'))+'</div>';
+  budgetCard += '<div class="mono" style="font-size:34px;font-weight:700;margin-top:3px;color:'+safeTodayColor+';">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted" style="font-size:17px;">AED</span>'))+'</div>';
   if (adjustmentNeeded>0) budgetCard += '<div class="caption" style="margin-top:5px;color:var(--rust);font-weight:650;text-transform:capitalize;">'+esc(pacing.limitingHorizon||'budget')+' cut needed · '+fmt(adjustmentNeeded,0)+' AED</div>';
   budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;">';
   budgetCard += '<div class="row between"><span class="muted subhead">Equal daily allowance</span><span class="mono subhead" style="font-weight:600;color:'+(dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)')+';">'+(dailyAverage==null?'—':((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'))+'</span></div>';
@@ -4008,7 +4019,7 @@ function renderHomeBody(T, da) {
 
     var simpleCards={};
     var hero='<div class="card simple-metric-card simple-hero"><div class="simple-hero-grid">';
-    hero+='<div class="simple-hero-cell"><div class="muted caption">SAFE TO SPEND TODAY</div><div class="mono simple-hero-value" style="color:var(--text);">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'))+'</div></div>';
+    hero+='<div class="simple-hero-cell"><div class="muted caption">SAFE TO SPEND TODAY</div><div class="mono simple-hero-value" style="color:'+safeTodayColor+';">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'))+'</div></div>';
     hero+='<div class="simple-hero-cell"><div class="muted caption">SPENT TODAY</div><div class="mono simple-hero-value" style="color:var(--text);">'+fmt(spentToday,0)+' <span class="muted simple-metric-unit">AED</span></div></div></div>';
     if(simpleStatus) hero+='<div class="simple-status" style="color:'+simpleStatusColor+';">'+esc(simpleStatus)+'</div>';
     simpleCards.hero=hero+'</div>';
@@ -4425,10 +4436,13 @@ function renderSettingsPage() {
   }
 
   if (section === "tracking") {
-    h += '<label class="eyebrow">Tracking start date (optional)</label>';
-    h += '<input id="trackingStartInput" type="date" class="field mono" style="margin:6px 0 6px;" value="'+(state.settings.trackingStartDate||"")+'" max="'+todayStr()+'" />';
-    h += '<div class="muted" style="font-size:12px; margin-bottom:16px;">Caps how far back Week/Month/Year totals count. Set this to when you actually started using the app so untracked earlier days aren\'t assumed as saved. Leave blank to count from each period\'s natural start.</div>';
-    h += '<button data-action="save-tracking" class="btn-accent" style="width:100%; margin-bottom:20px;">Save</button>';
+    h += '<div class="settings-control-card"><label class="settings-control-title">Tracking start date</label>';
+    h += '<input id="trackingStartInput" type="date" class="field mono" style="margin:10px 0 6px;" value="'+(state.settings.trackingStartDate||"")+'" max="'+todayStr()+'" />';
+    h += '<div class="muted footnote">The first date used by budgets, analysis and cash-balance history.</div></div>';
+    h += '<div class="settings-control-card"><label class="settings-control-title">Starting cash balance</label>';
+    h += '<div class="muted footnote" style="margin-top:3px;">Cash available at the beginning of your Tracking Start Date. Default is 0 AED.</div>';
+    h += '<div class="row" style="align-items:center;gap:8px;margin-top:12px;"><input id="startingCashBalanceInput" type="number" inputmode="decimal" step="0.01" class="field mono" style="flex:1;" value="'+esc(state.settings.startingCashBalance==null?0:state.settings.startingCashBalance)+'" /><span class="muted subhead">AED</span></div></div>';
+    h += '<button data-action="save-tracking" class="btn-accent" style="width:100%; margin-bottom:20px;">Save tracking & cash balance</button>';
   }
 
   if (section === "theme") {
@@ -5920,24 +5934,21 @@ function buildBehavioralForecast(scope, profileAsOfStr, forecastFromStr, through
 function forecastProfileMetaText(p, kind, probability, reason) {
   if(!p)return kind==="scheduled"?"Scheduled plan":"";
   var parts=[];
-  if(p.txnCount!=null)parts.push(p.txnCount+" txn"+(p.txnCount===1?"":"s")+" / "+p.spanDays+"d");
   if(kind==="frequent"){
-    if(p.occurrenceGap!=null)parts.push(occurrenceFrequencyText(p.occurrenceGap,true));
-    if(p.paceMean!=null)parts.push("adaptive pace "+fmt(p.paceMean,0)+" AED/day");
-    if(p.paceHalfLife!=null)parts.push(Math.round(p.paceHalfLife)+"d half-life");
+    if(p.paceMean!=null)parts.push(fmt(p.paceMean,0)+" AED/day pace");
+    if(p.paceHalfLife!=null)parts.push(Math.round(p.paceHalfLife)+"d memory");
     if(p.paceTrendPct!=null&&Math.abs(p.paceTrendPct)>=10)parts.push("recent "+(p.paceTrendPct>0?"+":"")+fmt(p.paceTrendPct,0)+"%");
   }else if(kind==="cadence"){
-    if(p.eventGap!=null)parts.push("event ~every "+Number(p.eventGap).toFixed(1)+" days");
+    if(p.eventGap!=null)parts.push("~"+Number(p.eventGap).toFixed(1)+"-day cadence");
   }else if(kind==="lumpy"){
-    parts.push("irregular");
+    parts.push("Irregular");
   }
   if(p.lastDate)parts.push("last "+(p.lastDate===todayStr()?"Today":shortLabel(p.lastDate)));
   if(kind==="cadence"&&p.lastDate&&p.eventGap!=null){
     var expected=toStr(addDays(parseD(p.lastDate),Math.max(1,Math.round(p.eventGap))));
     parts.push((expected<todayStr()?"expected ~":"next ~")+shortLabel(expected));
   }
-  if(reason&&reason!=="Cadence probability"&&reason!=="Irregular expected value")parts.push(reason);
-  parts.push(p.confidence+" confidence");
+  if(p.confidence)parts.push(p.confidence+" confidence");
   return parts.join(" · ");
 }
 
@@ -6270,7 +6281,9 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
         var evidence=x.metaText?('<div class="muted caption" style="margin-top:2px;white-space:normal;">'+esc(x.metaText)+'</div>'):'';
         var cadenceMetrics='';
         if(x.kind==='cadence'||x.kind==='lumpy'){
-          cadenceMetrics='<div class="row gap2" style="margin-top:5px;flex-wrap:wrap;"><span class="caption" style="font-weight:650;">'+displayProbabilityPct(x.probability)+'% chance</span><span class="muted caption">·</span><span class="caption">Likely '+(x.kind==='lumpy'?'event':'txn')+' '+fmt(x.likelyAmount||0,0)+' AED</span></div>';
+          var multiCount=(x.expectedCount!=null&&Number(x.expectedCount)>1.05);
+          var eventCountText=multiCount?('<span class="muted caption">·</span><span class="caption">≈'+Number(x.expectedCount).toFixed(1)+' events</span>'):'';
+          cadenceMetrics='<div class="row gap2" style="margin-top:5px;flex-wrap:wrap;"><span class="caption" style="font-weight:650;">'+displayProbabilityPct(x.probability)+'% '+(multiCount?'≥1':'chance')+'</span>'+eventCountText+'<span class="muted caption">·</span><span class="caption">'+fmt(x.likelyAmount||0,0)+' AED/'+(x.kind==='lumpy'?'event':'txn')+'</span></div>';
         }
         var rightLabel=(x.kind==='cadence'||x.kind==='lumpy')?'<div class="muted caption" style="text-align:right;margin-top:1px;">expected</div>':'';
         s += '<div class="row between" style="padding:9px 0;gap:12px;'+(i?'border-top:1px solid var(--sep);':'')+'"><div style="min-width:0;flex:1;"><div class="subhead" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.label)+'</div><div class="muted caption">'+tag+'</div>'+evidence+cadenceMetrics+'</div><div style="flex-shrink:0;"><div class="mono subhead" style="font-weight:650;text-align:right;">'+fmt(x.amount,0)+' AED</div>'+rightLabel+'</div></div>';
@@ -6395,17 +6408,15 @@ function buildBudgetTrendCard(view, baseOffset, T) {
 }
 
 
-/* Analysis cash-balance line: running net cash flow over the selected period.
-   Starts from zero at the period boundary, adds actual income transactions on
-   their logged dates and subtracts every expense. The x-axis spans the full
-   selected period while the line stops at the latest elapsed date, matching
-   the visual idea of a balance falling/rising through the month without
-   inventing future values. */
+/* Analysis cash-balance line. There is one absolute cash timeline:
+   Starting cash balance at Tracking Start + logged income - logged expenses.
+   The 30-day option is only a zoom window and carries the earlier balance
+   forward instead of restarting the chart at zero. */
 function renderCashBalanceLineChart(rows, info, T) {
   if (!rows || !rows.length) return "";
   var w=340,h=205,padL=42,padR=8,padT=14,padB=24,plotW=w-padL-padR,plotH=h-padT-padB;
   var totalDays=Math.max(1, daysBetween(info.start, info.end)+1);
-  var acc=0, pts=[];
+  var acc=round2(Number(info.openingBalance)||0), pts=[];
   rows.forEach(function(r){
     var dayNet=round2((Number(r.income)||0)-(Number(r.spent)||0));
     acc=round2(acc + dayNet);
@@ -6413,7 +6424,7 @@ function renderCashBalanceLineChart(rows, info, T) {
     pts.push({date:r.date,label:shortLabel(r.date),balance:acc,dayNet:dayNet,idx:dayIndex});
   });
   if (!pts.length) return "";
-  var vals=pts.map(function(p){return p.balance;}).concat([0]);
+  var vals=pts.map(function(p){return p.balance;}).concat([Number(info.openingBalance)||0]);
   var min=Math.min.apply(null,vals),max=Math.max.apply(null,vals);
   if (max===min) { max+=1; min-=1; }
   var margin=(max-min)*0.08; max+=margin; min-=margin;
@@ -6429,7 +6440,7 @@ function renderCashBalanceLineChart(rows, info, T) {
   if (min<0 && max>0) grid+='<line x1="'+padL+'" x2="'+(w-padR)+'" y1="'+y(0)+'" y2="'+y(0)+'" stroke="'+T.textMuted+'" stroke-width="1.2"/>';
   var xy=pts.map(function(p){return[xIdx(p.idx),y(p.balance)];});
   var curveD=xy.length>=2?smoothPathD(xy):"";
-  var baselineY=y(Math.max(min,Math.min(max,0)));
+  var baselineY=y(Math.max(min,Math.min(max,Number(info.openingBalance)||0)));
   var areaD=xy.length>=2?(curveD+' L '+xy[xy.length-1][0]+','+baselineY+' L '+xy[0][0]+','+baselineY+' Z'):"";
   var lineColor=acc>=0?T.positive:T.rust;
   var line="";
@@ -6462,18 +6473,25 @@ function cashBalanceIndependentInfo() {
   var mode=state.analysisCashRange==='30d'?'30d':'tracking';
   var thirty=toStr(addDays(parseD(end),-29));
   var start=mode==='30d' ? (natural>thirty?natural:thirty) : natural;
-  return {start:start,end:end,mode:mode,title:mode==='30d'?'Last 30 days':'Since tracking'};
+  var starting=round2(isFinite(Number(state.settings.startingCashBalance))?Number(state.settings.startingCashBalance):0);
+  var opening=starting;
+  if(start>natural){
+    var priorEnd=toStr(addDays(parseD(start),-1));
+    opening=round2(starting + periodStatsOverall(natural,priorEnd).net);
+  }
+  var full=periodStatsOverall(natural,end);
+  var current=round2(starting + full.net);
+  return {start:start,end:end,mode:mode,title:mode==='30d'?'Last 30 days':'Since tracking',trackingStart:natural,startingBalance:starting,openingBalance:opening,currentBalance:current};
 }
 
 function buildCashBalanceCard(T) {
   var info=cashBalanceIndependentInfo(), cs=periodStatsOverall(info.start,info.end);
-  if (!cs.rows.length) return "";
-  var balance=round2(cs.income-cs.spent);
+  var balance=info.currentBalance;
   var s='<div class="card card-pad" style="margin-bottom:16px;">';
   s+='<div class="row between" style="align-items:center;gap:12px;"><div><div class="eyebrow">Cash balance</div><div class="mono" style="font-size:28px;font-weight:700;margin-top:4px;color:'+(balance>=0?'var(--positive)':'var(--rust)')+';">'+(balance<0?'−':'')+fmt(Math.abs(balance),0)+' AED</div></div>';
   s+='<div class="seg" style="width:168px;flex:0 0 168px;"><button class="seg-btn" role="tab" aria-selected="'+(info.mode==='tracking')+'" data-action="set-cash-balance-range" data-range="tracking">Since start</button><button class="seg-btn" role="tab" aria-selected="'+(info.mode==='30d')+'" data-action="set-cash-balance-range" data-range="30d">30 days</button></div></div>';
   s+='<div id="cashBalanceChartWrap" style="position:relative;margin-top:12px;"><div id="cashBalanceChartTip" class="footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:9px;padding:6px 9px;white-space:nowrap;opacity:0;pointer-events:none;z-index:3;box-shadow:0 3px 10px rgba(0,0,0,.2);"></div>'+renderCashBalanceLineChart(cs.rows,info,T)+'</div>';
-  s+='<div class="muted caption" style="margin-top:4px;">Net cash movement · '+esc(shortLabel(info.start))+' to today.</div></div>';
+  s+='<div class="muted caption" style="margin-top:4px;">'+(info.mode==='30d'?'30-day view carries forward your earlier balance.':'Starts from '+fmt(info.startingBalance,0)+' AED on '+esc(shortLabel(info.trackingStart))+'.')+'</div></div>';
   return s;
 }
 
@@ -7731,9 +7749,12 @@ document.addEventListener("click", function(e) {
       break;
     case "save-tracking":
       var tsEl = document.getElementById("trackingStartInput");
-      var trackSettings = Object.assign({}, state.settings, { trackingStartDate: (tsEl && tsEl.value) ? tsEl.value : null });
+      var cashStartEl = document.getElementById("startingCashBalanceInput");
+      var cashStartVal = cashStartEl ? Number(cashStartEl.value) : Number(state.settings.startingCashBalance||0);
+      if(!isFinite(cashStartVal)) cashStartVal=0;
+      var trackSettings = Object.assign({}, state.settings, { trackingStartDate: (tsEl && tsEl.value) ? tsEl.value : null, startingCashBalance: round2(cashStartVal) });
       persistAll(trackSettings, state.entries, "your settings");
-      showToast("Tracking date saved");
+      showToast("Tracking & cash balance saved");
       render();
       break;
     case "apply-budget":
