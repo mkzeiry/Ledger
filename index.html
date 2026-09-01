@@ -670,10 +670,10 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v101";
-var FORECAST_MODEL_VERSION = "v99-ewma-1";
+var APP_VERSION = "v103";
+var FORECAST_MODEL_VERSION = "v103-yearly-bill-1";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
 function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
@@ -907,6 +907,18 @@ function renameTag(kind, oldName, newName) {
     if (!isMerge && nextExclude[oldName]) nextExclude[newName] = true;
     delete nextExclude[oldName];
     patch.categoryExcludeFromBudget = nextExclude;
+    var nextForecastBehavior = Object.assign({}, state.settings.categoryForecastBehavior||{});
+    if (isMerge) {
+      if (nextForecastBehavior[newName] == null && nextForecastBehavior[oldName] != null) nextForecastBehavior[newName] = nextForecastBehavior[oldName];
+    } else if (nextForecastBehavior[oldName] != null) nextForecastBehavior[newName] = nextForecastBehavior[oldName];
+    delete nextForecastBehavior[oldName];
+    patch.categoryForecastBehavior = nextForecastBehavior;
+    var nextYearlyBillSettings = Object.assign({}, state.settings.categoryYearlyBillSettings||{});
+    if (isMerge) {
+      if (nextYearlyBillSettings[newName] == null && nextYearlyBillSettings[oldName] != null) nextYearlyBillSettings[newName] = nextYearlyBillSettings[oldName];
+    } else if (nextYearlyBillSettings[oldName] != null) nextYearlyBillSettings[newName] = nextYearlyBillSettings[oldName];
+    delete nextYearlyBillSettings[oldName];
+    patch.categoryYearlyBillSettings = nextYearlyBillSettings;
     var nextPeopleExclude = Object.assign({}, state.settings.peopleAnalysisExcluded||{});
     if (!isMerge && nextPeopleExclude[oldName]) nextPeopleExclude[newName] = true;
     delete nextPeopleExclude[oldName];
@@ -1088,6 +1100,10 @@ function recurringOccurrenceDate(rule, n) {
   var start = parseD(rule.startDate);
   if (rule.frequency === "daily") return toStr(addDays(start, n));
   if (rule.frequency === "weekly") return toStr(addDays(start, n*7));
+  if (rule.frequency === "yearly") {
+    var yy=start.getFullYear()+n, mm=start.getMonth(), lastDay=new Date(yy,mm+1,0).getDate();
+    return toStr(new Date(yy,mm,Math.min(start.getDate(),lastDay)));
+  }
   var totalMonthIndex = start.getMonth() + n;
   var targetYear = start.getFullYear() + Math.floor(totalMonthIndex/12);
   var targetMonth = ((totalMonthIndex % 12) + 12) % 12;
@@ -1114,7 +1130,7 @@ function ruleIsComplete(rule) {
   return false;
 }
 function normalizeRecurringRules(rules) {
-  return (rules||[]).filter(function(r){ return r && r.id && r.startDate && (r.frequency==="daily"||r.frequency==="weekly"||r.frequency==="monthly"); });
+  return (rules||[]).filter(function(r){ return r && r.id && r.startDate && (r.frequency==="daily"||r.frequency==="weekly"||r.frequency==="monthly"||r.frequency==="yearly"); });
 }
 /* Generates any occurrences of active rules that are due (today or earlier)
    and haven't been logged yet — this is the only mechanism that makes
@@ -1271,6 +1287,82 @@ function normalizeCategoryExcludeFromBudget(map, categories) {
     if (valid.indexOf(c) !== -1 && map[c]) out[c] = true;
   });
   return out;
+}
+
+/* v103: Forecast behavior can be overridden per subcategory. "Auto" keeps
+   the learned classifier. Monthly and Yearly bills are semantic schedules:
+   once the bill is logged for its cycle, that cycle has no remaining
+   behavioral forecast. Yearly bills can also build a monthly sinking reserve
+   without inventing fake monthly expense transactions. */
+var FORECAST_BEHAVIOR_VALUES = ["auto","frequent","cadence","monthly","yearly","lumpy"];
+var DEFAULT_MONTHLY_BILL_CATEGORIES = {"Phone Bill":true,"Electricity / Utilities":true};
+function defaultCategoryForecastBehavior(catName){
+  return DEFAULT_MONTHLY_BILL_CATEGORIES[catName] ? "monthly" : "auto";
+}
+function normalizeCategoryForecastBehavior(map,categories){
+  var out={},valid=categories||[],src=(map&&typeof map==="object"&&!Array.isArray(map))?map:{};
+  valid.forEach(function(c){
+    var v=src[c];
+    out[c]=FORECAST_BEHAVIOR_VALUES.indexOf(v)!==-1?v:defaultCategoryForecastBehavior(c);
+  });
+  return out;
+}
+function categoryForecastBehavior(catName){
+  if(!catName)return "auto";
+  var map=state.settings.categoryForecastBehavior||{},v=map[catName];
+  return FORECAST_BEHAVIOR_VALUES.indexOf(v)!==-1?v:defaultCategoryForecastBehavior(catName);
+}
+function forecastBehaviorLabel(v){
+  return v==="frequent"?"Frequent":v==="cadence"?"Cadence":v==="monthly"?"Monthly bill":v==="yearly"?"Yearly bill":v==="lumpy"?"Lumpy":"Auto";
+}
+function normalizeCategoryYearlyBillSettings(map,categories){
+  var out={},valid=categories||[],src=(map&&typeof map==="object"&&!Array.isArray(map))?map:{};
+  valid.forEach(function(c){
+    var x=src[c]; if(!x||typeof x!=="object"||Array.isArray(x))return;
+    var amount=Number(x.amount),month=Math.round(Number(x.dueMonth)),day=Math.round(Number(x.dueDay));
+    out[c]={
+      amount:isFinite(amount)&&amount>0?round2(amount):null,
+      dueMonth:isFinite(month)?Math.max(1,Math.min(12,month)):null,
+      dueDay:isFinite(day)?Math.max(1,Math.min(31,day)):null,
+      reserveMonthly:x.reserveMonthly!==false
+    };
+  });
+  return out;
+}
+function categoryHistoricalExpenseRows(catName){
+  var rows=[];
+  Object.keys(state.entries||{}).sort().forEach(function(ds){
+    ((state.entries[ds]&&state.entries[ds].items)||[]).forEach(function(it){
+      if(isExpenseItem(it)&&subcategoryKey(it)===catName)rows.push({date:ds,amount:Math.max(0,Number(it.amount)||0),recurringId:it.recurringId||null});
+    });
+  });
+  return rows;
+}
+function activeYearlyRuleForCategory(catName){
+  return (state.settings.recurringRules||[]).find(function(r){return r&&r.active&&r.kind==="recurring"&&r.entryKind!=="income"&&r.category===catName&&r.frequency==="yearly"&&!ruleIsComplete(r);})||null;
+}
+function yearlyBillConfigForCategory(catName){
+  var src=(state.settings.categoryYearlyBillSettings||{})[catName]||{}, rows=categoryHistoricalExpenseRows(catName), last=rows.length?rows[rows.length-1]:null;
+  var rule=activeYearlyRuleForCategory(catName), refDate=rule&&rule.startDate?rule.startDate:(last?last.date:todayStr());
+  var d=parseD(refDate), histAmounts=rows.map(function(x){return x.amount;}).filter(function(x){return x>0;});
+  var inferredAmount=rule&&Number(rule.amount)>0?Number(rule.amount):(medianNumber(histAmounts)||0);
+  var amount=Number(src.amount); if(!(amount>0))amount=inferredAmount;
+  var dueMonth=Math.round(Number(src.dueMonth));if(!(dueMonth>=1&&dueMonth<=12))dueMonth=d.getMonth()+1;
+  var dueDay=Math.round(Number(src.dueDay));if(!(dueDay>=1&&dueDay<=31))dueDay=d.getDate();
+  return {amount:amount>0?round2(amount):0,dueMonth:dueMonth,dueDay:dueDay,reserveMonthly:src.reserveMonthly!==false,hasExplicit:!!((state.settings.categoryYearlyBillSettings||{})[catName]),hasExactPlan:!!rule};
+}
+function yearlyReserveBreakdownForRange(fromStr,throughStr){
+  var out={}; if(!fromStr||!throughStr||fromStr>throughStr)return [];
+  (state.settings.categories||[]).forEach(function(c){
+    if(categoryForecastBehavior(c)!=="yearly")return;
+    var cfg=yearlyBillConfigForCategory(c);if(!cfg.reserveMonthly||!(cfg.amount>0))return;
+    var total=0,d=parseD(fromStr),end=parseD(throughStr);
+    while(d<=end){
+      var monthly=cfg.amount/12, daily=monthly/daysInMonth(d);total+=daily;d=addDays(d,1);
+    }
+    if(total>0.005)out[c]=round2(total);
+  });
+  return Object.keys(out).map(function(c){return {category:c,amount:out[c],config:yearlyBillConfigForCategory(c)};}).sort(function(a,b){return b.amount-a.amount;});
 }
 
 /* Safe-to-Spend priority is separate from budget inclusion. Essential
@@ -2117,6 +2209,12 @@ function loadInitial() {
   state.settings.people = normalizePeople(state.settings.people);
   state.settings.personColors = normalizePersonColors(state.settings.personColors, state.settings.people);
   state.settings.categoryExcludeFromBudget = normalizeCategoryExcludeFromBudget(state.settings.categoryExcludeFromBudget, state.settings.categories);
+  var forecastBehaviorBeforeNormalize = JSON.stringify(state.settings.categoryForecastBehavior||null);
+  state.settings.categoryForecastBehavior = normalizeCategoryForecastBehavior(state.settings.categoryForecastBehavior, state.settings.categories);
+  var forecastBehaviorMigrationChanged = forecastBehaviorBeforeNormalize !== JSON.stringify(state.settings.categoryForecastBehavior);
+  var yearlyBillSettingsBeforeNormalize = JSON.stringify(state.settings.categoryYearlyBillSettings||null);
+  state.settings.categoryYearlyBillSettings = normalizeCategoryYearlyBillSettings(state.settings.categoryYearlyBillSettings, state.settings.categories);
+  var yearlyBillSettingsMigrationChanged = yearlyBillSettingsBeforeNormalize !== JSON.stringify(state.settings.categoryYearlyBillSettings);
   state.settings.safeSpendPriorities = normalizeSafeSpendPriorities(state.settings.safeSpendPriorities, state.settings.categories);
   state.settings.peopleAnalysisExcluded = normalizePeopleAnalysisExcluded(state.settings.peopleAnalysisExcluded, state.settings.categories);
   state.settings.defaultPerson = normalizeDefaultPerson(state.settings.defaultPerson, state.settings.people);
@@ -2127,8 +2225,8 @@ function loadInitial() {
   if(primaryStorageHealth==="healthy"){
     try { recurringChanged = runRecurringCatchUp(); } catch(e) { recurringChanged = false; }
     try { snapshotChanged = captureForecastSnapshotsIfNeeded(); } catch(e) { snapshotChanged = false; }
-    if (recurringChanged || snapshotChanged || analysisForecastV52MigrationChanged) {
-      persistAll(state.settings, state.entries, recurringChanged ? "recurring payments" : (snapshotChanged ? "forecast learning" : "analysis forecast"));
+    if (recurringChanged || snapshotChanged || analysisForecastV52MigrationChanged || forecastBehaviorMigrationChanged || yearlyBillSettingsMigrationChanged) {
+      persistAll(state.settings, state.entries, recurringChanged ? "recurring payments" : (snapshotChanged ? "forecast learning" : (forecastBehaviorMigrationChanged || yearlyBillSettingsMigrationChanged ? "forecast behavior" : "analysis forecast")));
     }
   }
   state.loading = false;
@@ -3618,7 +3716,7 @@ function liveBudgetPacing() {
         return;
       }
       var p = openingProfiles ? openingProfiles[key] : null;
-      if (p && (p.mode === "cadence" || p.mode === "lumpy") && subcategoryEssentialForSafeSpend(key)) {
+      if (p && (p.mode === "cadence" || p.mode === "monthly" || p.mode === "yearly" || p.mode === "lumpy") && subcategoryEssentialForSafeSpend(key)) {
         cadence += amount;
         cadenceBySub[key] = round2((cadenceBySub[key] || 0) + amount);
         /* Cadence is learned from active event DAYS, so several transactions in
@@ -3698,6 +3796,17 @@ function liveBudgetPacing() {
         addFlexibleForecast(k,round2(Math.max(0,x.amount||0)),"frequent",{kind:"frequent",expectedAmount:round2(Math.max(0,x.amount||0)),likelyAmount:round2((x.profile&&x.profile.typicalAmount)||0),profile:x.profile||null});
       }
     });
+    /* v103: a Yearly bill can reserve 1/12 of its annual amount each month.
+       The reserve is spread daily so Week and Month horizons receive only
+       their proportional share. It is a control reserve, not a fake expense,
+       and applies even when the eventual bill is outside the spending budget. */
+    if(scope==="budget"){
+      yearlyReserveBreakdownForRange(today,per.endStr).forEach(function(yr){
+        var a=round2(yr.amount||0);if(!(a>0))return;
+        openingCadenceReserve+=a;
+        addReserveBreakdown(yr.category,a,"annual",{kind:"annual",expectedAmount:a,protectedAmount:a,likelyAmount:round2((yr.config&&yr.config.amount)||0),profile:null,reason:"Monthly reserve"});
+      });
+    }
     openingCadenceReserve=round2(openingCadenceReserve);
 
     var futureScheduledBySub=scheduledExpenseBreakdown(today,per.endStr,scope), futureScheduledAfterToday=0;
@@ -3729,7 +3838,7 @@ function liveBudgetPacing() {
        Month horizons, only the fulfilled occurrence is removed. */
     var liveReserveBySub={};
     openingReserveBreakdown.forEach(function(row){
-      liveReserveBySub[row.category]={category:row.category,amount:round2(row.amount||0),cadence:round2(row.cadence||0),lumpy:round2(row.lumpy||0),scheduled:round2(row.scheduled||0),frequent:round2(row.frequent||0),details:(row.details||[]).map(function(d){return Object.assign({},d,{events:(d.events||[]).map(function(ev){return Object.assign({},ev);})});})};
+      liveReserveBySub[row.category]={category:row.category,amount:round2(row.amount||0),cadence:round2(row.cadence||0),lumpy:round2(row.lumpy||0),scheduled:round2(row.scheduled||0),frequent:round2(row.frequent||0),annual:round2(row.annual||0),details:(row.details||[]).map(function(d){return Object.assign({},d,{events:(d.events||[]).map(function(ev){return Object.assign({},ev);})});})};
     });
     function recalcLiveCadenceComponent(key,count){
       var row=liveReserveBySub[key]; if(!row||!count)return 0;
@@ -3746,7 +3855,10 @@ function liveBudgetPacing() {
         var liveProfile=Object.assign({},detail.profile||{});
         liveProfile.lastDate=today;
         if(kind==="cadence"){
-          var cf=cadenceEventForecast(liveProfile,today,per.endStr);
+          var cf;
+          if(liveProfile.mode==="monthly"){liveProfile.monthlyActiveMonths=Object.assign({},liveProfile.monthlyActiveMonths||{});liveProfile.monthlyActiveMonths[today.slice(0,7)]=true;cf=monthlyBillEventForecast(liveProfile,today,per.endStr);}
+          else if(liveProfile.mode==="yearly"){liveProfile.yearlyActiveYears=Object.assign({},liveProfile.yearlyActiveYears||{});liveProfile.yearlyActiveYears[parseD(today).getFullYear()]=true;cf=yearlyBillEventForecast(liveProfile,today,per.endStr);}
+          else cf=cadenceEventForecast(liveProfile,today,per.endStr);
           newComponent=round2(Math.max(0,cf.safeReserve||0));
           detail.events=(cf.events||[]).map(function(ev){return Object.assign({},ev);});
           detail.expectedCount=cf.expectedCount||0;
@@ -4091,17 +4203,24 @@ function budgetForecastEvidenceHtml(x, protectedMode) {
       var pct=displayProbabilityPct(d.probability);
       var likely=round2(d.likelyAmount||0), expected=round2(d.expectedAmount||0), bits=[];
       var expectedCount=Number(d.expectedCount)||0;
-      bits.push('<span style="font-weight:700;color:var(--text);">'+pct+'% chance'+(d.kind==='cadence'&&expectedCount>1.05?' of ≥1':'')+'</span>');
-      if(d.kind==='cadence'&&expectedCount>1.05) bits.push('≈ '+expectedCount.toFixed(1)+' events expected');
-      if(expected>0) bits.push('≈ '+fmt(expected,0)+' AED expected');
-      if(likely>0) bits.push('likely '+(d.kind==='lumpy'?'event':'txn')+' '+fmt(likely,0)+' AED');
+      var isMonthly=p.mode==='monthly',isYearly=p.mode==='yearly';
+      bits.push('<span style="font-weight:700;color:var(--text);">'+(isMonthly?'Monthly bill':(isYearly?'Yearly bill':pct+'% chance'+(d.kind==='cadence'&&expectedCount>1.05?' of ≥1':'')))+'</span>');
+      if(d.kind==='cadence'&&expectedCount>1.05&&!isMonthly&&!isYearly) bits.push('≈ '+expectedCount.toFixed(1)+' events expected');
+      if(expected>0) bits.push((isMonthly||isYearly?'':'≈ ')+fmt(expected,0)+' AED expected');
+      if(likely>0) bits.push((isMonthly?'typical bill ':(isYearly?'annual bill ':'likely '+(d.kind==='lumpy'?'event':'txn')+' '))+fmt(likely,0)+' AED');
       if(p.confidence) bits.push(p.confidence+' confidence');
       out+='<div class="muted caption" style="margin-top:4px;line-height:1.35;white-space:normal;">'+bits.join(' · ')+'</div>';
       var cadence=[];
-      if(d.kind==='cadence'&&p.eventGap!=null) cadence.push('event ~every '+Number(p.eventGap).toFixed(1)+' days');
+      if(d.kind==='cadence'&&p.mode==='monthly') cadence.push((p.monthlyActiveMonths&&p.monthlyActiveMonths[todayStr().slice(0,7)])?'paid this month':('usually around day '+Math.round(p.monthlyBillDay||1)));
+      else if(d.kind==='cadence'&&p.mode==='yearly'){
+        var yy=parseD(todayStr()).getFullYear(),paid=!!(p.yearlyActiveYears&&p.yearlyActiveYears[yy]);
+        cadence.push(paid?'paid this year':('due '+shortLabel(toStr(new Date(yy,(p.yearlyDueMonth||1)-1,Math.min(p.yearlyDueDay||1,new Date(yy,p.yearlyDueMonth||1,0).getDate()))))));
+      } else if(d.kind==='cadence'&&p.eventGap!=null) cadence.push('event ~every '+Number(p.eventGap).toFixed(1)+' days');
       if(p.lastDate) cadence.push('last '+(p.lastDate===todayStr()?'Today':shortLabel(p.lastDate)));
-      if(d.kind==='cadence'&&p.lastDate&&p.eventGap!=null) cadence.push('next ~'+shortLabel(toStr(addDays(parseD(p.lastDate),Math.max(1,Math.round(p.eventGap))))));
+      if(d.kind==='cadence'&&p.mode!=='monthly'&&p.mode!=='yearly'&&p.lastDate&&p.eventGap!=null) cadence.push('next ~'+shortLabel(toStr(addDays(parseD(p.lastDate),Math.max(1,Math.round(p.eventGap))))));
       if(cadence.length) out+='<div class="muted caption" style="margin-top:1px;line-height:1.3;white-space:normal;">'+cadence.join(' · ')+'</div>';
+    } else if(d.kind==='annual'){
+      out+='<div class="muted caption" style="margin-top:4px;line-height:1.35;white-space:normal;"><span style="font-weight:700;color:var(--text);">Yearly bill reserve</span> · '+fmt(d.expectedAmount||0,0)+' AED protected in this horizon</div>';
     } else if(d.kind==='frequent'){
       var fp=p, bits=['Frequent'];
       if(fp.txnCount!=null) bits.push(fp.txnCount+' txn'+(fp.txnCount===1?'':'s'));
@@ -4513,6 +4632,15 @@ function renderSettingsPage() {
       groupList.forEach(function(g){ h += '<option value="'+esc(g)+'"'+(subParent===g?' selected':'')+'>'+esc(g)+'</option>'; });
       h += '</select></div>';
       h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Counts toward budget</div><div class="muted caption" style="margin-top:2px;">Overall Analysis always includes it.</div></div><button data-action="toggle-category-budget" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(categoryExcludedFromBudget(selectedSub)?'var(--rust)':'var(--positive)')+';">'+(categoryExcludedFromBudget(selectedSub)?'Excluded':'Included')+'</button></div></div>';
+      var forecastBehavior=categoryForecastBehavior(selectedSub);
+      h += '<div class="taxonomy-form-card"><label class="eyebrow">Forecast behavior</label><select id="subcategoryForecastBehaviorInput" data-cat="'+esc(selectedSub)+'" class="field" style="margin-top:7px;"><option value="auto"'+(forecastBehavior==='auto'?' selected':'')+'>Auto</option><option value="frequent"'+(forecastBehavior==='frequent'?' selected':'')+'>Frequent</option><option value="cadence"'+(forecastBehavior==='cadence'?' selected':'')+'>Cadence</option><option value="monthly"'+(forecastBehavior==='monthly'?' selected':'')+'>Monthly bill</option><option value="yearly"'+(forecastBehavior==='yearly'?' selected':'')+'>Yearly bill</option><option value="lumpy"'+(forecastBehavior==='lumpy'?' selected':'')+'>Lumpy</option></select><div class="muted caption" style="margin-top:6px;">Monthly bill stops after this month\'s payment. Yearly bill forecasts one annual payment and can reserve for it monthly.</div></div>';
+      if(forecastBehavior==='yearly'){
+        var ycfg=yearlyBillConfigForCategory(selectedSub), monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        h += '<div class="taxonomy-form-card"><label class="eyebrow">Yearly bill setup</label><div class="row gap2" style="margin-top:8px;"><div style="flex:1;"><div class="muted caption" style="margin-bottom:5px;">Annual amount</div><input id="yearlyBillAmountInput" data-cat="'+esc(selectedSub)+'" type="number" inputmode="decimal" min="0" step="0.01" class="field mono" value="'+(ycfg.amount>0?ycfg.amount:'')+'" placeholder="Amount" /></div><div style="width:102px;"><div class="muted caption" style="margin-bottom:5px;">Due month</div><select id="yearlyBillMonthInput" data-cat="'+esc(selectedSub)+'" class="field">';
+        monthNames.forEach(function(mn,mi){h+='<option value="'+(mi+1)+'"'+(ycfg.dueMonth===mi+1?' selected':'')+'>'+mn+'</option>';});
+        h += '</select></div><div style="width:72px;"><div class="muted caption" style="margin-bottom:5px;">Day</div><input id="yearlyBillDayInput" data-cat="'+esc(selectedSub)+'" type="number" inputmode="numeric" min="1" max="31" step="1" class="field mono" value="'+ycfg.dueDay+'" /></div></div><button data-action="save-yearly-bill-settings" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="width:100%;margin-top:9px;">Save yearly bill</button>';
+        h += '<div class="row between hairline-top" style="margin-top:12px;padding-top:11px;"><div style="padding-right:12px;"><div class="headline">Reserve monthly</div><div class="muted caption" style="margin-top:2px;">'+(ycfg.amount>0?'Protects about '+fmt(ycfg.amount/12,0)+' AED per month toward the next annual payment.':'Set an annual amount to calculate the monthly reserve.')+'</div></div><button data-action="toggle-yearly-bill-reserve" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(ycfg.reserveMonthly?'var(--positive)':'var(--text-muted)')+';">'+(ycfg.reserveMonthly?'On':'Off')+'</button></div></div>';
+      }
       var safePriority=subcategorySafeSpendPriority(selectedSub), safeEssential=safePriority==='essential';
       h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Safe-to-Spend priority</div><div class="muted caption" style="margin-top:2px;">Essential cadence/plan spending is protected first. Flexible forecasts never block today\'s allowance.</div></div><button data-action="toggle-safe-spend-priority" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(safeEssential?'var(--positive)':'var(--text-muted)')+';">'+(safeEssential?'Essential':'Flexible')+'</button></div></div>';
       h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Include in People analysis</div><div class="muted caption" style="margin-top:2px;">Turn off for household/fixed costs such as rent or mortgage.</div></div><button data-action="toggle-subcategory-people-analysis" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(subcategoryExcludedFromPeopleAnalysis(selectedSub)?'var(--text-muted)':'var(--positive)')+';">'+(subcategoryExcludedFromPeopleAnalysis(selectedSub)?'Excluded':'Included')+'</button></div></div>';
@@ -4538,7 +4666,8 @@ function renderSettingsPage() {
       h += '<div class="taxonomy-section-label">Subcategories</div><div class="taxonomy-list">';
       members.forEach(function(c,ci){
         var st=categoryStyle(c), excluded=categoryExcludedFromBudget(c);
-        h += '<div class="taxonomy-row" data-action="open-settings-subcategory" data-cat="'+esc(c)+'"><span class="taxonomy-icon" style="background:'+st.color+';">'+CAT_ICON_SVGS[st.icon]+'</span><div class="taxonomy-main"><span class="taxonomy-name">'+esc(c)+'</span><span class="taxonomy-meta">'+(excluded?'Outside budget':'Included in budget')+(subcategoryEssentialForSafeSpend(c)?' · Essential':'')+'</span></div><span class="taxonomy-badge '+(excluded?'out':'in')+'">'+(excluded?'Excluded':'Included')+'</span>';
+        var fb=categoryForecastBehavior(c);
+        h += '<div class="taxonomy-row" data-action="open-settings-subcategory" data-cat="'+esc(c)+'"><span class="taxonomy-icon" style="background:'+st.color+';">'+CAT_ICON_SVGS[st.icon]+'</span><div class="taxonomy-main"><span class="taxonomy-name">'+esc(c)+'</span><span class="taxonomy-meta">'+(excluded?'Outside budget':'Included in budget')+(subcategoryEssentialForSafeSpend(c)?' · Essential':'')+(fb!=='auto'?' · '+forecastBehaviorLabel(fb):'')+'</span></div><span class="taxonomy-badge '+(excluded?'out':'in')+'">'+(excluded?'Excluded':'Included')+'</span>';
         if (state.settingsCategoryEditMode) h += '<div class="taxonomy-edit-actions"><button data-action="move-category" data-cat="'+esc(c)+'" data-dir="-1" '+(ci===0?'disabled':'')+' style="'+(ci===0?'opacity:.3;':'')+'">'+ICONS.chevronUp+'</button><button data-action="move-category" data-cat="'+esc(c)+'" data-dir="1" '+(ci===members.length-1?'disabled':'')+' style="'+(ci===members.length-1?'opacity:.3;':'')+'">'+ICONS.chevronDown+'</button></div>';
         else h += '<span class="muted">'+ICONS.chevronRight+'</span>';
         h += '</div>';
@@ -5520,6 +5649,9 @@ function forecastCategoryProfiles(scope, asOfDate) {
       if(it.time) maps[k].timedCount++;
     });
   });
+  (state.settings.categories||[]).forEach(function(c){
+    if(categoryForecastBehavior(c)==="yearly"&&!maps[c])maps[c]={daily:{},txnCount:0,timedCount:0,txnAmounts:[]};
+  });
   var out={};
   Object.keys(maps).forEach(function(k){
     var m=maps[k], dates=Object.keys(m.daily).sort(), gaps=[];
@@ -5542,9 +5674,18 @@ function forecastCategoryProfiles(scope, asOfDate) {
     /* Frequent categories are forecast from AED/day pace. Cadence categories
        are repeat-type active-day events. Everything with real history that is
        neither becomes Lumpy instead of being silently forecast at zero. */
-    var frequent=dates.length>=6 && (activeRate>=0.30 || txnRate>=0.55);
-    var cadence=!frequent && dates.length>=3 && eventGap!=null && eventGap>=2.0 && typicalAmount>0;
-    var lumpy=!frequent && !cadence && dates.length>=1 && typicalAmount>0;
+    var autoFrequent=dates.length>=6 && (activeRate>=0.30 || txnRate>=0.55);
+    var autoCadence=!autoFrequent && dates.length>=3 && eventGap!=null && eventGap>=2.0 && typicalAmount>0;
+    var autoLumpy=!autoFrequent && !autoCadence && dates.length>=1 && typicalAmount>0;
+    var behavior=categoryForecastBehavior(k);
+    var yearlyCfg=behavior==="yearly"?yearlyBillConfigForCategory(k):null;
+    var frequent=behavior==="frequent" || (behavior==="auto"&&autoFrequent);
+    var monthly=behavior==="monthly" && dates.length>=1 && typicalTxnAmount>0;
+    var yearly=behavior==="yearly" && yearlyCfg && yearlyCfg.amount>0;
+    var cadence=behavior==="cadence" || (behavior==="auto"&&autoCadence);
+    if(monthly||yearly){frequent=false;cadence=false;}
+    var lumpy=behavior==="lumpy" || (behavior==="auto"&&autoLumpy);
+    if(monthly||yearly||cadence||frequent)lumpy=false;
     var evidence=frequent?m.txnCount:dates.length;
     var cadenceGapCv=(gapDev!=null&&eventGap>0)?gapDev/eventGap:null;
     var cadenceAmountCv=(amountDev!=null&&typicalAmount>0)?amountDev/typicalAmount:null;
@@ -5563,6 +5704,19 @@ function forecastCategoryProfiles(scope, asOfDate) {
       else if(nEvents>=5) confidence="Medium";
       else confidence="Low";
     }
+    var monthlyFirstDays={},monthlyActiveMonths={};
+    if(monthly){
+      dates.forEach(function(ds){var mk=ds.slice(0,7),dom=parseD(ds).getDate();monthlyActiveMonths[mk]=true;if(monthlyFirstDays[mk]==null||dom<monthlyFirstDays[mk])monthlyFirstDays[mk]=dom;});
+      var monthDays=Object.keys(monthlyFirstDays).map(function(mk){return monthlyFirstDays[mk];});
+      var monthEvidence=monthDays.length;
+      confidence=monthEvidence>=6?"High":(monthEvidence>=2?"Medium":"Low");
+    }
+    var yearlyActiveYears={};
+    if(yearly){
+      categoryHistoricalExpenseRows(k).forEach(function(r){yearlyActiveYears[parseD(r.date).getFullYear()]=true;});
+      var yearlyEvidence=Object.keys(yearlyActiveYears).length;
+      confidence=yearlyEvidence>=4?"High":(yearlyEvidence>=2?"Medium":"Low");
+    }
     out[k]={
       key:k,label:k==="__uncategorised__"?"Uncategorised":k,daily:m.daily,txnAmounts:m.txnAmounts,txnCount:m.txnCount,
       timedCount:m.timedCount,activeDates:dates,activeDays:dates.length,gaps:gaps,
@@ -5572,7 +5726,9 @@ function forecastCategoryProfiles(scope, asOfDate) {
       timingCv:cadenceGapCv,amountCv:cadenceAmountCv,timingConsistency:timingConsistency,amountConsistency:amountConsistency,
       evidenceQuality:Math.max(.45,Math.min(1,.45*(dates.length>=8?.98:(dates.length>=6?.95:(dates.length>=5?.93:(dates.length>=4?.90:(dates.length>=3?.80:.65)))))+.35*timingConsistency+.20*amountConsistency)),
       lastDate:dates.length?dates[dates.length-1]:null,spanDays:span,activeRate:activeRate,txnRate:txnRate,historyStart:start,
-      mode:frequent?"frequent":(cadence?"cadence":(lumpy?"lumpy":"sparse")),confidence:confidence
+      forecastBehavior:behavior,monthlyBillDay:monthly?Math.max(1,Math.min(31,Math.round(medianNumber(Object.keys(monthlyFirstDays).map(function(mk){return monthlyFirstDays[mk];}))||1))):null,monthlyActiveMonths:monthlyActiveMonths,
+      yearlyBillAmount:yearly&&yearlyCfg?yearlyCfg.amount:null,yearlyDueMonth:yearly&&yearlyCfg?yearlyCfg.dueMonth:null,yearlyDueDay:yearly&&yearlyCfg?yearlyCfg.dueDay:null,yearlyReserveMonthly:yearly&&yearlyCfg?yearlyCfg.reserveMonthly:false,yearlyActiveYears:yearlyActiveYears,yearlyHasExactPlan:yearly&&yearlyCfg?yearlyCfg.hasExactPlan:false,
+      mode:yearly?"yearly":(monthly?"monthly":(frequent?"frequent":(cadence?"cadence":(lumpy?"lumpy":"sparse")))),confidence:confidence
     };
   });
   return out;
@@ -5774,6 +5930,53 @@ function cadenceEventForecast(profile, fromStr, throughStr) {
   return {byDate:byDate,events:events,total:total,variance:variance,probability:probability,safeReserve:safeReserve,expectedCount:expectedCount,reason:"Cadence probability",expectedDate:toStr(addDays(parseD(profile.lastDate),Math.max(1,Math.round(gap))))};
 }
 
+function monthlyBillEventForecast(profile, fromStr, throughStr) {
+  var byDate={},events=[],total=0,variance=0;
+  if(!profile||profile.mode!=="monthly")return {byDate:byDate,events:events,total:0,variance:0,probability:0,safeReserve:0,expectedCount:0,reason:"No monthly bill history"};
+  var likely=Math.max(0,Number(profile.typicalTxnAmount)||Number(profile.typicalAmount)||0);
+  if(!(likely>0)||fromStr>throughStr)return {byDate:byDate,events:events,total:0,variance:0,probability:0,safeReserve:0,expectedCount:0,reason:"No monthly bill amount"};
+  var dueDay=Math.max(1,Math.min(31,Math.round(Number(profile.monthlyBillDay)||1)));
+  var cursor=new Date(parseD(fromStr).getFullYear(),parseD(fromStr).getMonth(),1);
+  var end=parseD(throughStr),expectedCount=0,anyPaid=false;
+  while(cursor<=end){
+    var y=cursor.getFullYear(),m=cursor.getMonth(),mk=y+"-"+String(m+1).padStart(2,"0");
+    var paid=!!(profile.monthlyActiveMonths&&profile.monthlyActiveMonths[mk]);
+    if(paid){anyPaid=true;}
+    else {
+      var dim=daysInMonth(cursor),eventDate=new Date(y,m,Math.min(dueDay,dim)),ds=toStr(eventDate);
+      if(ds<fromStr)ds=fromStr;
+      if(ds<=throughStr){
+        byDate[ds]=(byDate[ds]||0)+likely;total+=likely;expectedCount+=1;
+        var evPath={};evPath[ds]=likely;events.push({index:expectedCount,probability:1,expectedAmount:likely,byDate:evPath,expectedDate:ds});
+        variance+=(Number(profile.amountDev)||0)*(Number(profile.amountDev)||0);
+      }
+    }
+    cursor=new Date(y,m+1,1);
+  }
+  return {byDate:byDate,events:events,total:total,variance:variance,probability:expectedCount>0?1:0,safeReserve:total,expectedCount:expectedCount,reason:expectedCount>0?"Monthly bill":"Paid this month",expectedDate:events.length?events[0].expectedDate:null};
+}
+
+function yearlyBillEventForecast(profile, fromStr, throughStr) {
+  var byDate={},events=[],total=0,variance=0;
+  if(!profile||profile.mode!=="yearly")return {byDate:byDate,events:events,total:0,variance:0,probability:0,safeReserve:0,expectedCount:0,reason:"No yearly bill setup"};
+  if(profile.yearlyHasExactPlan)return {byDate:byDate,events:events,total:0,variance:0,probability:0,safeReserve:0,expectedCount:0,reason:"Scheduled yearly plan"};
+  var likely=Math.max(0,Number(profile.yearlyBillAmount)||Number(profile.typicalTxnAmount)||Number(profile.typicalAmount)||0);
+  if(!(likely>0)||fromStr>throughStr)return {byDate:byDate,events:events,total:0,variance:0,probability:0,safeReserve:0,expectedCount:0,reason:"No yearly bill amount"};
+  var month=Math.max(1,Math.min(12,Math.round(Number(profile.yearlyDueMonth)||1))),day=Math.max(1,Math.min(31,Math.round(Number(profile.yearlyDueDay)||1)));
+  var from=parseD(fromStr),end=parseD(throughStr),expectedCount=0;
+  for(var y=from.getFullYear();y<=end.getFullYear();y++){
+    if(profile.yearlyActiveYears&&profile.yearlyActiveYears[y])continue;
+    var dim=new Date(y,month,0).getDate(), due=new Date(y,month-1,Math.min(day,dim)), ds=toStr(due);
+    if(ds<fromStr)ds=fromStr;
+    if(ds<=throughStr){
+      byDate[ds]=(byDate[ds]||0)+likely;total+=likely;expectedCount+=1;
+      var evPath={};evPath[ds]=likely;events.push({index:expectedCount,probability:1,expectedAmount:likely,byDate:evPath,expectedDate:ds});
+      variance+=(Number(profile.amountDev)||0)*(Number(profile.amountDev)||0);
+    }
+  }
+  return {byDate:byDate,events:events,total:total,variance:variance,probability:expectedCount>0?1:0,safeReserve:total,expectedCount:expectedCount,reason:expectedCount>0?"Yearly bill":"Paid this year",expectedDate:events.length?events[0].expectedDate:null};
+}
+
 function lumpyEventForecast(profile, fromStr, throughStr) {
   var byDate={},variance=0,total=0;
   if(!profile||profile.mode!=="lumpy"||!profile.activeDays||!profile.spanDays)return {byDate:byDate,total:0,variance:0,probability:0,safeReserve:0,reason:"No lumpy history"};
@@ -5798,7 +6001,7 @@ function portfolioUnscheduledPaceForecast(scope, profileAsOfStr, forecastFromStr
   var natural=scope==="overall"?first:(state.settings.trackingStartDate||first),daily={};
   function daySpend(ds){
     var e=state.entries[ds],sum=0;if(!e||!Array.isArray(e.items))return 0;
-    e.items.forEach(function(it){if(expenseCountsForScope(it,scope)&&!it.recurringId)sum+=Number(it.amount)||0;});return sum;
+    e.items.forEach(function(it){if(expenseCountsForScope(it,scope)&&!it.recurringId&&categoryForecastBehavior(subcategoryKey(it))!=="monthly"&&categoryForecastBehavior(subcategoryKey(it))!=="yearly")sum+=Number(it.amount)||0;});return sum;
   }
   var start=toStr(addDays(parseD(histEnd),-89));if(natural>start)start=natural;
   var d=parseD(start);while(toStr(d)<=histEnd){var ds=toStr(d);daily[ds]=daySpend(ds);d=addDays(d,1);}
@@ -5836,6 +6039,18 @@ function buildBehavioralForecastRaw(scope, profileAsOfStr, forecastFromStr, thro
         d=addDays(d,1);
       }
       if(totalF>0){bySub[k]={amount:totalF,kind:"frequent",profile:p,safeReserve:0};frequentExpectedTotal+=totalF;}
+    }else if(p.mode==="monthly"){
+      var mb=monthlyBillEventForecast(p,forecastFromStr,throughStr),totalM=0;
+      Object.keys(mb.byDate).forEach(function(ds){var a=mb.byDate[ds];byDate[ds]=(byDate[ds]||0)+a;bySubDate[k][ds]=a;totalM+=a;});
+      if(mb.variance>0){var md=Object.keys(mb.byDate);if(md.length){var ms=mb.variance/md.length;md.forEach(function(ds){varianceByDate[ds]=(varianceByDate[ds]||0)+ms;});}}
+      if(totalM>0.005){bySub[k]={amount:totalM,kind:"cadence",profile:p,probability:mb.probability||0,reason:mb.reason||"Monthly bill",likelyAmount:p.typicalTxnAmount||p.typicalAmount||0,safeReserve:mb.safeReserve||totalM,expectedCount:mb.expectedCount||0,events:mb.events||[]};cadenceSafeReserveTotal+=(mb.safeReserve||totalM);}
+      else {p._forecastReason=mb.reason||"Paid this month";p._forecastProbability=0;p._forecastSafeReserve=0;suppressed.push(p);}
+    }else if(p.mode==="yearly"){
+      var yb=yearlyBillEventForecast(p,forecastFromStr,throughStr),totalY=0;
+      Object.keys(yb.byDate).forEach(function(ds){var a=yb.byDate[ds];byDate[ds]=(byDate[ds]||0)+a;bySubDate[k][ds]=a;totalY+=a;});
+      if(yb.variance>0){var yd=Object.keys(yb.byDate);if(yd.length){var ys=yb.variance/yd.length;yd.forEach(function(ds){varianceByDate[ds]=(varianceByDate[ds]||0)+ys;});}}
+      if(totalY>0.005){bySub[k]={amount:totalY,kind:"cadence",profile:p,probability:yb.probability||0,reason:yb.reason||"Yearly bill",likelyAmount:p.yearlyBillAmount||p.typicalTxnAmount||p.typicalAmount||0,safeReserve:yb.safeReserve||totalY,expectedCount:yb.expectedCount||0,events:yb.events||[]};cadenceSafeReserveTotal+=(yb.safeReserve||totalY);}
+      else {p._forecastReason=yb.reason||"Paid this year";p._forecastProbability=0;p._forecastSafeReserve=0;suppressed.push(p);}
     }else if(p.mode==="cadence"){
       var c=cadenceEventForecast(p,forecastFromStr,throughStr),totalC=0;
       Object.keys(c.byDate).forEach(function(ds){var a=c.byDate[ds];byDate[ds]=(byDate[ds]||0)+a;bySubDate[k][ds]=a;totalC+=a;});
@@ -5909,7 +6124,7 @@ function sliceBehavioralForecast(raw,fromStr,throughStr){
       var prob=Math.max(0,Math.min(1,1-noEvent));
       if(!slicedEvents.length&&expectedCount>0) prob=Math.min(1,expectedCount);
       y.probability=prob;y.expectedCount=expectedCount;y.events=slicedEvents;
-      y.safeReserve=cadenceMultiProtectedReserve(prob,likely,amount,x.profile&&x.profile.evidenceQuality,expectedCount);
+      y.safeReserve=(x.profile&&x.profile.mode==="monthly")?amount:cadenceMultiProtectedReserve(prob,likely,amount,x.profile&&x.profile.evidenceQuality,expectedCount);
       cadenceReserve+=y.safeReserve;
     }else if(x.kind==="lumpy"){
       var fraction=(Number(x.amount)||0)>0?Math.max(0,Math.min(1,amount/Number(x.amount))):0;
@@ -5939,12 +6154,23 @@ function forecastProfileMetaText(p, kind, probability, reason) {
     if(p.paceHalfLife!=null)parts.push(Math.round(p.paceHalfLife)+"d memory");
     if(p.paceTrendPct!=null&&Math.abs(p.paceTrendPct)>=10)parts.push("recent "+(p.paceTrendPct>0?"+":"")+fmt(p.paceTrendPct,0)+"%");
   }else if(kind==="cadence"){
-    if(p.eventGap!=null)parts.push("~"+Number(p.eventGap).toFixed(1)+"-day cadence");
+    if(p.mode==="monthly")parts.push("Monthly bill");
+    else if(p.mode==="yearly")parts.push("Yearly bill");
+    else if(p.eventGap!=null)parts.push("~"+Number(p.eventGap).toFixed(1)+"-day cadence");
   }else if(kind==="lumpy"){
     parts.push("Irregular");
   }
   if(p.lastDate)parts.push("last "+(p.lastDate===todayStr()?"Today":shortLabel(p.lastDate)));
-  if(kind==="cadence"&&p.lastDate&&p.eventGap!=null){
+  if(kind==="cadence"&&p.mode==="monthly"){
+    var thisMonth=todayStr().slice(0,7),paid=!!(p.monthlyActiveMonths&&p.monthlyActiveMonths[thisMonth]);
+    if(paid)parts.push("paid this month");
+    else if(p.monthlyBillDay!=null)parts.push("usually around day "+Math.round(p.monthlyBillDay));
+  }else if(kind==="cadence"&&p.mode==="yearly"){
+    var thisYear=parseD(todayStr()).getFullYear(),paidYear=!!(p.yearlyActiveYears&&p.yearlyActiveYears[thisYear]);
+    if(paidYear)parts.push("paid this year");
+    else if(p.yearlyDueMonth!=null&&p.yearlyDueDay!=null)parts.push("due "+shortLabel(toStr(new Date(thisYear,p.yearlyDueMonth-1,Math.min(p.yearlyDueDay,new Date(thisYear,p.yearlyDueMonth,0).getDate())))));
+    if(p.yearlyReserveMonthly&&p.yearlyBillAmount>0)parts.push(fmt(p.yearlyBillAmount/12,0)+" AED/mo reserve");
+  }else if(kind==="cadence"&&p.lastDate&&p.eventGap!=null){
     var expected=toStr(addDays(parseD(p.lastDate),Math.max(1,Math.round(p.eventGap))));
     parts.push((expected<todayStr()?"expected ~":"next ~")+shortLabel(expected));
   }
@@ -6893,7 +7119,7 @@ function renderPlanEditorPage() {
     (state.settings.people||[]).forEach(function(p){ h += '<option value="'+esc(p)+'"'+(rp===p?' selected':'')+'>'+esc(p)+'</option>'; });
     h += '</select>';
   }
-  h += '<label class="eyebrow">Repeats</label><select id="recurringFrequencyInput" class="field" style="margin:7px 0 16px;"><option value="weekly"'+(state.recurringFrequencyDraft!=='monthly'?' selected':'')+'>Weekly</option><option value="monthly"'+(state.recurringFrequencyDraft==='monthly'?' selected':'')+'>Monthly</option></select>';
+  h += '<label class="eyebrow">Repeats</label><select id="recurringFrequencyInput" class="field" style="margin:7px 0 16px;"><option value="weekly"'+(!state.recurringFrequencyDraft||state.recurringFrequencyDraft==='weekly'?' selected':'')+'>Weekly</option><option value="monthly"'+(state.recurringFrequencyDraft==='monthly'?' selected':'')+'>Monthly</option><option value="yearly"'+(state.recurringFrequencyDraft==='yearly'?' selected':'')+'>Yearly</option></select>';
   h += '<label class="eyebrow">Starts</label><input id="recurringStartDateInput" type="date" class="field mono" style="margin:7px 0 16px;" value="'+(state.recurringStartDateDraft||today)+'" />';
   h += '<label class="eyebrow">Ends</label><div class="seg" style="margin:7px 0 12px;">';
   [['ongoing','Ongoing'],['count','After #'],['until','On date']].forEach(function(o){ h += '<button class="seg-btn" role="tab" aria-selected="'+(limitMode===o[0])+'" data-action="set-recurring-limit-mode" data-mode="'+o[0]+'">'+o[1]+'</button>'; });
@@ -6949,7 +7175,7 @@ function renderPlansBody() {
   function planMeta(rule) {
     var bits=[];
     if(rule.kind==='split') bits.push('Spread over '+rule.occurrencesTotal+' days');
-    else bits.push(rule.frequency==='daily'?'Daily':rule.frequency==='weekly'?'Weekly':'Monthly');
+    else bits.push(rule.frequency==='daily'?'Daily':rule.frequency==='weekly'?'Weekly':rule.frequency==='yearly'?'Yearly':'Monthly');
     if(rule.category) {
       var parent=categoryGroupOf(rule.category);
       bits.push(parent ? parent+' · '+rule.category : rule.category);
@@ -6999,7 +7225,7 @@ function renderPlansBody() {
     if(recKind==='expense') { h+='<label class="eyebrow">Subcategory</label><select id="recurringCategoryInput" class="field" style="margin:6px 0 10px;"><option value="">No subcategory</option>'; (state.settings.categories||[]).forEach(function(c){ var g=categoryGroupOf(c); h+='<option value="'+esc(c)+'"'+(state.recurringCategoryDraft===c?' selected':'')+'>'+esc(g?g+' — '+c:c)+'</option>'; }); h+='</select>'; }
     if((state.settings.people||[]).length) { var rp=state.recurringPersonDraft!=null?state.recurringPersonDraft:(state.settings.defaultPerson||''); h+='<label class="eyebrow">For</label><select id="recurringPersonInput" class="field" style="margin:6px 0 10px;"><option value="">Unassigned</option>'; (state.settings.people||[]).forEach(function(p){ h+='<option value="'+esc(p)+'"'+(rp===p?' selected':'')+'>'+esc(p)+'</option>'; }); h+='</select>'; }
     h+='<label class="eyebrow">Name</label><input id="recurringNoteInput" type="text" class="field" style="margin:6px 0 10px;" placeholder="'+(recKind==='income'?'Salary, freelance…':'Rent, subscription…')+'" value="'+(state.recurringNoteDraft!=null?esc(state.recurringNoteDraft):'')+'" />';
-    h+='<div class="row gap2" style="margin-bottom:10px;"><div style="flex:1;"><label class="eyebrow">Repeats</label><select id="recurringFrequencyInput" class="field" style="margin-top:6px;"><option value="weekly"'+(state.recurringFrequencyDraft!=='monthly'?' selected':'')+'>Weekly</option><option value="monthly"'+(state.recurringFrequencyDraft==='monthly'?' selected':'')+'>Monthly</option></select></div><div style="flex:1;"><label class="eyebrow">Starts</label><input id="recurringStartDateInput" type="date" class="field mono" style="margin-top:6px;" value="'+(state.recurringStartDateDraft||today)+'" /></div></div>';
+    h+='<div class="row gap2" style="margin-bottom:10px;"><div style="flex:1;"><label class="eyebrow">Repeats</label><select id="recurringFrequencyInput" class="field" style="margin-top:6px;"><option value="weekly"'+(!state.recurringFrequencyDraft||state.recurringFrequencyDraft==='weekly'?' selected':'')+'>Weekly</option><option value="monthly"'+(state.recurringFrequencyDraft==='monthly'?' selected':'')+'>Monthly</option><option value="yearly"'+(state.recurringFrequencyDraft==='yearly'?' selected':'')+'>Yearly</option></select></div><div style="flex:1;"><label class="eyebrow">Starts</label><input id="recurringStartDateInput" type="date" class="field mono" style="margin-top:6px;" value="'+(state.recurringStartDateDraft||today)+'" /></div></div>';
     h+='<label class="eyebrow">Ends</label><div class="seg" style="margin:6px 0 10px;">'; [['ongoing','Ongoing'],['count','After #'],['until','On date']].forEach(function(o){h+='<button class="seg-btn" role="tab" aria-selected="'+(limitMode===o[0])+'" data-action="set-recurring-limit-mode" data-mode="'+o[0]+'">'+o[1]+'</button>';}); h+='</div>';
     if(limitMode==='count') h+='<input id="recurringCountInput" type="number" inputmode="numeric" min="1" step="1" class="field" style="margin-bottom:10px;" placeholder="Number of payments" value="'+(state.recurringCountDraft!=null?esc(state.recurringCountDraft):'')+'" />';
     else if(limitMode==='until') h+='<input id="recurringEndDateInput" type="date" class="field mono" style="margin-bottom:10px;" value="'+(state.recurringEndDateDraft||'')+'" />';
@@ -7836,7 +8062,7 @@ document.addEventListener("click", function(e) {
         category: recKindForRule === "income" ? "" : (recCategoryEl ? recCategoryEl.value : ""),
         person: recPersonEl ? recPersonEl.value : "",
         note: recNoteEl ? recNoteEl.value.trim() : "",
-        frequency: (recFreqEl && recFreqEl.value === "monthly") ? "monthly" : "weekly",
+        frequency: (recFreqEl && recFreqEl.value === "yearly") ? "yearly" : ((recFreqEl && recFreqEl.value === "monthly") ? "monthly" : "weekly"),
         startDate: recStart,
         endDate: recEndDate,
         occurrencesTotal: recCount,
@@ -7902,6 +8128,19 @@ document.addEventListener("click", function(e) {
       showToast(safeCatToToggle+" set to "+(safePriorityMap[safeCatToToggle]==="essential"?"Essential":"Flexible"));
       render();
       break;
+    case "save-yearly-bill-settings":
+      var yearlyCat=el.dataset.cat, yAmountEl=document.getElementById("yearlyBillAmountInput"), yMonthEl=document.getElementById("yearlyBillMonthInput"), yDayEl=document.getElementById("yearlyBillDayInput");
+      var yAmount=parseFloat(yAmountEl?yAmountEl.value:""),yMonth=parseInt(yMonthEl?yMonthEl.value:"",10),yDay=parseInt(yDayEl?yDayEl.value:"",10);
+      if(!(yAmount>0)||!(yMonth>=1&&yMonth<=12)||!(yDay>=1&&yDay<=31))break;
+      var yMap=Object.assign({},state.settings.categoryYearlyBillSettings||{}), prevY=yMap[yearlyCat]||{};
+      yMap[yearlyCat]={amount:round2(yAmount),dueMonth:yMonth,dueDay:yDay,reserveMonthly:prevY.reserveMonthly!==false};
+      persistAll(Object.assign({},state.settings,{categoryYearlyBillSettings:yMap}),state.entries,"your yearly bill setup");
+      showToast(yearlyCat+" yearly bill saved");render();break;
+    case "toggle-yearly-bill-reserve":
+      var reserveCat=el.dataset.cat,reserveCfg=yearlyBillConfigForCategory(reserveCat),reserveMap=Object.assign({},state.settings.categoryYearlyBillSettings||{});
+      reserveMap[reserveCat]={amount:reserveCfg.amount>0?reserveCfg.amount:null,dueMonth:reserveCfg.dueMonth,dueDay:reserveCfg.dueDay,reserveMonthly:!reserveCfg.reserveMonthly};
+      persistAll(Object.assign({},state.settings,{categoryYearlyBillSettings:reserveMap}),state.entries,"your yearly bill reserve");
+      showToast(reserveCat+" monthly reserve "+(!reserveCfg.reserveMonthly?"on":"off"));render();break;
     case "toggle-subcategory-people-analysis":
       var peopleCatToToggle = el.dataset.cat;
       var peopleExcludeMap = Object.assign({}, state.settings.peopleAnalysisExcluded||{});
@@ -7931,9 +8170,13 @@ document.addEventListener("click", function(e) {
       delete excludeAfterRemove[catToRemove];
       var peopleExcludeAfterRemove = Object.assign({}, state.settings.peopleAnalysisExcluded||{});
       delete peopleExcludeAfterRemove[catToRemove];
+      var forecastBehaviorAfterRemove=Object.assign({},state.settings.categoryForecastBehavior||{});
+      delete forecastBehaviorAfterRemove[catToRemove];
+      var yearlyBillSettingsAfterRemove=Object.assign({},state.settings.categoryYearlyBillSettings||{});
+      delete yearlyBillSettingsAfterRemove[catToRemove];
       var safePrioritiesAfterRemove=Object.assign({},state.settings.safeSpendPriorities||{});
       delete safePrioritiesAfterRemove[catToRemove];
-      var withoutCat = Object.assign({}, state.settings, { categories: nextCatsAfterRemove, categoryStyles: stylesAfterRemove, categoryGroupOf: groupOfAfterRemoveCat, categoryExcludeFromBudget: excludeAfterRemove, peopleAnalysisExcluded: peopleExcludeAfterRemove, safeSpendPriorities:safePrioritiesAfterRemove });
+      var withoutCat = Object.assign({}, state.settings, { categories: nextCatsAfterRemove, categoryStyles: stylesAfterRemove, categoryGroupOf: groupOfAfterRemoveCat, categoryExcludeFromBudget: excludeAfterRemove, categoryForecastBehavior:forecastBehaviorAfterRemove, categoryYearlyBillSettings:yearlyBillSettingsAfterRemove, peopleAnalysisExcluded: peopleExcludeAfterRemove, safeSpendPriorities:safePrioritiesAfterRemove });
       if (state.categoryStyleEditing === catToRemove) state.categoryStyleEditing = null;
       if (state.categoryRenameEditing === catToRemove) state.categoryRenameEditing = null;
       persistAll(withoutCat, state.entries, "your categories");
@@ -8623,6 +8866,16 @@ document.addEventListener("change", function(e) {
       if (!stillBelongs) state.txnCategoryFilter = "";
     }
     state.txnGroupFilter = newTxnGroup;
+    render();
+    return;
+  }
+  if (e.target && e.target.id === "subcategoryForecastBehaviorInput") {
+    var behaviorCat=e.target.dataset.cat, behaviorVal=e.target.value;
+    if(FORECAST_BEHAVIOR_VALUES.indexOf(behaviorVal)===-1) behaviorVal="auto";
+    var nextBehaviorMap=Object.assign({},state.settings.categoryForecastBehavior||{});
+    nextBehaviorMap[behaviorCat]=behaviorVal;
+    persistAll(Object.assign({},state.settings,{categoryForecastBehavior:nextBehaviorMap}),state.entries,"your forecast behavior");
+    showToast(behaviorCat+" · "+forecastBehaviorLabel(behaviorVal));
     render();
     return;
   }
