@@ -128,7 +128,32 @@
   :root[data-theme="light"] .btn-outline,
   :root[data-theme="light"] .txn-entry-back,
   :root[data-theme="light"] .settings-back,
-  :root[data-theme="light"] .settings-header-action { border:none; box-shadow:none; }
+  :root[data-theme="light"] .settings-header-action,
+  :root[data-theme="light"] .fx-rate-input,
+  :root[data-theme="light"] .fx-panel,
+  :root[data-theme="light"] .chip {
+    border:none !important;
+    box-shadow:none !important;
+  }
+  :root[data-theme="light"] .field,
+  :root[data-theme="light"] .seg,
+  :root[data-theme="light"] .icon-btn,
+  :root[data-theme="light"] .btn-outline,
+  :root[data-theme="light"] .txn-entry-back,
+  :root[data-theme="light"] .settings-back,
+  :root[data-theme="light"] .settings-header-action,
+  :root[data-theme="light"] .chip { background:var(--fill); }
+  :root[data-theme="light"] .fx-panel { background:var(--raised); }
+  :root[data-theme="light"] .field,
+  :root[data-theme="light"] .fx-rate-input,
+  :root[data-theme="light"] .fx-currency-select,
+  :root[data-theme="light"] select,
+  :root[data-theme="light"] textarea,
+  :root[data-theme="light"] input {
+    -webkit-appearance:none;
+    appearance:none;
+    box-shadow:none;
+  }
 
   .btn-accent { background: var(--accent); color: var(--accent-ink); font-weight:700; letter-spacing:-0.015em; border:none; border-radius:13px; padding:13px 16px; font-size:16px; }
   .btn-accent:disabled { opacity:0.4; }
@@ -382,6 +407,256 @@
     * { transition: none !important; animation: none !important; }
     .press:active { transform: none; }
   }
+
+
+  /* ======================================================================
+     v91 — Airy native iOS design system
+     Visual-only overhaul. The ledger/forecast/storage model is unchanged.
+     ====================================================================== */
+  :root {
+    --radius-card: 22px;
+    --radius-control: 14px;
+    --space-page: 18px;
+    --shadow-card: 0 1px 2px rgba(0,0,0,.025), 0 8px 28px rgba(0,0,0,.035);
+  }
+  html { background:var(--bg); }
+  body { font-size:16px; line-height:1.38; }
+  .wrap {
+    max-width:480px;
+    padding-left:var(--space-page); padding-right:var(--space-page);
+    padding-bottom:calc(env(safe-area-inset-bottom,0px) + 112px);
+  }
+  .app-topbar {
+    margin:0 calc(-1 * var(--space-page)) 20px;
+    padding:calc(var(--app-safe-top) + 8px) var(--space-page) 12px;
+    min-height:calc(var(--app-safe-top) + 66px);
+    border-bottom:0;
+    background:color-mix(in srgb,var(--bg) 88%,transparent);
+    -webkit-backdrop-filter:saturate(180%) blur(28px); backdrop-filter:saturate(180%) blur(28px);
+  }
+  .brand-title { font-size:34px; font-weight:790; letter-spacing:-.052em; }
+  .version-badge {
+    font-size:10px; padding:4px 7px; background:color-mix(in srgb,var(--fill) 82%,transparent);
+    color:var(--text-muted); font-weight:700;
+  }
+  .gap2 { gap:10px; }
+  .title2 { font-size:25px; font-weight:760; }
+  .headline { font-weight:680; }
+  .eyebrow { font-size:12.5px; font-weight:650; color:var(--text-muted); }
+  .muted { color:var(--text-muted); }
+  .page-heading-row { align-items:center; margin:4px 2px 14px; min-height:38px; }
+  .page-actions { align-items:center; }
+  .compact-action { min-height:36px!important; padding:7px 12px!important; font-size:13px!important; border-radius:999px!important; }
+  .page-icon-action { width:40px!important; height:40px!important; padding:0!important; }
+
+  .card {
+    border-radius:var(--radius-card);
+    background:var(--card);
+    border:1px solid color-mix(in srgb,var(--sep) 62%,transparent);
+    overflow:hidden;
+  }
+  .card-pad { padding:18px 20px; }
+  :root[data-theme="light"] .card { box-shadow:var(--shadow-card); }
+  :root[data-theme="dark"] .card { border-color:rgba(255,255,255,.055); box-shadow:none; }
+  .hairline-top { border-top-color:var(--sep); }
+
+  .icon-btn, .settings-back, .txn-entry-back {
+    width:40px; height:40px; padding:0;
+    border-radius:999px; background:color-mix(in srgb,var(--fill) 88%,transparent);
+  }
+  .icon-btn svg, .settings-back svg, .txn-entry-back svg { width:19px; height:19px; }
+  .btn-accent, .btn-outline {
+    min-height:44px; border-radius:var(--radius-control); padding:10px 15px;
+    font-weight:650;
+  }
+  .btn-outline { background:var(--fill); }
+  .btn-plain { font-size:14px; font-weight:600; }
+  .field {
+    min-height:46px; border-radius:var(--radius-control); padding:12px 14px;
+    background:var(--fill); font-size:16px;
+  }
+  .seg {
+    border-radius:15px; padding:3px; gap:3px;
+    background:color-mix(in srgb,var(--fill) 92%,transparent);
+    min-height:46px;
+  }
+  .seg-btn { border-radius:12px; padding:9px 4px; font-size:14px; font-weight:650; }
+  .seg-btn[aria-selected="true"] {
+    box-shadow:0 1px 2px rgba(0,0,0,.08),0 3px 10px rgba(0,0,0,.06);
+  }
+  .chip { padding:8px 12px; border-radius:999px; font-size:13px; background:var(--fill); }
+
+  /* Give primary cards breathing room without turning every line into a card. */
+  .page-home > .card, .page-transactions > .card, .page-budget > .card,
+  .page-analysis > .card, .page-plans > .card { margin-bottom:16px!important; }
+  .stat-grid { gap:16px 18px!important; }
+
+  /* Period selectors read as one compact native control, not another content card. */
+  .page-budget > .row.between.card,
+  .page-analysis > .row.between.card {
+    border-radius:18px; padding:8px 10px!important; box-shadow:none;
+    background:color-mix(in srgb,var(--card) 88%,var(--bg));
+  }
+
+  /* Transactions: one clean summary card and a quieter filter surface. */
+  .page-transactions .card:has(#txnSearchInput) { padding:10px!important; }
+  #txnSearchInput { background:color-mix(in srgb,var(--fill) 86%,transparent); }
+
+  /* Settings resembles an iOS grouped list: labels + values first, details on tap. */
+  .settings-shell { max-width:480px!important; padding-left:18px!important; padding-right:18px!important; }
+  .settings-header { min-height:58px!important; }
+  .settings-group-title {
+    margin:26px 6px 9px; font-size:12px; letter-spacing:.02em; text-transform:none;
+    color:var(--text-muted); font-weight:650;
+  }
+  .settings-list { border-radius:20px; border:1px solid color-mix(in srgb,var(--sep) 62%,transparent); }
+  :root[data-theme="light"] .settings-list { box-shadow:var(--shadow-card); }
+  .settings-row { min-height:58px; padding:13px 16px; }
+  .settings-row-label { font-size:16px; font-weight:600; }
+  .settings-row-sub { display:none; }
+  .settings-row-value { font-size:14px; }
+
+  /* Floating-glass tab bar. It stays fixed but no longer feels like a heavy footer. */
+  .tabbar {
+    left:10px; right:10px;
+    bottom:calc(env(safe-area-inset-bottom,0px) + 7px - var(--vv-extra-bottom,0px));
+    min-height:66px; padding:7px 5px;
+    border:1px solid color-mix(in srgb,var(--sep) 72%,transparent);
+    border-radius:24px;
+    background:var(--tab-bg);
+    -webkit-backdrop-filter:saturate(180%) blur(28px); backdrop-filter:saturate(180%) blur(28px);
+    box-shadow:0 10px 38px rgba(0,0,0,.13);
+  }
+  .tabbar-item {
+    flex:1; min-width:0; border:0; background:none;
+    color:var(--text-muted); display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:3px; padding:4px 1px; border-radius:16px;
+    transition:color .18s ease, background .18s ease, transform .12s ease;
+  }
+  .tabbar-item[aria-current="page"] { color:var(--accent); background:color-mix(in srgb,var(--accent) 9%,transparent); }
+  .tabbar-item:active { transform:scale(.96); }
+  .tabbar-item svg { width:21px; height:21px; }
+  .tabbar-label { font-size:10px; line-height:1; font-weight:600; letter-spacing:-.01em; }
+
+  .app-fab {
+    position:fixed; right:calc(env(safe-area-inset-right,0px) + 20px);
+    bottom:calc(env(safe-area-inset-bottom,0px) + 88px);
+    width:50px; height:50px; border-radius:999px; border:0;
+    display:flex; align-items:center; justify-content:center; z-index:45;
+    color:var(--accent-ink); background:var(--accent);
+    box-shadow:0 8px 26px color-mix(in srgb,var(--accent) 26%,rgba(0,0,0,.18));
+  }
+  .app-fab:active { transform:scale(.94); opacity:.88; }
+
+  /* Native editor/settings pages inherit the same softer chrome. */
+  .txn-entry-header, .settings-header {
+    background:color-mix(in srgb,var(--bg) 90%,transparent)!important;
+    -webkit-backdrop-filter:saturate(180%) blur(28px); backdrop-filter:saturate(180%) blur(28px);
+    border-bottom-color:color-mix(in srgb,var(--sep) 60%,transparent)!important;
+  }
+  .txn-entry-shell { max-width:480px; padding-left:18px; padding-right:18px; }
+  .txn-entry-header { margin-left:-18px; margin-right:-18px; padding-left:18px; padding-right:18px; }
+
+  /* Charts become visual content, not boxes inside boxes. */
+  svg text { font-family:var(--f-ui); }
+  .chart-hit { border-radius:16px; }
+
+  /* Simple Home keeps a calm, low-density hierarchy. */
+  html.simple-home .wrap { padding-bottom:calc(env(safe-area-inset-bottom,0px) + 116px); }
+  html.simple-home .simple-home-stack { gap:14px; }
+  html.simple-home .simple-home-stack > .card { border-radius:24px; }
+
+  @media (max-width:360px) {
+    :root { --space-page:14px; }
+    .brand-title { font-size:31px; }
+    .card-pad { padding:16px; }
+    .tabbar { left:7px; right:7px; }
+  }
+
+
+  /* v95 — light-mode controls + home/transaction polish */
+  :root { --chrome-bg:rgba(11,17,32,.68); }
+  .app-topbar {
+    background:var(--chrome-bg);
+    -webkit-backdrop-filter:saturate(190%) blur(30px); backdrop-filter:saturate(190%) blur(30px);
+    border-bottom-color:color-mix(in srgb,var(--sep) 46%,transparent);
+  }
+  .app-topbar::before { background:var(--chrome-bg); }
+  .txn-entry-header, .settings-header {
+    background:var(--chrome-bg)!important;
+    -webkit-backdrop-filter:saturate(190%) blur(30px); backdrop-filter:saturate(190%) blur(30px);
+  }
+
+  /* The floating tab bar now sits partly inside the iPhone safe-area, like a
+     native glass dock, rather than hovering a full safe-area above it. */
+  .tabbar {
+    bottom:max(7px, calc(env(safe-area-inset-bottom,0px) - 15px - var(--vv-extra-bottom,0px)));
+    min-height:64px; padding:6px 5px;
+    background:var(--tab-bg);
+    border-color:color-mix(in srgb,var(--sep) 48%,transparent);
+    -webkit-backdrop-filter:saturate(190%) blur(32px); backdrop-filter:saturate(190%) blur(32px);
+    box-shadow:0 8px 30px rgba(0,0,0,.10);
+  }
+  .app-fab { bottom:calc(max(env(safe-area-inset-bottom,0px), 8px) + 73px); }
+
+  /* Focused Settings pages now use the same airy surface language as the
+     primary app instead of reverting to dense form-page styling. */
+  .settings-page { background:var(--bg); }
+  .settings-shell { padding-bottom:calc(env(safe-area-inset-bottom,0px) + 42px)!important; }
+  .settings-header { margin-bottom:20px!important; }
+  .settings-title { font-size:21px; font-weight:730; letter-spacing:-.032em; }
+  .settings-detail { padding:0 0 32px; }
+  .settings-detail > .card, .settings-control-card, .settings-item-card,
+  .taxonomy-list, .taxonomy-hero, .taxonomy-form-card {
+    border-radius:22px!important;
+    border:1px solid color-mix(in srgb,var(--sep) 52%,transparent);
+    background:var(--card);
+  }
+  :root[data-theme="light"] .settings-detail > .card,
+  :root[data-theme="light"] .settings-control-card,
+  :root[data-theme="light"] .settings-item-card,
+  :root[data-theme="light"] .taxonomy-list,
+  :root[data-theme="light"] .taxonomy-hero,
+  :root[data-theme="light"] .taxonomy-form-card { box-shadow:var(--shadow-card); }
+  .settings-detail > .card { margin-bottom:16px!important; }
+  .settings-detail > .eyebrow { display:block; margin:0 6px 8px!important; font-size:13px; font-weight:650; }
+  .settings-detail .caption, .settings-detail .footnote { line-height:1.45; }
+  .settings-control-card { padding:18px; margin-bottom:14px; }
+  .settings-control-title { font-size:17px; font-weight:680; letter-spacing:-.02em; }
+  .settings-control-row { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+  .settings-control-separator { height:1px; background:var(--sep); margin:16px 0; }
+  .settings-action-stack { display:grid; gap:9px; margin-top:18px; }
+  .settings-action-stack > button { width:100%; }
+  .settings-range { width:100%; margin:14px 0 5px; accent-color:var(--accent); }
+  .settings-range-ends { display:flex; justify-content:space-between; color:var(--text-muted); font-size:11px; }
+  .settings-color-input { width:46px; height:38px; border:0; border-radius:12px; padding:0; background:none; }
+  .settings-item-card { padding:12px 14px; }
+  .settings-detail-people > div[style*="display:flex; flex-direction:column"],
+  .settings-detail-tags > div[style*="display:flex;flex-direction:column"] { gap:9px!important; }
+  .settings-detail-people .settings-item-card, .settings-detail-tags .settings-item-card { background:var(--card)!important; }
+
+  /* Bare form-style settings become inset grouped cards without changing any
+     of their behavior or saved data. */
+  .settings-detail-budget, .settings-detail-tracking {
+    padding:18px; border-radius:22px; background:var(--card);
+    border:1px solid color-mix(in srgb,var(--sep) 52%,transparent);
+  }
+  :root[data-theme="light"] .settings-detail-budget,
+  :root[data-theme="light"] .settings-detail-tracking { box-shadow:var(--shadow-card); }
+  .settings-detail-budget .field, .settings-detail-tracking .field { background:var(--fill); }
+  .settings-detail-savings > .card { background:color-mix(in srgb,var(--fill) 72%,var(--card)); box-shadow:none; border-color:transparent; }
+  .settings-detail-theme { padding-bottom:38px; }
+  .settings-detail-theme .seg { margin-bottom:0!important; }
+  .settings-detail-currency .card-pad, .settings-detail-backup .card-pad, .settings-detail-forecastAccuracy .card-pad { padding:18px; }
+  .settings-detail-clearEntries > .card, .settings-detail-factoryReset > .card { padding:20px; }
+  .taxonomy-row { min-height:70px; padding:12px 15px; }
+  .taxonomy-row + .taxonomy-row { border-top-color:color-mix(in srgb,var(--sep) 70%,transparent); }
+
+  @media (max-width:360px) {
+    .settings-control-card { padding:16px; }
+    .settings-control-row { gap:10px; }
+  }
+
 </style>
 </head>
 <body>
@@ -391,10 +666,10 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v90";
-var FORECAST_MODEL_VERSION = "v88-canonical-1";
+var APP_VERSION = "v96";
+var FORECAST_MODEL_VERSION = "v96-canonical-2";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
 function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
@@ -681,12 +956,12 @@ function renameTag(kind, oldName, newName) {
    that are one step lighter (dark) or pure white (light), with separators and
    control fills as their own tokens rather than reusing the card border. */
 var PALETTES = {
-  dark:  { bg:"#0B1120", card:"#151E33", raised:"#1C2740", hairline:"#2A3550", sep:"#252F49", fill:"#1C2740",
-           text:"#F2F5FA", textMuted:"#8A99B8", accent:"#E0B368", accentInk:"#0C1322",
-           rust:"#FF453A", rustWash:"rgba(255,69,58,0.15)", positive:"#30D158", positiveWash:"rgba(48,209,88,0.18)", amber:"#E0972E", tabBg:"rgba(21,30,51,0.82)" },
-  light: { bg:"#F2F2F7", card:"#FFFFFF", raised:"#E9E9EE", hairline:"#C7C7CC", sep:"#D1D1D6", fill:"#E5E5EA",
-           text:"#11131A", textMuted:"#667085", accent:"#B07F2A", accentInk:"#FFFFFF",
-           rust:"#E53935", rustWash:"rgba(229,57,53,0.11)", positive:"#1FA855", positiveWash:"rgba(31,168,85,0.14)", amber:"#B8730A", tabBg:"rgba(255,255,255,0.90)" },
+  dark:  { bg:"#000000", card:"#1C1C1E", raised:"#2C2C2E", hairline:"rgba(84,84,88,.65)", sep:"rgba(84,84,88,.48)", fill:"#2C2C2E",
+           text:"#F5F5F7", textMuted:"#98989F", accent:"#016E8F", accentInk:"#FFFFFF",
+           rust:"#FF453A", rustWash:"rgba(255,69,58,0.14)", positive:"#30D158", positiveWash:"rgba(48,209,88,0.14)", amber:"#FF9F0A", tabBg:"rgba(22,22,24,0.82)" },
+  light: { bg:"#F5F5F7", card:"#FFFFFF", raised:"#ECECF1", hairline:"rgba(60,60,67,.20)", sep:"rgba(60,60,67,.14)", fill:"#E7E8EE",
+           text:"#111114", textMuted:"#737785", accent:"#016E8F", accentInk:"#FFFFFF",
+           rust:"#D93636", rustWash:"rgba(217,54,54,0.09)", positive:"#1A9B50", positiveWash:"rgba(26,155,80,0.11)", amber:"#B86E00", tabBg:"rgba(250,250,252,0.84)" },
 };
 
 /* ---------------- custom appearance ----------------
@@ -741,6 +1016,18 @@ function deriveDarkTones(bgHex, cardLightness) {
 /* Picks readable ink for text/icons sitting on top of a custom accent color. */
 function readableInk(hex) {
   return hexToHsl(hex)[2] > 58 ? "#0C1322" : "#FFFFFF";
+}
+function rgbaFromHex(hex, alpha) {
+  var clean=String(hex||"#000000").replace("#","");
+  if(clean.length===3) clean=clean.split("").map(function(c){return c+c;}).join("");
+  var r=parseInt(clean.slice(0,2),16)||0, g=parseInt(clean.slice(2,4),16)||0, b=parseInt(clean.slice(4,6),16)||0;
+  var a=Math.max(0,Math.min(1,Number(alpha)));
+  return "rgba("+r+","+g+","+b+","+a.toFixed(3)+")";
+}
+function chromeTransparencyPct() {
+  var v=Number(state.settings.chromeTransparency);
+  if(!isFinite(v)) v=Number(DEFAULT_SETTINGS.chromeTransparency)||32;
+  return Math.max(0,Math.min(65,v));
 }
 /* Merges any custom background/accent on top of the built-in palette for the
    active theme. Background customization only applies to dark mode (that's
@@ -1038,24 +1325,22 @@ function sumBudgetSpent(e) {
 function sumSpentAll(e) { return sumSpent(e); }
 function itemTimeKey(it){ var n = parseInt(String(it.id).split("-")[0], 10); return isNaN(n) ? 0 : n; }
 function newestFirst(items){ return items.slice().sort(function(a,b){ return itemTimeKey(b) - itemTimeKey(a); }); }
-/* Transaction day groups stay newest-date first, but transactions within each
-   date are sorted by real transaction time oldest -> newest. Items without an
-   explicit transaction time follow the timed entries in their existing saved
-   order, because an ID creation time is not necessarily the real purchase time
-   for backfilled/edited transactions. */
+/* Transaction day groups stay newest-date first. Within each day, the newest
+   real transaction time is shown first as well. Untimed/backfilled entries
+   follow timed entries and use creation order as the best available fallback. */
 function txnMinutesOfDay(it) {
   var t=it&&it.time;
   if(!t||!/^\d{2}:\d{2}$/.test(t)) return null;
   var p=t.split(":"), h=Number(p[0]), m=Number(p[1]);
   return (h>=0&&h<24&&m>=0&&m<60)?h*60+m:null;
 }
-function txnOldestFirst(items) {
-  return (items||[]).map(function(it,idx){return {it:it,idx:idx,t:txnMinutesOfDay(it)};})
+function txnNewestFirst(items) {
+  return (items||[]).map(function(it,idx){return {it:it,idx:idx,t:txnMinutesOfDay(it),idKey:itemTimeKey(it)};})
     .sort(function(a,b){
-      if(a.t!=null&&b.t!=null){ var d=a.t-b.t; return d||a.idx-b.idx; }
+      if(a.t!=null&&b.t!=null){ var d=b.t-a.t; return d||(b.idKey-a.idKey)||(b.idx-a.idx); }
       if(a.t!=null) return -1;
       if(b.t!=null) return 1;
-      return a.idx-b.idx;
+      return (b.idKey-a.idKey)||(b.idx-a.idx);
     }).map(function(x){return x.it;});
 }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
@@ -1478,7 +1763,12 @@ function hourlyBudgetPositionData(rows,info){
 }
 function effectiveBudgetTargetForRange(startStr,endStr,info){
   info=info||currentEffectiveBudgetInfo();
-  var sum=0,cur=parseD(startStr);
+  /* A live effective target must obey Tracking Start Date just like periodStats
+     and the historical period target. Otherwise This Year silently budgets the
+     months before tracking began. */
+  var clippedStart=effectiveRangeStart(startStr);
+  if(clippedStart>endStr) return 0;
+  var sum=0,cur=parseD(clippedStart);
   while(toStr(cur)<=endStr){sum+=effectiveBudgetReferenceForDate(toStr(cur),info);cur=addDays(cur,1);}
   return round2(sum);
 }
@@ -2424,7 +2714,9 @@ function applyTheme(T) {
   r.setProperty("--positive", T.positive);
   r.setProperty("--amber", T.amber);
   r.setProperty("--sep", T.sep); r.setProperty("--fill", T.fill);
-  r.setProperty("--tab-bg", T.tabBg);
+  var chromeAlpha = 1 - chromeTransparencyPct()/100;
+  r.setProperty("--chrome-bg", rgbaFromHex(T.bg, chromeAlpha));
+  r.setProperty("--tab-bg", rgbaFromHex(T.card, Math.min(.94, chromeAlpha + .04)));
   var meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", T.bg);
 }
@@ -3168,13 +3460,13 @@ function render() {
   }
 
   var html = "";
-  html += '<div class="wrap">';
+  html += '<div class="wrap page-'+esc(state.page)+'">';
 
   // Sticky primary-app header. Editors and Settings have their own bars.
   html += '<div class="app-topbar">';
   html += '<div class="brand-lockup"><div class="brand-title">The Ledger</div><span class="version-badge">'+APP_VERSION+'</span></div>';
   html += '<div class="row gap2">';
-  html += '<button class="icon-btn press" data-action="toggle-theme" aria-label="Toggle theme">'+(state.settings.theme==="dark"?ICONS.sun:ICONS.moon)+'</button>';
+  html += '<button class="icon-btn press" data-action="toggle-theme" aria-label="'+(state.settings.theme==="dark"?"Switch to light mode":"Switch to dark mode")+'">'+(state.settings.theme==="dark"?ICONS.sun:ICONS.moon)+'</button>';
   html += '<button class="icon-btn press" data-action="open-settings" aria-label="Settings">'+ICONS.settings+'</button>';
   html += '</div></div>';
 
@@ -3363,7 +3655,7 @@ function liveBudgetPacing() {
       if(x.kind==="cadence"){
         var expected=round2(Math.max(0,x.amount||0));
         var r=round2(Math.max(0,x.safeReserve||x.amount||0));
-        var cadenceMeta={kind:"cadence",expectedAmount:expected,protectedAmount:r,probability:x.probability==null?null:x.probability,likelyAmount:round2(x.likelyAmount||(x.profile&&x.profile.typicalAmount)||0),profile:x.profile||null,reason:x.reason||""};
+        var cadenceMeta={kind:"cadence",expectedAmount:expected,protectedAmount:r,probability:x.probability==null?null:x.probability,expectedCount:x.expectedCount==null?null:x.expectedCount,likelyAmount:round2(x.likelyAmount||(x.profile&&x.profile.typicalAmount)||0),profile:x.profile||null,reason:x.reason||""};
         if(subcategoryEssentialForSafeSpend(k)){ cadenceReserveBySub[k]=r; openingCadenceReserve+=r; addReserveBreakdown(k,r,"cadence",cadenceMeta); }
         else addFlexibleForecast(k,expected,"cadence",cadenceMeta);
       } else if(x.kind==="lumpy") {
@@ -3630,7 +3922,7 @@ function renderHomeBody(T, da) {
       h += '<div class="hairline-top" style="margin-top:12px;padding-top:11px;"><div class="row between" style="gap:10px;align-items:baseline;"><span class="muted caption" style="font-weight:650;">BUDGET SPENDING PACE</span><span class="mono caption" style="font-weight:800;color:'+simpleTrendColor+';">'+esc(simpleTrendText)+'</span></div><div class="row" style="margin-top:7px;gap:16px;"><div style="flex:1;"><div class="muted caption">Daily avg</div><div class="mono subhead" style="font-weight:750;">'+(budgetDailyAvg==null?'—':fmt(budgetDailyAvg,0)+' AED/day')+'</div></div><div style="flex:1;"><div class="muted caption">Last 7 days</div><div class="mono subhead" style="font-weight:750;color:'+simpleTrendColor+';">'+(budgetLast7Avg==null?'—':fmt(budgetLast7Avg,0)+' AED/day')+'</div></div></div></div>';
     }
     if(homeBudgetPositionData.length){
-      h += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between" style="gap:10px;"><span class="muted caption" style="font-weight:650;">AHEAD / BEHIND BUDGET</span><span class="mono subhead" style="font-weight:750;color:'+(homeBudgetPosition>=0?'var(--positive)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED</span></div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
+      h += '<div class="hairline-top" style="margin-top:14px;padding-top:14px;"><div class="muted caption" style="font-weight:650;">AHEAD / BEHIND BUDGET</div><div class="mono" style="margin-top:5px;font-size:30px;line-height:1.05;font-weight:780;letter-spacing:-.035em;color:'+(homeBudgetPosition>=0?'var(--positive)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' <span class="muted" style="font-size:14px;font-weight:650;letter-spacing:0;">AED</span></div></div>';
     }
     h += '</div>';
 
@@ -3671,7 +3963,9 @@ function budgetForecastEvidenceHtml(x, protectedMode) {
     if(d.kind==='cadence'||d.kind==='lumpy'){
       var pct=displayProbabilityPct(d.probability);
       var likely=round2(d.likelyAmount||0), expected=round2(d.expectedAmount||0), bits=[];
-      bits.push('<span style="font-weight:700;color:var(--text);">'+pct+'% chance</span>');
+      var expectedCount=Number(d.expectedCount)||0;
+      bits.push('<span style="font-weight:700;color:var(--text);">'+pct+'% chance'+(d.kind==='cadence'&&expectedCount>1.05?' of ≥1':'')+'</span>');
+      if(d.kind==='cadence'&&expectedCount>1.05) bits.push('≈ '+expectedCount.toFixed(1)+' events expected');
       if(expected>0) bits.push('≈ '+fmt(expected,0)+' AED expected');
       if(likely>0) bits.push('likely '+(d.kind==='lumpy'?'event':'txn')+' '+fmt(likely,0)+' AED');
       if(p.confidence) bits.push(p.confidence+' confidence');
@@ -3749,12 +4043,12 @@ function renderBudgetBody(T) {
       var amount=round2(Math.max(0,Number(x.amount)||0)); if(amount<=0)return;
       var label=x.label||"Uncategorised";
       if(protectedLabels[label]) return;
-      flexibleForecastBreakdown.push({category:label,amount:amount,kind:x.kind||"",details:[{kind:x.kind||"",expectedAmount:amount,probability:x.probability==null?null:x.probability,likelyAmount:round2(x.likelyAmount||0),profile:x.profile||null}]});
+      flexibleForecastBreakdown.push({category:label,amount:amount,kind:x.kind||"",details:[{kind:x.kind||"",expectedAmount:amount,probability:x.probability==null?null:x.probability,expectedCount:x.expectedCount==null?null:x.expectedCount,likelyAmount:round2(x.likelyAmount||0),profile:x.profile||null}]});
       flexibleForecastTotal=round2(flexibleForecastTotal+amount);
     });
     flexibleForecastBreakdown.sort(function(a,b){return b.amount-a.amount;});
   }
-  var h='<div class="row between" style="align-items:center;margin-bottom:10px;"><div class="eyebrow">Budget</div><div class="row gap2"><button data-action="toggle-budget-reorder" class="btn-plain" style="font-size:12px;">'+(state.budgetReorderMode?'Done':'Customize')+'</button><button data-action="open-budget-settings" class="btn-outline" style="padding:6px 10px;font-size:12px;">Edit budget</button></div></div>';
+  var h='<div class="row between page-heading-row"><div class="title2">Budget</div><div class="row gap2 page-actions"><button data-action="toggle-budget-reorder" class="btn-plain">'+(state.budgetReorderMode?'Done':'Arrange')+'</button><button data-action="open-budget-settings" class="btn-outline compact-action">Edit</button></div></div>';
   h+='<div class="seg" style="margin-bottom:12px;">';['week','month','year'].forEach(function(v){h+='<button class="seg-btn" role="tab" aria-selected="'+(state.view===v)+'" data-action="switch-view" data-view="'+v+'" style="text-transform:capitalize;">'+v+'</button>';});h+='</div>';
   h+='<div class="row between card" style="padding:8px 10px;margin-bottom:12px;"><button data-action="nav-offset" data-delta="-1" class="icon-btn" style="border-radius:10px;">'+ICONS.chevronLeft+'</button><div style="text-align:center;"><div class="subhead" style="font-weight:600;">'+esc(period.title)+'</div><div class="muted caption">'+esc(period.sub)+(isClosed?' · closed':'')+'</div></div><button data-action="nav-offset" data-delta="1" class="icon-btn" style="border-radius:10px;'+(isCurrent?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';
 
@@ -3770,12 +4064,12 @@ function renderBudgetBody(T) {
     var relationText=savingsTighter ? fmt(bsc.pct,0)+'% savings goal sets the limit' : 'Your set monthly budget sets the limit';
     var relationColor=savingsTighter?'var(--amber)':'var(--positive)';
     summary+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);">';
-    summary+='<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:4px;align-items:start;"><div><div class="subhead" style="font-weight:700;">Effective monthly budget</div><div class="muted caption" style="margin-top:2px;line-height:1.35;">One live spending limit from budget + savings goal.</div></div><div class="mono subhead" style="font-weight:800;color:'+relationColor+';text-align:right;white-space:nowrap;">≈ '+fmt(effectiveInfo.effectiveBudget,0)+' AED</div><div class="caption" style="grid-column:1/-1;font-weight:700;color:'+relationColor+';line-height:1.35;white-space:normal;">'+esc(relationText)+'</div></div>';
+    summary+='<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:4px;align-items:start;"><div><div class="subhead" style="font-weight:700;">Effective monthly budget</div></div><div class="mono subhead" style="font-weight:800;color:'+relationColor+';text-align:right;white-space:nowrap;">≈ '+fmt(effectiveInfo.effectiveBudget,0)+' AED</div><div class="caption" style="grid-column:1/-1;font-weight:700;color:'+relationColor+';line-height:1.35;white-space:normal;">'+esc(relationText)+'</div></div>';
     summary+='<div style="margin-top:10px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
     summary+='<div class="row between" style="padding:7px 0;"><span class="muted caption">Your set budget</span><span class="mono caption" style="font-weight:700;">'+fmt(bsc.configuredBudget,0)+' AED</span></div>';
     summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Savings-compatible limit</span><span class="mono caption" style="font-weight:750;">≈ '+fmt(bsc.compatibleBudget,0)+' AED</span></div>';
     summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Projected outside-budget spend</span><span class="mono caption" style="font-weight:700;">≈ '+fmt(bsc.projectedExcluded,0)+' AED</span></div>';
-    summary+='</div><div class="muted caption" style="margin-top:8px;line-height:1.35;">The lower limit is always enforced. If your spending makes that target unreachable, Safe to Spend falls to zero and the required adjustment is shown instead of relaxing the target.</div></div>';
+    summary+='</div></div>';
   }
   /* v86: Keep the summary card decision-first. The four headline metrics stay
      visible; all explanatory/audit information lives behind one Budget details
@@ -3852,7 +4146,7 @@ function renderBudgetBody(T) {
     }
     var paceCaption=state.view==='week'
       ? ('Hourly cumulative position versus your budget pace.'+(isCurrent?' Current hour updates live.':''))
-      : 'Cumulative position versus your budget pace. Today is time-adjusted as the day progresses.';
+      : 'Versus budget pace · today updates live.';
     sections.progress='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Ahead / behind budget</span><span class="mono footnote" style="color:'+(acc>=0?'var(--positive)':'var(--rust)')+';font-weight:600;">'+(acc>=0?'+':'−')+fmt(Math.abs(acc),0)+' AED</span></div><div class="muted caption" style="margin-bottom:10px;">'+paceCaption+'</div><div id="budgetSavingChartWrap" style="position:relative;"><div id="balanceChartTip" class="mono footnote" style="position:absolute;top:0;left:0;background:var(--fill);border-radius:8px;padding:4px 9px;max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;z-index:2;"></div>'+renderChart(savingData,T)+'</div></div>';lastChartData=savingData;
   } else {sections.progress='';}
 
@@ -3957,7 +4251,7 @@ function renderSettingsPage() {
     return h;
   }
 
-  h += '<div class="settings-detail">';
+  h += '<div class="settings-detail settings-detail-'+section+'">';
   if (section === "budget") {
     var curMonthly = currentMonthlyBudget();
     var monthBounds = getPeriodBounds("month", 0, currentWeeklyTarget(), dailyAllowance());
@@ -4025,29 +4319,28 @@ function renderSettingsPage() {
     var curBg = state.settings.customDarkBg || PALETTES.dark.bg;
     var curAccent = state.settings.customAccent || PALETTES.dark.accent;
     var curCardLightness = state.settings.customCardLightness != null ? Number(state.settings.customCardLightness) : 15;
-    var hasCustom = !!(state.settings.customDarkBg || state.settings.customAccent || state.settings.customCardLightness != null);
-    h += '<label class="eyebrow">Dark mode background</label>';
-    h += '<div class="row gap2" style="margin:8px 0 4px; align-items:center;">';
-    h += '<input id="customBgInput" type="color" value="'+curBg+'" style="width:48px; height:40px; border:none; border-radius:10px; padding:0; background:none;" />';
-    h += '<span class="mono subhead" id="customBgLabel">'+curBg.toUpperCase()+'</span>';
-    h += '</div>';
-    h += '<div class="muted footnote" style="margin-bottom:14px;">The page background stays exactly at the color you choose.</div>';
+    var curChromeTransparency = chromeTransparencyPct();
+    var hasCustom = !!(state.settings.customDarkBg || state.settings.customAccent || state.settings.customCardLightness != null || curChromeTransparency !== Number(DEFAULT_SETTINGS.chromeTransparency));
+    h += '<div class="settings-control-card"><div class="settings-control-title">Theme</div>';
+    h += '<div class="seg" style="margin-top:12px;">';
+    h += '<button class="seg-btn" role="button" aria-selected="'+(state.settings.theme==="light")+'" data-action="set-theme" data-theme="light">Light</button>';
+    h += '<button class="seg-btn" role="button" aria-selected="'+(state.settings.theme==="dark")+'" data-action="set-theme" data-theme="dark">Dark</button>';
+    h += '</div></div>';
 
-    h += '<div class="row between" style="align-items:baseline; margin-bottom:6px;">';
-    h += '<label class="eyebrow">Card brightness</label>';
-    h += '<span id="cardBrightnessLabel" class="mono subhead">'+fmt(curCardLightness,0)+'%</span></div>';
-    h += '<input id="cardBrightnessInput" type="range" min="3" max="32" step="1" value="'+esc(curCardLightness)+'" style="width:100%; margin:0 0 6px; accent-color:var(--accent);" />';
-    h += '<div class="muted footnote" style="margin-bottom:18px;">Lower makes cards darker; higher makes them lighter. Controls, separators and inputs follow the card tone automatically.</div>';
+    h += '<div class="settings-control-card"><div class="row between" style="align-items:baseline;"><div><div class="settings-control-title">Interface glass</div><div class="muted footnote" style="margin-top:3px;">Top and bottom navigation transparency.</div></div><span id="chromeTransparencyLabel" class="mono subhead">'+fmt(curChromeTransparency,0)+'%</span></div>';
+    h += '<input id="chromeTransparencyInput" type="range" min="0" max="65" step="1" value="'+esc(curChromeTransparency)+'" class="settings-range" />';
+    h += '<div class="settings-range-ends"><span>Solid</span><span>More transparent</span></div></div>';
 
-    h += '<label class="eyebrow">Accent color</label>';
-    h += '<div class="row gap2" style="margin:8px 0 4px; align-items:center;">';
-    h += '<input id="customAccentInput" type="color" value="'+curAccent+'" style="width:48px; height:40px; border:none; border-radius:10px; padding:0; background:none;" />';
-    h += '<span class="mono subhead" id="customAccentLabel">'+curAccent.toUpperCase()+'</span>';
-    h += '</div>';
-    h += '<div class="muted footnote" style="margin-bottom:18px;">Used for buttons, selected controls, and chart highlights, in either theme.</div>';
+    h += '<div class="settings-control-card"><div class="settings-control-title">Dark appearance</div>';
+    h += '<div class="settings-control-row"><div><div class="headline">Background</div><div class="muted footnote">Used only in Dark mode.</div></div><div class="row gap2"><input id="customBgInput" type="color" value="'+curBg+'" class="settings-color-input" /><span class="mono subhead" id="customBgLabel">'+curBg.toUpperCase()+'</span></div></div>';
+    h += '<div class="settings-control-separator"></div>';
+    h += '<div class="row between" style="align-items:baseline;"><div><div class="headline">Card brightness</div><div class="muted footnote">Adjusts cards, controls and separators.</div></div><span id="cardBrightnessLabel" class="mono subhead">'+fmt(curCardLightness,0)+'%</span></div>';
+    h += '<input id="cardBrightnessInput" type="range" min="3" max="32" step="1" value="'+esc(curCardLightness)+'" class="settings-range" /></div>';
 
-    h += '<button data-action="apply-appearance" class="btn-accent" style="width:100%; margin-bottom:8px;">Apply</button>';
-    h += '<button data-action="reset-appearance" class="btn-outline" style="width:100%;'+(hasCustom?"":"opacity:0.4;")+'" '+(hasCustom?"":"disabled")+'>Reset to default</button>';
+    h += '<div class="settings-control-card"><div class="settings-control-row"><div><div class="settings-control-title">Accent color</div><div class="muted footnote" style="margin-top:3px;">Buttons, selections and chart highlights.</div></div><div class="row gap2"><input id="customAccentInput" type="color" value="'+curAccent+'" class="settings-color-input" /><span class="mono subhead" id="customAccentLabel">'+curAccent.toUpperCase()+'</span></div></div></div>';
+
+    h += '<div class="settings-action-stack"><button data-action="apply-appearance" class="btn-accent">Apply appearance</button>';
+    h += '<button data-action="reset-appearance" class="btn-outline" style="'+(hasCustom?"":"opacity:0.4;")+'" '+(hasCustom?"":"disabled")+'>Reset to default</button></div>';
   }
 
   if (section === "categories") {
@@ -4144,7 +4437,7 @@ function renderSettingsPage() {
     var peopleList = state.settings.people||[];
     peopleList.forEach(function(p,pi){
       var isRenamingP = state.personRenameEditing === p;
-      h += '<div style="background:var(--raised); border:1px solid var(--hairline); border-radius:8px; padding:7px 8px 7px 12px;">';
+      h += '<div class="settings-item-card">';
       h += '<div class="row between">';
       if (isRenamingP) {
         h += '<input id="personRenameInput" data-person="'+esc(p)+'" type="text" class="field" style="flex:1; margin-right:8px; font-size:13px; padding:6px 10px;" value="'+esc(p)+'" />';
@@ -4178,7 +4471,7 @@ function renderSettingsPage() {
     h += '<div style="display:flex;flex-direction:column;gap:7px;margin-bottom:12px;">';
     tagList.forEach(function(tag){
       var renaming=state.tagRenameEditing===tag, deleting=state.tagDeletePending===tag;
-      h += '<div style="background:var(--card);border-radius:14px;padding:10px 12px;">';
+      h += '<div class="settings-item-card">';
       if(renaming){
         h += '<div class="row gap2"><input id="txnTagRenameInput" type="text" class="field" value="'+esc(tag)+'" style="flex:1;"/><button data-action="save-txn-tag-rename" data-tag="'+esc(tag)+'" class="btn-plain">Save</button><button data-action="cancel-txn-tag-rename" class="icon-btn">'+ICONS.x+'</button></div>';
       } else if(deleting){
@@ -4423,7 +4716,7 @@ function renderAddTxnPage() {
   return h;
 }
 function renderFab() {
-  return '<button class="app-fab" data-action="open-add-txn" aria-label="Add transaction" style="position:fixed; right:calc(env(safe-area-inset-right,0px) + 18px); bottom:calc(env(safe-area-inset-bottom,0px) + 78px); width:52px; height:52px; border-radius:999px; background:var(--accent); color:var(--accent-ink); border:none; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,0.35); z-index:45;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
+  return '<button class="app-fab" data-action="open-add-txn" aria-label="Add transaction"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
 }
 
 function renderTransactionsBody() {
@@ -4463,10 +4756,10 @@ function renderTransactionsBody() {
   var net=totalIncome-totalExpense;
 
   var h='';
-  h+='<div class="row between" style="margin-bottom:10px;align-items:center;"><div><div class="eyebrow">Transactions</div><div class="muted caption">'+esc(info.title)+'</div></div><button data-action="go-page" data-page="calendar" class="btn-outline row gap2" style="padding:7px 10px;font-size:12px;align-items:center;">'+ICONS.calendar+' Calendar</button></div>';
+  h+='<div class="row between page-heading-row"><div class="title2">Transactions</div><button data-action="go-page" data-page="calendar" class="icon-btn page-icon-action" aria-label="Calendar">'+ICONS.calendar+'</button></div>';
 
   h+='<div class="card card-pad" style="margin-bottom:12px;">';
-  h+='<div><div class="eyebrow">Spent</div><div class="mono" style="font-size:30px;font-weight:700;margin-top:2px;">'+fmt(totalExpense,2)+' <span class="muted" style="font-size:15px;">AED</span></div></div>';
+  h+='<div><div class="eyebrow">Spent</div><div class="mono" style="font-size:30px;font-weight:700;margin-top:2px;">'+fmt(totalExpense,0)+' <span class="muted" style="font-size:15px;">AED</span></div></div>';
   if(periodMode!=="all"&&periodMode!=="custom") h+='<div class="row between hairline-top" style="margin-top:12px;padding-top:10px;"><button data-action="txn-nav-offset" data-delta="-1" class="icon-btn" style="padding:6px;">'+ICONS.chevronLeft+'</button><div style="text-align:center;"><div class="subhead" style="font-weight:600;">'+esc(info.title)+'</div><div class="muted caption">'+esc(info.sub)+'</div></div><button data-action="txn-nav-offset" data-delta="1" class="icon-btn" style="padding:6px;'+(info.isCurrent?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';
   h+='</div>';
 
@@ -4503,7 +4796,7 @@ function renderTransactionsBody() {
     var yesterday=toStr(addDays(parseD(todayStr()),-1));
     var heading=date===todayStr()?"Today · "+shortLabel(date):(date===yesterday?"Yesterday · "+shortLabel(date):dayLabel(date));
     h+='<div style="padding:12px 16px;'+(di?'border-top:1px solid var(--hairline);':'')+'"><div class="row between" style="margin-bottom:5px;"><div class="subhead" style="font-weight:600;">'+esc(heading)+'</div><div style="text-align:right;">'+(expense>0?'<div class="mono subhead">'+fmt(expense,2)+' AED</div>':'')+(income>0?'<div class="mono caption" style="color:var(--positive);">+'+fmt(income,2)+' received</div>':'')+'</div></div>';
-    txnOldestFirst(items).forEach(function(it){h+=renderTxnRow(date,it);});
+    txnNewestFirst(items).forEach(function(it){h+=renderTxnRow(date,it);});
     h+='</div>';
   });
   h+='</div>';
@@ -4555,7 +4848,7 @@ function renderCalendarBody() {
   var firstDow=base.getDay(), blanks=firstDow===0?6:firstDow-1;for(var i=0;i<blanks;i++)h+='<div></div>';var cur=parseD(monthStartStr);
   while(toStr(cur)<=monthEndStr){var ds=toStr(cur),e=state.entries[ds],spent=e?sumSpent(e):0,income=e?sumIncome(e):0,budgetSpent=e?sumBudgetSpent(e):0,dailyBudget=allowanceForDate(ds),isFuture=ds>today,isToday=ds===today,isSelected=state.calendarSelectedDate===ds;var overBudget=budgetSpent>dailyBudget;var bg=e?(overBudget?'var(--rust-wash)':'var(--positive-wash)'):'var(--raised)';if(isFuture&&!e)bg='transparent';var border=isToday?'2px solid var(--accent)':(isSelected?'2px solid var(--text)':'1px solid transparent');h+='<button data-action="cal-select" data-date="'+ds+'" style="min-height:64px;border-radius:9px;border:'+border+';background:'+bg+';display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 1px;gap:4px;"><span style="font-size:14px;font-weight:500;">'+cur.getDate()+'</span><span class="mono" style="font-size:11px;">'+(e?fmt(toReporting(spent),0):' ')+'</span></button>';cur=addDays(cur,1);}
   h+='</div></div><div class="row" style="gap:14px;margin-bottom:16px;flex-wrap:wrap;">'+legendSwatch('var(--positive-wash)','Within daily budget')+legendSwatch('var(--rust-wash)','Over daily budget')+legendSwatch('var(--raised)','No transactions')+'</div>';
-  if(state.calendarSelectedDate){var sd=state.calendarSelectedDate,sday=state.entries[sd];h+='<div class="card card-pad"><div class="eyebrow" style="margin-bottom:8px;">'+esc(dayLabel(sd))+'</div>';if(sday&&sday.items.length)txnOldestFirst(sday.items).forEach(function(it){h+=renderTxnRow(sd,it);});else h+='<div class="muted subhead">Nothing logged this day.</div>';h+='</div>';}
+  if(state.calendarSelectedDate){var sd=state.calendarSelectedDate,sday=state.entries[sd];h+='<div class="card card-pad"><div class="eyebrow" style="margin-bottom:8px;">'+esc(dayLabel(sd))+'</div>';if(sday&&sday.items.length)txnNewestFirst(sday.items).forEach(function(it){h+=renderTxnRow(sd,it);});else h+='<div class="muted subhead">Nothing logged this day.</div>';h+='</div>';}
   return h;
 }
 
@@ -5209,15 +5502,28 @@ function smoothProtectedReserve(probability, likelyAmount, expectedAmount, evide
   return round2(Math.max(expected,reserveProb*likely));
 }
 
+function cadenceMultiProtectedReserve(probability, likelyAmount, expectedAmount, evidenceQuality, expectedCount){
+  var likely=Math.max(0,Number(likelyAmount)||0), expected=Math.max(0,Number(expectedAmount)||0);
+  var count=Math.max(0,Number(expectedCount)||0), q=Math.max(.45,Math.min(1,Number(evidenceQuality)||.70));
+  if(!(likely>0)||!(count>0)) return round2(expected);
+  /* Cadence can produce several repeat purchases inside Month/Year. Protect
+     the probability-weighted expectation plus a smooth uncertainty premium
+     toward the next whole plausible event count. */
+  var plausibleEvents=Math.max(1,Math.ceil(count-1e-6));
+  var plausibleTotal=plausibleEvents*likely;
+  var premium=.30+.30*q;
+  return round2(Math.max(expected,Math.min(plausibleTotal,expected+(plausibleTotal-expected)*premium)));
+}
+
 function cadenceEventForecast(profile, fromStr, throughStr) {
-  var byDate={},total=0,variance=0;
+  var byDate={},events=[],total=0,variance=0;
   var gap=Math.max(2,Number(profile&&profile.eventGap)||0);
-  if(!profile||profile.mode!=="cadence"||!profile.lastDate||!(gap>0)) return {byDate:byDate,total:0,variance:0,probability:0,safeReserve:0,reason:"No cadence"};
+  if(!profile||profile.mode!=="cadence"||!profile.lastDate||!(gap>0)) return {byDate:byDate,events:events,total:0,variance:0,probability:0,safeReserve:0,expectedCount:0,reason:"No cadence"};
   var horizon=Math.max(0,daysBetween(fromStr,throughStr)+1);
-  if(horizon<=0)return {byDate:byDate,total:0,variance:0,probability:0,safeReserve:0,reason:"No future days"};
+  if(horizon<=0)return {byDate:byDate,events:events,total:0,variance:0,probability:0,safeReserve:0,expectedCount:0,reason:"No future days"};
   var lastToday=profile.lastDate===fromStr;
   var availableDays=Math.max(0,horizon-(lastToday?1:0));
-  if(availableDays<=0)return {byDate:byDate,total:0,variance:0,probability:0,safeReserve:0,reason:"Recently satisfied"};
+  if(availableDays<=0)return {byDate:byDate,events:events,total:0,variance:0,probability:0,safeReserve:0,expectedCount:0,reason:"Recently satisfied"};
   var daysSince=Math.max(0,daysBetween(profile.lastDate,fromStr));
   var amountCv=(profile.amountCv!=null)?profile.amountCv:((profile.amountDev!=null&&profile.typicalAmount>0)?profile.amountDev/profile.typicalAmount:null);
   var timingCv=(profile.timingCv!=null)?profile.timingCv:((profile.gapDev!=null&&gap>0)?profile.gapDev/gap:null);
@@ -5225,19 +5531,16 @@ function cadenceEventForecast(profile, fromStr, throughStr) {
   var sampleQuality=nEvents>=8?.98:(nEvents>=6?.95:(nEvents>=5?.93:(nEvents>=4?.90:(nEvents>=3?.80:.65))));
   var timingQuality=timingCv==null?.78:Math.max(.45,Math.min(1,1-timingCv*.28));
   var amountQuality=amountCv==null?.82:Math.max(.50,Math.min(1,1-amountCv*.22));
-  /* Likelihood and confidence are deliberately separate. A small but very
-     regular sample can imply that an event is highly likely inside a broad
-     seven-day window while still only earning Medium confidence. */
   var evidenceQuality=.45*sampleQuality+.35*timingQuality+.20*amountQuality;
   var overdueRatio=gap>0?daysSince/gap:0;
   var staleFactor=1;
   if(overdueRatio>2.1)staleFactor=Math.exp(-.45*(overdueRatio-2.1));
   if(overdueRatio>3.6)staleFactor*=.35;
 
-  /* First-event probability combines four signals: whether the learned timing
-     window lands inside the horizon, sample size, timing consistency and
-     amount consistency. Evidence quality applies a modest uncertainty penalty
-     rather than dragging a clearly in-window event back toward 50%. */
+  /* Keep cadence DEFINITION unchanged: eventGap still comes from the observed
+     window divided by active event days. The model below only allows that same
+     learned cadence to repeat more than once when the forecast horizon is long
+     enough (Month/Year). */
   var wait=lastToday?gap:Math.max(0,gap-daysSince);
   var inside=wait<=availableDays;
   var firstRaw=inside?(0.75+0.20*Math.min(1,availableDays/gap)):(0.72*Math.exp(-Math.max(0,wait-availableDays)/Math.max(1,gap*.45)));
@@ -5245,30 +5548,43 @@ function cadenceEventForecast(profile, fromStr, throughStr) {
   var evidenceMultiplier=Math.max(.86,Math.min(.985,1-(.02+.08*(1-evidenceQuality))));
   var firstProb=Math.max(0,Math.min(.98,firstRaw*evidenceMultiplier*staleFactor));
   if(firstRaw<.08)firstProb=Math.min(firstProb,firstRaw);
-  /* v76: a cadence detail row is presented as
-       chance × likely event amount = expected amount. Keep that identity exact.
-       Categories capable of multiple events per week belong in the frequent
-       daily-spend model; cadence represents one next repeat event. */
-  var expectedCount=firstProb;
-  var targetTotal=firstProb*profile.typicalAmount;
-
-  var sigma=Math.max(.9,profile.gapDev||0,gap*.25), weights=[],weightSum=0;
-  for(var i=0;i<horizon;i++){
-    var ds=toStr(addDays(parseD(fromStr),i));
-    if(lastToday&&i===0)continue;
-    var distance=i-wait;
-    var w=Math.exp(-.5*Math.pow(distance/sigma,2));
-    weights.push({ds:ds,w:w});weightSum+=w;
+  var repeatProb=Math.max(.55,Math.min(.97,(.82+.15*evidenceQuality)*staleFactor));
+  /* Timing uncertainty is derived from the cadence itself, not from replacing
+     cadence with raw inter-event gaps. This keeps the user's chosen frequency
+     definition intact while avoiding excessive probability leakage across the
+     Week boundary. */
+  var sigma=Math.max(.75,gap*.13);
+  var noEventProb=1,expectedCount=0,eventIndex=0;
+  while(eventIndex<80){
+    var center=wait+eventIndex*gap;
+    if(center>horizon-1) break;
+    var eventProb=eventIndex===0?firstProb:repeatProb;
+    if(eventProb<=.005){eventIndex++;continue;}
+    var weights=[],weightSum=0;
+    for(var i=0;i<horizon;i++){
+      if(lastToday&&i===0)continue;
+      var ds=toStr(addDays(parseD(fromStr),i));
+      var w=Math.exp(-.5*Math.pow((i-center)/sigma,2));
+      weights.push({ds:ds,w:w});weightSum+=w;
+    }
+    if(weightSum<=1e-9){eventIndex++;continue;}
+    var eventByDate={},eventExpected=eventProb*profile.typicalAmount;
+    weights.forEach(function(x){
+      var amt=eventExpected*(x.w/weightSum);
+      eventByDate[x.ds]=(eventByDate[x.ds]||0)+amt;
+      byDate[x.ds]=(byDate[x.ds]||0)+amt;
+      total+=amt;
+    });
+    events.push({index:eventIndex,probability:eventProb,expectedAmount:eventExpected,likelyAmount:profile.typicalAmount,center:center,byDate:eventByDate});
+    expectedCount+=eventProb;
+    noEventProb*=Math.max(0,1-eventProb);
+    variance+=eventProb*(1-eventProb)*profile.typicalAmount*profile.typicalAmount;
+    variance+=(profile.amountDev||0)*(profile.amountDev||0)*Math.max(.25,eventProb);
+    eventIndex++;
   }
-  if(weightSum<=1e-9){
-    weights=[];for(var j=(lastToday?1:0);j<horizon;j++){var dsu=toStr(addDays(parseD(fromStr),j));weights.push({ds:dsu,w:1});weightSum+=1;}
-  }
-  weights.forEach(function(x){var amt=targetTotal*(x.w/weightSum);byDate[x.ds]=(byDate[x.ds]||0)+amt;total+=amt;});
-  var eventVar=firstProb*(1-firstProb)*profile.typicalAmount*profile.typicalAmount;
-  var amountVar=(profile.amountDev||0)*(profile.amountDev||0)*Math.max(.25,expectedCount);
-  variance=eventVar+amountVar;
-  var safeReserve=smoothProtectedReserve(firstProb,profile.typicalAmount,targetTotal,evidenceQuality,"cadence");
-  return {byDate:byDate,total:total,variance:variance,probability:firstProb,safeReserve:safeReserve,expectedCount:expectedCount,reason:"Cadence probability",expectedDate:toStr(addDays(parseD(profile.lastDate),Math.max(1,Math.round(gap))))};
+  var probability=Math.max(0,Math.min(1,1-noEventProb));
+  var safeReserve=cadenceMultiProtectedReserve(probability,profile.typicalAmount,total,evidenceQuality,expectedCount);
+  return {byDate:byDate,events:events,total:total,variance:variance,probability:probability,safeReserve:safeReserve,expectedCount:expectedCount,reason:"Cadence probability",expectedDate:toStr(addDays(parseD(profile.lastDate),Math.max(1,Math.round(gap))))};
 }
 
 function lumpyEventForecast(profile, fromStr, throughStr) {
@@ -5341,7 +5657,7 @@ function buildBehavioralForecastRaw(scope, profileAsOfStr, forecastFromStr, thro
       var c=cadenceEventForecast(p,forecastFromStr,throughStr),totalC=0;
       Object.keys(c.byDate).forEach(function(ds){var a=c.byDate[ds];byDate[ds]=(byDate[ds]||0)+a;bySubDate[k][ds]=a;totalC+=a;});
       if(c.variance>0){var dates=Object.keys(c.byDate);if(dates.length){var share=c.variance/dates.length;dates.forEach(function(ds){varianceByDate[ds]=(varianceByDate[ds]||0)+share;});}}
-      if(totalC>0.005){bySub[k]={amount:totalC,kind:"cadence",profile:p,probability:c.probability||0,reason:c.reason||"",likelyAmount:p.typicalAmount||0,safeReserve:c.safeReserve||totalC,expectedCount:c.expectedCount||0};cadenceSafeReserveTotal+=(c.safeReserve||totalC);}
+      if(totalC>0.005){bySub[k]={amount:totalC,kind:"cadence",profile:p,probability:c.probability||0,reason:c.reason||"",likelyAmount:p.typicalAmount||0,safeReserve:c.safeReserve||totalC,expectedCount:c.expectedCount||0,events:c.events||[]};cadenceSafeReserveTotal+=(c.safeReserve||totalC);}
       if(p.lastDate===forecastFromStr||totalC<=0.005){p._forecastReason=c.reason||"";p._forecastProbability=c.probability||0;p._forecastSafeReserve=c.safeReserve||0;suppressed.push(p);}
     }else if(p.mode==="lumpy"){
       var l=lumpyEventForecast(p,forecastFromStr,throughStr),totalL=0;
@@ -5395,8 +5711,22 @@ function sliceBehavioralForecast(raw,fromStr,throughStr){
     var y=Object.assign({},x,{amount:amount}),likely=Number(x.likelyAmount||(x.profile&&x.profile.typicalAmount)||0);
     bySubDate[k]=sliced;
     if(x.kind==="cadence"){
-      var prob=likely>0?Math.max(0,Math.min(1,amount/likely)):0;
-      y.probability=prob;y.expectedCount=prob;y.safeReserve=smoothProtectedReserve(prob,likely,amount,x.profile&&x.profile.evidenceQuality,"cadence");
+      var expectedCount=0,noEvent=1,slicedEvents=[];
+      if(Array.isArray(x.events)&&x.events.length){
+        x.events.forEach(function(ev){
+          var evTotal=Math.max(0,Number(ev.expectedAmount)||0),evSlice=0,evPath=ev.byDate||{};
+          Object.keys(evPath).forEach(function(ds){if(ds>=fromStr&&ds<=throughStr)evSlice+=Number(evPath[ds])||0;});
+          if(!(evTotal>0)||!(evSlice>0))return;
+          var fraction=Math.max(0,Math.min(1,evSlice/evTotal));
+          var pSlice=Math.max(0,Math.min(1,(Number(ev.probability)||0)*fraction));
+          expectedCount+=pSlice;noEvent*=Math.max(0,1-pSlice);
+          slicedEvents.push(Object.assign({},ev,{probability:pSlice,expectedAmount:evSlice}));
+        });
+      } else if(likely>0) expectedCount=Math.max(0,amount/likely);
+      var prob=Math.max(0,Math.min(1,1-noEvent));
+      if(!slicedEvents.length&&expectedCount>0) prob=Math.min(1,expectedCount);
+      y.probability=prob;y.expectedCount=expectedCount;y.events=slicedEvents;
+      y.safeReserve=cadenceMultiProtectedReserve(prob,likely,amount,x.profile&&x.profile.evidenceQuality,expectedCount);
       cadenceReserve+=y.safeReserve;
     }else if(x.kind==="lumpy"){
       var fraction=(Number(x.amount)||0)>0?Math.max(0,Math.min(1,amount/Number(x.amount))):0;
@@ -5537,7 +5867,7 @@ function computeForecastNumbersCore(rows, totalDays, periodStart, scope) {
   var breakdown=[];
   Object.keys(behavioral.bySubcategory||{}).forEach(function(k){
     var x=behavioral.bySubcategory[k],p=x.profile;
-    breakdown.push({label:p.label,amount:round2(x.amount),expectedAmount:round2(x.amount),likelyAmount:round2(x.likelyAmount||p.typicalAmount||0),safeReserve:round2(x.safeReserve||x.amount),probability:x.probability==null?null:x.probability,kind:x.kind,metaText:forecastProfileMetaText(p,x.kind,x.probability,x.reason),profile:p});
+    breakdown.push({label:p.label,amount:round2(x.amount),expectedAmount:round2(x.amount),likelyAmount:round2(x.likelyAmount||p.typicalAmount||0),safeReserve:round2(x.safeReserve||x.amount),probability:x.probability==null?null:x.probability,expectedCount:x.expectedCount==null?null:x.expectedCount,kind:x.kind,metaText:forecastProfileMetaText(p,x.kind,x.probability,x.reason),profile:p});
   });
   var scheduledBreakdown=scheduledExpenseBreakdown(today,periodEnd,scope);
   Object.keys(scheduledBreakdown).forEach(function(k){
@@ -6195,7 +6525,7 @@ function renderAnalysisBody(T) {
   if(analysisAvgEnd<analysisAvgStart)analysisAvgEnd=minStr(info.end,today);
   var analysisAvgDays=Math.max(1,daysBetween(analysisAvgStart,analysisAvgEnd)+1);
   function analysisDailyAvg(total){return total/analysisAvgDays;}
-  var h='<div class="row between" style="align-items:center;margin-bottom:10px;"><div class="eyebrow">Analysis</div><button data-action="toggle-analysis-reorder" class="btn-plain" style="font-size:12px;">'+(state.analysisReorderMode?'Done':'Customize')+'</button></div>';
+  var h='<div class="row between page-heading-row"><div class="title2">Analysis</div><button data-action="toggle-analysis-reorder" class="btn-plain">'+(state.analysisReorderMode?'Done':'Arrange')+'</button></div>';
   h+='<div class="seg" style="margin-bottom:12px;">';[["week","Week"],["month","Month"],["year","Year"],["custom","Custom"]].forEach(function(opt){h+='<button class="seg-btn" role="tab" aria-selected="'+(periodMode===opt[0])+'" data-action="set-analysis-period" data-mode="'+opt[0]+'">'+opt[1]+'</button>';});h+='</div>';
   if(periodMode==='custom'){h+='<div class="row gap2" style="margin-bottom:12px;"><input id="analysisPeriodFromInput" type="date" class="field mono" style="flex:1;font-size:13px;" value="'+esc(periodFrom)+'" max="'+today+'"/><input id="analysisPeriodToInput" type="date" class="field mono" style="flex:1;font-size:13px;" value="'+esc(periodTo)+'" max="'+today+'"/></div>';}else{h+='<div class="row between card" style="padding:8px 10px;margin-bottom:12px;"><button data-action="analysis-nav-offset" data-delta="-1" class="icon-btn">'+ICONS.chevronLeft+'</button><div style="text-align:center;"><div class="subhead">'+esc(info.title)+'</div><div class="muted caption">'+esc(info.sub)+'</div></div><button data-action="analysis-nav-offset" data-delta="1" class="icon-btn" style="'+(info.isCurrent?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';}
   var catFilter=state.analysisCategoryFilter||"",personFilter=state.analysisPersonFilter||"",groupFilter=state.analysisSelectedGroup||"",selKey=state.analysisSelectedBucket;
@@ -6436,12 +6766,12 @@ function renderPlansBody() {
 
   var totals=next30Totals();
   var upcoming=activeRules.map(nextOccurrence).filter(Boolean).sort(function(a,b){return a.due<b.due?-1:a.due>b.due?1:0;}).slice(0,5);
-  var h='<div class="row between" style="margin-bottom:12px;align-items:center;"><div><div class="title2">Plans</div><div class="muted caption" style="margin-top:2px;">Recurring money and spread-out costs</div></div><button data-action="toggle-plan-create" class="btn-accent" style="padding:9px 12px;font-size:13px;">'+(state.plansCreateOpen?'Close':'New plan')+'</button></div>';
+  var h='<div class="row between page-heading-row"><div class="title2">Plans</div><button data-action="toggle-plan-create" class="btn-accent compact-action">'+(state.plansCreateOpen?'Close':'New plan')+'</button></div>';
 
-  h+='<div class="card card-pad" style="margin-bottom:14px;"><div class="eyebrow" style="margin-bottom:10px;">NEXT 30 DAYS</div><div class="stat-grid">'+statBlock('Scheduled expenses',fmt(totals.expense,0)+' AED',totals.expense?'var(--rust)':'var(--text)')+statBlock('Scheduled income',fmt(totals.income,0)+' AED',totals.income?'var(--positive)':'var(--text)')+statBlock('Active plans',String(activeRules.length),'var(--text)')+statBlock('Paused',String(pausedRules.length),'var(--text-muted)')+'</div></div>';
+  h+='<div class="card card-pad" style="margin-bottom:14px;"><div class="eyebrow" style="margin-bottom:10px;">Next 30 days</div><div class="stat-grid">'+statBlock('Scheduled expenses',fmt(totals.expense,0)+' AED',totals.expense?'var(--rust)':'var(--text)')+statBlock('Scheduled income',fmt(totals.income,0)+' AED',totals.income?'var(--positive)':'var(--text)')+'</div></div>';
 
   if(upcoming.length) {
-    h+='<div class="card card-pad" style="margin-bottom:14px;"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Upcoming</span><span class="muted caption">Next due date per plan</span></div>';
+    h+='<div class="card card-pad" style="margin-bottom:14px;"><div class="eyebrow" style="margin-bottom:6px;">Upcoming</div>';
     upcoming.forEach(function(x,i){ var r=x.rule,isIncome=r.entryKind==='income'; h+='<div class="row" style="gap:10px;align-items:center;padding:9px 0;'+(i?'border-top:1px solid var(--sep);':'')+'">'+planIcon(r)+'<div style="flex:1;min-width:0;"><div class="subhead" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(planName(r))+'</div><div class="muted caption">'+relativeDue(x.due)+' · '+shortLabel(x.due)+'</div></div><div class="mono subhead" style="font-weight:650;color:'+(isIncome?'var(--positive)':'var(--text)')+';">'+(isIncome?'+':'−')+fmt(x.amount,2)+'</div></div>'; });
     h+='</div>';
   }
@@ -6477,7 +6807,7 @@ function renderBottomNav() {
     {id:"analysis", label:"Analysis", icon:ICONS.chart}
   ];
   var h='<div class="tabbar">';
-  tabs.forEach(function(t){var active=state.page===t.id;h+='<button data-action="go-page" data-page="'+t.id+'" aria-current="'+(active?'page':'false')+'" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;padding:2px 0;color:'+(active?'var(--accent)':'var(--text-muted)')+';">'+t.icon+'<span style="font-size:10px;font-weight:'+(active?600:500)+';">'+t.label+'</span></button>';});
+  tabs.forEach(function(t){var active=state.page===t.id;h+='<button class="tabbar-item" data-action="go-page" data-page="'+t.id+'" aria-current="'+(active?'page':'false')+'">'+t.icon+'<span class="tabbar-label">'+t.label+'</span></button>';});
   return h+'</div>';
 }
 
@@ -6966,6 +7296,13 @@ document.addEventListener("click", function(e) {
     case "close-factory-reset": state.showFactoryResetConfirm = false; render(); break;
     case "toggle-theme":
       persistAll(Object.assign({}, state.settings, { theme: state.settings.theme==="dark"?"light":"dark" }), state.entries, "your settings");
+      render();
+      break;
+    case "set-theme":
+      var selectedTheme = el.dataset.theme === "dark" ? "dark" : "light";
+      if (selectedTheme !== state.settings.theme) {
+        persistAll(Object.assign({}, state.settings, { theme: selectedTheme }), state.entries, "your settings");
+      }
       render();
       break;
     case "switch-view": state.view = el.dataset.view; state.offset = 0; render(); break;
@@ -7730,17 +8067,19 @@ document.addEventListener("click", function(e) {
       var bgEl = document.getElementById("customBgInput");
       var accEl = document.getElementById("customAccentInput");
       var cardEl = document.getElementById("cardBrightnessInput");
+      var chromeEl = document.getElementById("chromeTransparencyInput");
       var nextAppearance = Object.assign({}, state.settings, {
         customDarkBg: bgEl ? bgEl.value : state.settings.customDarkBg,
         customAccent: accEl ? accEl.value : state.settings.customAccent,
-        customCardLightness: cardEl ? Number(cardEl.value) : state.settings.customCardLightness
+        customCardLightness: cardEl ? Number(cardEl.value) : state.settings.customCardLightness,
+        chromeTransparency: chromeEl ? Number(chromeEl.value) : state.settings.chromeTransparency
       });
       persistAll(nextAppearance, state.entries, "your settings");
       showToast("Appearance updated");
       render();
       break;
     case "reset-appearance":
-      var resetAppearance = Object.assign({}, state.settings, { customDarkBg: null, customAccent: null, customCardLightness: null });
+      var resetAppearance = Object.assign({}, state.settings, { customDarkBg: null, customAccent: null, customCardLightness: null, chromeTransparency: DEFAULT_SETTINGS.chromeTransparency });
       persistAll(resetAppearance, state.entries, "your settings");
       showToast("Appearance reset");
       render();
@@ -7932,26 +8271,50 @@ document.addEventListener("input", function(e) {
       derived.textContent = "= " + fmt(perDay,2) + " "+reportingCurrency()+"/day in " + monthName + " · about " + fmt(perDay*7,0) + " "+reportingCurrency()+"/week";
     }
   }
+  if (e.target && e.target.id === "chromeTransparencyInput") {
+    var chromeV=Math.max(0,Math.min(65,Number(e.target.value)||0));
+    var chromeLbl=document.getElementById("chromeTransparencyLabel");
+    if(chromeLbl) chromeLbl.textContent=fmt(chromeV,0)+"%";
+    var styles=getComputedStyle(document.documentElement);
+    var liveBg=styles.getPropertyValue("--bg").trim() || PALETTES[state.settings.theme].bg;
+    var liveCard=styles.getPropertyValue("--card").trim() || PALETTES[state.settings.theme].card;
+    var a=1-chromeV/100;
+    var rr=document.documentElement.style;
+    rr.setProperty("--chrome-bg",rgbaFromHex(liveBg,a));
+    rr.setProperty("--tab-bg",rgbaFromHex(liveCard,Math.min(.94,a+.04)));
+    return;
+  }
   if (e.target && e.target.id === "customBgInput") {
+    var lbl = document.getElementById("customBgLabel");
+    if (lbl) lbl.textContent = e.target.value.toUpperCase();
+    if (state.settings.theme !== "dark") return;
     var cardLiveEl = document.getElementById("cardBrightnessInput");
     var tones = deriveDarkTones(e.target.value, cardLiveEl ? Number(cardLiveEl.value) : (state.settings.customCardLightness != null ? state.settings.customCardLightness : 15));
     var r = document.documentElement.style;
     r.setProperty("--bg", tones.bg); r.setProperty("--card", tones.card); r.setProperty("--raised", tones.raised);
     r.setProperty("--fill", tones.fill); r.setProperty("--sep", tones.sep); r.setProperty("--hairline", tones.hairline);
+    var chromeLive=document.getElementById("chromeTransparencyInput");
+    var chromePct=chromeLive?Number(chromeLive.value):chromeTransparencyPct();
+    var chromeA=1-Math.max(0,Math.min(65,chromePct))/100;
+    r.setProperty("--chrome-bg",rgbaFromHex(tones.bg,chromeA));
+    r.setProperty("--tab-bg",rgbaFromHex(tones.card,Math.min(.94,chromeA+.04)));
     var metaBg = document.querySelector('meta[name="theme-color"]');
     if (metaBg) metaBg.setAttribute("content", tones.bg);
-    var lbl = document.getElementById("customBgLabel");
-    if (lbl) lbl.textContent = e.target.value.toUpperCase();
   }
   if (e.target && e.target.id === "cardBrightnessInput") {
+    var cardLbl = document.getElementById("cardBrightnessLabel");
+    if (cardLbl) cardLbl.textContent = e.target.value + "%";
+    if (state.settings.theme !== "dark") return;
     var bgLiveEl = document.getElementById("customBgInput");
     var liveBg = bgLiveEl ? bgLiveEl.value : (state.settings.customDarkBg || PALETTES.dark.bg);
     var tonesCard = deriveDarkTones(liveBg, Number(e.target.value));
     var rc = document.documentElement.style;
     rc.setProperty("--card", tonesCard.card); rc.setProperty("--raised", tonesCard.raised);
     rc.setProperty("--fill", tonesCard.fill); rc.setProperty("--sep", tonesCard.sep); rc.setProperty("--hairline", tonesCard.hairline);
-    var cardLbl = document.getElementById("cardBrightnessLabel");
-    if (cardLbl) cardLbl.textContent = e.target.value + "%";
+    var chromeLive2=document.getElementById("chromeTransparencyInput");
+    var chromePct2=chromeLive2?Number(chromeLive2.value):chromeTransparencyPct();
+    var chromeA2=1-Math.max(0,Math.min(65,chromePct2))/100;
+    rc.setProperty("--tab-bg",rgbaFromHex(tonesCard.card,Math.min(.94,chromeA2+.04)));
   }
   if (e.target && e.target.id === "customAccentInput") {
     var r2 = document.documentElement.style;
