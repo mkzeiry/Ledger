@@ -670,8 +670,8 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v98";
-var FORECAST_MODEL_VERSION = "v96-canonical-2";
+var APP_VERSION = "v99";
+var FORECAST_MODEL_VERSION = "v99-ewma-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
@@ -5474,7 +5474,7 @@ function buildAnalysisForecastCard(info, cs, T) {
 /* Single source of truth for the forecast. Actual spend remains exact;
    deterministic plans remain exact; variable spending is forecast primarily
    as likely subcategory EVENTS (learned repeat interval × typical amount).
-   New/very-frequent subcategories fall back to the robust weekday-aware pace
+   New/very-frequent subcategories fall back to the robust adaptive-EWMA pace
    model, so the engine degrades gracefully when history is sparse. */
 /* ---------------- v75 hybrid behavioral short-horizon forecast ----------------
    A short personal-finance horizon should not allocate generic "pace" money to
@@ -5482,8 +5482,8 @@ function buildAnalysisForecastCard(info, cs, T) {
    classifies each unscheduled subcategory explicitly:
 
      FREQUENT  -> enough active days and a short repeat gap. Forecast each
-                  future calendar day from that subcategory's own recent daily
-                  history, with same-weekday behavior weighted most heavily.
+                  future calendar day from a robust adaptive-EWMA daily pace,
+                  with a small weekday nudge and a long-term anchor.
      CADENCE   -> repeat-type events such as Fuel/Baby Gear. Forecast only near
                   the learned next-occurrence window. A fresh occurrence resets
                   the clock; missed cycles become stale instead of "due now".
@@ -5581,34 +5581,91 @@ function robustDailyPaceWindow(profile, asOfDate, windowDays) {
   var st=robustWeightedStats(samples);
   return st?{mean:Math.max(0,st.mean||0),dev:Math.max(0,st.dev||0),count:samples.length}:null;
 }
+/* v99: frequent spending uses a robust exponentially weighted daily pace
+   instead of hard 30/14/7 blend boundaries. Every completed calendar day is
+   included (zero-spend days too). The recency half-life adapts to observed
+   volatility, while a modest long-term anchor prevents one unusual week from
+   instantly redefining the category's normal pace. */
+function adaptiveDailyPaceStats(dailyMap, historyStart, asOfDate, maxDays) {
+  dailyMap=dailyMap||{};maxDays=Math.max(21,Number(maxDays)||90);
+  var end=forecastHistoryEnd(asOfDate),start=toStr(addDays(parseD(end),-(maxDays-1)));
+  if(historyStart&&historyStart>start)start=historyStart;
+  if(start>end)return {mean:0,dev:0,ewma:0,anchor:0,halfLife:12,volatility:0,historyDays:0,p30:0,p14:0,p7:0,trendPct:null,anchorWeight:0};
+  var rows=[],d=parseD(start);
+  while(toStr(d)<=end){var ds=toStr(d);rows.push({date:ds,value:Math.max(0,Number(dailyMap[ds])||0)});d=addDays(d,1);}
+  if(!rows.length)return {mean:0,dev:0,ewma:0,anchor:0,halfLife:12,volatility:0,historyDays:0,p30:0,p14:0,p7:0,trendPct:null,anchorWeight:0};
+
+  var uniform=robustWeightedStats(rows.map(function(r){return {value:r.value,weight:1};}));
+  var anchor=Math.max(0,uniform?uniform.mean:0),anchorDev=Math.max(0,uniform?uniform.dev:0);
+  var cv=anchor>0?anchorDev/anchor:1;
+  var vol=Math.max(0,Math.min(1,cv));
+  /* Stable categories keep a longer memory; volatile categories react faster.
+     Eight-to-eighteen days is intentionally conservative for personal finance. */
+  var halfLife=18-10*vol;
+  if(rows.length<14)halfLife=Math.min(halfLife,10);
+  halfLife=Math.max(8,Math.min(18,halfLife));
+
+  var newest=rows.length-1;
+  var weighted=rows.map(function(r,i){
+    var age=newest-i,w=Math.pow(.5,age/halfLife);
+    return {value:r.value,weight:w};
+  });
+  var ew=robustWeightedStats(weighted),ewma=Math.max(0,ew?ew.mean:anchor),ewDev=Math.max(0,ew?ew.dev:anchorDev);
+
+  /* The anchor strengthens slightly when the series is noisy, but only once
+     enough history exists to deserve being called a long-term baseline. */
+  var anchorEvidence=Math.min(1,rows.length/30);
+  var anchorWeight=(.10+.10*vol)*anchorEvidence;
+  var mean=ewma*(1-anchorWeight)+anchor*anchorWeight;
+  var dev=ewDev*(1-anchorWeight)+anchorDev*anchorWeight;
+
+  function tailStat(n){
+    var a=rows.slice(Math.max(0,rows.length-n)).map(function(r){return {value:r.value,weight:1};});
+    var st=robustWeightedStats(a);return st?Math.max(0,st.mean||0):0;
+  }
+  var p7=tailStat(7),p14=tailStat(14),p30=tailStat(30);
+  var trendPct=anchor>0?((p7/anchor)-1)*100:null;
+  return {mean:Math.max(0,mean),dev:Math.max(0,dev),ewma:ewma,anchor:anchor,halfLife:halfLife,volatility:cv,historyDays:rows.length,p30:p30,p14:p14,p7:p7,trendPct:trendPct,anchorWeight:anchorWeight};
+}
 function frequentPaceStats(profile, asOfDate) {
-  var w30=robustDailyPaceWindow(profile,asOfDate,30),w14=robustDailyPaceWindow(profile,asOfDate,14),w7=robustDailyPaceWindow(profile,asOfDate,7);
-  var parts=[{x:w30,w:.50},{x:w14,w:.30},{x:w7,w:.20}],ws=0,mean=0,dev=0;
-  parts.forEach(function(z){if(z.x){ws+=z.w;mean+=z.x.mean*z.w;dev+=z.x.dev*z.w;}});
-  if(ws<=0)return {mean:0,dev:0,p30:0,p14:0,p7:0,trendPct:null};
-  mean/=ws;dev/=ws;
-  var trendPct=(w30&&w30.mean>0&&w7)?((w7.mean/w30.mean)-1)*100:null;
-  return {mean:Math.max(0,mean),dev:Math.max(0,dev),p30:w30?w30.mean:0,p14:w14?w14.mean:0,p7:w7?w7.mean:0,trendPct:trendPct};
+  if(!profile)return {mean:0,dev:0,p30:0,p14:0,p7:0,trendPct:null,halfLife:12,anchor:0,ewma:0,volatility:0,historyDays:0};
+  return adaptiveDailyPaceStats(profile.daily,profile.historyStart,asOfDate,90);
 }
 function expectedFrequentCategoryForDate(profile, ds, asOfDate) {
   if(!profile||profile.mode!=="frequent") return {mean:0,dev:0,count:0};
   var pace=frequentPaceStats(profile,asOfDate), histEnd=forecastHistoryEnd(asOfDate), targetDow=parseD(ds).getDay();
-  var floor=toStr(addDays(parseD(histEnd),-55)), start=(profile.historyStart&&profile.historyStart>floor)?profile.historyStart:floor, same=[];
+  var floor=toStr(addDays(parseD(histEnd),-83)), start=(profile.historyStart&&profile.historyStart>floor)?profile.historyStart:floor, same=[];
   var d=parseD(start),end=parseD(histEnd);
-  while(d<=end){if(d.getDay()===targetDow)same.push({value:profile.daily[toStr(d)]||0,weight:1});d=addDays(d,1);}
-  var sameStats=same.length>=2?robustWeightedStats(same):null;
-  /* Daily pace drives 85% of the estimate; weekday seasonality only nudges it.
-     Over a full week this keeps the forecast anchored to the recent 30/14/7-day
-     spend tendency instead of overreacting to one historical weekday. */
-  var mean=pace.mean,dev=pace.dev;
-  if(sameStats){mean=pace.mean*.85+sameStats.mean*.15;dev=pace.dev*.85+sameStats.dev*.15;}
+  while(d<=end){
+    if(d.getDay()===targetDow){
+      var age=Math.max(0,daysBetween(toStr(d),histEnd));
+      same.push({value:profile.daily[toStr(d)]||0,weight:Math.pow(.5,age/Math.max(10,pace.halfLife*1.5))});
+    }
+    d=addDays(d,1);
+  }
+  var sameStats=same.length>=3?robustWeightedStats(same):null;
+  /* Weekday behavior remains a small nudge only. Its influence grows with
+     repeated same-weekday evidence and is capped so a few Saturdays cannot
+     overwhelm the adaptive daily pace. */
+  var mean=pace.mean,dev=pace.dev,weekdayWeight=0,weekdayPct=0;
+  if(sameStats&&pace.mean>0){
+    var reliability=Math.min(1,(same.length-2)/4);
+    weekdayWeight=.15*reliability;
+    var ratio=Math.max(.75,Math.min(1.25,sameStats.mean/pace.mean));
+    mean=pace.mean*(1+weekdayWeight*(ratio-1));
+    dev=pace.dev*(1-weekdayWeight)+Math.max(0,sameStats.dev||0)*weekdayWeight;
+    weekdayPct=(ratio-1)*weekdayWeight*100;
+  }
   if(ds===asOfDate){
-    /* Today is no longer treated as a completed zero-spend day. Actual spend
-       logged so far replaces the same amount of today's expected full-day pace. */
+    /* Today is not a completed zero-spend day. Logged actual spend consumes
+       today's expected frequent pace rather than being forecast again. */
     mean=Math.max(0,mean-(profile.daily[ds]||0));
   }
-  profile.pace30=pace.p30;profile.pace14=pace.p14;profile.pace7=pace.p7;profile.paceTrendPct=pace.trendPct;profile.paceMean=pace.mean;
-  return {mean:Math.max(0,mean||0),dev:Math.max(0,dev||0),count:same.length,pace:pace};
+  profile.pace30=pace.p30;profile.pace14=pace.p14;profile.pace7=pace.p7;
+  profile.paceTrendPct=pace.trendPct;profile.paceMean=pace.mean;
+  profile.paceEwma=pace.ewma;profile.paceAnchor=pace.anchor;profile.paceHalfLife=pace.halfLife;
+  profile.paceVolatility=pace.volatility;profile.weekdayAdjustmentPct=weekdayPct;
+  return {mean:Math.max(0,mean||0),dev:Math.max(0,dev||0),count:same.length,pace:pace,weekdayWeight:weekdayWeight};
 }
 
 function smoothProtectedReserve(probability, likelyAmount, expectedAmount, evidenceQuality, kind){
@@ -5728,31 +5785,27 @@ function lumpyEventForecast(profile, fromStr, throughStr) {
 
 function portfolioUnscheduledPaceForecast(scope, profileAsOfStr, forecastFromStr, throughStr) {
   var histEnd=forecastHistoryEnd(profileAsOfStr), allDates=Object.keys(state.entries).sort(), first=allDates.length?allDates[0]:histEnd;
-  var natural=scope==="overall"?first:(state.settings.trackingStartDate||first);
+  var natural=scope==="overall"?first:(state.settings.trackingStartDate||first),daily={};
   function daySpend(ds){
     var e=state.entries[ds],sum=0;if(!e||!Array.isArray(e.items))return 0;
     e.items.forEach(function(it){if(expenseCountsForScope(it,scope)&&!it.recurringId)sum+=Number(it.amount)||0;});return sum;
   }
-  function windowStat(n){
-    var start=toStr(addDays(parseD(histEnd),-(n-1)));if(natural>start)start=natural;if(start>histEnd)return null;
-    var samples=[],d=parseD(start);while(toStr(d)<=histEnd){samples.push({value:daySpend(toStr(d)),weight:1});d=addDays(d,1);}
-    var st=robustWeightedStats(samples);return st?{mean:Math.max(0,st.mean||0),dev:Math.max(0,st.dev||0),count:samples.length}:null;
-  }
-  var w30=windowStat(30),w14=windowStat(14),w7=windowStat(7),parts=[{x:w30,w:.50},{x:w14,w:.30},{x:w7,w:.20}],ws=0,pace=0,dev=0,maxCount=0;
-  parts.forEach(function(z){if(z.x){ws+=z.w;pace+=z.x.mean*z.w;dev+=z.x.dev*z.w;maxCount=Math.max(maxCount,z.x.count||0);}});
-  if(ws<=0)return {total:0,pace:0,dev:0,historyDays:0,blendWeight:0};pace/=ws;dev/=ws;
+  var start=toStr(addDays(parseD(histEnd),-89));if(natural>start)start=natural;
+  var d=parseD(start);while(toStr(d)<=histEnd){var ds=toStr(d);daily[ds]=daySpend(ds);d=addDays(d,1);}
+  var paceStats=adaptiveDailyPaceStats(daily,start,profileAsOfStr,90),pace=paceStats.mean||0,dev=paceStats.dev||0;
+  if(!(pace>0))return {total:0,pace:0,dev:dev,historyDays:paceStats.historyDays||0,blendWeight:0,halfLife:paceStats.halfLife||12,anchor:paceStats.anchor||0};
   var horizon=Math.max(0,daysBetween(forecastFromStr,throughStr)+1),todayActual=0;
   if(profileAsOfStr===forecastFromStr){todayActual=daySpend(forecastFromStr);}
   var total=0;
   for(var i=0;i<horizon;i++){
-    var ds=toStr(addDays(parseD(forecastFromStr),i));
-    total+=ds===profileAsOfStr?Math.max(0,pace-todayActual):pace;
+    var fds=toStr(addDays(parseD(forecastFromStr),i));
+    total+=fds===profileAsOfStr?Math.max(0,pace-todayActual):pace;
   }
-  /* Aggregate history is a guardrail, not the primary model. It receives at
-     most 30% weight once a full month is observed; with less history the
-     category-level model dominates even more strongly. */
-  var blendWeight=Math.min(.30,Math.max(0,maxCount/30*.30));
-  return {total:total,pace:pace,dev:dev,historyDays:maxCount,blendWeight:blendWeight,p30:w30?w30.mean:0,p14:w14?w14.mean:0,p7:w7?w7.mean:0};
+  /* Aggregate pace remains only a guardrail. Once about a month is observed,
+     it can carry at most 30% weight against the subcategory forecasts. */
+  var blendWeight=Math.min(.30,Math.max(0,(paceStats.historyDays||0)/30*.30));
+  return {total:total,pace:pace,dev:dev,historyDays:paceStats.historyDays||0,blendWeight:blendWeight,
+    p30:paceStats.p30||0,p14:paceStats.p14||0,p7:paceStats.p7||0,halfLife:paceStats.halfLife||12,anchor:paceStats.anchor||0,ewma:paceStats.ewma||0};
 }
 
 function buildBehavioralForecastRaw(scope, profileAsOfStr, forecastFromStr, throughStr) {
@@ -5874,8 +5927,9 @@ function forecastProfileMetaText(p, kind, probability, reason) {
   if(p.txnCount!=null)parts.push(p.txnCount+" txn"+(p.txnCount===1?"":"s")+" / "+p.spanDays+"d");
   if(kind==="frequent"){
     if(p.occurrenceGap!=null)parts.push(occurrenceFrequencyText(p.occurrenceGap,true));
-    if(p.paceMean!=null)parts.push("pace "+fmt(p.paceMean,0)+" AED/day");
-    if(p.paceTrendPct!=null&&Math.abs(p.paceTrendPct)>=8)parts.push("7d "+(p.paceTrendPct>0?"+":"")+fmt(p.paceTrendPct,0)+"%");
+    if(p.paceMean!=null)parts.push("adaptive pace "+fmt(p.paceMean,0)+" AED/day");
+    if(p.paceHalfLife!=null)parts.push(Math.round(p.paceHalfLife)+"d half-life");
+    if(p.paceTrendPct!=null&&Math.abs(p.paceTrendPct)>=10)parts.push("recent "+(p.paceTrendPct>0?"+":"")+fmt(p.paceTrendPct,0)+"%");
   }else if(kind==="cadence"){
     if(p.eventGap!=null)parts.push("event ~every "+Number(p.eventGap).toFixed(1)+" days");
   }else if(kind==="lumpy"){
@@ -6009,7 +6063,7 @@ function computeForecastNumbersCore(rows, totalDays, periodStart, scope) {
     var prob=null;
     if(bx&&(bx.kind==="cadence"||bx.kind==="lumpy")&&bx.probability!=null) prob=bx.probability;
     else if(p._forecastProbability!=null) prob=p._forecastProbability;
-    profileEvidence.push({label:p.label,mode:p.mode,txnCount:p.txnCount,activeDays:p.activeDays,gap:p.occurrenceGap,eventGap:p.eventGap,spanDays:p.spanDays,typicalAmount:round2(p.typicalAmount||0),typicalTxnAmount:round2(p.typicalTxnAmount||0),pace30:round2(p.pace30||0),pace14:round2(p.pace14||0),pace7:round2(p.pace7||0),paceTrendPct:p.paceTrendPct==null?null:round2(p.paceTrendPct),confidence:p.confidence,lastDate:p.lastDate,probability:prob});
+    profileEvidence.push({label:p.label,mode:p.mode,txnCount:p.txnCount,activeDays:p.activeDays,gap:p.occurrenceGap,eventGap:p.eventGap,spanDays:p.spanDays,typicalAmount:round2(p.typicalAmount||0),typicalTxnAmount:round2(p.typicalTxnAmount||0),pace30:round2(p.pace30||0),pace14:round2(p.pace14||0),pace7:round2(p.pace7||0),paceTrendPct:p.paceTrendPct==null?null:round2(p.paceTrendPct),paceEwma:round2(p.paceEwma||0),paceAnchor:round2(p.paceAnchor||0),paceHalfLife:p.paceHalfLife==null?null:round2(p.paceHalfLife),confidence:p.confidence,lastDate:p.lastDate,probability:prob});
   });
   profileEvidence.sort(function(a,b){return (a.label||"").localeCompare(b.label||"");});
 
