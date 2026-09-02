@@ -694,10 +694,10 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v111.4";
+var APP_VERSION = "v111.5";
 var FORECAST_MODEL_VERSION = "v103-yearly-bill-1";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly" };
+var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly", safeSpendHistory: null };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
 function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
@@ -1747,6 +1747,31 @@ function homeAheadBehindResolutionLabel(v){
   v=normalizeHomeAheadBehindResolution(v);
   return v==="4h" ? "Every 4 hours" : (v==="daily" ? "Daily" : "Hourly");
 }
+/* v111.5: Safe-to-Spend history records the opening allowance once per day.
+   It intentionally does not rewrite earlier days when settings change later, so
+   the trend reflects what The Ledger actually offered at that day's opening. */
+function normalizeSafeSpendHistory(v){
+  var rows=Array.isArray(v)?v:[], byDate={};
+  rows.forEach(function(x){
+    if(!x||!/^\d{4}-\d{2}-\d{2}$/.test(String(x.date||"")))return;
+    var opening=Number(x.openingSafe), sustainable=Number(x.sustainableDaily);
+    if(!isFinite(opening)||!isFinite(sustainable))return;
+    byDate[x.date]={date:x.date,openingSafe:round2(Math.max(0,opening)),sustainableDaily:round2(Math.max(0,sustainable)),flexibilityPct:normalizeSafeSpendFlexibilityPct(x.flexibilityPct),effectiveBudget:round2(Math.max(0,Number(x.effectiveBudget)||0)),futureReserve:round2(Math.max(0,Number(x.futureReserve)||0))};
+  });
+  return Object.keys(byDate).sort().map(function(k){return byDate[k];}).slice(-120);
+}
+function safeSpendHistory(){ return normalizeSafeSpendHistory(state.settings.safeSpendHistory); }
+function ensureSafeSpendSnapshot(){
+  var date=todayStr(), hist=safeSpendHistory();
+  if(hist.some(function(x){return x.date===date;}))return false;
+  var pacing=liveBudgetPacing(), m=pacing&&pacing.month;
+  if(!m||m.openingSafe==null||m.sustainableDaily==null)return false;
+  var info=currentEffectiveBudgetInfo();
+  hist.push({date:date,openingSafe:round2(Math.max(0,m.openingSafe)),sustainableDaily:round2(Math.max(0,m.sustainableDaily)),flexibilityPct:m.flexibilityPct,effectiveBudget:info?info.effectiveBudget:0,futureReserve:m.futureReserve||0});
+  var nextSettings=Object.assign({},state.settings,{safeSpendHistory:normalizeSafeSpendHistory(hist)});
+  persistAll(nextSettings,state.entries,"Safe-to-Spend history");
+  return true;
+}
 function savingsTargetAmountForIncome(income){ return round2(Math.max(0,Number(income)||0)*savingsTargetPct()/100); }
 function savingsSpendCeilingForIncome(income){ return round2(Math.max(0,Number(income)||0)-savingsTargetAmountForIncome(income)); }
 /* Compares the configured MONTHLY budget (budget-counted categories only)
@@ -2309,6 +2334,7 @@ function loadInitial() {
   state.settings.baseCurrency = TXN_CURRENCIES.indexOf(String(state.settings.baseCurrency||"AED").toUpperCase())!==-1 ? String(state.settings.baseCurrency||"AED").toUpperCase() : "AED";
   state.settings.startingCashBalance = isFinite(Number(state.settings.startingCashBalance)) ? round2(Number(state.settings.startingCashBalance)) : 0;
   state.settings.forecastSnapshots = normalizeForecastSnapshots(state.settings.forecastSnapshots);
+  state.settings.safeSpendHistory = normalizeSafeSpendHistory(state.settings.safeSpendHistory);
   state.settings.transactionTags = normalizeTransactionTags(state.settings.transactionTags);
   state.settings.transactionTagColors = normalizeTransactionTagColors(state.settings.transactionTagColors, state.settings.transactionTags);
   state.settings.incomeHistory = normalizeIncomeHistory(state.settings.incomeHistory);
@@ -3709,6 +3735,9 @@ function render() {
     return;
   }
 
+  /* Capture at most one opening Safe-to-Spend point per calendar day. */
+  try { ensureSafeSpendSnapshot(); } catch(ignoreSafeHistory) {}
+
   var da = dailyAllowance();
 
   /* Add/Edit transaction is its own screen. Keeping it outside the normal app
@@ -4443,6 +4472,75 @@ function budgetForecastEvidenceHtml(x, protectedMode) {
   return out;
 }
 
+/* Compact Safe-to-Spend history + baseline outlook. Future values are not
+   promises: they assume today's flexible spending finishes near the sustainable
+   pace, then each later day also follows that sustainable pace. Protected
+   essentials remain ring-fenced and are assumed to occur as currently reserved. */
+function safeSpendOutlookModel(livePacing){
+  var m=livePacing&&livePacing.month;if(!m||m.openingSafe==null||m.sustainableDaily==null)return null;
+  var today=todayStr(), per=getPeriodBounds("month",0,currentWeeklyTarget(),dailyAllowance()), monthKey=today.slice(0,7);
+  var hist=safeSpendHistory().filter(function(x){return x.date.slice(0,7)===monthKey&&x.date<=today;});
+  if(!hist.some(function(x){return x.date===today;}))hist.push({date:today,openingSafe:round2(Math.max(0,m.openingSafe)),sustainableDaily:round2(Math.max(0,m.sustainableDaily)),flexibilityPct:m.flexibilityPct});
+  hist.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});
+  var todaySustainable=Math.max(0,Number(m.sustainableDaily)||0), flexPct=Number(m.flexibilityPct)||safeSpendFlexibilityPct();
+  var actualFlexible=Math.max(0,Number(m.todayFlexibleSpent)||0);
+  var extraToBaseline=Math.max(0,todaySustainable-actualFlexible);
+  var poolTomorrow=Math.max(0,(Number(m.flexiblePool)||0)-extraToBaseline);
+  var futureDays=Math.max(0,(Number(m.days)||0)-1);
+  var tomorrowSustainable=futureDays>0?poolTomorrow/futureDays:0;
+  var future=[];
+  for(var ds=toStr(addDays(parseD(today),1));ds<=per.endStr;ds=toStr(addDays(parseD(ds),1))){
+    var daysLeft=Math.max(1,daysBetween(ds,per.endStr)+1);
+    var poolAtOpen=Math.max(0,tomorrowSustainable*daysLeft);
+    var safe=Math.min(poolAtOpen,tomorrowSustainable*(1+flexPct/100));
+    future.push({date:ds,value:round2(Math.max(0,safe)),kind:"projected"});
+  }
+  var points=hist.map(function(x){return {date:x.date,value:round2(Math.max(0,x.openingSafe)),kind:"history"};});
+  var todayOpening=round2(Math.max(0,m.openingSafe)), current=round2(Math.max(0,m.safe||0));
+  var tomorrow=future.length?future[0].value:null, monthEnd=future.length?future[future.length-1].value:todayOpening;
+  return {history:points,future:future,today:today,current:current,todayOpening:todayOpening,sustainable:round2(todaySustainable),tomorrow:tomorrow,monthEnd:monthEnd,flexPct:flexPct,monthEndDate:per.endStr};
+}
+function safeSpendOutlookChartHtml(model,T){
+  if(!model)return '';
+  var data=model.history.concat(model.future), W=320,H=82,padX=8,padY=10;
+  if(!data.length)return '';
+  var vals=data.map(function(x){return Number(x.value)||0;}), lo=Math.min.apply(null,vals), hi=Math.max.apply(null,vals);
+  if(hi-lo<20){hi+=10;lo=Math.max(0,lo-10);}else{var p=(hi-lo)*.14;hi+=p;lo=Math.max(0,lo-p);}
+  var start=parseD(data[0].date), end=parseD(model.monthEndDate), span=Math.max(1,daysBetween(data[0].date,model.monthEndDate));
+  function xy(x){var dx=Math.max(0,daysBetween(data[0].date,x.date)),px=padX+(W-2*padX)*(dx/span),py=padY+(H-2*padY)*(1-((x.value-lo)/Math.max(.001,hi-lo)));return [px,py];}
+  function path(rows, includeToday){
+    var rr=rows.slice();if(includeToday&&model.history.length){var t=model.history[model.history.length-1];if(!rr.length||rr[0].date!==t.date)rr.unshift(t);}
+    return rr.map(function(x,i){var q=xy(x);return (i?'L':'M')+q[0].toFixed(1)+' '+q[1].toFixed(1);}).join(' ');
+  }
+  var histPath=path(model.history,false), futurePath=path(model.future,true), todayPoint=xy({date:model.today,value:model.todayOpening});
+  var html='<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="82" role="img" aria-label="Safe-to-Spend opening allowance history and projected baseline">';
+  html+='<line x1="'+padX+'" y1="'+(H-padY)+'" x2="'+(W-padX)+'" y2="'+(H-padY)+'" stroke="'+T.sep+'" stroke-width="1" />';
+  if(histPath)html+='<path d="'+histPath+'" fill="none" stroke="'+T.accent+'" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />';
+  if(futurePath)html+='<path d="'+futurePath+'" fill="none" stroke="'+T.accent+'" stroke-opacity=".55" stroke-width="2.5" stroke-dasharray="5 5" stroke-linecap="round" stroke-linejoin="round" />';
+  html+='<circle cx="'+todayPoint[0].toFixed(1)+'" cy="'+todayPoint[1].toFixed(1)+'" r="4" fill="'+T.accent+'" />';
+  html+='</svg>';return html;
+}
+function safeSpendOutlookHtml(livePacing,T){
+  var m=safeSpendOutlookModel(livePacing);if(!m)return '';
+  var open=!!state.budgetSafeOutlookOpen, tomorrowText=m.tomorrow==null?'—':('≈ '+fmt(m.tomorrow,0)+' AED');
+  var h='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);">';
+  h+='<button data-action="toggle-budget-safe-outlook" style="width:100%;background:none;border:none;padding:0;color:inherit;text-align:left;">';
+  h+='<div class="row between" style="gap:12px;align-items:center;"><div><div class="subhead" style="font-weight:700;">Safe-to-Spend outlook</div><div class="muted caption" style="margin-top:2px;">Opening allowance history + projected baseline</div></div><div class="row gap2" style="flex-shrink:0;"><div style="text-align:right;"><div class="muted caption">Tomorrow</div><div class="mono subhead" style="font-weight:750;">'+tomorrowText+'</div></div><span style="display:flex;transform:rotate('+(open?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></div></div>';
+  h+='<div style="margin-top:8px;">'+safeSpendOutlookChartHtml(m,T)+'</div>';
+  h+='<div class="row between muted caption" style="margin-top:-3px;"><span>'+shortLabel(m.history.length?m.history[0].date:m.today)+'</span><span>Today</span><span>'+shortLabel(m.monthEndDate)+'</span></div>';
+  h+='</button>';
+  if(open){
+    h+='<div style="margin-top:10px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
+    h+='<div class="row between" style="padding:8px 0;"><span class="muted caption">Opening today</span><span class="mono caption" style="font-weight:750;">'+fmt(m.todayOpening,0)+' AED</span></div>';
+    h+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Remaining now</span><span class="mono caption" style="font-weight:750;">'+fmt(m.current,0)+' AED</span></div>';
+    h+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Sustainable pace</span><span class="mono caption" style="font-weight:750;">'+fmt(m.sustainable,0)+' AED/day</span></div>';
+    h+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Month-end baseline</span><span class="mono caption" style="font-weight:750;">≈ '+fmt(m.monthEnd,0)+' AED</span></div>';
+    h+='</div>';
+    h+='<div class="muted caption" style="margin-top:8px;line-height:1.4;">The dotted path assumes you finish each day around the sustainable flexible pace and protected essentials occur as currently reserved. Spending above or below that pace changes the next day. Daily opening history builds automatically from v111.5 onward.</div>';
+  }
+  h+='</div>';return h;
+}
+
 function renderBudgetBody(T) {
   lastForecastChartData=null;lastChartData=null;lastBudgetTrendChartData=null;
   var da=dailyAllowance(),period=getPeriodBounds(state.view,state.offset,currentWeeklyTarget(),da),stats=periodStatsBudget(period.startStr,period.endStr);
@@ -4514,6 +4612,7 @@ function renderBudgetBody(T) {
   summary+=statBlock('Safe to spend today',isCurrent&&safeToday!=null?(fmt(safeToday,0)+' AED'):'—',safeToday!=null&&safeToday<0?'var(--rust)':'var(--text)');
   summary+=statBlock('Spent today',isCurrent?fmt(spentToday,0)+' AED':'—','var(--text)');
   summary+=statBlock('Projected vs budget',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div>';
+  if(isCurrent&&state.view==='month') summary+=safeSpendOutlookHtml(livePacing,T);
   if(budgetSavingsComparison){
     var bsc=budgetSavingsComparison, savingsTighter=effectiveInfo&&effectiveInfo.savingsTight;
     var relationText=savingsTighter ? fmt(bsc.pct,0)+'% savings goal sets the limit' : 'Your set monthly budget sets the limit';
@@ -8038,6 +8137,7 @@ function handleRestore() {
     nextSettings.fxRateCache = normalizeFxCache(nextSettings.fxRateCache);
     nextSettings.baseCurrency = TXN_CURRENCIES.indexOf(String(nextSettings.baseCurrency||"AED").toUpperCase())!==-1 ? String(nextSettings.baseCurrency||"AED").toUpperCase() : "AED";
     nextSettings.forecastSnapshots = normalizeForecastSnapshots(nextSettings.forecastSnapshots);
+    nextSettings.safeSpendHistory = normalizeSafeSpendHistory(nextSettings.safeSpendHistory);
     nextSettings.transactionTags = normalizeTransactionTags(nextSettings.transactionTags);
     nextSettings.transactionTagColors = normalizeTransactionTagColors(nextSettings.transactionTagColors, nextSettings.transactionTags);
     nextSettings.incomeHistory = normalizeIncomeHistory(nextSettings.incomeHistory);
@@ -8958,6 +9058,10 @@ document.addEventListener("click", function(e) {
       break;
     case "toggle-budget-summary-details":
       state.budgetSummaryDetailsOpen = !state.budgetSummaryDetailsOpen;
+      render();
+      break;
+    case "toggle-budget-safe-outlook":
+      state.budgetSafeOutlookOpen = !state.budgetSafeOutlookOpen;
       render();
       break;
     case "toggle-budget-protected":
