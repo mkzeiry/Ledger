@@ -694,7 +694,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v111.6";
+var APP_VERSION = "v111.7";
 var FORECAST_MODEL_VERSION = "v103-yearly-bill-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly", safeSpendHistory: null };
@@ -1728,9 +1728,8 @@ function normalizeSavingsTargetPct(v) {
   return Math.max(0,Math.min(100,round2(n)));
 }
 function savingsTargetPct(){ return normalizeSavingsTargetPct(state.settings.savingsTargetPct); }
-/* v107: Daily flexibility controls how much of the future FLEXIBLE pool can be
-   brought forward into the current day. Protected essentials remain untouchable.
-   The setting is intentionally bounded to the four user-facing presets. */
+/* Daily flexibility stores the user-selected MAXIMUM percentage. v111.7 makes
+   the actual daily percentage adaptive while preserving these four presets. */
 function normalizeSafeSpendFlexibilityPct(v){
   var n=Number(v);
   if(!isFinite(n)) n=50;
@@ -1739,6 +1738,54 @@ function normalizeSafeSpendFlexibilityPct(v){
   return best;
 }
 function safeSpendFlexibilityPct(){ return normalizeSafeSpendFlexibilityPct(state.settings.safeSpendFlexibilityPct); }
+function clampPct(v){ var n=Number(v); return isFinite(n)?Math.max(0,Math.min(100,round2(n))):0; }
+/* v111.7: The selected Daily flexibility is a MAXIMUM, not an automatic
+   bonus. The actual daily headroom adapts to flexible-spending pace, the
+   current budget position, and the projected month-end budget result. */
+function adaptiveSafeSpendFlexibility(maxPct,opts){
+  opts=opts||{}; maxPct=normalizeSafeSpendFlexibilityPct(maxPct);
+  var sustainable=Math.max(0,Number(opts.sustainableDaily)||0);
+  var observed=opts.observedFlexibleDaily==null?null:Math.max(0,Number(opts.observedFlexibleDaily)||0);
+  var projectedRatio=opts.projectedBudgetRatio==null?null:Math.max(0,Number(opts.projectedBudgetRatio)||0);
+  var position=Number(opts.budgetPosition)||0, dailyRef=Math.max(0,Number(opts.dailyBudgetReference)||0);
+  var paceRatio=(observed!=null&&sustainable>0)?observed/sustainable:null;
+  var paceFactor=.55;
+  if(paceRatio!=null){
+    if(paceRatio<=.80) paceFactor=1;
+    else if(paceRatio<=1) paceFactor=1-((paceRatio-.80)/.20)*.40;
+    else if(paceRatio<=1.15) paceFactor=.60-((paceRatio-1)/.15)*.40;
+    else if(paceRatio<=1.30) paceFactor=.20-((paceRatio-1.15)/.15)*.20;
+    else paceFactor=0;
+  }
+  paceFactor=Math.max(0,Math.min(1,paceFactor));
+  var posFactor=.65, posDays=dailyRef>0?position/dailyRef:0;
+  if(dailyRef>0){
+    if(posDays>=.75) posFactor=1;
+    else if(posDays>=0) posFactor=.65+.35*(posDays/.75);
+    else if(posDays>=-.75) posFactor=.65+.40*(posDays/.75);
+    else if(posDays>=-1.5) posFactor=.25+.25*((posDays+.75)/.75);
+    else posFactor=0;
+  }
+  posFactor=Math.max(0,Math.min(1,posFactor));
+  var forecastFactor=.75;
+  if(projectedRatio!=null){
+    if(projectedRatio<=.95) forecastFactor=1;
+    else if(projectedRatio<=1) forecastFactor=1-((projectedRatio-.95)/.05)*.25;
+    else if(projectedRatio<=1.05) forecastFactor=.75-((projectedRatio-1)/.05)*.40;
+    else if(projectedRatio<=1.10) forecastFactor=.35-((projectedRatio-1.05)/.05)*.25;
+    else if(projectedRatio<=1.15) forecastFactor=.10-((projectedRatio-1.10)/.05)*.10;
+    else forecastFactor=0;
+  }
+  forecastFactor=Math.max(0,Math.min(1,forecastFactor));
+  var blended=.65*paceFactor+.35*posFactor;
+  var factor=Math.max(0,Math.min(1,Math.min(blended,forecastFactor)));
+  var pct=round2(maxPct*factor);
+  var reason=projectedRatio!=null&&projectedRatio>1.10?'Projected budget is materially over limit':
+    (paceRatio!=null&&paceRatio>1.15?'Flexible spending is running above sustainable pace':
+    (position<-(dailyRef*.5)?'Budget pace is behind':
+    (position>(dailyRef*.5)&&paceRatio!=null&&paceRatio<1?'Ahead of pace with flexible room':'Balanced against current pace and forecast')));
+  return {pct:pct,maxPct:maxPct,factor:factor,paceFactor:paceFactor,positionFactor:posFactor,forecastFactor:forecastFactor,paceRatio:paceRatio,projectedBudgetRatio:projectedRatio,budgetPosition:round2(position),dailyBudgetReference:round2(dailyRef),observedFlexibleDaily:observed,reason:reason};
+}
 function normalizeHomeAheadBehindResolution(v){
   v=String(v||"hourly").toLowerCase();
   return v==="4h"||v==="daily" ? v : "hourly";
@@ -1757,7 +1804,7 @@ function normalizeSafeSpendHistory(v){
     if(!x||!/^\d{4}-\d{2}-\d{2}$/.test(String(x.date||"")))return;
     var opening=Number(x.openingSafe), sustainable=Number(x.sustainableDaily);
     if(!isFinite(opening)||!isFinite(sustainable))return;
-    byDate[x.date]={date:x.date,openingSafe:round2(Math.max(0,opening)),sustainableDaily:round2(Math.max(0,sustainable)),flexibilityPct:normalizeSafeSpendFlexibilityPct(x.flexibilityPct),effectiveBudget:round2(Math.max(0,Number(x.effectiveBudget)||0)),futureReserve:round2(Math.max(0,Number(x.futureReserve)||0))};
+    byDate[x.date]={date:x.date,openingSafe:round2(Math.max(0,opening)),sustainableDaily:round2(Math.max(0,sustainable)),flexibilityPct:clampPct(x.flexibilityPct),maxFlexibilityPct:normalizeSafeSpendFlexibilityPct(x.maxFlexibilityPct==null?x.flexibilityPct:x.maxFlexibilityPct),effectiveBudget:round2(Math.max(0,Number(x.effectiveBudget)||0)),futureReserve:round2(Math.max(0,Number(x.futureReserve)||0))};
   });
   return Object.keys(byDate).sort().map(function(k){return byDate[k];}).slice(-120);
 }
@@ -1768,7 +1815,7 @@ function ensureSafeSpendSnapshot(){
   var pacing=liveBudgetPacing(), m=pacing&&pacing.month;
   if(!m||m.openingSafe==null||m.sustainableDaily==null)return false;
   var info=currentEffectiveBudgetInfo();
-  hist.push({date:date,openingSafe:round2(Math.max(0,m.openingSafe)),sustainableDaily:round2(Math.max(0,m.sustainableDaily)),flexibilityPct:m.flexibilityPct,effectiveBudget:info?info.effectiveBudget:0,futureReserve:m.futureReserve||0});
+  hist.push({date:date,openingSafe:round2(Math.max(0,m.openingSafe)),sustainableDaily:round2(Math.max(0,m.sustainableDaily)),flexibilityPct:clampPct(m.flexibilityPct),maxFlexibilityPct:normalizeSafeSpendFlexibilityPct(m.maxFlexibilityPct),effectiveBudget:info?info.effectiveBudget:0,futureReserve:m.futureReserve||0});
   var nextSettings=Object.assign({},state.settings,{safeSpendHistory:normalizeSafeSpendHistory(hist)});
   persistAll(nextSettings,state.entries,"Safe-to-Spend history");
   return true;
@@ -2391,6 +2438,17 @@ function loadInitial() {
   state.settings.baseCurrency = TXN_CURRENCIES.indexOf(String(state.settings.baseCurrency||"AED").toUpperCase())!==-1 ? String(state.settings.baseCurrency||"AED").toUpperCase() : "AED";
   state.settings.startingCashBalance = isFinite(Number(state.settings.startingCashBalance)) ? round2(Number(state.settings.startingCashBalance)) : 0;
   state.settings.forecastSnapshots = normalizeForecastSnapshots(state.settings.forecastSnapshots);
+  /* v111.7: an opening snapshot created by the fixed-headroom model should not
+     freeze today's old +25/+50/+75/+100 grant after upgrading. Keep older
+     history, but let today be recalculated once by the adaptive model. */
+  var adaptiveSafeHistoryMigrationChanged=false;
+  if(Array.isArray(state.settings.safeSpendHistory)){
+    var rawTodaySafe=state.settings.safeSpendHistory.find(function(x){return x&&x.date===todayStr();});
+    if(rawTodaySafe&&rawTodaySafe.maxFlexibilityPct==null){
+      state.settings.safeSpendHistory=state.settings.safeSpendHistory.filter(function(x){return !x||x.date!==todayStr();});
+      adaptiveSafeHistoryMigrationChanged=true;
+    }
+  }
   state.settings.safeSpendHistory = normalizeSafeSpendHistory(state.settings.safeSpendHistory);
   state.settings.transactionTags = normalizeTransactionTags(state.settings.transactionTags);
   state.settings.transactionTagColors = normalizeTransactionTagColors(state.settings.transactionTagColors, state.settings.transactionTags);
@@ -2422,8 +2480,8 @@ function loadInitial() {
   if(primaryStorageHealth==="healthy"){
     try { recurringChanged = runRecurringCatchUp(); } catch(e) { recurringChanged = false; }
     try { snapshotChanged = captureForecastSnapshotsIfNeeded(); } catch(e) { snapshotChanged = false; }
-    if (recurringChanged || snapshotChanged || analysisForecastV52MigrationChanged || forecastBehaviorMigrationChanged || yearlyBillSettingsMigrationChanged) {
-      persistAll(state.settings, state.entries, recurringChanged ? "recurring payments" : (snapshotChanged ? "forecast learning" : (forecastBehaviorMigrationChanged || yearlyBillSettingsMigrationChanged ? "forecast behavior" : "analysis forecast")));
+    if (recurringChanged || snapshotChanged || analysisForecastV52MigrationChanged || forecastBehaviorMigrationChanged || yearlyBillSettingsMigrationChanged || adaptiveSafeHistoryMigrationChanged) {
+      persistAll(state.settings, state.entries, recurringChanged ? "recurring payments" : (snapshotChanged ? "forecast learning" : (forecastBehaviorMigrationChanged || yearlyBillSettingsMigrationChanged ? "forecast behavior" : (adaptiveSafeHistoryMigrationChanged ? "adaptive Safe-to-Spend" : "analysis forecast"))));
     }
   }
   state.loading = false;
@@ -3949,11 +4007,13 @@ function render() {
        = (opening monthly budget remaining - protected essentials) / days left
 
      opening Safe-to-Spend
-       = sustainable flexible pace × (1 + Daily flexibility %)
+       = sustainable flexible pace × (1 + adaptive headroom %)
 
-   The extra headroom only borrows from future FLEXIBLE spending. It never
-   releases Protected Essentials, and it can never exceed the remaining flexible
-   pool. Spending more today automatically lowers the sustainable pace tomorrow.
+   The user setting is the MAXIMUM headroom. The actual percentage is adapted
+   from flexible-spending pace, ahead/behind budget position and projected
+   month-end budget performance. The extra headroom only borrows from future
+   FLEXIBLE spending; Protected Essentials remain untouchable. Today's spending
+   becomes completed history tomorrow and therefore changes tomorrow's headroom.
 
    Week remains a derived pacing/forecast view, but MONTH is the only
    Safe-to-Spend control horizon. */
@@ -4174,10 +4234,26 @@ function liveBudgetPacing() {
     var flexibleForecastTotal=round2(flexibleForecastBreakdown.reduce(function(s,x){return s+x.amount;},0));
     var openingFlexiblePool=round2(openingRemaining-openingReserve);
     var sustainableDaily=days>0?round2(openingFlexiblePool/days):openingFlexiblePool;
-    var flexibilityPct=safeSpendFlexibilityPct();
-    /* Daily flexibility borrows only from the future flexible pool. If that pool
-       is already negative, preserve the negative raw value so the UI can still
-       explain that a corrective cut is required. */
+    var maxFlexibilityPct=safeSpendFlexibilityPct();
+    var forecastStart=effectiveRangeStart(per.startStr), forecastDays=Math.max(1,daysBetween(forecastStart,per.endStr)+1);
+    var fc=stats.rows.length?computeForecastNumbers(stats.rows,forecastDays,forecastStart,scope):null;
+    var projectedBudgetRatio=(scope==="budget"&&target>0&&fc)?Math.max(0,fc.projectedSpend/target):null;
+    var monthFlex=currentMonthFlexibleSpendStats(), rollingFlex=currentFlexibleSpendPaceStats();
+    var observedFlexibleDaily=monthFlex.avg!=null?monthFlex.avg:(rollingFlex.last7Avg!=null?rollingFlex.last7Avg:rollingFlex.dailyAvg);
+    var periodDays=Math.max(1,daysBetween(per.startStr,per.endStr)+1);
+    var elapsedUnits=Math.max(0,daysBetween(per.startStr,today))+currentDayElapsedFraction();
+    var budgetPacePosition=round2((target*(elapsedUnits/periodDays))-stats.spent);
+    var dailyBudgetReference=target/periodDays;
+    var adaptive=adaptiveSafeSpendFlexibility(maxFlexibilityPct,{sustainableDaily:sustainableDaily,observedFlexibleDaily:observedFlexibleDaily,projectedBudgetRatio:projectedBudgetRatio,budgetPosition:budgetPacePosition,dailyBudgetReference:dailyBudgetReference});
+    /* Once an opening percentage has been recorded for today, keep it stable
+       for the rest of the day. Today's transactions influence TOMORROW's
+       adaptive headroom rather than moving today's opening goalposts. */
+    var storedToday=safeSpendHistory().find(function(x){return x.date===today;});
+    var flexibilityPct=(storedToday&&normalizeSafeSpendFlexibilityPct(storedToday.maxFlexibilityPct)===maxFlexibilityPct)?Math.min(maxFlexibilityPct,clampPct(storedToday.flexibilityPct)):adaptive.pct;
+    adaptive.pct=flexibilityPct;
+    /* Adaptive flexibility still borrows only from the future flexible pool. If
+       that pool is already negative, preserve the negative raw value so the UI
+       can explain that a corrective cut is required. */
     var openingSafe;
     if(openingFlexiblePool<0) openingSafe=openingFlexiblePool;
     else {
@@ -4195,10 +4271,8 @@ function liveBudgetPacing() {
     var safe=rawSafe==null?null:round2(Math.max(0,rawSafe));
     var flexiblePool=round2(openingFlexiblePool-buckets.flexible-cadenceAdjustment-scheduledAdjustment);
     var adjustmentNeeded=round2(Math.max(0,-flexiblePool));
-    var forecastStart=effectiveRangeStart(per.startStr), forecastDays=Math.max(1,daysBetween(forecastStart,per.endStr)+1);
-    var fc=stats.rows.length?computeForecastNumbers(stats.rows,forecastDays,forecastStart,scope):null;
 
-    return {mode:mode,scope:scope,target:target,avg:avg,openingRemaining:openingRemaining,currentRemaining:currentRemaining,days:days,safe:safe,rawSafe:rawSafe,openingSafe:openingSafe,sustainableDaily:sustainableDaily,flexibilityPct:flexibilityPct,adjustmentNeeded:adjustmentNeeded,futureReserve:openingReserve,liveFutureReserve:liveReserve,reserveBreakdown:reserveBreakdown,openingReserveBreakdown:openingReserveBreakdown,flexibleForecastTotal:flexibleForecastTotal,flexibleForecastBreakdown:flexibleForecastBreakdown,openingCadenceReserve:openingCadenceReserve,openingScheduledReserve:openingScheduledReserve,flexiblePool:flexiblePool,todayFlexibleSpent:buckets.flexible,todayCadenceSpent:buckets.cadence,cadenceAdjustment:cadenceAdjustment,scheduledAdjustment:scheduledAdjustment,spentTodayScope:spentTodayScope,forecast:fc};
+    return {mode:mode,scope:scope,target:target,avg:avg,openingRemaining:openingRemaining,currentRemaining:currentRemaining,days:days,safe:safe,rawSafe:rawSafe,openingSafe:openingSafe,sustainableDaily:sustainableDaily,flexibilityPct:flexibilityPct,maxFlexibilityPct:maxFlexibilityPct,adaptiveFlex:adaptive,adjustmentNeeded:adjustmentNeeded,futureReserve:openingReserve,liveFutureReserve:liveReserve,reserveBreakdown:reserveBreakdown,openingReserveBreakdown:openingReserveBreakdown,flexibleForecastTotal:flexibleForecastTotal,flexibleForecastBreakdown:flexibleForecastBreakdown,openingCadenceReserve:openingCadenceReserve,openingScheduledReserve:openingScheduledReserve,flexiblePool:flexiblePool,todayFlexibleSpent:buckets.flexible,todayCadenceSpent:buckets.cadence,cadenceAdjustment:cadenceAdjustment,scheduledAdjustment:scheduledAdjustment,spentTodayScope:spentTodayScope,forecast:fc};
   }
 
   var effectiveInfo=currentEffectiveBudgetInfo();
@@ -4529,10 +4603,10 @@ function budgetForecastEvidenceHtml(x, protectedMode) {
   return out;
 }
 
-/* Compact Safe-to-Spend history + baseline outlook. Future values are not
-   promises: they assume today's flexible spending finishes near the sustainable
-   pace, then each later day also follows that sustainable pace. Protected
-   essentials remain ring-fenced and are assumed to occur as currently reserved. */
+/* Safe-to-Spend history + adaptive outlook. Future values are not promises:
+   they assume the current-month flexible spending average continues. The
+   adaptive headroom is recalculated against the simulated sustainable pace,
+   while protected essentials remain ring-fenced. */
 function safeSpendOutlookModel(livePacing){
   var m=livePacing&&livePacing.month;if(!m||m.openingSafe==null||m.sustainableDaily==null)return null;
   var today=todayStr(), per=getPeriodBounds("month",0,currentWeeklyTarget(),dailyAllowance()), monthKey=today.slice(0,7);
@@ -4540,27 +4614,33 @@ function safeSpendOutlookModel(livePacing){
   if(!hist.some(function(x){return x.date===today;}))hist.push({date:today,openingSafe:round2(Math.max(0,m.openingSafe)),sustainableDaily:round2(Math.max(0,m.sustainableDaily)),flexibilityPct:m.flexibilityPct});
   hist.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});
 
-  var todaySustainable=Math.max(0,Number(m.sustainableDaily)||0), flexPct=Number(m.flexibilityPct)||safeSpendFlexibilityPct();
+  var todaySustainable=Math.max(0,Number(m.sustainableDaily)||0), actualFlexPct=clampPct(m.flexibilityPct), maxFlexPct=normalizeSafeSpendFlexibilityPct(m.maxFlexibilityPct);
   var monthAvgStats=currentMonthFlexibleSpendStats();
-  var assumedDaily=monthAvgStats.avg!=null?Math.max(0,Number(monthAvgStats.avg)||0):todaySustainable;
+  var rollingFlex=currentFlexibleSpendPaceStats();
+  var assumedDaily=monthAvgStats.avg!=null?Math.max(0,Number(monthAvgStats.avg)||0):(rollingFlex.last7Avg!=null?Math.max(0,Number(rollingFlex.last7Avg)||0):todaySustainable);
   var actualFlexible=Math.max(0,Number(m.todayFlexibleSpent)||0);
   var expectedRestToday=Math.max(0,assumedDaily-actualFlexible);
   var pool=Math.max(0,(Number(m.flexiblePool)||0)-expectedRestToday);
+  var baseAdaptive=m.adaptiveFlex||{}, projectedRatio=baseAdaptive.projectedBudgetRatio==null?null:Number(baseAdaptive.projectedBudgetRatio);
+  var budgetPosition=Number(baseAdaptive.budgetPosition)||0, dailyBudgetReference=Math.max(0,Number(baseAdaptive.dailyBudgetReference)||0);
   var future=[];
   for(var ds=toStr(addDays(parseD(today),1));ds<=per.endStr;ds=toStr(addDays(parseD(ds),1))){
     var daysLeft=Math.max(1,daysBetween(ds,per.endStr)+1);
     var sustainable=daysLeft>0?pool/daysLeft:pool;
-    var futureDaysAfter=Math.max(0,daysLeft-1);
-    var borrowFactor=Math.min(1,futureDaysAfter/7);
-    var effectiveFlexPct=flexPct*borrowFactor;
-    var safe=Math.min(pool,Math.max(0,sustainable)*(1+effectiveFlexPct/100));
-    future.push({date:ds,value:round2(Math.max(0,safe)),kind:"projected",sustainable:round2(Math.max(0,sustainable)),effectiveFlexPct:round2(effectiveFlexPct),assumedSpend:round2(assumedDaily)});
+    var ad=adaptiveSafeSpendFlexibility(maxFlexPct,{sustainableDaily:sustainable,observedFlexibleDaily:assumedDaily,projectedBudgetRatio:projectedRatio,budgetPosition:budgetPosition,dailyBudgetReference:dailyBudgetReference});
+    var safe=Math.min(pool,Math.max(0,sustainable)*(1+ad.pct/100));
+    var grantedPct=sustainable>0?Math.max(0,(safe/sustainable-1)*100):0;
+    future.push({date:ds,value:round2(Math.max(0,safe)),kind:"projected",sustainable:round2(Math.max(0,sustainable)),effectiveFlexPct:round2(grantedPct),maxFlexPct:maxFlexPct,assumedSpend:round2(assumedDaily),reason:ad.reason});
     pool=Math.max(0,pool-assumedDaily);
+    /* Spending above/below the sustainable flexible pace changes the future
+       position signal as well as the remaining pool. Protected essentials are
+       already outside assumedDaily, so they do not distort this adjustment. */
+    budgetPosition=round2(budgetPosition+(sustainable-assumedDaily));
   }
-  var points=hist.map(function(x){return {date:x.date,value:round2(Math.max(0,x.openingSafe)),kind:"history",sustainable:round2(Math.max(0,Number(x.sustainableDaily)||0)),effectiveFlexPct:Number(x.flexibilityPct)||flexPct};});
+  var points=hist.map(function(x){return {date:x.date,value:round2(Math.max(0,x.openingSafe)),kind:"history",sustainable:round2(Math.max(0,Number(x.sustainableDaily)||0)),effectiveFlexPct:clampPct(x.flexibilityPct),maxFlexPct:normalizeSafeSpendFlexibilityPct(x.maxFlexibilityPct)};});
   var todayOpening=round2(Math.max(0,m.openingSafe)), current=round2(Math.max(0,m.safe||0));
   var tomorrow=future.length?future[0].value:null, monthEnd=future.length?future[future.length-1].value:todayOpening;
-  return {history:points,future:future,today:today,current:current,todayOpening:todayOpening,sustainable:round2(todaySustainable),tomorrow:tomorrow,monthEnd:monthEnd,flexPct:flexPct,monthEndDate:per.endStr,assumedDaily:round2(assumedDaily),assumptionDays:monthAvgStats.days||0,assumptionStart:monthAvgStats.start,assumptionEnd:monthAvgStats.end};
+  return {history:points,future:future,today:today,current:current,todayOpening:todayOpening,sustainable:round2(todaySustainable),tomorrow:tomorrow,monthEnd:monthEnd,flexPct:actualFlexPct,maxFlexPct:maxFlexPct,monthEndDate:per.endStr,assumedDaily:round2(assumedDaily),assumptionDays:monthAvgStats.days||0,assumptionStart:monthAvgStats.start,assumptionEnd:monthAvgStats.end,adaptive:baseAdaptive};
 }
 function safeSpendOutlookChartHtml(model,T){
   if(!model)return '';
@@ -4608,7 +4688,7 @@ function safeSpendOutlookHtml(livePacing,T){
     h+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Current-month flexible avg</span><span class="mono caption" style="font-weight:750;">'+fmt(m.assumedDaily,0)+' AED/day</span></div>';
     h+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Month-end projected opening</span><span class="mono caption" style="font-weight:750;">≈ '+fmt(m.monthEnd,0)+' AED</span></div>';
     h+='</div>';
-    h+='<div class="muted caption" style="margin-top:8px;line-height:1.4;">Projection assumes you continue spending about '+fmt(m.assumedDaily,0)+' AED/day of flexible budget spending, based on '+(m.assumptionDays||0)+' completed day'+((m.assumptionDays||0)===1?'':'s')+' this month. Protected essentials are already ring-fenced and are not counted again. The +'+fmt(m.flexPct,0)+'% headroom gradually tapers during the final week because there are fewer future flexible days to borrow from. Tap any point to inspect its value. Daily opening history builds automatically from v111.5 onward.</div>';
+    h+='<div class="muted caption" style="margin-top:8px;line-height:1.4;">Projection assumes you continue spending about '+fmt(m.assumedDaily,0)+' AED/day of flexible budget spending. Daily headroom is adaptive up to +'+fmt(m.maxFlexPct,0)+'%: it tightens when flexible spending runs hot, when budget pace falls behind, or when the month-end budget forecast is over limit. Protected essentials are already ring-fenced and are not counted again. Tap any point to inspect its projected allowance and granted headroom. Daily opening history builds automatically from v111.5 onward.</div>';
   }
   h+='</div>';return h;
 }
@@ -4645,7 +4725,9 @@ function renderBudgetBody(T) {
      The latter is the base that Safe to Spend actually consumes. */
   var flexibleAllowancePerDay=limitingPacing&&limitingPacing.sustainableDaily!=null?round2(limitingPacing.sustainableDaily):null;
   var openingSafeAllowance=limitingPacing&&limitingPacing.openingSafe!=null?round2(limitingPacing.openingSafe):null;
-  var safeFlexPct=limitingPacing&&limitingPacing.flexibilityPct!=null?limitingPacing.flexibilityPct:safeSpendFlexibilityPct();
+  var safeFlexPct=limitingPacing&&limitingPacing.flexibilityPct!=null?limitingPacing.flexibilityPct:0;
+  var safeMaxFlexPct=limitingPacing&&limitingPacing.maxFlexibilityPct!=null?limitingPacing.maxFlexibilityPct:safeSpendFlexibilityPct();
+  var safeAdaptiveMeta=limitingPacing&&limitingPacing.adaptiveFlex?limitingPacing.adaptiveFlex:null;
   var flexibleSpentToday=limitingPacing?round2(limitingPacing.todayFlexibleSpent||0):0;
   var reserveVariancePerDay=limitingPacing&&limitingPacing.days?round2(((limitingPacing.cadenceAdjustment||0)+(limitingPacing.scheduledAdjustment||0))/limitingPacing.days):0;
   var forecastStart=effectiveRangeStart(period.startStr),forecastDays=daysBetween(forecastStart,period.endStr)+1,budgetForecast=(isCurrent&&stats.rows.length)?computeForecastNumbers(stats.rows,forecastDays,forecastStart,'budget'):null;
@@ -4709,7 +4791,7 @@ function renderBudgetBody(T) {
       summary+='<div style="margin-top:11px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
       summary+='<div class="row between" style="padding:8px 0;"><span class="muted caption">Equal remaining / day</span><span class="mono caption" style="font-weight:700;">'+(selectedDailyAllowance!=null?((selectedDailyAllowance<0?'−':'')+fmt(Math.abs(selectedDailyAllowance),0)+' AED/day'):'—')+'</span></div>';
       summary+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Sustainable flexible pace</span><span class="mono caption" style="font-weight:700;">'+(flexibleAllowancePerDay!=null?((flexibleAllowancePerDay<0?'−':'')+fmt(Math.abs(flexibleAllowancePerDay),0)+' AED/day'):'—')+'</span></div>';
-      summary+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Daily flexibility</span><span class="mono caption" style="font-weight:700;">+'+fmt(safeFlexPct,0)+'%</span></div>';
+      summary+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Adaptive headroom</span><span class="mono caption" style="font-weight:700;">+'+fmt(safeFlexPct,0)+'%</span></div>';
       summary+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Opening safe allowance</span><span class="mono caption" style="font-weight:700;">'+(openingSafeAllowance!=null?fmt(Math.max(0,openingSafeAllowance),0)+' AED':'—')+'</span></div>';
       if(limitingHorizon){
         var limitName=limitingHorizon==='effective'?'Effective budget':(limitingHorizon==='savings'?'Savings goal':(limitingHorizon.charAt(0).toUpperCase()+limitingHorizon.slice(1)));
@@ -4718,7 +4800,7 @@ function renderBudgetBody(T) {
       summary+='</div>';
       if(limitingPacing&&limitingPacing.days>0&&flexibleAllowancePerDay!=null){
         var pacingLabel='Month';
-        summary+='<div class="muted caption" style="margin-top:8px;line-height:1.4;">Month sustainable pace: ('+fmt(limitingPacing.openingRemaining,0)+' opening − '+fmt(limitingPacing.futureReserve||0,0)+' protected) ÷ '+limitingPacing.days+' day'+(limitingPacing.days===1?'':'s')+' = '+fmt(flexibleAllowancePerDay,0)+' AED/day. '+fmt(safeFlexPct,0)+'% daily flexibility raises today\'s opening allowance to '+fmt(Math.max(0,openingSafeAllowance||0),0)+' AED without using protected essentials.</div>';
+        summary+='<div class="muted caption" style="margin-top:8px;line-height:1.4;">Month sustainable pace: ('+fmt(limitingPacing.openingRemaining,0)+' opening − '+fmt(limitingPacing.futureReserve||0,0)+' protected) ÷ '+limitingPacing.days+' day'+(limitingPacing.days===1?'':'s')+' = '+fmt(flexibleAllowancePerDay,0)+' AED/day. Today received +'+fmt(safeFlexPct,0)+'% adaptive headroom (maximum +'+fmt(safeMaxFlexPct,0)+'%)'+(safeAdaptiveMeta&&safeAdaptiveMeta.reason?' because '+esc(String(safeAdaptiveMeta.reason).toLowerCase()):'')+', giving an opening allowance of '+fmt(Math.max(0,openingSafeAllowance||0),0)+' AED without using protected essentials.</div>';
         if(state.view==='week') summary+='<div class="muted caption" style="margin-top:5px;line-height:1.35;">Week is a pacing/forecast view only. Safe-to-Spend is always controlled by the remaining Month.</div>';
       }
       if(protectedTotal>0||flexibleForecastTotal>0){
@@ -4892,7 +4974,7 @@ function renderSettingsPage() {
     h += '<div class="muted" id="monthlyBudgetDerivedText" style="font-size:12px; margin-bottom:18px;">= '+fmt(curMonthly/dim,2)+' AED/day in '+esc(monthName)+' · about '+fmt((curMonthly/dim)*7,0)+' AED/week pace</div>';
     var flexPctSetting=safeSpendFlexibilityPct();
     var flexOptions=[{v:25,n:"Conservative"},{v:50,n:"Balanced"},{v:75,n:"Flexible"},{v:100,n:"Very flexible"}];
-    h += '<div class="taxonomy-form-card" style="margin:0 0 16px;"><div class="eyebrow">Daily flexibility</div><div class="muted caption" style="margin:4px 0 10px;line-height:1.4;">How much future flexible spending can be brought forward into today. Protected essentials are never used. Balanced (+50%) is the default.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+    h += '<div class="taxonomy-form-card" style="margin:0 0 16px;"><div class="eyebrow">Maximum daily flexibility</div><div class="muted caption" style="margin:4px 0 10px;line-height:1.4;">Sets the maximum extra headroom The Ledger may grant. The actual percentage adapts automatically to flexible spending pace, ahead/behind position and the month-end budget forecast. Protected essentials are never used. Balanced (up to +50%) is the default.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
     flexOptions.forEach(function(o){var active=flexPctSetting===o.v;h+='<button data-action="set-safe-spend-flexibility" data-value="'+o.v+'" class="btn-outline" style="padding:10px 8px;background:'+(active?'var(--accent-wash)':'var(--fill)')+';color:'+(active?'var(--accent)':'var(--text)')+';border-color:transparent;"><div style="font-weight:750;">'+esc(o.n)+'</div><div class="caption" style="margin-top:2px;">+'+o.v+'%</div></button>';});
     h += '</div></div>';
     var homeChartRes=homeAheadBehindResolution();
@@ -8512,8 +8594,9 @@ document.addEventListener("click", function(e) {
       break;
     case "set-safe-spend-flexibility":
       var flexPctVal=normalizeSafeSpendFlexibilityPct(el.dataset.value);
-      persistAll(Object.assign({},state.settings,{safeSpendFlexibilityPct:flexPctVal}),state.entries,"daily flexibility");
-      showToast("Daily flexibility: +"+fmt(flexPctVal,0)+"%");
+      var flexHist=safeSpendHistory().filter(function(x){return x.date!==todayStr();});
+      persistAll(Object.assign({},state.settings,{safeSpendFlexibilityPct:flexPctVal,safeSpendHistory:flexHist}),state.entries,"maximum daily flexibility");
+      showToast("Maximum daily flexibility: +"+fmt(flexPctVal,0)+"%");
       render();
       break;
     case "set-home-ahead-resolution":
