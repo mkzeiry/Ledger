@@ -694,10 +694,10 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v111.9";
-var FORECAST_MODEL_VERSION = "v103-yearly-bill-1";
+var APP_VERSION = "v111.10";
+var FORECAST_MODEL_VERSION = "v11110-yearly-auto-1";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly", safeSpendHistory: null, safeSpendAnnualizedMigrationV1119: true };
+var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly", safeSpendHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
 function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
@@ -1349,9 +1349,13 @@ function normalizeCategoryYearlyBillSettings(map,categories){
   var out={},valid=categories||[],src=(map&&typeof map==="object"&&!Array.isArray(map))?map:{};
   valid.forEach(function(c){
     var x=src[c]; if(!x||typeof x!=="object"||Array.isArray(x))return;
-    var amount=Number(x.amount),month=Math.round(Number(x.dueMonth)),day=Math.round(Number(x.dueDay));
+    var amount=Number(x.amount),override=Number(x.amountOverride),month=Math.round(Number(x.dueMonth)),day=Math.round(Number(x.dueDay));
     out[c]={
+      /* `amount` is retained only as a backwards-compatible fallback for
+         v111.9 ledgers. v111.10 prefers live plan/transaction evidence and
+         uses amountOverride only when the user explicitly chooses Override. */
       amount:isFinite(amount)&&amount>0?round2(amount):null,
+      amountOverride:isFinite(override)&&override>0?round2(override):null,
       dueMonth:isFinite(month)?Math.max(1,Math.min(12,month)):null,
       dueDay:isFinite(day)?Math.max(1,Math.min(31,day)):null,
       reserveMonthly:x.reserveMonthly!==false
@@ -1368,18 +1372,77 @@ function categoryHistoricalExpenseRows(catName){
   });
   return rows;
 }
+/* v111.10: Yearly Bill amount is automatic by default. A finite payment plan
+   (for example Tabby 40 AED x 4) is treated as one annual purchase whose
+   economic cost is the WHOLE plan, while the plan itself still controls the
+   exact cash dates. A true yearly recurring plan is already one annual amount.
+   Finished plans remain useful evidence for the annual cost, but only an active
+   unfinished plan is considered an exact future cash schedule. */
+function yearlyBillPlanCandidates(catName){
+  return (state.settings.recurringRules||[]).filter(function(r){
+    if(!r||r.kind!=="recurring"||r.entryKind==="income"||r.category!==catName)return false;
+    return r.frequency==="yearly" || (r.occurrencesTotal!=null&&Number(r.occurrencesTotal)>0);
+  }).slice().sort(function(a,b){
+    var ad=String(a.startDate||""),bd=String(b.startDate||"");
+    if(ad!==bd)return ad<bd?1:-1;
+    if(!!a.active!==!!b.active)return a.active?-1:1;
+    return String(a.id||"")<String(b.id||"")?1:-1;
+  });
+}
+function yearlyBillPlanTotal(rule){
+  if(!rule)return 0;
+  if(rule.frequency==="yearly")return round2(Math.max(0,Number(rule.amount)||0));
+  var count=Math.max(0,Math.round(Number(rule.occurrencesTotal)||0));
+  if(!count)return 0;
+  var total=0,cap=Math.min(count,2000);
+  for(var i=0;i<cap;i++)total+=Math.max(0,Number(ruleOccurrenceAmount(rule,i))||0);
+  return round2(total);
+}
+function yearlyBillAutomaticEvidence(catName){
+  var plans=yearlyBillPlanCandidates(catName), plan=plans.length?plans[0]:null;
+  if(plan){
+    var planTotal=yearlyBillPlanTotal(plan), count=Math.max(0,Math.round(Number(plan.occurrencesTotal)||0));
+    if(planTotal>0){
+      var detail;
+      if(plan.frequency==="yearly") detail="From yearly plan · "+fmt(planTotal,2)+" AED each year";
+      else if(count>0) detail="From plan · "+count+" × "+fmt(Number(plan.amount)||0,2)+" AED = "+fmt(planTotal,2)+" AED";
+      else detail="From plan · "+fmt(planTotal,2)+" AED";
+      return {amount:planTotal,source:"plan",detail:detail,refDate:plan.startDate||todayStr(),plan:plan,hasExactPlan:!!(plan.active&&!ruleIsComplete(plan))};
+    }
+  }
+  /* With no usable plan, aggregate transactions by calendar year. This makes
+     manually entered installments converge on the full yearly cost instead of
+     treating one installment as the annual bill. Across multiple years the
+     median annual total is robust to one unusually expensive/cheap year. */
+  var rows=categoryHistoricalExpenseRows(catName),byYear={},last=rows.length?rows[rows.length-1]:null;
+  rows.forEach(function(r){var y=String(r.date||"").slice(0,4);if(y)byYear[y]=(byYear[y]||0)+Math.max(0,Number(r.amount)||0);});
+  var years=Object.keys(byYear).sort(),annualTotals=years.map(function(y){return round2(byYear[y]);}).filter(function(v){return v>0;});
+  var hist=medianNumber(annualTotals)||0;
+  if(hist>0){
+    var latestYear=years.length?years[years.length-1]:"";
+    var detail=annualTotals.length===1
+      ? ("From "+latestYear+" transactions · "+fmt(hist,2)+" AED total")
+      : ("From transaction history · typical annual total "+fmt(hist,2)+" AED");
+    return {amount:round2(hist),source:"transactions",detail:detail,refDate:last?last.date:todayStr(),plan:null,hasExactPlan:false};
+  }
+  return {amount:0,source:"none",detail:"Create a finite plan or add a transaction to detect the annual cost automatically.",refDate:todayStr(),plan:null,hasExactPlan:false};
+}
 function activeYearlyRuleForCategory(catName){
   return (state.settings.recurringRules||[]).find(function(r){return r&&r.active&&r.kind==="recurring"&&r.entryKind!=="income"&&r.category===catName&&r.frequency==="yearly"&&!ruleIsComplete(r);})||null;
 }
 function yearlyBillConfigForCategory(catName){
-  var src=(state.settings.categoryYearlyBillSettings||{})[catName]||{}, rows=categoryHistoricalExpenseRows(catName), last=rows.length?rows[rows.length-1]:null;
-  var rule=activeYearlyRuleForCategory(catName), refDate=rule&&rule.startDate?rule.startDate:(last?last.date:todayStr());
-  var d=parseD(refDate), histAmounts=rows.map(function(x){return x.amount;}).filter(function(x){return x>0;});
-  var inferredAmount=rule&&Number(rule.amount)>0?Number(rule.amount):(medianNumber(histAmounts)||0);
-  var amount=Number(src.amount); if(!(amount>0))amount=inferredAmount;
+  var src=(state.settings.categoryYearlyBillSettings||{})[catName]||{}, auto=yearlyBillAutomaticEvidence(catName);
+  var override=Number(src.amountOverride), hasOverride=isFinite(override)&&override>0;
+  var legacy=Number(src.amount), amount=hasOverride?override:auto.amount, source=hasOverride?"override":auto.source;
+  var sourceDetail=hasOverride?("Manual override · "+fmt(override,2)+" AED") : auto.detail;
+  /* Old v111.9 amount survives only as a last-resort fallback when there is no
+     plan/transaction evidence yet. As soon as real evidence exists, automatic
+     detection wins, so editing a Tabby plan immediately updates annualization. */
+  if(!(amount>0)&&isFinite(legacy)&&legacy>0){amount=legacy;source="legacy";sourceDetail="Previous saved yearly amount · "+fmt(legacy,2)+" AED (automatic data will replace this)";}
+  var refDate=auto.refDate||todayStr(),d=parseD(refDate);
   var dueMonth=Math.round(Number(src.dueMonth));if(!(dueMonth>=1&&dueMonth<=12))dueMonth=d.getMonth()+1;
   var dueDay=Math.round(Number(src.dueDay));if(!(dueDay>=1&&dueDay<=31))dueDay=d.getDate();
-  return {amount:amount>0?round2(amount):0,dueMonth:dueMonth,dueDay:dueDay,reserveMonthly:src.reserveMonthly!==false,hasExplicit:!!((state.settings.categoryYearlyBillSettings||{})[catName]),hasExactPlan:!!rule};
+  return {amount:amount>0?round2(amount):0,autoAmount:auto.amount>0?round2(auto.amount):0,amountSource:source,sourceDetail:sourceDetail,dueMonth:dueMonth,dueDay:dueDay,reserveMonthly:src.reserveMonthly!==false,hasExplicit:!!((state.settings.categoryYearlyBillSettings||{})[catName]),hasOverride:hasOverride,overrideAmount:hasOverride?round2(override):0,hasExactPlan:!!auto.hasExactPlan,plan:auto.plan||null};
 }
 function yearlyReserveBreakdownForRange(fromStr,throughStr){
   var out={}; if(!fromStr||!throughStr||fromStr>throughStr)return [];
@@ -1619,6 +1682,7 @@ var state = {
   incomeDraftAmount: null,
   categoryStyleEditing: null,
   groupStyleEditing: null,
+  yearlyBillOverrideEditing: null,
   categoryRenameEditing: null,
   personRenameEditing: null,
   tagRenameEditing: null,
@@ -2429,7 +2493,7 @@ async function restoreLocalSnapshotById(id) {
 }
 
 function loadInitial() {
-  var v1119SafeHistoryMigrationNeeded=false;
+  var v1119SafeHistoryMigrationNeeded=false, v11110YearlyAutoMigrationNeeded=false;
   primaryStorageHealth="missing";
   try {
     var raw = localStorage.getItem(STORAGE_KEY);
@@ -2439,6 +2503,7 @@ function loadInitial() {
       primaryStorageHealth="healthy";
       var parsedSettings=parsed.settings||{};
       v1119SafeHistoryMigrationNeeded=parsedSettings.safeSpendAnnualizedMigrationV1119!==true;
+      v11110YearlyAutoMigrationNeeded=parsedSettings.yearlyBillAutoMigrationV11110!==true;
       state.settings = Object.assign({}, DEFAULT_SETTINGS, parsedSettings);
       if (!state.settings.rateHistory || !state.settings.rateHistory.length) {
         state.settings.rateHistory = [{ from: "1900-01-01", weeklyTarget: state.settings.weeklyTarget }];
@@ -2490,6 +2555,14 @@ function loadInitial() {
   if(primaryStorageHealth==="healthy"&&v1119SafeHistoryMigrationNeeded){
     state.settings.safeSpendHistory=state.settings.safeSpendHistory.filter(function(x){return !x||x.date!==todayStr();});
     state.settings.safeSpendAnnualizedMigrationV1119=true;
+    adaptiveSafeHistoryMigrationChanged=true;
+  }
+  /* v111.10: automatic yearly-cost detection can change annualized
+     affordability (especially finite installment plans). Recalculate today's
+     opening Safe-to-Spend once on upgrade, then freeze it normally again. */
+  if(primaryStorageHealth==="healthy"&&v11110YearlyAutoMigrationNeeded){
+    state.settings.safeSpendHistory=state.settings.safeSpendHistory.filter(function(x){return !x||x.date!==todayStr();});
+    state.settings.yearlyBillAutoMigrationV11110=true;
     adaptiveSafeHistoryMigrationChanged=true;
   }
   state.settings.transactionTags = normalizeTransactionTags(state.settings.transactionTags);
@@ -5174,17 +5247,26 @@ function renderSettingsPage() {
       h += '</select></div>';
       h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Counts toward budget</div><div class="muted caption" style="margin-top:2px;">Overall Analysis always includes it.</div></div><button data-action="toggle-category-budget" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(categoryExcludedFromBudget(selectedSub)?'var(--rust)':'var(--positive)')+';">'+(categoryExcludedFromBudget(selectedSub)?'Excluded':'Included')+'</button></div></div>';
       var forecastBehavior=categoryForecastBehavior(selectedSub);
-      h += '<div class="taxonomy-form-card"><label class="eyebrow">Forecast behavior</label><select id="subcategoryForecastBehaviorInput" data-cat="'+esc(selectedSub)+'" class="field" style="margin-top:7px;"><option value="auto"'+(forecastBehavior==='auto'?' selected':'')+'>Auto</option><option value="frequent"'+(forecastBehavior==='frequent'?' selected':'')+'>Frequent</option><option value="cadence"'+(forecastBehavior==='cadence'?' selected':'')+'>Cadence</option><option value="monthly"'+(forecastBehavior==='monthly'?' selected':'')+'>Monthly bill</option><option value="yearly"'+(forecastBehavior==='yearly'?' selected':'')+'>Yearly bill</option><option value="lumpy"'+(forecastBehavior==='lumpy'?' selected':'')+'>Lumpy</option></select><div class="muted caption" style="margin-top:6px;">Monthly bill stops after this month\'s payment. Yearly bill forecasts one annual payment; in-budget yearly bills can reserve for it monthly.</div></div>';
+      h += '<div class="taxonomy-form-card"><label class="eyebrow">Forecast behavior</label><select id="subcategoryForecastBehaviorInput" data-cat="'+esc(selectedSub)+'" class="field" style="margin-top:7px;"><option value="auto"'+(forecastBehavior==='auto'?' selected':'')+'>Auto</option><option value="frequent"'+(forecastBehavior==='frequent'?' selected':'')+'>Frequent</option><option value="cadence"'+(forecastBehavior==='cadence'?' selected':'')+'>Cadence</option><option value="monthly"'+(forecastBehavior==='monthly'?' selected':'')+'>Monthly bill</option><option value="yearly"'+(forecastBehavior==='yearly'?' selected':'')+'>Yearly bill</option><option value="lumpy"'+(forecastBehavior==='lumpy'?' selected':'')+'>Lumpy</option></select><div class="muted caption" style="margin-top:6px;">Monthly bill stops after this month\'s payment. Yearly bill annual cost is detected automatically from a finite/yearly plan or transaction history; in-budget yearly bills can reserve for it monthly.</div></div>';
       if(forecastBehavior==='yearly'){
         var ycfg=yearlyBillConfigForCategory(selectedSub), monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        h += '<div class="taxonomy-form-card"><label class="eyebrow">Yearly bill setup</label><div class="row gap2" style="margin-top:8px;"><div style="flex:1;"><div class="muted caption" style="margin-bottom:5px;">Annual amount</div><input id="yearlyBillAmountInput" data-cat="'+esc(selectedSub)+'" type="number" inputmode="decimal" min="0" step="0.01" class="field mono" value="'+(ycfg.amount>0?ycfg.amount:'')+'" placeholder="Amount" /></div><div style="width:102px;"><div class="muted caption" style="margin-bottom:5px;">Due month</div><select id="yearlyBillMonthInput" data-cat="'+esc(selectedSub)+'" class="field">';
-        monthNames.forEach(function(mn,mi){h+='<option value="'+(mi+1)+'"'+(ycfg.dueMonth===mi+1?' selected':'')+'>'+mn+'</option>';});
-        h += '</select></div><div style="width:72px;"><div class="muted caption" style="margin-bottom:5px;">Day</div><input id="yearlyBillDayInput" data-cat="'+esc(selectedSub)+'" type="number" inputmode="numeric" min="1" max="31" step="1" class="field mono" value="'+ycfg.dueDay+'" /></div></div><button data-action="save-yearly-bill-settings" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="width:100%;margin-top:9px;">Save yearly bill</button>';
-        if(categoryExcludedFromBudget(selectedSub)){
-          h += '<div class="row between hairline-top" style="margin-top:12px;padding-top:11px;align-items:flex-start;"><div style="padding-right:12px;"><div class="headline">Annualized monthly cost</div><div id="yearlyBillReservePreview" class="muted caption" style="margin-top:2px;">'+(ycfg.amount>0?'About '+fmt(ycfg.amount/12,2)+' AED/month is automatically used for annualized savings affordability. The actual yearly payment still follows its real cash timing.':'Set an annual amount to calculate its normalized monthly cost.')+'</div></div><span class="chip" style="flex-shrink:0;">Automatic</span></div></div>';
-        }else{
-          h += '<div class="row between hairline-top" style="margin-top:12px;padding-top:11px;"><div style="padding-right:12px;"><div class="headline">Reserve monthly</div><div id="yearlyBillReservePreview" class="muted caption" style="margin-top:2px;">'+(ycfg.amount>0?'Protects about '+fmt(ycfg.amount/12,2)+' AED/month in Safe-to-Spend toward the next annual payment.':'Set an annual amount to calculate the monthly reserve.')+'</div></div><button data-action="toggle-yearly-bill-reserve" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(ycfg.reserveMonthly?'var(--positive)':'var(--text-muted)')+';">'+(ycfg.reserveMonthly?'On':'Off')+'</button></div></div>';
+        var overrideOpen=state.yearlyBillOverrideEditing===selectedSub;
+        h += '<div class="taxonomy-form-card"><label class="eyebrow">Yearly bill setup</label>';
+        h += '<div class="row between" style="margin-top:9px;align-items:flex-start;gap:12px;"><div style="min-width:0;flex:1;"><div class="muted caption">Annual cost</div><div class="mono" style="font-size:24px;font-weight:720;margin-top:2px;">'+(ycfg.amount>0?fmt(ycfg.amount,2)+' AED':'Not detected yet')+'</div><div class="muted caption" style="margin-top:4px;line-height:1.4;">'+esc(ycfg.sourceDetail)+'</div></div><button data-action="toggle-yearly-bill-override" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="flex-shrink:0;min-height:38px;padding:8px 11px;">'+(ycfg.hasOverride?'Edit override':'Override')+'</button></div>';
+        if(overrideOpen){
+          h += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="muted caption" style="margin-bottom:6px;">Manual annual-cost override</div><div class="row gap2"><input id="yearlyBillOverrideInput" data-cat="'+esc(selectedSub)+'" type="number" inputmode="decimal" min="0" step="0.01" class="field mono" value="'+(ycfg.hasOverride?ycfg.overrideAmount:(ycfg.amount>0?ycfg.amount:''))+'" placeholder="Annual amount" /><button data-action="save-yearly-bill-override" data-cat="'+esc(selectedSub)+'" class="btn-accent" style="flex-shrink:0;">Save</button></div>';
+          if(ycfg.hasOverride) h += '<button data-action="clear-yearly-bill-override" data-cat="'+esc(selectedSub)+'" class="btn-plain" style="margin-top:9px;">Use automatic amount instead</button>';
+          h += '</div>';
         }
+        h += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="muted caption" style="margin-bottom:6px;">Due date</div><div class="row gap2"><div style="flex:1;"><select id="yearlyBillMonthInput" data-cat="'+esc(selectedSub)+'" class="field">';
+        monthNames.forEach(function(mn,mi){h+='<option value="'+(mi+1)+'"'+(ycfg.dueMonth===mi+1?' selected':'')+'>'+mn+'</option>';});
+        h += '</select></div><div style="width:84px;"><input id="yearlyBillDayInput" data-cat="'+esc(selectedSub)+'" type="number" inputmode="numeric" min="1" max="31" step="1" class="field mono" value="'+ycfg.dueDay+'" /></div><button data-action="save-yearly-bill-settings" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="flex-shrink:0;">Save</button></div></div>';
+        if(categoryExcludedFromBudget(selectedSub)){
+          h += '<div class="row between hairline-top" style="margin-top:12px;padding-top:11px;align-items:flex-start;"><div style="padding-right:12px;"><div class="headline">Annualized monthly cost</div><div id="yearlyBillReservePreview" class="muted caption" style="margin-top:2px;">'+(ycfg.amount>0?'About '+fmt(ycfg.amount/12,2)+' AED/month is used for annualized savings affordability. Planned installments still follow their real cash dates.':'Create a finite plan or add a transaction so Ledger can calculate the annualized monthly cost automatically.')+'</div></div><span class="chip" style="flex-shrink:0;">'+(ycfg.hasOverride?'Override':'Automatic')+'</span></div></div>';
+        }else{
+          h += '<div class="row between hairline-top" style="margin-top:12px;padding-top:11px;"><div style="padding-right:12px;"><div class="headline">Reserve monthly</div><div id="yearlyBillReservePreview" class="muted caption" style="margin-top:2px;">'+(ycfg.amount>0?'Protects about '+fmt(ycfg.amount/12,2)+' AED/month in Safe-to-Spend toward the annual cost. Planned installments still keep their exact cash timing.':'Create a finite plan or add a transaction so Ledger can calculate the monthly reserve automatically.')+'</div></div><button data-action="toggle-yearly-bill-reserve" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(ycfg.reserveMonthly?'var(--positive)':'var(--text-muted)')+';">'+(ycfg.reserveMonthly?'On':'Off')+'</button></div></div>';
+        }
+        h += '</div>';
       }
       var safePriority=subcategorySafeSpendPriority(selectedSub), safeEssential=safePriority==='essential';
       h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Safe-to-Spend priority</div><div class="muted caption" style="margin-top:2px;">Essential cadence/plan spending is protected first. Flexible forecasts never block today\'s allowance.</div></div><button data-action="toggle-safe-spend-priority" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(safeEssential?'var(--positive)':'var(--text-muted)')+';">'+(safeEssential?'Essential':'Flexible')+'</button></div></div>';
@@ -8866,16 +8948,39 @@ document.addEventListener("click", function(e) {
       render();
       break;
     case "save-yearly-bill-settings":
-      var yearlyCat=el.dataset.cat, yAmountEl=document.getElementById("yearlyBillAmountInput"), yMonthEl=document.getElementById("yearlyBillMonthInput"), yDayEl=document.getElementById("yearlyBillDayInput");
-      var yAmount=parseFloat(yAmountEl?yAmountEl.value:""),yMonth=parseInt(yMonthEl?yMonthEl.value:"",10),yDay=parseInt(yDayEl?yDayEl.value:"",10);
-      if(!(yAmount>0)||!(yMonth>=1&&yMonth<=12)||!(yDay>=1&&yDay<=31))break;
-      var yMap=Object.assign({},state.settings.categoryYearlyBillSettings||{}), prevY=yMap[yearlyCat]||{};
-      yMap[yearlyCat]={amount:round2(yAmount),dueMonth:yMonth,dueDay:yDay,reserveMonthly:prevY.reserveMonthly!==false};
-      persistAll(Object.assign({},state.settings,{categoryYearlyBillSettings:yMap}),state.entries,"your yearly bill setup");
-      showToast(yearlyCat+" yearly bill saved");render();break;
+      var yearlyCat=el.dataset.cat, yMonthEl=document.getElementById("yearlyBillMonthInput"), yDayEl=document.getElementById("yearlyBillDayInput");
+      var yMonth=parseInt(yMonthEl?yMonthEl.value:"",10),yDay=parseInt(yDayEl?yDayEl.value:"",10);
+      if(!(yMonth>=1&&yMonth<=12)||!(yDay>=1&&yDay<=31))break;
+      var yMap=Object.assign({},state.settings.categoryYearlyBillSettings||{}), prevY=Object.assign({},yMap[yearlyCat]||{});
+      prevY.dueMonth=yMonth;prevY.dueDay=yDay;if(prevY.reserveMonthly==null)prevY.reserveMonthly=true;
+      yMap[yearlyCat]=prevY;
+      persistAll(Object.assign({},state.settings,{categoryYearlyBillSettings:yMap}),state.entries,"your yearly bill due date");
+      showToast(yearlyCat+" due date saved");render();break;
+    case "toggle-yearly-bill-override":
+      var overrideCat=el.dataset.cat;
+      state.yearlyBillOverrideEditing=state.yearlyBillOverrideEditing===overrideCat?null:overrideCat;
+      render();break;
+    case "save-yearly-bill-override":
+      var overrideSaveCat=el.dataset.cat,overrideInput=document.getElementById("yearlyBillOverrideInput"),overrideAmount=parseFloat(overrideInput?overrideInput.value:"");
+      if(!(overrideAmount>0))break;
+      var overrideMap=Object.assign({},state.settings.categoryYearlyBillSettings||{}),overrideStored=Object.assign({},overrideMap[overrideSaveCat]||{}),overrideCfg=yearlyBillConfigForCategory(overrideSaveCat);
+      overrideStored.amountOverride=round2(overrideAmount);
+      if(!(overrideStored.dueMonth>=1&&overrideStored.dueMonth<=12))overrideStored.dueMonth=overrideCfg.dueMonth;
+      if(!(overrideStored.dueDay>=1&&overrideStored.dueDay<=31))overrideStored.dueDay=overrideCfg.dueDay;
+      if(overrideStored.reserveMonthly==null)overrideStored.reserveMonthly=true;
+      overrideMap[overrideSaveCat]=overrideStored;
+      state.yearlyBillOverrideEditing=null;
+      persistAll(Object.assign({},state.settings,{categoryYearlyBillSettings:overrideMap}),state.entries,"your yearly bill override");
+      showToast(overrideSaveCat+" annual cost override saved");render();break;
+    case "clear-yearly-bill-override":
+      var overrideClearCat=el.dataset.cat,clearOverrideMap=Object.assign({},state.settings.categoryYearlyBillSettings||{}),clearOverrideStored=Object.assign({},clearOverrideMap[overrideClearCat]||{});
+      delete clearOverrideStored.amountOverride;clearOverrideMap[overrideClearCat]=clearOverrideStored;state.yearlyBillOverrideEditing=null;
+      persistAll(Object.assign({},state.settings,{categoryYearlyBillSettings:clearOverrideMap}),state.entries,"your automatic yearly bill amount");
+      showToast(overrideClearCat+" now uses the automatic annual cost");render();break;
     case "toggle-yearly-bill-reserve":
-      var reserveCat=el.dataset.cat,reserveCfg=yearlyBillConfigForCategory(reserveCat),reserveMap=Object.assign({},state.settings.categoryYearlyBillSettings||{});
-      reserveMap[reserveCat]={amount:reserveCfg.amount>0?reserveCfg.amount:null,dueMonth:reserveCfg.dueMonth,dueDay:reserveCfg.dueDay,reserveMonthly:!reserveCfg.reserveMonthly};
+      var reserveCat=el.dataset.cat,reserveCfg=yearlyBillConfigForCategory(reserveCat),reserveMap=Object.assign({},state.settings.categoryYearlyBillSettings||{}),reserveStored=Object.assign({},reserveMap[reserveCat]||{});
+      reserveStored.dueMonth=reserveStored.dueMonth||reserveCfg.dueMonth;reserveStored.dueDay=reserveStored.dueDay||reserveCfg.dueDay;reserveStored.reserveMonthly=!reserveCfg.reserveMonthly;
+      reserveMap[reserveCat]=reserveStored;
       persistAll(Object.assign({},state.settings,{categoryYearlyBillSettings:reserveMap}),state.entries,"your yearly bill reserve");
       showToast(reserveCat+" monthly reserve "+(!reserveCfg.reserveMonthly?"on":"off"));render();break;
     case "toggle-subcategory-people-analysis":
@@ -9607,16 +9712,16 @@ document.addEventListener("input", function(e) {
       derived.textContent = "= " + fmt(perDay,2) + " "+reportingCurrency()+"/day in " + monthName + " · about " + fmt(perDay*7,0) + " "+reportingCurrency()+"/week";
     }
   }
-  if (e.target && e.target.id === "yearlyBillAmountInput") {
+  if (e.target && e.target.id === "yearlyBillOverrideInput") {
     var annualPreview = parseFloat(e.target.value);
     var reservePreview = document.getElementById("yearlyBillReservePreview");
     if (reservePreview) {
       var previewCat=e.target.dataset.cat||"", previewOutside=categoryExcludedFromBudget(previewCat);
       reservePreview.textContent = (!isNaN(annualPreview) && annualPreview > 0)
         ? (previewOutside
-            ? ("About " + fmt(annualPreview/12,2) + " AED/month is automatically used for annualized savings affordability. The actual yearly payment still follows its real cash timing.")
-            : ("Protects about " + fmt(annualPreview/12,2) + " AED/month in Safe-to-Spend toward the next annual payment."))
-        : (previewOutside ? "Set an annual amount to calculate its normalized monthly cost." : "Set an annual amount to calculate the monthly reserve.");
+            ? ("Override preview · about " + fmt(annualPreview/12,2) + " AED/month for annualized savings affordability. Planned payments keep their real cash dates.")
+            : ("Override preview · protects about " + fmt(annualPreview/12,2) + " AED/month in Safe-to-Spend."))
+        : "Enter a positive annual amount to override automatic detection.";
     }
     return;
   }
