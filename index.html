@@ -694,7 +694,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v111.7";
+var APP_VERSION = "v111.8";
 var FORECAST_MODEL_VERSION = "v103-yearly-bill-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly", safeSpendHistory: null };
@@ -1385,6 +1385,10 @@ function yearlyReserveBreakdownForRange(fromStr,throughStr){
   var out={}; if(!fromStr||!throughStr||fromStr>throughStr)return [];
   (state.settings.categories||[]).forEach(function(c){
     if(categoryForecastBehavior(c)!=="yearly")return;
+    /* v111.8: outside-budget annual bills are normalized in the annualized
+       savings-affordability calculation. Reserving them again here would
+       double-count the same cost and unnecessarily reduce Safe-to-Spend. */
+    if(categoryExcludedFromBudget(c))return;
     var cfg=yearlyBillConfigForCategory(c);if(!cfg.reserveMonthly||!(cfg.amount>0))return;
     var total=0,d=parseD(fromStr),end=parseD(throughStr);
     while(d<=end){
@@ -1822,52 +1826,79 @@ function ensureSafeSpendSnapshot(){
 }
 function savingsTargetAmountForIncome(income){ return round2(Math.max(0,Number(income)||0)*savingsTargetPct()/100); }
 function savingsSpendCeilingForIncome(income){ return round2(Math.max(0,Number(income)||0)-savingsTargetAmountForIncome(income)); }
-/* Compares the configured MONTHLY budget (budget-counted categories only)
-   with the all-spending ceiling implied by the savings goal. The missing
-   bridge between those two numbers is projected spending OUTSIDE the budget.
-
-     savings-compatible budget
-       = max total spend allowed by savings goal
-         - projected spend outside the budget
-
-   This is intentionally an estimate: outside-budget spend can still move as
-   new transactions arrive or cadence probabilities change. It gives the UI a
-   truthful way to say whether the monthly budget or the savings goal is the
-   tighter constraint without pretending the two scopes are identical. */
+/* v111.8: savings is an ANNUALIZED affordability goal, not a requirement that
+   every individual calendar month independently saves the same percentage.
+   Cash timing remains exact elsewhere, while annual bills/installments are
+   normalized here so one expensive payment month does not crush the budget. */
+function monthlyEquivalentForRecurringRule(rule){
+  if(!rule||rule.entryKind==="income")return 0;
+  var a=Math.max(0,Number(rule.amount)||0), f=String(rule.frequency||"monthly");
+  if(f==="daily")return round2(a*365.2425/12);
+  if(f==="weekly")return round2(a*365.2425/(7*12));
+  if(f==="yearly")return round2(a/12);
+  return round2(a);
+}
+function normalizedOutsideBudgetMonthlyCost(){
+  var cats=(state.settings.categories||[]).filter(function(c){return categoryExcludedFromBudget(c);});
+  var rules=(state.settings.recurringRules||[]).filter(function(r){return r&&r.active&&r.kind==="recurring"&&r.entryKind!=="income"&&!ruleIsComplete(r)&&categoryExcludedFromBudget(r.category);});
+  var profiles=forecastCategoryProfiles("excluded",todayStr()), monthDays=365.2425/12, rows=[], total=0;
+  cats.forEach(function(c){
+    var behavior=categoryForecastBehavior(c), amount=0, source="Observed normalized pace";
+    if(behavior==="yearly"){
+      var cfg=yearlyBillConfigForCategory(c);
+      if(cfg&&cfg.amount>0){amount=cfg.amount/12;source="Yearly bill ÷ 12";}
+    } else {
+      var cr=rules.filter(function(r){return r.category===c;});
+      if(cr.length){
+        amount=cr.reduce(function(sum,r){return sum+monthlyEquivalentForRecurringRule(r);},0);
+        source="Recurring plan normalized monthly";
+      } else {
+        var p=profiles[c];
+        if(p){
+          if(p.mode==="monthly"){
+            amount=Math.max(0,Number(p.typicalTxnAmount)||Number(p.typicalAmount)||0);source="Monthly bill typical amount";
+          } else if(p.mode==="frequent"){
+            amount=Math.max(0,Number(frequentPaceStats(p,todayStr()).mean)||0)*monthDays;source="Frequent pace annualized";
+          } else if(p.mode==="cadence"&&Number(p.eventGap)>0){
+            amount=Math.max(0,Number(p.typicalAmount)||0)*monthDays/Math.max(1,Number(p.eventGap)||1);source="Cadence annualized";
+          } else if(p.mode==="lumpy"){
+            var from=toStr(addDays(parseD(todayStr()),1)), thru=toStr(addDays(parseD(from),29));
+            amount=Math.max(0,Number(lumpyEventForecast(p,from,thru).total)||0)*(monthDays/30);source="Lumpy expected monthly cost";
+          }
+        }
+      }
+    }
+    amount=round2(Math.max(0,amount));
+    if(amount>0.005){rows.push({category:c,amount:amount,source:source});total+=amount;}
+  });
+  rows.sort(function(a,b){return b.amount-a.amount;});
+  return {total:round2(total),rows:rows};
+}
+/* The configured variable budget is compared with an annualized sustainable
+   amount. Projected cash spending for this specific month is still calculated
+   and displayed, but it no longer tightens Safe-to-Spend merely because a
+   yearly bill or installment happens to be paid now. */
 function currentSavingsBudgetComparison() {
   var pct=savingsTargetPct();
   if(!(pct>0)) return null;
   var per=getPeriodBounds("month",0,currentWeeklyTarget(),dailyAllowance());
-  var overall=periodStatsOverall(per.startStr,per.endStr);
-  var budget=periodStatsBudget(per.startStr,per.endStr);
+  var overall=periodStatsOverall(per.startStr,per.endStr), budget=periodStatsBudget(per.startStr,per.endStr);
   var projectedIncome=projectedIncomeForRange(per.startStr,per.endStr);
   if(!(projectedIncome>0)) return null;
   var start=effectiveRangeStart(per.startStr), totalDays=Math.max(1,daysBetween(start,per.endStr)+1);
   var overallFc=overall.rows.length?computeForecastNumbers(overall.rows,totalDays,start,"overall"):null;
   var budgetFc=budget.rows.length?computeForecastNumbers(budget.rows,totalDays,start,"budget"):null;
-  /* v88 forecasts excluded categories directly instead of subtracting two
-     independently modelled totals. This guarantees the savings bridge is
-     based on the actual outside-budget scope itself. */
   var excludedFc=overall.rows.length?computeForecastNumbers(overall.rows,totalDays,start,"excluded"):null;
   var projectedOverall=round2(overallFc?overallFc.projectedSpend:overall.spent);
   var projectedBudget=round2(budgetFc?budgetFc.projectedSpend:budget.spent);
   var actualExcluded=round2(Math.max(0,overall.spent-budget.spent));
   var projectedExcluded=round2(excludedFc?excludedFc.projectedSpend:actualExcluded);
-  var spendCeiling=savingsSpendCeilingForIncome(projectedIncome);
-  var targetSaving=savingsTargetAmountForIncome(projectedIncome);
-  var compatibleBudget=round2(Math.max(0,spendCeiling-projectedExcluded));
-  var configuredBudget=round2(per.target||0);
-  var delta=round2(compatibleBudget-configuredBudget);
-  var tighter=Math.abs(delta)<0.5?"equal":(delta<0?"savings":"budget");
-  var effectiveBudget=round2(Math.min(configuredBudget,compatibleBudget));
-  return {
-    pct:pct, projectedIncome:projectedIncome, targetSaving:targetSaving,
-    spendCeiling:spendCeiling, configuredBudget:configuredBudget,
-    projectedOverall:projectedOverall, projectedBudget:projectedBudget,
-    projectedExcluded:projectedExcluded, actualExcluded:actualExcluded,
-    compatibleBudget:compatibleBudget, effectiveBudget:effectiveBudget,
-    delta:delta, tighter:tighter
-  };
+  var normalized=normalizedOutsideBudgetMonthlyCost(), normalizedExcluded=round2(normalized.total||0);
+  var spendCeiling=savingsSpendCeilingForIncome(projectedIncome), targetSaving=savingsTargetAmountForIncome(projectedIncome);
+  var compatibleBudget=round2(Math.max(0,spendCeiling-normalizedExcluded));
+  var configuredBudget=round2(per.target||0), delta=round2(compatibleBudget-configuredBudget);
+  var tighter=Math.abs(delta)<0.5?"equal":(delta<0?"savings":"budget"), effectiveBudget=round2(Math.min(configuredBudget,compatibleBudget));
+  return {pct:pct,projectedIncome:projectedIncome,targetSaving:targetSaving,spendCeiling:spendCeiling,configuredBudget:configuredBudget,projectedOverall:projectedOverall,projectedBudget:projectedBudget,projectedExcluded:projectedExcluded,actualExcluded:actualExcluded,normalizedExcluded:normalizedExcluded,normalizedBreakdown:normalized.rows,compatibleBudget:compatibleBudget,effectiveBudget:effectiveBudget,delta:delta,tighter:tighter,projectedCashSaving:round2(projectedIncome-projectedOverall),projectedCashSavingPct:projectedIncome>0?round2((projectedIncome-projectedOverall)/projectedIncome*100):null};
 }
 /* Budget and savings stay separate inputs. v88 always enforces the lower live limit. */
 /* Recent completed-day pace remains a diagnostic for Budget Status, but v88
@@ -4284,8 +4315,9 @@ function liveBudgetPacing() {
   var month=horizon("month","budget",monthTarget);
 
   /* Savings remains a separate goal/diagnostic, but it is no longer exposed as
-     a competing day-to-day budget. Its effect is already folded into the one
-     effective budget above through projected outside-budget spending. */
+     a competing day-to-day budget. v111.8 folds it into the effective monthly
+     budget through normalized outside-budget obligations, not this month's
+     cash-payment timing. */
   var savings=null, savingsPct=savingsTargetPct();
   if(savingsPct>0){
     var monthOverall=periodStatsOverall(monthPer.startStr,monthPer.endStr);
@@ -4603,10 +4635,24 @@ function budgetForecastEvidenceHtml(x, protectedMode) {
   return out;
 }
 
-/* Safe-to-Spend history + adaptive outlook. Future values are not promises:
-   they assume the current-month flexible spending average continues. The
-   adaptive headroom is recalculated against the simulated sustainable pace,
-   while protected essentials remain ring-fenced. */
+/* v111.8: early-month outlooks blend current-month behavior with robust
+   recent history. One cheap or expensive day should not dictate the remaining
+   28 days; current-month evidence gets progressively more weight as it grows. */
+function blendedFlexibleSpendAssumption(){
+  var month=currentMonthFlexibleSpendStats(), recent=currentFlexibleSpendPaceStats(), recentRef=null;
+  if(recent.last7Avg!=null&&recent.dailyAvg!=null)recentRef=.70*recent.last7Avg+.30*recent.dailyAvg;
+  else if(recent.last7Avg!=null)recentRef=recent.last7Avg;
+  else if(recent.dailyAvg!=null)recentRef=recent.dailyAvg;
+  var days=Math.max(0,Number(month.days)||0), monthAvg=month.avg==null?null:Math.max(0,Number(month.avg)||0);
+  if(monthAvg==null&&recentRef==null)return {pace:null,monthWeight:0,monthAvg:null,recentRef:null,days:days};
+  if(monthAvg==null)return {pace:round2(recentRef),monthWeight:0,monthAvg:null,recentRef:round2(recentRef),days:days};
+  if(recentRef==null)return {pace:round2(monthAvg),monthWeight:1,monthAvg:round2(monthAvg),recentRef:null,days:days};
+  var w=Math.min(.90,Math.max(.15,.075+.075*days));
+  return {pace:round2(Math.max(0,monthAvg*w+recentRef*(1-w))),monthWeight:round2(w),monthAvg:round2(monthAvg),recentRef:round2(recentRef),days:days};
+}
+/* Safe-to-Spend history + adaptive outlook. Future values are scenarios, not
+   promises. The blended pace above is extended through the month and adaptive
+   headroom is recalculated on every simulated day. */
 function safeSpendOutlookModel(livePacing){
   var m=livePacing&&livePacing.month;if(!m||m.openingSafe==null||m.sustainableDaily==null)return null;
   var today=todayStr(), per=getPeriodBounds("month",0,currentWeeklyTarget(),dailyAllowance()), monthKey=today.slice(0,7);
@@ -4615,9 +4661,9 @@ function safeSpendOutlookModel(livePacing){
   hist.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});
 
   var todaySustainable=Math.max(0,Number(m.sustainableDaily)||0), actualFlexPct=clampPct(m.flexibilityPct), maxFlexPct=normalizeSafeSpendFlexibilityPct(m.maxFlexibilityPct);
+  var blendedAssumption=blendedFlexibleSpendAssumption();
   var monthAvgStats=currentMonthFlexibleSpendStats();
-  var rollingFlex=currentFlexibleSpendPaceStats();
-  var assumedDaily=monthAvgStats.avg!=null?Math.max(0,Number(monthAvgStats.avg)||0):(rollingFlex.last7Avg!=null?Math.max(0,Number(rollingFlex.last7Avg)||0):todaySustainable);
+  var assumedDaily=blendedAssumption.pace!=null?Math.max(0,Number(blendedAssumption.pace)||0):todaySustainable;
   var actualFlexible=Math.max(0,Number(m.todayFlexibleSpent)||0);
   var expectedRestToday=Math.max(0,assumedDaily-actualFlexible);
   var pool=Math.max(0,(Number(m.flexiblePool)||0)-expectedRestToday);
@@ -4640,7 +4686,7 @@ function safeSpendOutlookModel(livePacing){
   var points=hist.map(function(x){return {date:x.date,value:round2(Math.max(0,x.openingSafe)),kind:"history",sustainable:round2(Math.max(0,Number(x.sustainableDaily)||0)),effectiveFlexPct:clampPct(x.flexibilityPct),maxFlexPct:normalizeSafeSpendFlexibilityPct(x.maxFlexibilityPct)};});
   var todayOpening=round2(Math.max(0,m.openingSafe)), current=round2(Math.max(0,m.safe||0));
   var tomorrow=future.length?future[0].value:null, monthEnd=future.length?future[future.length-1].value:todayOpening;
-  return {history:points,future:future,today:today,current:current,todayOpening:todayOpening,sustainable:round2(todaySustainable),tomorrow:tomorrow,monthEnd:monthEnd,flexPct:actualFlexPct,maxFlexPct:maxFlexPct,monthEndDate:per.endStr,assumedDaily:round2(assumedDaily),assumptionDays:monthAvgStats.days||0,assumptionStart:monthAvgStats.start,assumptionEnd:monthAvgStats.end,adaptive:baseAdaptive};
+  return {history:points,future:future,today:today,current:current,todayOpening:todayOpening,sustainable:round2(todaySustainable),tomorrow:tomorrow,monthEnd:monthEnd,flexPct:actualFlexPct,maxFlexPct:maxFlexPct,monthEndDate:per.endStr,assumedDaily:round2(assumedDaily),assumptionDays:monthAvgStats.days||0,assumptionStart:monthAvgStats.start,assumptionEnd:monthAvgStats.end,assumptionMonthAvg:blendedAssumption.monthAvg,assumptionRecent:blendedAssumption.recentRef,assumptionMonthWeight:blendedAssumption.monthWeight,adaptive:baseAdaptive};
 }
 function safeSpendOutlookChartHtml(model,T){
   if(!model)return '';
@@ -4673,7 +4719,7 @@ function safeSpendOutlookHtml(livePacing,T){
   var selectedLabel=selected?(shortLabel(selected.date)+' · '+(selected.kind==='projected'?'projected opening':'opening')):'';
   var h='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);">';
   h+='<button data-action="toggle-budget-safe-outlook" style="width:100%;background:none;border:none;padding:0;color:inherit;text-align:left;">';
-  h+='<div class="row between" style="gap:12px;align-items:center;"><div><div class="subhead" style="font-weight:700;">Safe-to-Spend outlook</div><div class="muted caption" style="margin-top:2px;">History + projected path at your current-month pace</div></div><div class="row gap2" style="flex-shrink:0;"><div style="text-align:right;"><div class="muted caption">Tomorrow</div><div class="mono subhead" style="font-weight:750;">'+tomorrowText+'</div></div><span style="display:flex;transform:rotate('+(open?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></div></div>';
+  h+='<div class="row between" style="gap:12px;align-items:center;"><div><div class="subhead" style="font-weight:700;">Safe-to-Spend outlook</div><div class="muted caption" style="margin-top:2px;">History + projected path at your blended spending pace</div></div><div class="row gap2" style="flex-shrink:0;"><div style="text-align:right;"><div class="muted caption">Tomorrow</div><div class="mono subhead" style="font-weight:750;">'+tomorrowText+'</div></div><span style="display:flex;transform:rotate('+(open?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></div></div>';
   h+='<div style="margin-top:8px;">'+safeSpendOutlookChartHtml(m,T)+'</div>';
   h+='<div class="row between muted caption" style="margin-top:-3px;padding-left:39px;"><span>'+shortLabel(m.history.length?m.history[0].date:m.today)+'</span><span>Today</span><span>'+shortLabel(m.monthEndDate)+'</span></div>';
   h+='</button>';
@@ -4685,10 +4731,10 @@ function safeSpendOutlookHtml(livePacing,T){
     h+='<div class="row between" style="padding:8px 0;"><span class="muted caption">Opening today</span><span class="mono caption" style="font-weight:750;">'+fmt(m.todayOpening,0)+' AED</span></div>';
     h+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Remaining now</span><span class="mono caption" style="font-weight:750;">'+fmt(m.current,0)+' AED</span></div>';
     h+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Sustainable pace now</span><span class="mono caption" style="font-weight:750;">'+fmt(m.sustainable,0)+' AED/day</span></div>';
-    h+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Current-month flexible avg</span><span class="mono caption" style="font-weight:750;">'+fmt(m.assumedDaily,0)+' AED/day</span></div>';
+    h+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Blended pace used</span><span class="mono caption" style="font-weight:750;">'+fmt(m.assumedDaily,0)+' AED/day</span></div>';
     h+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Month-end projected opening</span><span class="mono caption" style="font-weight:750;">≈ '+fmt(m.monthEnd,0)+' AED</span></div>';
     h+='</div>';
-    h+='<div class="muted caption" style="margin-top:8px;line-height:1.4;">Projection assumes you continue spending about '+fmt(m.assumedDaily,0)+' AED/day of flexible budget spending. Daily headroom is adaptive up to +'+fmt(m.maxFlexPct,0)+'%: it tightens when flexible spending runs hot, when budget pace falls behind, or when the month-end budget forecast is over limit. Protected essentials are already ring-fenced and are not counted again. Tap any point to inspect its projected allowance and granted headroom. Daily opening history builds automatically from v111.5 onward.</div>';
+    h+='<div class="muted caption" style="margin-top:8px;line-height:1.4;">Projection uses about '+fmt(m.assumedDaily,0)+' AED/day of flexible spending: '+(m.assumptionMonthAvg==null?'no completed current-month average yet':(fmt((m.assumptionMonthWeight||0)*100,0)+'% current-month average ('+fmt(m.assumptionMonthAvg,0)+' AED/day)'))+(m.assumptionRecent==null?'':(' + '+fmt((1-(m.assumptionMonthWeight||0))*100,0)+'% recent-history pace ('+fmt(m.assumptionRecent,0)+' AED/day)'))+'. As more days complete, current-month behavior gets more weight. Daily headroom is adaptive up to +'+fmt(m.maxFlexPct,0)+'% and is recalculated on the simulated path. Protected essentials are already ring-fenced. Tap any point to inspect the allowance and granted headroom. Daily opening history builds automatically from v111.5 onward.</div>';
   }
   h+='</div>';return h;
 }
@@ -4776,7 +4822,7 @@ function renderBudgetBody(T) {
     summary+='<div style="margin-top:10px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
     summary+='<div class="row between" style="padding:7px 0;"><span class="muted caption">Your set budget</span><span class="mono caption" style="font-weight:700;">'+fmt(bsc.configuredBudget,0)+' AED</span></div>';
     summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Savings-compatible limit</span><span class="mono caption" style="font-weight:750;">≈ '+fmt(bsc.compatibleBudget,0)+' AED</span></div>';
-    summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Projected outside-budget spend</span><span class="mono caption" style="font-weight:700;">≈ '+fmt(bsc.projectedExcluded,0)+' AED</span></div>';
+    summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Normalized outside-budget / month</span><span class="mono caption" style="font-weight:700;">≈ '+fmt(bsc.projectedExcluded,0)+' AED</span></div>';
     summary+='</div></div>';
   }
   /* v86: Keep the summary card decision-first. The four headline metrics stay
@@ -4989,18 +5035,18 @@ function renderSettingsPage() {
   if (section === "savings") {
     var savePct=savingsTargetPct();
     h += '<label class="eyebrow">Target saving</label>';
-    h += '<div class="muted caption" style="margin:4px 0 10px;">The percentage of full/projected income you want to keep. The Ledger converts this into a maximum-spend ceiling. The lower of your set budget and the savings-compatible limit is always enforced; the app never relaxes that limit automatically.</div>';
+    h += '<div class="muted caption" style="margin:4px 0 10px;">The percentage of income you want to save on an annualized basis. The Ledger compares your monthly budget with a normalized affordability limit, smoothing yearly bills across 12 months so payment timing (including installments) does not unfairly crush one month.</div>';
     h += '<div style="position:relative;margin:6px 0 8px;"><input id="savingsTargetPctInput" type="number" inputmode="decimal" min="0" max="100" step="1" class="field mono" style="padding-right:40px;font-size:20px;font-weight:650;" value="'+savePct+'"/><span class="muted" style="position:absolute;right:13px;top:50%;transform:translateY(-50%);font-weight:650;">%</span></div>';
     h += '<div class="muted caption" style="margin-bottom:16px;">Default is 25%. Set 0% if you want to disable the savings-goal constraint.</div>';
     var settingsSavingsCompare=currentSavingsBudgetComparison();
     if(settingsSavingsCompare){
       var ssc=settingsSavingsCompare, sscTight=ssc.tighter==='savings';
-      h += '<div id="savingsRelationshipCard" class="card card-pad" style="margin-bottom:14px;" data-income="'+ssc.projectedIncome+'" data-excluded="'+ssc.projectedExcluded+'" data-budget="'+ssc.configuredBudget+'"><div class="eyebrow">CURRENT MONTH RELATIONSHIP</div>';
+      h += '<div id="savingsRelationshipCard" class="card card-pad" style="margin-bottom:14px;" data-income="'+ssc.projectedIncome+'" data-excluded="'+ssc.normalizedExcluded+'" data-budget="'+ssc.configuredBudget+'"><div class="eyebrow">ANNUALIZED AFFORDABILITY</div>';
       h += '<div class="row between" style="margin-top:9px;"><span class="muted subhead">Set monthly budget</span><span class="mono subhead" style="font-weight:650;">'+fmt(ssc.configuredBudget,0)+' AED</span></div>';
       h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Savings-compatible budget</span><span id="savingsCompatiblePreview" class="mono subhead" style="font-weight:700;color:'+(sscTight?'var(--amber)':'var(--text)')+';">≈ '+fmt(ssc.compatibleBudget,0)+' AED</span></div>';
       h += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Max total spending</span><span id="savingsSpendCeilingPreview" class="mono subhead" style="font-weight:650;">'+fmt(ssc.spendCeiling,0)+' AED</span></div>';
       var settingsEffectiveInfo=currentEffectiveBudgetInfo();
-      h += '<div id="savingsRelationshipNote" class="muted caption" style="margin-top:9px;line-height:1.35;">Based on ≈ '+fmt(ssc.projectedExcluded,0)+' AED projected outside-budget spending. '+(ssc.tighter==='equal'?'The two limits are currently aligned.':(sscTight?'The savings goal is currently the tighter monthly constraint.':'Your configured budget is currently tighter than the savings goal.'))+'</div>';
+      h += '<div id="savingsRelationshipNote" class="muted caption" style="margin-top:9px;line-height:1.35;">Based on ≈ '+fmt(ssc.normalizedExcluded,0)+' AED/month normalized outside-budget obligations. Projected cash outside-budget spend this month is ≈ '+fmt(ssc.projectedExcluded,0)+' AED, but payment timing does not tighten this affordability limit. '+(ssc.tighter==='equal'?'The two limits are currently aligned.':(sscTight?'The annualized savings goal is currently the tighter constraint.':'Your configured budget is currently tighter than the annualized savings goal.'))+'</div>';
       h += '</div>';
     }
     h += '<button data-action="save-savings-target" class="btn-accent" style="width:100%;">Save savings target</button>';
@@ -5112,7 +5158,7 @@ function renderSettingsPage() {
         h += '<div class="taxonomy-form-card"><label class="eyebrow">Yearly bill setup</label><div class="row gap2" style="margin-top:8px;"><div style="flex:1;"><div class="muted caption" style="margin-bottom:5px;">Annual amount</div><input id="yearlyBillAmountInput" data-cat="'+esc(selectedSub)+'" type="number" inputmode="decimal" min="0" step="0.01" class="field mono" value="'+(ycfg.amount>0?ycfg.amount:'')+'" placeholder="Amount" /></div><div style="width:102px;"><div class="muted caption" style="margin-bottom:5px;">Due month</div><select id="yearlyBillMonthInput" data-cat="'+esc(selectedSub)+'" class="field">';
         monthNames.forEach(function(mn,mi){h+='<option value="'+(mi+1)+'"'+(ycfg.dueMonth===mi+1?' selected':'')+'>'+mn+'</option>';});
         h += '</select></div><div style="width:72px;"><div class="muted caption" style="margin-bottom:5px;">Day</div><input id="yearlyBillDayInput" data-cat="'+esc(selectedSub)+'" type="number" inputmode="numeric" min="1" max="31" step="1" class="field mono" value="'+ycfg.dueDay+'" /></div></div><button data-action="save-yearly-bill-settings" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="width:100%;margin-top:9px;">Save yearly bill</button>';
-        h += '<div class="row between hairline-top" style="margin-top:12px;padding-top:11px;"><div style="padding-right:12px;"><div class="headline">Reserve monthly</div><div id="yearlyBillReservePreview" class="muted caption" style="margin-top:2px;">'+(ycfg.amount>0?'Sets aside about '+fmt(ycfg.amount/12,2)+' AED/month in Safe-to-Spend for the next annual payment. No transaction is created.':'Set an annual amount to calculate the monthly reserve.')+'</div></div><button data-action="toggle-yearly-bill-reserve" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(ycfg.reserveMonthly?'var(--positive)':'var(--text-muted)')+';">'+(ycfg.reserveMonthly?'On':'Off')+'</button></div></div>';
+        h += '<div class="row between hairline-top" style="margin-top:12px;padding-top:11px;"><div style="padding-right:12px;"><div class="headline">Reserve monthly</div><div id="yearlyBillReservePreview" class="muted caption" style="margin-top:2px;">'+(ycfg.amount>0?'Plans about '+fmt(ycfg.amount/12,2)+' AED/month. In-budget yearly bills can reserve this in Safe-to-Spend; outside-budget yearly bills use it for annualized savings affordability without double-counting.':'Set an annual amount to calculate the monthly reserve.')+'</div></div><button data-action="toggle-yearly-bill-reserve" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(ycfg.reserveMonthly?'var(--positive)':'var(--text-muted)')+';">'+(ycfg.reserveMonthly?'On':'Off')+'</button></div></div>';
       }
       var safePriority=subcategorySafeSpendPriority(selectedSub), safeEssential=safePriority==='essential';
       h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Safe-to-Spend priority</div><div class="muted caption" style="margin-top:2px;">Essential cadence/plan spending is protected first. Flexible forecasts never block today\'s allowance.</div></div><button data-action="toggle-safe-spend-priority" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(safeEssential?'var(--positive)':'var(--text-muted)')+';">'+(safeEssential?'Essential':'Flexible')+'</button></div></div>';
@@ -6094,7 +6140,7 @@ function buildAnalysisForecastCard(info, cs, T, scope) {
      the forecast focused on spend versus the comparable 7-day pace. Month
      and Year retain the income/savings benchmark, where the target has the
      same economic horizon as the forecast. */
-  var useSavingsBenchmark = scope === "overall" && info.mode !== "week";
+  var useSavingsBenchmark = scope === "overall" && info.mode === "year";
   var incomeTarget = useSavingsBenchmark && projectedIncome > 0 ? projectedIncome : null;
   var goalPct=savingsTargetPct();
   var savingsSpendCeiling=(useSavingsBenchmark && incomeTarget!=null && goalPct>0)?savingsSpendCeilingForIncome(projectedIncome):null;
@@ -7515,8 +7561,12 @@ function renderAnalysisBody(T) {
     var net=cs.income-cs.spent,max=Math.max(cs.income,cs.spent,1),ip=Math.round(cs.income/max*100),ep=Math.round(cs.spent/max*100),goal=periodSavingsGoalMetrics(info,cs);
     var s='<div class="card card-pad" style="margin-bottom:16px;"><div class="eyebrow">Cash flow</div><div class="muted caption" style="margin:2px 0 12px;">Actual income transactions versus all expenses.</div><div class="mono" style="font-size:26px;font-weight:700;color:'+(net>=0?'var(--positive)':'var(--rust)')+';">'+(net>=0?'+':'−')+fmt(Math.abs(net),0)+' AED</div><div style="margin-top:16px;"><div class="row between"><span class="subhead">Income</span><span class="mono subhead">'+fmt(cs.income,0)+'</span></div><div style="background:var(--fill);height:12px;border-radius:6px;overflow:hidden;margin:6px 0 14px;"><div style="height:100%;width:'+ip+'%;background:var(--positive);"></div></div><div class="row between"><span class="subhead">Expenses</span><span class="mono subhead">'+fmt(cs.spent,0)+'</span></div><div style="background:var(--fill);height:12px;border-radius:6px;overflow:hidden;margin-top:6px;"><div style="height:100%;width:'+ep+'%;background:var(--rust);"></div></div></div>';
     if(info.mode!=="week"&&goal.pct>0&&goal.projectedIncome>0){
-      var gapColor=goal.gap>=0?'var(--positive)':'var(--amber)';
-      s+='<div class="hairline-top" style="margin-top:14px;padding-top:11px;"><div class="row between"><span class="muted subhead">Target saving · '+fmt(goal.pct,0)+'%</span><span class="mono subhead" style="font-weight:650;">'+fmt(goal.targetSaving,0)+' AED</span></div><div class="row between" style="margin-top:7px;"><span class="muted subhead">Projected saving</span><span class="mono subhead" style="font-weight:650;color:'+gapColor+';">'+(goal.projectedSaving>=0?'+':'−')+fmt(Math.abs(goal.projectedSaving||0),0)+' AED · '+(goal.projectedSavingPct==null?'—':goal.projectedSavingPct.toFixed(0)+'%')+'</span></div><div class="row between" style="margin-top:7px;"><span class="muted subhead">Gap to target</span><span class="mono subhead" style="font-weight:700;color:'+gapColor+';">'+(goal.gap>=0?('+'+fmt(goal.gap,0)+' AED ahead'):('−'+fmt(Math.abs(goal.gap),0)+' AED short'))+'</span></div></div>';
+      if(info.mode==="year"){
+        var gapColor=goal.gap>=0?'var(--positive)':'var(--amber)';
+        s+='<div class="hairline-top" style="margin-top:14px;padding-top:11px;"><div class="row between"><span class="muted subhead">Annualized saving target · '+fmt(goal.pct,0)+'%</span><span class="mono subhead" style="font-weight:650;">'+fmt(goal.targetSaving,0)+' AED</span></div><div class="row between" style="margin-top:7px;"><span class="muted subhead">Projected saving</span><span class="mono subhead" style="font-weight:650;color:'+gapColor+';">'+(goal.projectedSaving>=0?'+':'−')+fmt(Math.abs(goal.projectedSaving||0),0)+' AED · '+(goal.projectedSavingPct==null?'—':goal.projectedSavingPct.toFixed(0)+'%')+'</span></div><div class="row between" style="margin-top:7px;"><span class="muted subhead">Gap to target</span><span class="mono subhead" style="font-weight:700;color:'+gapColor+';">'+(goal.gap>=0?('+'+fmt(goal.gap,0)+' AED ahead'):('−'+fmt(Math.abs(goal.gap),0)+' AED short'))+'</span></div></div>';
+      }else{
+        s+='<div class="hairline-top" style="margin-top:14px;padding-top:11px;"><div class="row between"><span class="muted subhead">Projected saving this month</span><span class="mono subhead" style="font-weight:650;color:'+(goal.projectedSaving>=0?'var(--positive)':'var(--rust)')+';">'+(goal.projectedSaving>=0?'+':'−')+fmt(Math.abs(goal.projectedSaving||0),0)+' AED · '+(goal.projectedSavingPct==null?'—':goal.projectedSavingPct.toFixed(0)+'%')+'</span></div><div class="muted caption" style="margin-top:7px;line-height:1.35;">Annualized savings target: '+fmt(goal.pct,0)+'%. A single month may be above or below it because annual bills and installment timing are allowed to vary.</div></div>';
+      }
     }
     return s+'</div>';
   };
@@ -9536,7 +9586,7 @@ document.addEventListener("input", function(e) {
     var reservePreview = document.getElementById("yearlyBillReservePreview");
     if (reservePreview) {
       reservePreview.textContent = (!isNaN(annualPreview) && annualPreview > 0)
-        ? ("Sets aside about " + fmt(annualPreview/12,2) + " AED/month in Safe-to-Spend for the next annual payment. No transaction is created.")
+        ? ("Plans about " + fmt(annualPreview/12,2) + " AED/month. Outside-budget yearly bills are normalized in savings affordability and are not double-reserved from Safe-to-Spend.")
         : "Set an annual amount to calculate the monthly reserve.";
     }
     return;
@@ -9557,7 +9607,7 @@ document.addEventListener("input", function(e) {
       var noteEl=document.getElementById("savingsRelationshipNote");
       if(compEl){compEl.textContent="≈ "+fmt(liveCompatible,0)+" AED";compEl.style.color=liveTighter==="savings"?"var(--amber)":"var(--text)";}
       if(ceilingEl)ceilingEl.textContent=fmt(liveCeiling,0)+" AED";
-      if(noteEl)noteEl.textContent="Based on ≈ "+fmt(liveExcluded,0)+" AED projected outside-budget spending. "+(liveTighter==="equal"?"The two limits are currently aligned.":(liveTighter==="savings"?"The savings goal is currently the tighter monthly constraint.":"Your configured budget is currently tighter than the savings goal."));
+      if(noteEl)noteEl.textContent="Based on ≈ "+fmt(liveExcluded,0)+" AED/month normalized outside-budget obligations. Payment timing does not change this affordability limit. "+(liveTighter==="equal"?"The two limits are currently aligned.":(liveTighter==="savings"?"The annualized savings goal is currently the tighter constraint.":"Your configured budget is currently tighter than the annualized savings goal."));
     }
     return;
   }
