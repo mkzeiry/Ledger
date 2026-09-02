@@ -694,7 +694,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v111.16";
+var APP_VERSION = "v111.17";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly", safeSpendHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true };
@@ -1692,7 +1692,6 @@ var state = {
   budgetSummaryDetailsOpen: false,
   budgetProtectedOpen: false,
   budgetUpcomingOpen: false,
-  budgetSafeOutlookSelectedDate: null,
   entryTimeDraft: null,
   incomeDraftMode: null,
   incomeDraftAmount: null,
@@ -4508,253 +4507,147 @@ function renderHomeBody(T, da) {
   var month = getPeriodBounds("month", 0, currentWeeklyTarget(), dailyAllowance());
   var overall = periodStatsOverall(month.startStr, month.endStr);
   var budget = periodStatsBudget(month.startStr, month.endStr);
-  var homeEffectiveInfo=currentEffectiveBudgetInfo();
-  var homeBudgetSavings=homeEffectiveInfo.comparison;
-  var configuredTarget=month.target;
-  var target=homeEffectiveInfo.effectiveBudget;
+  var homeEffectiveInfo = currentEffectiveBudgetInfo();
+  var target = homeEffectiveInfo.effectiveBudget;
   var remaining = round2(target - budget.spent);
-  var weekNow = getPeriodBounds("week", 0, currentWeeklyTarget(), dailyAllowance());
-  var weekBudget = periodStatsBudget(weekNow.startStr, weekNow.endStr);
-  var effectiveWeekTarget=effectiveBudgetTargetForRange(weekNow.startStr,weekNow.endStr,homeEffectiveInfo);
-  var weekRemaining = round2(effectiveWeekTarget - weekBudget.spent);
   var todayHomeStr = todayStr();
-  var weekDaysLeft = Math.max(0, daysBetween(todayHomeStr, weekNow.endStr) + 1);
   var monthDaysLeft = Math.max(0, daysBetween(todayHomeStr, month.endStr) + 1);
   var pacing = liveBudgetPacing();
-  var dailyAverage = pacing.dailyAverage;
   var budgetSpendPace = currentFlexibleSpendPaceStats();
   var budgetDailyAvg = budgetSpendPace.dailyAvg;
   var budgetLast7Avg = budgetSpendPace.last7Avg;
   var budgetTrendPct = budgetSpendPace.trendPct;
   var safeToday = pacing.safeToday;
   var safeTodayOpeningRatio = pacing.safeTodayOpeningRatio;
-  var sustainableSafeBase=(pacing.month&&pacing.month.sustainableDaily!=null)?Number(pacing.month.sustainableDaily):null;
-  var openingSafeBase=(pacing.month&&pacing.month.openingSafe!=null)?Number(pacing.month.openingSafe):null;
-  var safeHeadroomPct=(sustainableSafeBase!=null&&sustainableSafeBase>0&&openingSafeBase!=null)?Math.max(0,Math.round((openingSafeBase/sustainableSafeBase-1)*100)):null;
   var safeTodayColor = 'var(--text)';
-  if(safeTodayOpeningRatio!=null){
-    if(safeTodayOpeningRatio < 0.10) safeTodayColor='var(--rust)';
-    else if(safeTodayOpeningRatio < 0.25) safeTodayColor='var(--amber)';
+  if (safeTodayOpeningRatio != null) {
+    if (safeTodayOpeningRatio < 0.10) safeTodayColor = 'var(--rust)';
+    else if (safeTodayOpeningRatio < 0.25) safeTodayColor = 'var(--amber)';
   }
   var overSafeToday = pacing.overSafeToday || 0;
   var adjustmentNeeded = pacing.adjustmentNeeded || 0;
   var spentToday = pacing.spentToday;
-  var chartStart = month.startStr;
-  var chartDays = daysBetween(chartStart, month.endStr)+1;
-  var fc = overall.rows.length ? computeForecastNumbers(overall.rows, chartDays, chartStart, "overall") : null;
+  var chartDays = daysBetween(month.startStr, month.endStr) + 1;
+  var fc = overall.rows.length ? computeForecastNumbers(overall.rows, chartDays, month.startStr, "overall") : null;
   var projected = fc ? fc.projectedSpend : overall.spent;
   var budgetChartStart = effectiveRangeStart(month.startStr);
-  var budgetChartDays = daysBetween(budgetChartStart, month.endStr)+1;
+  var budgetChartDays = daysBetween(budgetChartStart, month.endStr) + 1;
   var budgetFc = budget.rows.length ? computeForecastNumbers(budget.rows, budgetChartDays, budgetChartStart, "budget") : null;
   var projectedBudgetSpend = budgetFc ? budgetFc.projectedSpend : budget.spent;
   var projectedSaving = round2(target - projectedBudgetSpend);
   var income = overall.income;
-  var projectedIncome = projectedIncomeForRange(month.startStr,month.endStr);
+  var projectedIncome = projectedIncomeForRange(month.startStr, month.endStr);
   var incomeReference = projectedIncome > 0 ? projectedIncome : (income > 0 ? income : 0);
   var projectedCashSaving = incomeReference > 0 ? round2(incomeReference - projected) : null;
-  var projectedCashSavingPct = incomeReference > 0 ? (projectedCashSaving/incomeReference*100) : null;
-  var homeSavingsPct=savingsTargetPct();
-  var homeSavingsTarget=(incomeReference>0&&homeSavingsPct>0)?savingsTargetAmountForIncome(incomeReference):null;
-  var homeSavingsGap=(projectedCashSaving!=null&&homeSavingsTarget!=null)?round2(projectedCashSaving-homeSavingsTarget):null;
-  var spentVsIncomePct = incomeReference > 0 ? (overall.spent/incomeReference*100) : null;
-  var cashNet = round2(income - overall.spent);
-  var budgetPctRaw = target > 0 ? (budget.spent/target)*100 : 0;
+  var projectedCashSavingPct = incomeReference > 0 ? (projectedCashSaving / incomeReference * 100) : null;
+  var homeSavingsPct = savingsTargetPct();
+  var spentVsIncomePct = incomeReference > 0 ? (overall.spent / incomeReference * 100) : null;
+  var budgetPctRaw = target > 0 ? (budget.spent / target) * 100 : 0;
   var progress = Math.max(0, Math.min(100, budgetPctRaw));
-  var weekPctRaw = effectiveWeekTarget > 0 ? (weekBudget.spent/effectiveWeekTarget)*100 : 0;
-  var weekProgress = Math.max(0, Math.min(100, weekPctRaw));
-  var budgetRemainPct = target > 0 ? Math.max(0, (remaining/target)*100) : null;
-  var weekRemainPct = effectiveWeekTarget > 0 ? Math.max(0, (weekRemaining/effectiveWeekTarget)*100) : null;
-  function homePacePositionData(rows){
-    var acc=0;
-    var data=(rows||[]).map(function(r){
-      var paceRef=effectiveBudgetPaceReferenceForDate(r.date,homeEffectiveInfo);
-      acc=round2(acc+paceRef-r.spent);
-      return {label:shortLabel(r.date),date:r.date,balance:acc,delta:round2(paceRef-r.spent)};
+  function homePacePositionData(rows) {
+    var acc = 0;
+    var data = (rows || []).map(function (r) {
+      var paceRef = effectiveBudgetPaceReferenceForDate(r.date, homeEffectiveInfo);
+      acc = round2(acc + paceRef - r.spent);
+      return { label: shortLabel(r.date), date: r.date, balance: acc, delta: round2(paceRef - r.spent) };
     });
-    return {data:data,value:round2(acc)};
+    return { data: data, value: round2(acc) };
   }
-  var homeMonthPosition=homePacePositionData(budget.rows);
-  var homeWeekPosition=homePacePositionData(weekBudget.rows);
-  var homeChartResolution=homeAheadBehindResolution();
-  var homeBudgetPositionData=homeBudgetPositionDataByResolution(budget.rows,homeEffectiveInfo,homeChartResolution);
-  var homeBudgetPosition=homeMonthPosition.value;
-  var weekBudgetPosition=homeWeekPosition.value;
-  var monthBudgetPosition=homeMonthPosition.value;
+  var homeMonthPosition = homePacePositionData(budget.rows);
+  var homeChartResolution = homeAheadBehindResolution();
+  var homeBudgetPositionData = homeBudgetPositionDataByResolution(budget.rows, homeEffectiveInfo, homeChartResolution);
+  var monthBudgetPosition = homeMonthPosition.value;
   lastHomeBudgetPositionData = homeBudgetPositionData;
-  var cards = {};
 
-  var spending = '<div class="card card-pad">';
-  spending += '<div class="muted caption">TOTAL SPENT</div>';
-  spending += '<div class="mono" style="font-size:34px;font-weight:700;margin-top:3px;">'+fmt(overall.spent,0)+' <span class="muted" style="font-size:17px;">AED</span></div>';
-  spending += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;">';
-  spending += '<div class="row between"><span class="muted subhead">Projected month-end spend</span><span class="mono subhead" style="font-weight:600;">'+fmt(projected,0)+' AED</span></div>';
-  spending += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Projected saving</span><span class="mono subhead" style="font-weight:600;color:'+(projectedCashSaving==null?'var(--text)':(projectedCashSaving>=0?'var(--positive)':'var(--rust)'))+';">'+(projectedCashSaving==null?'—':((projectedCashSaving<0?'−':'')+fmt(Math.abs(projectedCashSaving),0)+' AED ('+(projectedCashSavingPct<0?'−':'')+Math.abs(projectedCashSavingPct).toFixed(0)+'%)'))+'</span></div>';
-  if(homeBudgetSavings&&homeSavingsPct>0){
-    var detailedAnnualizedOk=homeBudgetSavings.compatibleBudget+0.5>=homeBudgetSavings.configuredBudget;
-    spending += '<div class="row between" style="margin-top:8px;gap:12px;"><span class="muted subhead">Annualized affordability · '+fmt(homeSavingsPct,0)+'%</span><span class="mono subhead" style="font-weight:600;color:'+(detailedAnnualizedOk?'var(--positive)':'var(--amber)')+';">'+(detailedAnnualizedOk?'On track':('Sustainable budget ≈ '+fmt(homeBudgetSavings.compatibleBudget,0)+' AED'))+'</span></div>';
+  function pctBar(pct, over) {
+    var pw = Math.max(0, Math.min(100, pct || 0));
+    return '<div class="simple-progress"><span style="width:' + pw + '%;background:' + (over ? 'var(--rust)' : 'var(--accent)') + ';"></span></div>';
   }
-  spending += '</div>';
-  spending += '<button data-action="go-page" data-page="analysis" class="btn-plain" style="margin-top:12px;">Open overall analysis →</button></div>';
-  cards.spending = spending;
+  function paceBadge(value) {
+    var c = value > 0 ? 'var(--positive)' : (value < 0 ? 'var(--rust)' : 'var(--text-muted)');
+    var word = value > 0 ? 'ahead' : (value < 0 ? 'behind' : 'on pace');
+    return '<div class="mono caption" style="margin-top:6px;font-weight:800;color:' + c + ';">' + (value > 0 ? '+' : (value < 0 ? '−' : '')) + fmt(Math.abs(value), 0) + ' AED ' + word + '</div>';
+  }
 
-  var budgetCard = '<div class="card card-pad">';
-  budgetCard += '<div class="row between" style="align-items:baseline;"><div><div class="eyebrow">Effective budget</div>'+(homeEffectiveInfo.savingsTight?'<div class="muted caption" style="margin-top:2px;">Savings goal tightened set budget '+fmt(configuredTarget,0)+' → ≈'+fmt(target,0)+' AED</div>':'')+'</div><span class="row" style="align-items:baseline;gap:8px;"><span class="mono subhead" style="font-weight:600;">'+fmt(budget.spent,0)+' / '+fmt(target,0)+' AED</span><span class="mono caption" style="font-weight:700;color:'+(budgetPctRaw>100?'var(--rust)':'var(--text-muted)')+';">'+budgetPctRaw.toFixed(0)+'%</span></span></div>';
-  budgetCard += '<div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 16px;"><div style="height:100%;width:'+progress+'%;background:'+(budget.spent>target?'var(--rust)':'var(--accent)')+';"></div></div>';
-  budgetCard += '<div class="muted caption">SAFE TO SPEND TODAY</div>';
-  budgetCard += '<div class="mono" style="font-size:34px;font-weight:700;margin-top:3px;color:'+safeTodayColor+';">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted" style="font-size:17px;">AED</span>'))+'</div>';
-  if (adjustmentNeeded>0) budgetCard += '<div class="caption" style="margin-top:5px;color:var(--rust);font-weight:650;text-transform:capitalize;">'+esc(pacing.limitingHorizon||'budget')+' cut needed · '+fmt(adjustmentNeeded,0)+' AED</div>';
-  budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;">';
-  budgetCard += '<div class="row between"><span class="muted subhead">Equal daily allowance</span><span class="mono subhead" style="font-weight:600;color:'+(dailyAverage!=null&&dailyAverage<0?'var(--rust)':'var(--text)')+';">'+(dailyAverage==null?'—':((dailyAverage<0?'−':'')+fmt(Math.abs(dailyAverage),0)+' AED/day'))+'</span></div>';
-  budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Spent today</span><span class="mono subhead" style="font-weight:600;">'+fmt(spentToday,0)+' AED</span></div>';
-  budgetCard += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Remaining this month</span><span class="mono subhead" style="font-weight:600;color:'+(remaining>=0?'var(--positive)':'var(--rust)')+';">'+(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED</span></div>';
-  if(homeBudgetSavings){
-    budgetCard += '<div class="row between" style="margin-top:8px;gap:12px;"><span class="muted subhead">Set budget / savings goal</span><span class="mono subhead" style="font-weight:650;color:'+(homeEffectiveInfo.savingsTight?'var(--amber)':'var(--text-muted)')+';">'+fmt(configuredTarget,0)+' AED · '+fmt(homeBudgetSavings.pct,0)+'%</span></div>';
+  var limitingLabel = (pacing.limitingHorizon || 'budget');
+  limitingLabel = limitingLabel === 'effective' ? 'Effective budget' : (limitingLabel === 'savings' ? 'Savings goal' : (limitingLabel.charAt(0).toUpperCase() + limitingLabel.slice(1)));
+  var simpleStatus = '', simpleStatusColor = 'var(--text-muted)';
+  if (overSafeToday > 0) {
+    simpleStatus = 'Over today\'s safe allowance by ' + fmt(overSafeToday, 0) + ' AED · ' + limitingLabel + ' is limiting';
+    simpleStatusColor = 'var(--rust)';
+  } else if (adjustmentNeeded > 0) {
+    simpleStatus = limitingLabel + ' needs a ' + fmt(adjustmentNeeded, 0) + ' AED cut to get back on track';
+    simpleStatusColor = 'var(--rust)';
   }
-  budgetCard += '</div>';
-  if(budgetDailyAvg!=null||budgetLast7Avg!=null){
-    var detailedTrendColor=budgetTrendPct==null?'var(--text-muted)':(budgetTrendPct<0?'var(--positive)':(budgetTrendPct>0?'var(--rust)':'var(--text-muted)'));
-    var detailedTrendText=budgetTrendPct==null?'—':((budgetTrendPct>0?'+':'')+fmt(budgetTrendPct,0)+'% vs 30-day avg');
-    budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between" style="align-items:baseline;gap:10px;"><span class="muted subhead">Flexible spending pace</span><span class="mono caption" style="font-weight:750;color:'+detailedTrendColor+';">'+esc(detailedTrendText)+'</span></div><div class="row" style="margin-top:9px;gap:18px;"><div style="flex:1;"><div class="muted caption">LAST 30 DAYS</div><div class="mono subhead" style="font-weight:700;margin-top:2px;">'+(budgetDailyAvg==null?'—':fmt(budgetDailyAvg,0)+' AED/day')+'</div></div><div style="flex:1;"><div class="muted caption">LAST 7 DAYS</div><div class="mono subhead" style="font-weight:700;margin-top:2px;color:'+detailedTrendColor+';">'+(budgetLast7Avg==null?'—':fmt(budgetLast7Avg,0)+' AED/day')+'</div></div></div><div class="muted caption" style="margin-top:6px;">Completed days · flexible budget spending only</div></div>';
-  }
-  if(homeBudgetPositionData.length){
-    budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between"><span class="muted subhead">Ahead / behind budget</span><span class="mono subhead" style="font-weight:700;color:'+(homeBudgetPosition>=0?'var(--accent)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED '+(homeBudgetPosition>=0?'ahead':'behind')+'</span></div><div class="muted caption" style="margin-top:3px;">'+esc(homeAheadBehindResolutionLabel(homeChartResolution))+' · today accrues with elapsed time.</div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
-  }
-  budgetCard += '<button data-action="go-page" data-page="budget" class="btn-plain" style="margin-top:12px;">Open budget →</button></div>';
-  cards.budget = budgetCard;
 
-  var cash = '<div class="card card-pad"><div class="eyebrow">Cash flow</div>';
-  if (income > 0) {
-    cash += '<div class="stat-grid" style="margin-top:10px;">';
-    cash += statBlock("Income received", fmt(income,0)+' AED', 'var(--positive)');
-    cash += statBlock("Expenses", fmt(overall.spent,0)+' AED', 'var(--rust)');
-    cash += statBlock("Net cash flow", (cashNet>=0?'+':'−')+fmt(Math.abs(cashNet),0)+' AED', cashNet>=0?'var(--positive)':'var(--rust)');
-    if(homeBudgetSavings&&homeSavingsPct>0){ var cashAnnualizedOk=homeBudgetSavings.compatibleBudget+0.5>=homeBudgetSavings.configuredBudget; cash += statBlock("Annualized target", fmt(homeSavingsPct,0)+'% · '+(cashAnnualizedOk?'On track':('budget ≤ '+fmt(homeBudgetSavings.compatibleBudget,0)+' AED')), cashAnnualizedOk?'var(--positive)':'var(--amber)'); }
-    cash += '</div>';
-  } else cash += '<div class="muted subhead" style="margin-top:8px;">Log salary or other money received as Income transactions to see cash flow here.</div>';
-  cash += '</div>';
-  cards.cashFlow = cash;
+  var h = '<div class="row between" style="margin-bottom:7px;align-items:center;gap:10px;"><div class="eyebrow">This month</div><div class="row gap2"><button data-action="toggle-home-simple-reorder" class="btn-plain" style="font-size:12px;">' + (state.homeSimpleReorderMode ? 'Done' : 'Arrange') + '</button></div></div>';
+  var simpleCards = {};
 
-  var recent = [];
-  Object.keys(state.entries).sort().reverse().some(function(d){
-    if(d>todayStr()) return false;
-    txnNewestFirst(state.entries[d].items||[]).forEach(function(it){ if(recent.length<5 && isExpenseItem(it)) recent.push({date:d,it:it}); });
-    return recent.length>=5;
+  var hero = '<div class="card simple-metric-card simple-hero"><div class="simple-hero-grid">';
+  hero += '<div class="simple-hero-cell"><div class="muted caption">SAFE TO SPEND TODAY</div><div class="mono simple-hero-value" style="color:' + safeTodayColor + ';">' + (safeToday == null ? '—' : (fmt(safeToday, 0) + ' <span class="muted simple-metric-unit">AED</span>')) + '</div></div>';
+  hero += '<div class="simple-hero-cell"><div class="muted caption">SPENT TODAY</div><div class="mono" style="font-size:30px;font-weight:650;margin-top:5px;color:' + (safeToday != null && spentToday > safeToday ? 'var(--rust)' : 'var(--text-muted)') + ';">' + fmt(spentToday, 0) + ' <span class="muted simple-metric-unit">AED</span></div></div></div>';
+  if (simpleStatus) hero += '<div class="simple-status" style="color:' + simpleStatusColor + ';">' + esc(simpleStatus) + '</div>';
+  simpleCards.hero = hero + '</div>';
+
+  var projectedBudgetPct = target > 0 ? (projectedBudgetSpend / target * 100) : null;
+  var projectedBudgetColor = projectedBudgetPct == null ? 'var(--text)' : (projectedBudgetPct > 108 ? 'var(--rust)' : (projectedBudgetPct > 100 ? 'var(--amber)' : 'var(--text)'));
+  var budgetStatus = '<div class="card simple-budget-card"><div class="eyebrow">Budget status</div><div class="simple-outlook-grid" style="margin-top:8px;">';
+  budgetStatus += '<div><div class="simple-outlook-label">BUDGET SPENT SO FAR</div><div class="mono simple-outlook-value">' + fmt(budget.spent, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (target > 0 ? budgetPctRaw.toFixed(0) + '% of budget' : 'Budget not set') + '</div></div>';
+  budgetStatus += '<div><div class="simple-outlook-label">PROJECTED BUDGET SPEND</div><div class="mono simple-outlook-value" style="color:' + projectedBudgetColor + ';">' + fmt(projectedBudgetSpend, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (projectedBudgetPct == null ? 'Budget not set' : projectedBudgetPct.toFixed(0) + '% of budget') + '</div></div></div>';
+  budgetStatus += pctBar(progress, budgetPctRaw > 100) + '<div class="simple-budget-meta"><span>Remaining <strong style="color:' + (remaining >= 0 ? 'var(--text)' : 'var(--rust)') + ';">' + (remaining < 0 ? '−' : '') + fmt(Math.abs(remaining), 0) + ' AED</strong> of ' + fmt(target, 0) + ' AED</span><span> · ' + monthDaysLeft + ' day' + (monthDaysLeft === 1 ? '' : 's') + ' left</span></div>' + paceBadge(monthBudgetPosition);
+  if (homeBudgetPositionData && homeBudgetPositionData.length) budgetStatus += '<div class="hairline-top" style="margin-top:11px;padding-top:9px;"><div class="row between" style="align-items:baseline;"><span class="muted caption" style="font-weight:700;">AHEAD / BEHIND</span><span class="muted caption">vs monthly pace · ' + esc(homeAheadBehindResolutionLabel(homeChartResolution)) + '</span></div>' + renderMiniBudgetPositionChart(homeBudgetPositionData, T) + '</div>';
+  if (budgetDailyAvg != null || budgetLast7Avg != null) {
+    var simpleTrendColor = budgetTrendPct == null ? 'var(--text-muted)' : (budgetTrendPct < 0 ? 'var(--accent)' : (budgetTrendPct > 0 ? 'var(--rust)' : 'var(--text-muted)'));
+    var simpleTrendText = budgetTrendPct == null ? '—' : ((budgetTrendPct > 0 ? '+' : '') + fmt(budgetTrendPct, 0) + '%');
+    budgetStatus += '<div class="hairline-top" style="margin-top:12px;padding-top:11px;"><div class="row between" style="gap:10px;align-items:baseline;"><span class="muted caption" style="font-weight:650;">FLEXIBLE SPENDING PACE</span><span class="mono caption" style="font-weight:800;color:' + simpleTrendColor + ';">' + esc(simpleTrendText) + '</span></div><div class="row" style="margin-top:7px;gap:16px;"><div style="flex:1;"><div class="muted caption">Last 30 days</div><div class="mono subhead" style="font-weight:750;">' + (budgetDailyAvg == null ? '—' : fmt(budgetDailyAvg, 0) + ' AED/day') + '</div></div><div style="flex:1;"><div class="muted caption">Last 7 days</div><div class="mono subhead" style="font-weight:750;color:' + simpleTrendColor + ';">' + (budgetLast7Avg == null ? '—' : fmt(budgetLast7Avg, 0) + ' AED/day') + '</div></div></div></div>';
+  }
+  simpleCards.budgetStatus = budgetStatus + '</div>';
+
+  var todayActivity = [];
+  Object.keys(state.entries).sort().reverse().some(function (d) {
+    if (d > todayHomeStr) return false;
+    txnNewestFirst(state.entries[d].items || []).forEach(function (it) { if (todayActivity.length < 5 && isExpenseItem(it)) todayActivity.push({ date: d, it: it }); });
+    return todayActivity.length >= 5;
   });
-  if (recent.length) {
-    var recentCard = '<div class="card card-pad"><div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Recent transactions</span><button data-action="go-page" data-page="transactions" class="btn-plain" style="font-size:12px;">See all</button></div>';
-    recent.forEach(function(x,i){ recentCard += '<div style="'+(i?'border-top:1px solid var(--sep);':'')+'">'+renderTxnRow(x.date,x.it)+'</div>'; });
-    cards.recent = recentCard+'</div>';
-  }
-
-  var order = normalizeHomeOrder(state.settings.homeSectionOrder);
-  var labels = { spending:"Spending", budget:"Budget", cashFlow:"Cash flow", recent:"Recent transactions" };
-  var isSimpleHome = true;
-  var h = '<div class="row between" style="margin-bottom:7px;align-items:center;gap:10px;"><div class="eyebrow">This month</div><div class="row gap2"><button data-action="toggle-home-simple-reorder" class="btn-plain" style="font-size:12px;">'+(state.homeSimpleReorderMode?'Done':'Arrange')+'</button></div></div>';
-  if (isSimpleHome) {
-    var simpleSaving = projectedCashSaving != null ? projectedCashSaving : projectedSaving;
-    var simpleSavingPct = projectedCashSaving != null ? projectedCashSavingPct : null;
-    var simpleSavingLabel = projectedCashSaving != null ? 'PROJECTED SAVING' : 'PROJECTED BUDGET SAVING';
-    function pctBar(pct, over) {
-      var pw=Math.max(0,Math.min(100,pct||0));
-      return '<div class="simple-progress"><span style="width:'+pw+'%;background:'+(over?'var(--rust)':'var(--accent)')+';"></span></div>';
-    }
-    function paceBadge(value){
-      var c=value>0?'var(--positive)':(value<0?'var(--rust)':'var(--text-muted)');
-      var word=value>0?'ahead':(value<0?'behind':'on pace');
-      return '<div class="mono caption" style="margin-top:6px;font-weight:800;color:'+c+';">'+(value>0?'+':(value<0?'−':''))+fmt(Math.abs(value),0)+' AED '+word+'</div>';
-    }
-    var limitingLabel=(pacing.limitingHorizon||'budget');
-    limitingLabel=limitingLabel==='effective'?'Effective budget':(limitingLabel==='savings'?'Savings goal':(limitingLabel.charAt(0).toUpperCase()+limitingLabel.slice(1)));
-    var simpleStatus='', simpleStatusColor='var(--text-muted)';
-    if (overSafeToday>0) {
-      simpleStatus='Over today\'s safe allowance by '+fmt(overSafeToday,0)+' AED · '+limitingLabel+' is limiting';
-      simpleStatusColor='var(--rust)';
-    } else if (adjustmentNeeded>0) {
-      simpleStatus=limitingLabel+' needs a '+fmt(adjustmentNeeded,0)+' AED cut to get back on track';
-      simpleStatusColor='var(--rust)';
-    }
-
-    var simpleCards={};
-    var hero='<div class="card simple-metric-card simple-hero"><div class="simple-hero-grid">';
-    hero+='<div class="simple-hero-cell"><div class="muted caption">SAFE TO SPEND TODAY</div><div class="mono simple-hero-value" style="color:'+safeTodayColor+';">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'))+'</div><div class="muted caption" style="margin-top:4px;">Available for the rest of today</div></div>';
-    hero+='<div class="simple-hero-cell"><div class="muted caption">SPENT TODAY</div><div class="mono" style="font-size:30px;font-weight:650;margin-top:5px;color:'+(safeToday!=null&&spentToday>safeToday?'var(--rust)':'var(--text-muted)')+';">'+fmt(spentToday,0)+' <span class="muted simple-metric-unit">AED</span></div><div class="muted caption" style="margin-top:4px;">Already logged today</div></div></div>';
-    if(simpleStatus) hero+='<div class="simple-status" style="color:'+simpleStatusColor+';">'+esc(simpleStatus)+'</div>';
-    simpleCards.hero=hero+'</div>';
-
-    var projectedBudgetPct=target>0?(projectedBudgetSpend/target*100):null;
-    var projectedBudgetColor=projectedBudgetPct==null?'var(--text)':(projectedBudgetPct>100?'var(--rust)':(projectedBudgetPct>=90?'var(--amber)':'var(--text)'));
-    var budgetStatus='<div class="card simple-budget-card"><div class="eyebrow">Budget status</div><div class="simple-outlook-grid" style="margin-top:8px;">';
-    budgetStatus+='<div><div class="simple-outlook-label">BUDGET SPENT SO FAR</div><div class="mono simple-outlook-value">'+fmt(budget.spent,0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(target>0?budgetPctRaw.toFixed(0)+'% of budget':'Budget not set')+'</div></div>';
-    budgetStatus+='<div><div class="simple-outlook-label">PROJECTED BUDGET SPEND</div><div class="mono simple-outlook-value" style="color:'+projectedBudgetColor+';">'+fmt(projectedBudgetSpend,0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(projectedBudgetPct==null?'Budget not set':projectedBudgetPct.toFixed(0)+'% of budget')+'</div></div></div>';
-    budgetStatus+=pctBar(progress,budgetPctRaw>100)+'<div class="simple-budget-meta"><span>Remaining <strong style="color:'+(remaining>=0?'var(--text)':'var(--rust)')+';">'+(remaining<0?'−':'')+fmt(Math.abs(remaining),0)+' AED</strong> of '+fmt(target,0)+' AED</span><span> · '+monthDaysLeft+' day'+(monthDaysLeft===1?'':'s')+' left</span></div>'+paceBadge(monthBudgetPosition);
-    if(homeBudgetPositionData&&homeBudgetPositionData.length){budgetStatus+='<div class="hairline-top" style="margin-top:11px;padding-top:9px;"><div class="row between" style="align-items:baseline;"><span class="muted caption" style="font-weight:700;">AHEAD / BEHIND</span><span class="muted caption">vs monthly pace · '+esc(homeAheadBehindResolutionLabel(homeChartResolution))+'</span></div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';}
-    if(budgetDailyAvg!=null||budgetLast7Avg!=null){
-      var simpleTrendColor=budgetTrendPct==null?'var(--text-muted)':(budgetTrendPct<0?'var(--accent)':(budgetTrendPct>0?'var(--rust)':'var(--text-muted)'));
-      var simpleTrendText=budgetTrendPct==null?'—':((budgetTrendPct>0?'+':'')+fmt(budgetTrendPct,0)+'%');
-      budgetStatus+='<div class="hairline-top" style="margin-top:12px;padding-top:11px;"><div class="row between" style="gap:10px;align-items:baseline;"><span class="muted caption" style="font-weight:650;">FLEXIBLE SPENDING PACE</span><span class="mono caption" style="font-weight:800;color:'+simpleTrendColor+';">'+esc(simpleTrendText)+'</span></div><div class="row" style="margin-top:7px;gap:16px;"><div style="flex:1;"><div class="muted caption">Last 30 days</div><div class="mono subhead" style="font-weight:750;">'+(budgetDailyAvg==null?'—':fmt(budgetDailyAvg,0)+' AED/day')+'</div></div><div style="flex:1;"><div class="muted caption">Last 7 days</div><div class="mono subhead" style="font-weight:750;color:'+simpleTrendColor+';">'+(budgetLast7Avg==null?'—':fmt(budgetLast7Avg,0)+' AED/day')+'</div></div></div></div>';
-    }
-    simpleCards.budgetStatus=budgetStatus+'</div>';
-
-    var todayActivity=[];
-    Object.keys(state.entries).sort().reverse().some(function(d){
-      if(d>todayHomeStr)return false;
-      txnNewestFirst(state.entries[d].items||[]).forEach(function(it){if(todayActivity.length<5&&isExpenseItem(it))todayActivity.push({date:d,it:it});});
-      return todayActivity.length>=5;
+  var todayCard = '<div class="card simple-today-card"><div class="row between"><div class="eyebrow">Recent</div><button data-action="go-page" data-page="transactions" class="btn-plain" style="font-size:12px;">See all</button></div>';
+  if (!todayActivity.length) todayCard += '<div class="muted subhead" style="margin-top:10px;">No expense transactions yet</div>';
+  else {
+    todayCard += '<div style="margin-top:6px;">';
+    todayActivity.forEach(function (x, i) {
+      var it = x.it, label = it.category || it.note || 'Uncategorised';
+      var meta = [];
+      if (x.date !== todayHomeStr) meta.push(shortLabel(x.date));
+      if (it.time) meta.push(formatTxnTime(it.time));
+      if (it.note && it.note !== label) meta.push(it.note);
+      todayCard += '<button class="home-recent-button" data-action="edit-txn" data-date="' + x.date + '" data-id="' + esc(it.id) + '"><div class="simple-today-row"' + (i ? ' style="border-top:1px solid var(--sep);"' : '') + '><div class="row" style="gap:9px;min-width:0;">' + catIconCircle(it.category || '') + '<div style="min-width:0;"><div class="subhead" style="font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(label) + '</div>' + (meta.length ? '<div class="muted caption" style="margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(meta.join(' · ')) + '</div>' : '') + '</div></div><div class="mono subhead" style="font-weight:700;flex-shrink:0;color:var(--text);">−' + fmt(Math.abs(Number(it.amount) || 0), 0) + ' AED</div></div></button>';
     });
-    var todayCard='<div class="card simple-today-card"><div class="row between"><div class="eyebrow">Recent</div><button data-action="go-page" data-page="transactions" class="btn-plain" style="font-size:12px;">See all</button></div>';
-    if(!todayActivity.length){
-      todayCard+='<div class="muted subhead" style="margin-top:10px;">No expense transactions yet</div>';
-    }else{
-      todayCard+='<div style="margin-top:6px;">';
-      todayActivity.forEach(function(x,i){
-        var it=x.it, label=it.category||it.note||'Uncategorised';
-        var meta=[];
-        if(x.date!==todayHomeStr)meta.push(shortLabel(x.date));
-        if(it.time)meta.push(formatTxnTime(it.time));
-        if(it.note&&it.note!==label)meta.push(it.note);
-        todayCard+='<button class="home-recent-button" data-action="edit-txn" data-date="'+x.date+'" data-id="'+esc(it.id)+'"><div class="simple-today-row"'+(i?' style="border-top:1px solid var(--sep);"':'')+'><div class="row" style="gap:9px;min-width:0;">'+catIconCircle(it.category||'')+'<div style="min-width:0;"><div class="subhead" style="font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(label)+'</div>'+(meta.length?'<div class="muted caption" style="margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(meta.join(' · '))+'</div>':'')+'</div></div><div class="mono subhead" style="font-weight:700;flex-shrink:0;color:var(--text);">−'+fmt(Math.abs(Number(it.amount)||0),0)+' AED</div></div></button>';
-      });
-      todayCard+='</div>';
-    }
-    simpleCards.today=todayCard+'</div>';
-
-    var projectedSpendVsIncomePct=incomeReference>0?(projected/incomeReference*100):null;
-    var maxSpendForSavings=(incomeReference>0&&homeSavingsPct>0)?savingsSpendCeilingForIncome(incomeReference):null;
-    var projectedSpendTargetGapPct=maxSpendForSavings>0?((projected-maxSpendForSavings)/maxSpendForSavings*100):null;
-    var projectedSpendColor='var(--text)';
-    if(maxSpendForSavings!=null&&projected>maxSpendForSavings){
-      projectedSpendColor=projectedSpendTargetGapPct!=null&&projectedSpendTargetGapPct>=10?'var(--rust)':'var(--amber)';
-    }
-    var outlook='<div class="card simple-outlook-card"><div class="eyebrow">Month outlook</div><div class="simple-outlook-grid">';
-    outlook+='<div><div class="simple-outlook-label">TOTAL SPENT SO FAR</div><div class="mono simple-outlook-value">'+fmt(overall.spent,0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(spentVsIncomePct==null?'Income not set':spentVsIncomePct.toFixed(0)+'% of income')+'</div></div>';
-    outlook+='<div><div class="simple-outlook-label">PROJECTED TOTAL SPEND</div><div class="mono simple-outlook-value" style="color:'+projectedSpendColor+';">'+fmt(projected,0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(projectedSpendVsIncomePct==null?'Income not set':projectedSpendVsIncomePct.toFixed(0)+'% of income')+'</div></div></div>';
-    if(incomeReference>0)outlook+=pctBar(projectedSpendVsIncomePct,projectedSpendVsIncomePct>100);
-    var simpleSavingColor=simpleSaving<0?'var(--rust)':'var(--positive)';
-    /* v111.13: Home Month outlook stays focused on this month's actual cash
-       result. The annualized savings-compatible budget is already explained in
-       Budget, so repeating that status beside Projected saving adds noise. */
-    outlook+='<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div style="margin-top:3px;"><div class="mono simple-outlook-value" style="color:'+simpleSavingColor+';">'+(simpleSaving>=0?'+':'−')+fmt(Math.abs(simpleSaving),0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(simpleSavingPct==null?'Income not set':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(0)+'% of income'))+'</div></div></div></div>';
-    simpleCards.outlook=outlook;
-
-    var simpleOrder=normalizeSimpleHomeOrder(state.settings.homeSimpleSectionOrder);
-    h+='<div class="simple-home-stack">';
-    simpleOrder.forEach(function(id,idx){
-      if(!simpleCards[id])return;
-      if(state.homeSimpleReorderMode){
-        h+='<div><div class="row between" style="padding:4px 2px 7px;"><span class="muted caption" style="font-weight:650;">'+esc(SIMPLE_HOME_SECTION_LABELS[id]||id)+'</span><span class="row gap2"><button data-action="move-home-simple-card" data-id="'+id+'" data-dir="-1" class="icon-btn" style="padding:5px;'+(idx===0?'opacity:.3;':'')+'" '+(idx===0?'disabled':'')+'>'+ICONS.chevronUp+'</button><button data-action="move-home-simple-card" data-id="'+id+'" data-dir="1" class="icon-btn" style="padding:5px;'+(idx===simpleOrder.length-1?'opacity:.3;':'')+'" '+(idx===simpleOrder.length-1?'disabled':'')+'>'+ICONS.chevronDown+'</button></span></div>'+simpleCards[id]+'</div>';
-      }else h+=simpleCards[id];
-    });
-    h+='</div>';
-    return h;
+    todayCard += '</div>';
   }
-  h += '<div class="row between" style="margin:0 2px 8px;"><span></span><button data-action="toggle-home-reorder" class="btn-plain" style="font-size:12px;">'+(state.homeReorderMode?'Done':'Arrange')+'</button></div>';
-  order.forEach(function(id, idx){
-    if (!cards[id]) return;
-    if (state.homeReorderMode) {
-      h += '<div class="row between" style="padding:5px 2px 7px;"><span class="muted caption" style="font-weight:600;">'+labels[id]+'</span><span class="row gap2"><button data-action="move-home-card" data-id="'+id+'" data-dir="-1" class="icon-btn" style="padding:5px;'+(idx===0?'opacity:.3;':'')+'" '+(idx===0?'disabled':'')+'>'+ICONS.chevronUp+'</button><button data-action="move-home-card" data-id="'+id+'" data-dir="1" class="icon-btn" style="padding:5px;'+(idx===order.length-1?'opacity:.3;':'')+'" '+(idx===order.length-1?'disabled':'')+'>'+ICONS.chevronDown+'</button></span></div>';
-    }
-    h += '<div style="margin-bottom:12px;">'+cards[id]+'</div>';
+  simpleCards.today = todayCard + '</div>';
+
+  var projectedSpendVsIncomePct = incomeReference > 0 ? (projected / incomeReference * 100) : null;
+  var maxSpendForSavings = (incomeReference > 0 && homeSavingsPct > 0) ? savingsSpendCeilingForIncome(incomeReference) : null;
+  var projectedSpendTargetGapPct = maxSpendForSavings > 0 ? ((projected - maxSpendForSavings) / maxSpendForSavings * 100) : null;
+  var projectedSpendColor = 'var(--text)';
+  if (maxSpendForSavings != null && projected > maxSpendForSavings) projectedSpendColor = projectedSpendTargetGapPct != null && projectedSpendTargetGapPct >= 10 ? 'var(--rust)' : 'var(--amber)';
+  var simpleSaving = projectedCashSaving != null ? projectedCashSaving : projectedSaving;
+  var simpleSavingPct = projectedCashSaving != null ? projectedCashSavingPct : null;
+  var simpleSavingColor = simpleSaving < 0 ? 'var(--rust)' : 'var(--positive)';
+  var outlook = '<div class="card simple-outlook-card"><div class="eyebrow">Month outlook</div><div class="simple-outlook-grid">';
+  outlook += '<div><div class="simple-outlook-label">TOTAL SPENT SO FAR</div><div class="mono simple-outlook-value">' + fmt(overall.spent, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (spentVsIncomePct == null ? 'Income not set' : spentVsIncomePct.toFixed(0) + '% of income') + '</div></div>';
+  outlook += '<div><div class="simple-outlook-label">PROJECTED TOTAL SPEND</div><div class="mono simple-outlook-value" style="color:' + projectedSpendColor + ';">' + fmt(projected, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (projectedSpendVsIncomePct == null ? 'Income not set' : projectedSpendVsIncomePct.toFixed(0) + '% of income') + '</div></div></div>';
+  if (incomeReference > 0) outlook += pctBar(projectedSpendVsIncomePct, projectedSpendVsIncomePct > 100);
+  outlook += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div style="margin-top:3px;"><div class="mono simple-outlook-value" style="color:' + simpleSavingColor + ';">' + (simpleSaving >= 0 ? '+' : '−') + fmt(Math.abs(simpleSaving), 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (simpleSavingPct == null ? 'Income not set' : ((simpleSavingPct < 0 ? '−' : '') + Math.abs(simpleSavingPct).toFixed(0) + '% of income')) + '</div></div></div></div>';
+  simpleCards.outlook = outlook;
+
+  var simpleOrder = normalizeSimpleHomeOrder(state.settings.homeSimpleSectionOrder);
+  h += '<div class="simple-home-stack">';
+  simpleOrder.forEach(function (id, idx) {
+    if (!simpleCards[id]) return;
+    if (state.homeSimpleReorderMode) h += '<div><div class="row between" style="padding:4px 2px 7px;"><span class="muted caption" style="font-weight:650;">' + esc(SIMPLE_HOME_SECTION_LABELS[id] || id) + '</span><span class="row gap2"><button data-action="move-home-simple-card" data-id="' + id + '" data-dir="-1" class="icon-btn" style="padding:5px;' + (idx === 0 ? 'opacity:.3;' : '') + '" ' + (idx === 0 ? 'disabled' : '') + '>' + ICONS.chevronUp + '</button><button data-action="move-home-simple-card" data-id="' + id + '" data-dir="1" class="icon-btn" style="padding:5px;' + (idx === simpleOrder.length - 1 ? 'opacity:.3;' : '') + '" ' + (idx === simpleOrder.length - 1 ? 'disabled' : '') + '>' + ICONS.chevronDown + '</button></span></div>' + simpleCards[id] + '</div>';
+    else h += simpleCards[id];
   });
+  h += '</div>';
   return h;
 }
 
@@ -4817,92 +4710,6 @@ function blendedFlexibleSpendAssumption(){
   var smooth=progress*progress*(3-2*progress);
   var w=.15+.70*smooth;
   return {pace:round2(Math.max(0,monthAvg*w+recentRef*(1-w))),monthWeight:round2(w),monthAvg:round2(monthAvg),recentRef:round2(recentRef),days:days};
-}
-/* v111.13: Safe-to-Spend history + full-limit scenario. The future path now
-   answers one concrete question: "If I spend exactly the Safe-to-Spend amount
-   Ledger gives me each day, what would the next daily limits become?" Today is
-   first completed to its current opening limit; every later projected day then
-   spends that day's projected opening in full. Because adaptive headroom can
-   borrow from future flexible room, repeatedly using all of it naturally makes
-   later daily limits step down instead of producing a flat line and a final-day
-   cliff. Protected essentials remain ring-fenced in m.flexiblePool. */
-function safeSpendOutlookModel(livePacing){
-  var m=livePacing&&livePacing.month;if(!m||m.openingSafe==null||m.sustainableDaily==null)return null;
-  var today=todayStr(), per=getPeriodBounds("month",0,currentWeeklyTarget(),dailyAllowance()), monthKey=today.slice(0,7);
-  var hist=safeSpendHistory().filter(function(x){return x.date.slice(0,7)===monthKey&&x.date<=today;});
-  if(!hist.some(function(x){return x.date===today;}))hist.push({date:today,openingSafe:round2(Math.max(0,m.openingSafe)),sustainableDaily:round2(Math.max(0,m.sustainableDaily)),flexibilityPct:0,maxFlexibilityPct:0});
-  hist.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});
-
-  var todayOpening=round2(Math.max(0,Number(m.openingSafe)||0));
-  var current=round2(Math.max(0,Number(m.safe)||0));
-  var todaySustainable=round2(Math.max(0,Number(m.sustainableDaily)||0));
-
-  /* m.flexiblePool is the live pool after transactions already recorded today.
-     Assume the user spends exactly today's remaining Safe-to-Spend, then divide
-     the resulting pool evenly over every future day. Repeating the same rule
-     recursively keeps the recommendation essentially flat when it is followed
-     exactly; it moves only when real spending, protected obligations, budget or
-     savings constraints change. */
-  var pool=Math.max(0,(Number(m.flexiblePool)||0)-current);
-  var future=[];
-  for(var ds=toStr(addDays(parseD(today),1));ds<=per.endStr;ds=toStr(addDays(parseD(ds),1))){
-    var daysLeft=Math.max(1,daysBetween(ds,per.endStr)+1);
-    var safe=round2(Math.max(0,pool/daysLeft));
-    future.push({date:ds,value:safe,kind:"projected",sustainable:safe,effectiveFlexPct:0,maxFlexPct:0,assumedSpend:safe});
-    pool=Math.max(0,pool-safe);
-  }
-  var points=hist.map(function(x){return {date:x.date,value:round2(Math.max(0,x.openingSafe)),kind:"history",sustainable:round2(Math.max(0,Number(x.sustainableDaily)||0)),effectiveFlexPct:0,maxFlexPct:0};});
-  var tomorrow=future.length?future[0].value:null, monthEnd=future.length?future[future.length-1].value:todayOpening;
-  return {history:points,future:future,today:today,current:current,todayOpening:todayOpening,sustainable:todaySustainable,tomorrow:tomorrow,monthEnd:monthEnd,flexPct:0,maxFlexPct:0,monthEndDate:per.endStr};
-}
-function safeSpendOutlookChartHtml(model,T){
-  if(!model)return '';
-  var data=model.history.concat(model.future), W=320,H=112,padL=39,padR=8,padT=9,padB=13;
-  if(!data.length)return '';
-  var vals=data.map(function(x){return Number(x.value)||0;}), lo=Math.min.apply(null,vals), hi=Math.max.apply(null,vals);
-  if(hi-lo<20){hi+=10;lo=Math.max(0,lo-10);}else{var p=(hi-lo)*.12;hi+=p;lo=Math.max(0,lo-p);}
-  var span=Math.max(1,daysBetween(data[0].date,model.monthEndDate));
-  function xy(x){var dx=Math.max(0,daysBetween(data[0].date,x.date)),px=padL+(W-padL-padR)*(dx/span),py=padT+(H-padT-padB)*(1-((x.value-lo)/Math.max(.001,hi-lo)));return [px,py];}
-  function path(rows, includeToday){
-    var rr=rows.slice();if(includeToday&&model.history.length){var t=model.history[model.history.length-1];if(!rr.length||rr[0].date!==t.date)rr.unshift(t);}
-    return rr.map(function(x,i){var q=xy(x);return (i?'L':'M')+q[0].toFixed(1)+' '+q[1].toFixed(1);}).join(' ');
-  }
-  var histPath=path(model.history,false), futurePath=path(model.future,true), todayPoint=xy({date:model.today,value:model.todayOpening});
-  var mid=(hi+lo)/2, guides=[hi,mid,lo];
-  var html='<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="112" role="img" aria-label="Safe-to-Spend opening allowance history and projected path">';
-  guides.forEach(function(v){var y=padT+(H-padT-padB)*(1-((v-lo)/Math.max(.001,hi-lo)));html+='<line x1="'+padL+'" y1="'+y.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+y.toFixed(1)+'" stroke="'+T.sep+'" stroke-width="1" stroke-opacity=".75" /><text x="2" y="'+(y+3).toFixed(1)+'" fill="'+T.muted+'" font-size="8">'+fmt(v,0)+'</text>';});
-  if(histPath)html+='<path d="'+histPath+'" fill="none" stroke="'+T.accent+'" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />';
-  if(futurePath)html+='<path d="'+futurePath+'" fill="none" stroke="'+T.accent+'" stroke-opacity=".58" stroke-width="2.5" stroke-dasharray="5 5" stroke-linecap="round" stroke-linejoin="round" />';
-  html+='<circle cx="'+todayPoint[0].toFixed(1)+'" cy="'+todayPoint[1].toFixed(1)+'" r="4" fill="'+T.accent+'" />';
-  data.forEach(function(x){var q=xy(x),selected=state.budgetSafeOutlookSelectedDate===x.date;html+='<circle data-action="select-safe-outlook-day" data-date="'+esc(x.date)+'" cx="'+q[0].toFixed(1)+'" cy="'+q[1].toFixed(1)+'" r="9" fill="transparent" style="cursor:pointer;" />';if(selected)html+='<circle cx="'+q[0].toFixed(1)+'" cy="'+q[1].toFixed(1)+'" r="4.5" fill="'+T.card+'" stroke="'+T.accent+'" stroke-width="2.5" pointer-events="none" />';});
-  html+='</svg>';return html;
-}
-function safeSpendOutlookHtml(livePacing,T){
-  var m=safeSpendOutlookModel(livePacing);if(!m)return '';
-  var open=!!state.budgetSafeOutlookOpen, tomorrowText=m.tomorrow==null?'—':('≈ '+fmt(m.tomorrow,0)+' AED');
-  var allPoints=m.history.concat(m.future), selectedDate=state.budgetSafeOutlookSelectedDate;
-  var selected=allPoints.find(function(x){return x.date===selectedDate;});
-  if(!selected){selected=m.future[0]||m.history[m.history.length-1]||null;selectedDate=selected&&selected.date;}
-  var selectedLabel=selected?(shortLabel(selected.date)+' · '+(selected.kind==='projected'?'projected daily limit':'opening')):'';
-  var h='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);">';
-  h+='<button data-action="toggle-budget-safe-outlook" style="width:100%;background:none;border:none;padding:0;color:inherit;text-align:left;">';
-  h+='<div class="row between" style="gap:12px;align-items:center;"><div><div class="subhead" style="font-weight:700;">Safe-to-Spend outlook</div><div class="muted caption" style="margin-top:2px;">If you follow the daily limit exactly</div></div><div class="row gap2" style="flex-shrink:0;"><div style="text-align:right;"><div class="muted caption">Tomorrow</div><div class="mono subhead" style="font-weight:750;">'+tomorrowText+'</div></div><span style="display:flex;transform:rotate('+(open?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></div></div>';
-  h+='<div style="margin-top:8px;">'+safeSpendOutlookChartHtml(m,T)+'</div>';
-  h+='<div class="row between muted caption" style="margin-top:-3px;padding-left:39px;"><span>'+shortLabel(m.history.length?m.history[0].date:m.today)+'</span><span>Today</span><span>'+shortLabel(m.monthEndDate)+'</span></div>';
-  h+='</button>';
-  if(selected){
-    h+='<div class="row between" style="margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--fill);gap:10px;"><span class="muted caption">'+esc(selectedLabel)+'</span><span class="mono caption" style="font-weight:800;">'+(selected.kind==='projected'?'≈ ':'')+fmt(selected.value,0)+' AED</span></div>';
-  }
-  if(open){
-    h+='<div style="margin-top:10px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
-    h+='<div class="row between" style="padding:8px 0;"><span class="muted caption">Opening today</span><span class="mono caption" style="font-weight:750;">'+fmt(m.todayOpening,0)+' AED</span></div>';
-    h+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Remaining today</span><span class="mono caption" style="font-weight:750;">'+fmt(m.current,0)+' AED</span></div>';
-    h+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Tomorrow if you use today’s full limit</span><span class="mono caption" style="font-weight:750;">'+(m.tomorrow==null?'—':('≈ '+fmt(m.tomorrow,0)+' AED'))+'</span></div>';
-    h+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Month-end projected limit</span><span class="mono caption" style="font-weight:750;">≈ '+fmt(m.monthEnd,0)+' AED</span></div>';
-    h+='</div>';
-    h+='<div class="muted caption" style="margin-top:8px;line-height:1.4;">Scenario: you use exactly the Safe-to-Spend amount each day. Because the limit is the remaining flexible pool divided by the remaining days after protected essentials, following it should keep the future daily allowance essentially stable. It changes only when your real spending, protected forecasts, plans, budget or savings constraint changes.</div>';
-  }
-  h+='</div>';return h;
 }
 function renderBudgetBody(T) {
   lastForecastChartData=null;lastChartData=null;lastBudgetTrendChartData=null;
@@ -9296,13 +9103,6 @@ document.addEventListener("click", function(e) {
         render();
       }
       break;
-    case "set-home-view":
-      var simpleHome = true;
-      state.homeReorderMode = false;
-      state.homeSimpleReorderMode = false;
-      persistAll(Object.assign({}, state.settings, { homeSimpleView: simpleHome }), state.entries, "home view");
-      render();
-      break;
     case "toggle-home-simple-reorder":
       state.homeSimpleReorderMode = !state.homeSimpleReorderMode;
       render();
@@ -9314,20 +9114,6 @@ document.addEventListener("click", function(e) {
       if(simpleIdx>=0&&simpleSwap>=0&&simpleSwap<simpleOrder.length){
         var simpleTmp=simpleOrder[simpleIdx]; simpleOrder[simpleIdx]=simpleOrder[simpleSwap]; simpleOrder[simpleSwap]=simpleTmp;
         persistAll(Object.assign({},state.settings,{homeSimpleSectionOrder:simpleOrder}),state.entries,"simple home layout");
-      }
-      render();
-      break;
-    case "toggle-home-reorder":
-      state.homeReorderMode = !state.homeReorderMode;
-      render();
-      break;
-    case "move-home-card":
-      var homeOrder = normalizeHomeOrder(state.settings.homeSectionOrder);
-      var homeId = el.dataset.id, homeDir = parseInt(el.dataset.dir,10);
-      var homeIdx = homeOrder.indexOf(homeId), homeSwap = homeIdx + homeDir;
-      if (homeIdx >= 0 && homeSwap >= 0 && homeSwap < homeOrder.length) {
-        var homeTmp = homeOrder[homeIdx]; homeOrder[homeIdx] = homeOrder[homeSwap]; homeOrder[homeSwap] = homeTmp;
-        persistAll(Object.assign({}, state.settings, { homeSectionOrder: homeOrder }), state.entries, "home layout");
       }
       render();
       break;
@@ -9493,15 +9279,6 @@ document.addEventListener("click", function(e) {
       break;
     case "toggle-budget-summary-details":
       state.budgetSummaryDetailsOpen = !state.budgetSummaryDetailsOpen;
-      render();
-      break;
-    case "toggle-budget-safe-outlook":
-      state.budgetSafeOutlookOpen = !state.budgetSafeOutlookOpen;
-      render();
-      break;
-    case "select-safe-outlook-day":
-      state.budgetSafeOutlookSelectedDate = el.dataset.date || null;
-      state.budgetSafeOutlookOpen = true;
       render();
       break;
     case "toggle-budget-protected":
