@@ -694,10 +694,10 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v111.8";
+var APP_VERSION = "v111.9";
 var FORECAST_MODEL_VERSION = "v103-yearly-bill-1";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly", safeSpendHistory: null };
+var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly", safeSpendHistory: null, safeSpendAnnualizedMigrationV1119: true };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
 function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
@@ -2429,6 +2429,7 @@ async function restoreLocalSnapshotById(id) {
 }
 
 function loadInitial() {
+  var v1119SafeHistoryMigrationNeeded=false;
   primaryStorageHealth="missing";
   try {
     var raw = localStorage.getItem(STORAGE_KEY);
@@ -2436,7 +2437,9 @@ function loadInitial() {
       var parsed = JSON.parse(raw);
       if(!parsed||typeof parsed!=="object"||!validateBackupEntries(parsed.entries||{})) throw new Error("invalid primary data");
       primaryStorageHealth="healthy";
-      state.settings = Object.assign({}, DEFAULT_SETTINGS, parsed.settings||{});
+      var parsedSettings=parsed.settings||{};
+      v1119SafeHistoryMigrationNeeded=parsedSettings.safeSpendAnnualizedMigrationV1119!==true;
+      state.settings = Object.assign({}, DEFAULT_SETTINGS, parsedSettings);
       if (!state.settings.rateHistory || !state.settings.rateHistory.length) {
         state.settings.rateHistory = [{ from: "1900-01-01", weeklyTarget: state.settings.weeklyTarget }];
       }
@@ -2481,6 +2484,14 @@ function loadInitial() {
     }
   }
   state.settings.safeSpendHistory = normalizeSafeSpendHistory(state.settings.safeSpendHistory);
+  /* v111.9: annualized affordability can materially change today's adaptive
+     headroom. Recalculate today's opening once on upgrade, then freeze it again
+     for the rest of the day so entering transactions does not move the goalpost. */
+  if(primaryStorageHealth==="healthy"&&v1119SafeHistoryMigrationNeeded){
+    state.settings.safeSpendHistory=state.settings.safeSpendHistory.filter(function(x){return !x||x.date!==todayStr();});
+    state.settings.safeSpendAnnualizedMigrationV1119=true;
+    adaptiveSafeHistoryMigrationChanged=true;
+  }
   state.settings.transactionTags = normalizeTransactionTags(state.settings.transactionTags);
   state.settings.transactionTagColors = normalizeTransactionTagColors(state.settings.transactionTagColors, state.settings.transactionTags);
   state.settings.incomeHistory = normalizeIncomeHistory(state.settings.incomeHistory);
@@ -4430,8 +4441,11 @@ function renderHomeBody(T, da) {
   spending += '<div class="mono" style="font-size:34px;font-weight:700;margin-top:3px;">'+fmt(overall.spent,0)+' <span class="muted" style="font-size:17px;">AED</span></div>';
   spending += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;">';
   spending += '<div class="row between"><span class="muted subhead">Projected month-end spend</span><span class="mono subhead" style="font-weight:600;">'+fmt(projected,0)+' AED</span></div>';
-  spending += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Projected saving</span><span class="mono subhead" style="font-weight:600;color:'+(projectedCashSaving==null?'var(--text)':(homeSavingsGap!=null&&homeSavingsGap<0?'var(--amber)':(projectedCashSaving>=0?'var(--positive)':'var(--rust)')))+';">'+(projectedCashSaving==null?'—':((projectedCashSaving<0?'−':'')+fmt(Math.abs(projectedCashSaving),0)+' AED ('+(projectedCashSavingPct<0?'−':'')+Math.abs(projectedCashSavingPct).toFixed(0)+'%)'))+'</span></div>';
-  if(homeSavingsTarget!=null) spending += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Savings target · '+fmt(homeSavingsPct,0)+'%</span><span class="mono subhead" style="font-weight:600;color:'+(homeSavingsGap>=0?'var(--positive)':'var(--amber)')+';">'+fmt(homeSavingsTarget,0)+' AED · '+(homeSavingsGap>=0?('+'+fmt(homeSavingsGap,0)+' ahead'):('−'+fmt(Math.abs(homeSavingsGap),0)+' short'))+'</span></div>';
+  spending += '<div class="row between" style="margin-top:8px;"><span class="muted subhead">Projected saving</span><span class="mono subhead" style="font-weight:600;color:'+(projectedCashSaving==null?'var(--text)':(projectedCashSaving>=0?'var(--positive)':'var(--rust)'))+';">'+(projectedCashSaving==null?'—':((projectedCashSaving<0?'−':'')+fmt(Math.abs(projectedCashSaving),0)+' AED ('+(projectedCashSavingPct<0?'−':'')+Math.abs(projectedCashSavingPct).toFixed(0)+'%)'))+'</span></div>';
+  if(homeBudgetSavings&&homeSavingsPct>0){
+    var detailedAnnualizedOk=homeBudgetSavings.compatibleBudget+0.5>=homeBudgetSavings.configuredBudget;
+    spending += '<div class="row between" style="margin-top:8px;gap:12px;"><span class="muted subhead">Annualized affordability · '+fmt(homeSavingsPct,0)+'%</span><span class="mono subhead" style="font-weight:600;color:'+(detailedAnnualizedOk?'var(--positive)':'var(--amber)')+';">'+(detailedAnnualizedOk?'On track':('Sustainable budget ≈ '+fmt(homeBudgetSavings.compatibleBudget,0)+' AED'))+'</span></div>';
+  }
   spending += '</div>';
   spending += '<button data-action="go-page" data-page="analysis" class="btn-plain" style="margin-top:12px;">Open overall analysis →</button></div>';
   cards.spending = spending;
@@ -4467,7 +4481,7 @@ function renderHomeBody(T, da) {
     cash += statBlock("Income received", fmt(income,0)+' AED', 'var(--positive)');
     cash += statBlock("Expenses", fmt(overall.spent,0)+' AED', 'var(--rust)');
     cash += statBlock("Net cash flow", (cashNet>=0?'+':'−')+fmt(Math.abs(cashNet),0)+' AED', cashNet>=0?'var(--positive)':'var(--rust)');
-    if(homeSavingsTarget!=null) cash += statBlock("Savings target", fmt(homeSavingsTarget,0)+' AED · '+fmt(homeSavingsPct,0)+'%', homeSavingsGap!=null&&homeSavingsGap>=0?'var(--positive)':'var(--amber)');
+    if(homeBudgetSavings&&homeSavingsPct>0){ var cashAnnualizedOk=homeBudgetSavings.compatibleBudget+0.5>=homeBudgetSavings.configuredBudget; cash += statBlock("Annualized target", fmt(homeSavingsPct,0)+'% · '+(cashAnnualizedOk?'On track':('budget ≤ '+fmt(homeBudgetSavings.compatibleBudget,0)+' AED')), cashAnnualizedOk?'var(--positive)':'var(--amber)'); }
     cash += '</div>';
   } else cash += '<div class="muted subhead" style="margin-top:8px;">Log salary or other money received as Income transactions to see cash flow here.</div>';
   cash += '</div>';
@@ -4562,13 +4576,18 @@ function renderHomeBody(T, da) {
     outlook+='<div><div class="simple-outlook-label">TOTAL SPENT SO FAR</div><div class="mono simple-outlook-value">'+fmt(overall.spent,0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(spentVsIncomePct==null?'Income not set':spentVsIncomePct.toFixed(0)+'% of income')+'</div></div>';
     outlook+='<div><div class="simple-outlook-label">PROJECTED TOTAL SPEND</div><div class="mono simple-outlook-value">'+fmt(projected,0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(projectedSpendVsIncomePct==null?'Income not set':projectedSpendVsIncomePct.toFixed(0)+'% of income')+'</div></div></div>';
     if(incomeReference>0)outlook+=pctBar(projectedSpendVsIncomePct,projectedSpendVsIncomePct>100);
-    var simpleSavingColor=simpleSaving<0?'var(--rust)':(homeSavingsGap!=null&&homeSavingsGap<0?'var(--amber)':'var(--positive)');
-    var savingTargetContext='';
-    if(homeSavingsPct>0&&homeSavingsTarget!=null){
-      savingTargetContext='Target '+fmt(homeSavingsPct,0)+'%';
-      if(homeSavingsGap!=null) savingTargetContext+=' · '+(homeSavingsGap>=0?('+'+fmt(homeSavingsGap,0)+' AED ahead'):(fmt(Math.abs(homeSavingsGap),0)+' AED short'));
+    var simpleSavingColor=simpleSaving<0?'var(--rust)':'var(--positive)';
+    var savingTargetContext='', savingTargetContextColor='var(--text-muted)';
+    if(homeBudgetSavings&&homeSavingsPct>0){
+      if(homeBudgetSavings.compatibleBudget+0.5>=homeBudgetSavings.configuredBudget){
+        savingTargetContext='Annualized '+fmt(homeSavingsPct,0)+'% target · On track';
+        savingTargetContextColor='var(--positive)';
+      }else{
+        savingTargetContext='Annualized '+fmt(homeSavingsPct,0)+'% target · sustainable budget ≈ '+fmt(homeBudgetSavings.compatibleBudget,0)+' AED';
+        savingTargetContextColor='var(--amber)';
+      }
     }
-    outlook+='<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div class="row between" style="align-items:flex-end;gap:12px;margin-top:3px;"><div><div class="mono simple-outlook-value" style="color:'+simpleSavingColor+';">'+(simpleSaving>=0?'+':'−')+fmt(Math.abs(simpleSaving),0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(simpleSavingPct==null?'Income not set':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(0)+'% of income'))+'</div></div>'+(savingTargetContext?'<div class="mono caption" style="font-weight:750;text-align:right;color:'+(homeSavingsGap!=null&&homeSavingsGap<0?'var(--amber)':'var(--positive)')+';">'+esc(savingTargetContext)+'</div>':'')+'</div></div></div>';
+    outlook+='<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div class="row between" style="align-items:flex-end;gap:12px;margin-top:3px;"><div><div class="mono simple-outlook-value" style="color:'+simpleSavingColor+';">'+(simpleSaving>=0?'+':'−')+fmt(Math.abs(simpleSaving),0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(simpleSavingPct==null?'Income not set':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(0)+'% of income'))+'</div></div>'+(savingTargetContext?'<div class="mono caption" style="font-weight:750;text-align:right;color:'+savingTargetContextColor+';">'+esc(savingTargetContext)+'</div>':'')+'</div></div></div>';
     simpleCards.outlook=outlook;
 
     var simpleOrder=normalizeSimpleHomeOrder(state.settings.homeSimpleSectionOrder);
@@ -4635,9 +4654,10 @@ function budgetForecastEvidenceHtml(x, protectedMode) {
   return out;
 }
 
-/* v111.8: early-month outlooks blend current-month behavior with robust
-   recent history. One cheap or expensive day should not dictate the remaining
-   28 days; current-month evidence gets progressively more weight as it grows. */
+/* v111.9: early-month outlooks blend current-month behavior with robust
+   recent history more conservatively. One cheap or expensive day should not
+   dictate the remaining month. Current-month evidence grows smoothly from
+   about 15% after day one toward an 85% cap late in the month. */
 function blendedFlexibleSpendAssumption(){
   var month=currentMonthFlexibleSpendStats(), recent=currentFlexibleSpendPaceStats(), recentRef=null;
   if(recent.last7Avg!=null&&recent.dailyAvg!=null)recentRef=.70*recent.last7Avg+.30*recent.dailyAvg;
@@ -4647,7 +4667,9 @@ function blendedFlexibleSpendAssumption(){
   if(monthAvg==null&&recentRef==null)return {pace:null,monthWeight:0,monthAvg:null,recentRef:null,days:days};
   if(monthAvg==null)return {pace:round2(recentRef),monthWeight:0,monthAvg:null,recentRef:round2(recentRef),days:days};
   if(recentRef==null)return {pace:round2(monthAvg),monthWeight:1,monthAvg:round2(monthAvg),recentRef:null,days:days};
-  var w=Math.min(.90,Math.max(.15,.075+.075*days));
+  var progress=Math.max(0,Math.min(1,days/24));
+  var smooth=progress*progress*(3-2*progress);
+  var w=.15+.70*smooth;
   return {pace:round2(Math.max(0,monthAvg*w+recentRef*(1-w))),monthWeight:round2(w),monthAvg:round2(monthAvg),recentRef:round2(recentRef),days:days};
 }
 /* Safe-to-Spend history + adaptive outlook. Future values are scenarios, not
@@ -4822,7 +4844,7 @@ function renderBudgetBody(T) {
     summary+='<div style="margin-top:10px;border-radius:10px;background:var(--fill);padding:2px 10px;">';
     summary+='<div class="row between" style="padding:7px 0;"><span class="muted caption">Your set budget</span><span class="mono caption" style="font-weight:700;">'+fmt(bsc.configuredBudget,0)+' AED</span></div>';
     summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Savings-compatible limit</span><span class="mono caption" style="font-weight:750;">≈ '+fmt(bsc.compatibleBudget,0)+' AED</span></div>';
-    summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Normalized outside-budget / month</span><span class="mono caption" style="font-weight:700;">≈ '+fmt(bsc.projectedExcluded,0)+' AED</span></div>';
+    summary+='<div class="row between" style="padding:7px 0;border-top:1px solid var(--sep);"><span class="muted caption">Normalized outside-budget / month</span><span class="mono caption" style="font-weight:700;">≈ '+fmt(bsc.normalizedExcluded,0)+' AED</span></div>';
     summary+='</div></div>';
   }
   /* v86: Keep the summary card decision-first. The four headline metrics stay
@@ -5152,13 +5174,17 @@ function renderSettingsPage() {
       h += '</select></div>';
       h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Counts toward budget</div><div class="muted caption" style="margin-top:2px;">Overall Analysis always includes it.</div></div><button data-action="toggle-category-budget" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(categoryExcludedFromBudget(selectedSub)?'var(--rust)':'var(--positive)')+';">'+(categoryExcludedFromBudget(selectedSub)?'Excluded':'Included')+'</button></div></div>';
       var forecastBehavior=categoryForecastBehavior(selectedSub);
-      h += '<div class="taxonomy-form-card"><label class="eyebrow">Forecast behavior</label><select id="subcategoryForecastBehaviorInput" data-cat="'+esc(selectedSub)+'" class="field" style="margin-top:7px;"><option value="auto"'+(forecastBehavior==='auto'?' selected':'')+'>Auto</option><option value="frequent"'+(forecastBehavior==='frequent'?' selected':'')+'>Frequent</option><option value="cadence"'+(forecastBehavior==='cadence'?' selected':'')+'>Cadence</option><option value="monthly"'+(forecastBehavior==='monthly'?' selected':'')+'>Monthly bill</option><option value="yearly"'+(forecastBehavior==='yearly'?' selected':'')+'>Yearly bill</option><option value="lumpy"'+(forecastBehavior==='lumpy'?' selected':'')+'>Lumpy</option></select><div class="muted caption" style="margin-top:6px;">Monthly bill stops after this month\'s payment. Yearly bill forecasts one annual payment and can reserve for it monthly.</div></div>';
+      h += '<div class="taxonomy-form-card"><label class="eyebrow">Forecast behavior</label><select id="subcategoryForecastBehaviorInput" data-cat="'+esc(selectedSub)+'" class="field" style="margin-top:7px;"><option value="auto"'+(forecastBehavior==='auto'?' selected':'')+'>Auto</option><option value="frequent"'+(forecastBehavior==='frequent'?' selected':'')+'>Frequent</option><option value="cadence"'+(forecastBehavior==='cadence'?' selected':'')+'>Cadence</option><option value="monthly"'+(forecastBehavior==='monthly'?' selected':'')+'>Monthly bill</option><option value="yearly"'+(forecastBehavior==='yearly'?' selected':'')+'>Yearly bill</option><option value="lumpy"'+(forecastBehavior==='lumpy'?' selected':'')+'>Lumpy</option></select><div class="muted caption" style="margin-top:6px;">Monthly bill stops after this month\'s payment. Yearly bill forecasts one annual payment; in-budget yearly bills can reserve for it monthly.</div></div>';
       if(forecastBehavior==='yearly'){
         var ycfg=yearlyBillConfigForCategory(selectedSub), monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         h += '<div class="taxonomy-form-card"><label class="eyebrow">Yearly bill setup</label><div class="row gap2" style="margin-top:8px;"><div style="flex:1;"><div class="muted caption" style="margin-bottom:5px;">Annual amount</div><input id="yearlyBillAmountInput" data-cat="'+esc(selectedSub)+'" type="number" inputmode="decimal" min="0" step="0.01" class="field mono" value="'+(ycfg.amount>0?ycfg.amount:'')+'" placeholder="Amount" /></div><div style="width:102px;"><div class="muted caption" style="margin-bottom:5px;">Due month</div><select id="yearlyBillMonthInput" data-cat="'+esc(selectedSub)+'" class="field">';
         monthNames.forEach(function(mn,mi){h+='<option value="'+(mi+1)+'"'+(ycfg.dueMonth===mi+1?' selected':'')+'>'+mn+'</option>';});
         h += '</select></div><div style="width:72px;"><div class="muted caption" style="margin-bottom:5px;">Day</div><input id="yearlyBillDayInput" data-cat="'+esc(selectedSub)+'" type="number" inputmode="numeric" min="1" max="31" step="1" class="field mono" value="'+ycfg.dueDay+'" /></div></div><button data-action="save-yearly-bill-settings" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="width:100%;margin-top:9px;">Save yearly bill</button>';
-        h += '<div class="row between hairline-top" style="margin-top:12px;padding-top:11px;"><div style="padding-right:12px;"><div class="headline">Reserve monthly</div><div id="yearlyBillReservePreview" class="muted caption" style="margin-top:2px;">'+(ycfg.amount>0?'Plans about '+fmt(ycfg.amount/12,2)+' AED/month. In-budget yearly bills can reserve this in Safe-to-Spend; outside-budget yearly bills use it for annualized savings affordability without double-counting.':'Set an annual amount to calculate the monthly reserve.')+'</div></div><button data-action="toggle-yearly-bill-reserve" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(ycfg.reserveMonthly?'var(--positive)':'var(--text-muted)')+';">'+(ycfg.reserveMonthly?'On':'Off')+'</button></div></div>';
+        if(categoryExcludedFromBudget(selectedSub)){
+          h += '<div class="row between hairline-top" style="margin-top:12px;padding-top:11px;align-items:flex-start;"><div style="padding-right:12px;"><div class="headline">Annualized monthly cost</div><div id="yearlyBillReservePreview" class="muted caption" style="margin-top:2px;">'+(ycfg.amount>0?'About '+fmt(ycfg.amount/12,2)+' AED/month is automatically used for annualized savings affordability. The actual yearly payment still follows its real cash timing.':'Set an annual amount to calculate its normalized monthly cost.')+'</div></div><span class="chip" style="flex-shrink:0;">Automatic</span></div></div>';
+        }else{
+          h += '<div class="row between hairline-top" style="margin-top:12px;padding-top:11px;"><div style="padding-right:12px;"><div class="headline">Reserve monthly</div><div id="yearlyBillReservePreview" class="muted caption" style="margin-top:2px;">'+(ycfg.amount>0?'Protects about '+fmt(ycfg.amount/12,2)+' AED/month in Safe-to-Spend toward the next annual payment.':'Set an annual amount to calculate the monthly reserve.')+'</div></div><button data-action="toggle-yearly-bill-reserve" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(ycfg.reserveMonthly?'var(--positive)':'var(--text-muted)')+';">'+(ycfg.reserveMonthly?'On':'Off')+'</button></div></div>';
+        }
       }
       var safePriority=subcategorySafeSpendPriority(selectedSub), safeEssential=safePriority==='essential';
       h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Safe-to-Spend priority</div><div class="muted caption" style="margin-top:2px;">Essential cadence/plan spending is protected first. Flexible forecasts never block today\'s allowance.</div></div><button data-action="toggle-safe-spend-priority" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(safeEssential?'var(--positive)':'var(--text-muted)')+';">'+(safeEssential?'Essential':'Flexible')+'</button></div></div>';
@@ -9585,9 +9611,12 @@ document.addEventListener("input", function(e) {
     var annualPreview = parseFloat(e.target.value);
     var reservePreview = document.getElementById("yearlyBillReservePreview");
     if (reservePreview) {
+      var previewCat=e.target.dataset.cat||"", previewOutside=categoryExcludedFromBudget(previewCat);
       reservePreview.textContent = (!isNaN(annualPreview) && annualPreview > 0)
-        ? ("Plans about " + fmt(annualPreview/12,2) + " AED/month. Outside-budget yearly bills are normalized in savings affordability and are not double-reserved from Safe-to-Spend.")
-        : "Set an annual amount to calculate the monthly reserve.";
+        ? (previewOutside
+            ? ("About " + fmt(annualPreview/12,2) + " AED/month is automatically used for annualized savings affordability. The actual yearly payment still follows its real cash timing.")
+            : ("Protects about " + fmt(annualPreview/12,2) + " AED/month in Safe-to-Spend toward the next annual payment."))
+        : (previewOutside ? "Set an annual amount to calculate its normalized monthly cost." : "Set an annual amount to calculate the monthly reserve.");
     }
     return;
   }
