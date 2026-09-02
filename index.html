@@ -694,10 +694,10 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v111.10";
-var FORECAST_MODEL_VERSION = "v11110-yearly-auto-1";
+var APP_VERSION = "v111.12";
+var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly", safeSpendHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true };
+var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly", safeSpendHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
 function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
@@ -1146,7 +1146,12 @@ function recurringOccurrenceDate(rule, n) {
    that keeps the days reading evenly while the sum stays exact. Plain
    recurring rules just repeat the same amount every time. */
 function ruleOccurrenceAmount(rule, n) {
-  if (rule.kind !== "split" || rule.splitTotal == null || rule.occurrencesTotal == null) return rule.amount;
+  /* Legacy day-spreads and v111.12 Tabby plans both divide one original total
+     across a finite number of occurrences. The last payment absorbs any
+     rounding cents so the logged installments always reconcile exactly to the
+     purchase total. */
+  var finiteSplit = rule && (rule.kind === "split" || rule.paymentPlanType === "tabby") && rule.splitTotal != null && rule.occurrencesTotal != null;
+  if (!finiteSplit) return rule.amount;
   var isLast = n === rule.occurrencesTotal - 1;
   if (!isLast) return rule.amount;
   return round2(rule.splitTotal - rule.amount * (rule.occurrencesTotal - 1));
@@ -1349,17 +1354,13 @@ function normalizeCategoryYearlyBillSettings(map,categories){
   var out={},valid=categories||[],src=(map&&typeof map==="object"&&!Array.isArray(map))?map:{};
   valid.forEach(function(c){
     var x=src[c]; if(!x||typeof x!=="object"||Array.isArray(x))return;
-    var amount=Number(x.amount),override=Number(x.amountOverride),month=Math.round(Number(x.dueMonth)),day=Math.round(Number(x.dueDay));
-    out[c]={
-      /* `amount` is retained only as a backwards-compatible fallback for
-         v111.9 ledgers. v111.10 prefers live plan/transaction evidence and
-         uses amountOverride only when the user explicitly chooses Override. */
-      amount:isFinite(amount)&&amount>0?round2(amount):null,
-      amountOverride:isFinite(override)&&override>0?round2(override):null,
-      dueMonth:isFinite(month)?Math.max(1,Math.min(12,month)):null,
-      dueDay:isFinite(day)?Math.max(1,Math.min(31,day)):null,
-      reserveMonthly:x.reserveMonthly!==false
-    };
+    /* v111.11: Yearly Bill has no manual setup. Keep only one hidden
+       backwards-compatible fallback amount for old ledgers that do not yet
+       have plan/transaction evidence. A former explicit override becomes that
+       fallback, but automatic evidence always wins as soon as it exists. */
+    var override=Number(x.amountOverride),amount=Number(x.amount);
+    var fallback=isFinite(override)&&override>0?override:(isFinite(amount)&&amount>0?amount:0);
+    if(fallback>0)out[c]={amount:round2(fallback)};
   });
   return out;
 }
@@ -1432,17 +1433,32 @@ function activeYearlyRuleForCategory(catName){
 }
 function yearlyBillConfigForCategory(catName){
   var src=(state.settings.categoryYearlyBillSettings||{})[catName]||{}, auto=yearlyBillAutomaticEvidence(catName);
-  var override=Number(src.amountOverride), hasOverride=isFinite(override)&&override>0;
-  var legacy=Number(src.amount), amount=hasOverride?override:auto.amount, source=hasOverride?"override":auto.source;
-  var sourceDetail=hasOverride?("Manual override · "+fmt(override,2)+" AED") : auto.detail;
-  /* Old v111.9 amount survives only as a last-resort fallback when there is no
-     plan/transaction evidence yet. As soon as real evidence exists, automatic
-     detection wins, so editing a Tabby plan immediately updates annualization. */
-  if(!(amount>0)&&isFinite(legacy)&&legacy>0){amount=legacy;source="legacy";sourceDetail="Previous saved yearly amount · "+fmt(legacy,2)+" AED (automatic data will replace this)";}
+  var legacy=Number(src.amount), amount=auto.amount, source=auto.source, sourceDetail=auto.detail;
+  /* v111.11: automatic plan/transaction evidence is always authoritative.
+     A v111.9/v111.10 saved amount survives only as a hidden migration fallback
+     when Ledger genuinely has no evidence yet. There is no user-facing amount,
+     override, due-date or reserve setting anymore. */
+  if(!(amount>0)&&isFinite(legacy)&&legacy>0){
+    amount=legacy;source="legacy";sourceDetail="Previous saved yearly amount used until automatic evidence is available.";
+  }
   var refDate=auto.refDate||todayStr(),d=parseD(refDate);
-  var dueMonth=Math.round(Number(src.dueMonth));if(!(dueMonth>=1&&dueMonth<=12))dueMonth=d.getMonth()+1;
-  var dueDay=Math.round(Number(src.dueDay));if(!(dueDay>=1&&dueDay<=31))dueDay=d.getDate();
-  return {amount:amount>0?round2(amount):0,autoAmount:auto.amount>0?round2(auto.amount):0,amountSource:source,sourceDetail:sourceDetail,dueMonth:dueMonth,dueDay:dueDay,reserveMonthly:src.reserveMonthly!==false,hasExplicit:!!((state.settings.categoryYearlyBillSettings||{})[catName]),hasOverride:hasOverride,overrideAmount:hasOverride?round2(override):0,hasExactPlan:!!auto.hasExactPlan,plan:auto.plan||null};
+  return {
+    amount:amount>0?round2(amount):0,
+    autoAmount:auto.amount>0?round2(auto.amount):0,
+    amountSource:source,
+    sourceDetail:sourceDetail,
+    dueMonth:d.getMonth()+1,
+    dueDay:d.getDate(),
+    /* Outside-budget yearly bills are annualized in savings affordability.
+       In-budget yearly bills reserve automatically only when there is no exact
+       installment/yearly Plan; exact Plans already protect their real dates. */
+    reserveMonthly:!auto.hasExactPlan,
+    hasExplicit:false,
+    hasOverride:false,
+    overrideAmount:0,
+    hasExactPlan:!!auto.hasExactPlan,
+    plan:auto.plan||null
+  };
 }
 function yearlyReserveBreakdownForRange(fromStr,throughStr){
   var out={}; if(!fromStr||!throughStr||fromStr>throughStr)return [];
@@ -1452,7 +1468,7 @@ function yearlyReserveBreakdownForRange(fromStr,throughStr){
        savings-affordability calculation. Reserving them again here would
        double-count the same cost and unnecessarily reduce Safe-to-Spend. */
     if(categoryExcludedFromBudget(c))return;
-    var cfg=yearlyBillConfigForCategory(c);if(!cfg.reserveMonthly||!(cfg.amount>0))return;
+    var cfg=yearlyBillConfigForCategory(c);if(cfg.hasExactPlan||!cfg.reserveMonthly||!(cfg.amount>0))return;
     var total=0,d=parseD(fromStr),end=parseD(throughStr);
     while(d<=end){
       var monthly=cfg.amount/12, daily=monthly/daysInMonth(d);total+=daily;d=addDays(d,1);
@@ -2005,6 +2021,18 @@ function currentProtectedCategoryMap(asOfDate){
   });
   return out;
 }
+/* v111.12: Transactions can audit the same protected-vs-flexible split used
+   by Safe-to-Spend. Outside-budget expenses are neither. An essential Plan
+   occurrence is protected explicitly; otherwise the learned category mode
+   decides whether an essential subcategory is hard-reserved. Frequent
+   essentials remain unprotected because they live inside the daily allowance. */
+function transactionBudgetProtectionClass(it, protectedMap){
+  if(!isExpenseItem(it)||!itemCountsTowardBudget(it))return "outside";
+  var key=subcategoryKey(it);
+  if(it.recurringId&&subcategoryEssentialForSafeSpend(key))return "protected";
+  protectedMap=protectedMap||currentProtectedCategoryMap(todayStr());
+  return protectedMap[key]?"protected":"unprotected";
+}
 function flexibleBudgetSpendForRange(startStr,endStr,protectedMap){
   if(!startStr||!endStr||endStr<startStr)return {spent:0,days:0,avg:null};
   protectedMap=protectedMap||currentProtectedCategoryMap(endStr);
@@ -2493,7 +2521,7 @@ async function restoreLocalSnapshotById(id) {
 }
 
 function loadInitial() {
-  var v1119SafeHistoryMigrationNeeded=false, v11110YearlyAutoMigrationNeeded=false;
+  var v1119SafeHistoryMigrationNeeded=false, v11110YearlyAutoMigrationNeeded=false, v11111YearlyBackgroundMigrationNeeded=false;
   primaryStorageHealth="missing";
   try {
     var raw = localStorage.getItem(STORAGE_KEY);
@@ -2504,6 +2532,7 @@ function loadInitial() {
       var parsedSettings=parsed.settings||{};
       v1119SafeHistoryMigrationNeeded=parsedSettings.safeSpendAnnualizedMigrationV1119!==true;
       v11110YearlyAutoMigrationNeeded=parsedSettings.yearlyBillAutoMigrationV11110!==true;
+      v11111YearlyBackgroundMigrationNeeded=parsedSettings.yearlyBillBackgroundMigrationV11111!==true;
       state.settings = Object.assign({}, DEFAULT_SETTINGS, parsedSettings);
       if (!state.settings.rateHistory || !state.settings.rateHistory.length) {
         state.settings.rateHistory = [{ from: "1900-01-01", weeklyTarget: state.settings.weeklyTarget }];
@@ -2563,6 +2592,14 @@ function loadInitial() {
   if(primaryStorageHealth==="healthy"&&v11110YearlyAutoMigrationNeeded){
     state.settings.safeSpendHistory=state.settings.safeSpendHistory.filter(function(x){return !x||x.date!==todayStr();});
     state.settings.yearlyBillAutoMigrationV11110=true;
+    adaptiveSafeHistoryMigrationChanged=true;
+  }
+  /* v111.11: Yearly Bill is now zero-setup and exact Plans no longer receive
+     a second monthly reserve. Recalculate today's opening once so the visible
+     Safe-to-Spend and its history use the same background-only model. */
+  if(primaryStorageHealth==="healthy"&&v11111YearlyBackgroundMigrationNeeded){
+    state.settings.safeSpendHistory=state.settings.safeSpendHistory.filter(function(x){return !x||x.date!==todayStr();});
+    state.settings.yearlyBillBackgroundMigrationV11111=true;
     adaptiveSafeHistoryMigrationChanged=true;
   }
   state.settings.transactionTags = normalizeTransactionTags(state.settings.transactionTags);
@@ -4234,10 +4271,11 @@ function liveBudgetPacing() {
         addFlexibleForecast(k,round2(Math.max(0,x.amount||0)),"frequent",{kind:"frequent",expectedAmount:round2(Math.max(0,x.amount||0)),likelyAmount:round2((x.profile&&x.profile.typicalAmount)||0),profile:x.profile||null});
       }
     });
-    /* v103: a Yearly bill can reserve 1/12 of its annual amount each month.
-       The reserve is spread daily so Week and Month horizons receive only
-       their proportional share. It is a control reserve, not a fake expense,
-       and applies even when the eventual bill is outside the spending budget. */
+    /* v111.11: an in-budget Yearly bill without an exact Plan automatically
+       reserves 1/12 of its annual amount each month. Exact installment/yearly
+       Plans already protect their real payment dates, so they are not reserved
+       a second time. Outside-budget yearly bills are normalized separately in
+       savings affordability and never enter this budget reserve. */
     if(scope==="budget"){
       yearlyReserveBreakdownForRange(today,per.endStr).forEach(function(yr){
         var a=round2(yr.amount||0);if(!(a>0))return;
@@ -4760,7 +4798,12 @@ function safeSpendOutlookModel(livePacing){
   var monthAvgStats=currentMonthFlexibleSpendStats();
   var assumedDaily=blendedAssumption.pace!=null?Math.max(0,Number(blendedAssumption.pace)||0):todaySustainable;
   var actualFlexible=Math.max(0,Number(m.todayFlexibleSpent)||0);
+  /* Tomorrow should still reflect how today is currently unfolding, but from
+     tomorrow onward this is a RECOMMENDED Safe-to-Spend outlook, not a doom
+     projection that assumes today's historical overspend continues forever.
+     Cap the expected rest-of-today spend at today's remaining Safe-to-Spend. */
   var expectedRestToday=Math.max(0,assumedDaily-actualFlexible);
+  if(m.safe!=null)expectedRestToday=Math.min(expectedRestToday,Math.max(0,Number(m.safe)||0));
   var pool=Math.max(0,(Number(m.flexiblePool)||0)-expectedRestToday);
   var baseAdaptive=m.adaptiveFlex||{}, projectedRatio=baseAdaptive.projectedBudgetRatio==null?null:Number(baseAdaptive.projectedBudgetRatio);
   var budgetPosition=Number(baseAdaptive.budgetPosition)||0, dailyBudgetReference=Math.max(0,Number(baseAdaptive.dailyBudgetReference)||0);
@@ -4771,12 +4814,12 @@ function safeSpendOutlookModel(livePacing){
     var ad=adaptiveSafeSpendFlexibility(maxFlexPct,{sustainableDaily:sustainable,observedFlexibleDaily:assumedDaily,projectedBudgetRatio:projectedRatio,budgetPosition:budgetPosition,dailyBudgetReference:dailyBudgetReference});
     var safe=Math.min(pool,Math.max(0,sustainable)*(1+ad.pct/100));
     var grantedPct=sustainable>0?Math.max(0,(safe/sustainable-1)*100):0;
-    future.push({date:ds,value:round2(Math.max(0,safe)),kind:"projected",sustainable:round2(Math.max(0,sustainable)),effectiveFlexPct:round2(grantedPct),maxFlexPct:maxFlexPct,assumedSpend:round2(assumedDaily),reason:ad.reason});
-    pool=Math.max(0,pool-assumedDaily);
-    /* Spending above/below the sustainable flexible pace changes the future
-       position signal as well as the remaining pool. Protected essentials are
-       already outside assumedDaily, so they do not distort this adjustment. */
-    budgetPosition=round2(budgetPosition+(sustainable-assumedDaily));
+    future.push({date:ds,value:round2(Math.max(0,safe)),kind:"projected",sustainable:round2(Math.max(0,sustainable)),effectiveFlexPct:round2(grantedPct),maxFlexPct:maxFlexPct,assumedSpend:round2(sustainable),observedPace:round2(assumedDaily),reason:ad.reason});
+    /* v111.12: project the next opening on the assumption that the user follows
+       the sustainable recommendation. If sustainable is P/N and P/N is spent,
+       tomorrow's remaining pool divided by N-1 stays coherent instead of
+       collapsing to zero just because the recent observed pace is too high. */
+    pool=Math.max(0,pool-sustainable);
   }
   var points=hist.map(function(x){return {date:x.date,value:round2(Math.max(0,x.openingSafe)),kind:"history",sustainable:round2(Math.max(0,Number(x.sustainableDaily)||0)),effectiveFlexPct:clampPct(x.flexibilityPct),maxFlexPct:normalizeSafeSpendFlexibilityPct(x.maxFlexibilityPct)};});
   var todayOpening=round2(Math.max(0,m.openingSafe)), current=round2(Math.max(0,m.safe||0));
@@ -4814,7 +4857,7 @@ function safeSpendOutlookHtml(livePacing,T){
   var selectedLabel=selected?(shortLabel(selected.date)+' · '+(selected.kind==='projected'?'projected opening':'opening')):'';
   var h='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);">';
   h+='<button data-action="toggle-budget-safe-outlook" style="width:100%;background:none;border:none;padding:0;color:inherit;text-align:left;">';
-  h+='<div class="row between" style="gap:12px;align-items:center;"><div><div class="subhead" style="font-weight:700;">Safe-to-Spend outlook</div><div class="muted caption" style="margin-top:2px;">History + projected path at your blended spending pace</div></div><div class="row gap2" style="flex-shrink:0;"><div style="text-align:right;"><div class="muted caption">Tomorrow</div><div class="mono subhead" style="font-weight:750;">'+tomorrowText+'</div></div><span style="display:flex;transform:rotate('+(open?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></div></div>';
+  h+='<div class="row between" style="gap:12px;align-items:center;"><div><div class="subhead" style="font-weight:700;">Safe-to-Spend outlook</div><div class="muted caption" style="margin-top:2px;">History + on-plan projected daily allowance</div></div><div class="row gap2" style="flex-shrink:0;"><div style="text-align:right;"><div class="muted caption">Tomorrow</div><div class="mono subhead" style="font-weight:750;">'+tomorrowText+'</div></div><span style="display:flex;transform:rotate('+(open?'180':'0')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></div></div>';
   h+='<div style="margin-top:8px;">'+safeSpendOutlookChartHtml(m,T)+'</div>';
   h+='<div class="row between muted caption" style="margin-top:-3px;padding-left:39px;"><span>'+shortLabel(m.history.length?m.history[0].date:m.today)+'</span><span>Today</span><span>'+shortLabel(m.monthEndDate)+'</span></div>';
   h+='</button>';
@@ -4829,7 +4872,7 @@ function safeSpendOutlookHtml(livePacing,T){
     h+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Blended pace used</span><span class="mono caption" style="font-weight:750;">'+fmt(m.assumedDaily,0)+' AED/day</span></div>';
     h+='<div class="row between" style="padding:8px 0;border-top:1px solid var(--sep);"><span class="muted caption">Month-end projected opening</span><span class="mono caption" style="font-weight:750;">≈ '+fmt(m.monthEnd,0)+' AED</span></div>';
     h+='</div>';
-    h+='<div class="muted caption" style="margin-top:8px;line-height:1.4;">Projection uses about '+fmt(m.assumedDaily,0)+' AED/day of flexible spending: '+(m.assumptionMonthAvg==null?'no completed current-month average yet':(fmt((m.assumptionMonthWeight||0)*100,0)+'% current-month average ('+fmt(m.assumptionMonthAvg,0)+' AED/day)'))+(m.assumptionRecent==null?'':(' + '+fmt((1-(m.assumptionMonthWeight||0))*100,0)+'% recent-history pace ('+fmt(m.assumptionRecent,0)+' AED/day)'))+'. As more days complete, current-month behavior gets more weight. Daily headroom is adaptive up to +'+fmt(m.maxFlexPct,0)+'% and is recalculated on the simulated path. Protected essentials are already ring-fenced. Tap any point to inspect the allowance and granted headroom. Daily opening history builds automatically from v111.5 onward.</div>';
+    h+='<div class="muted caption" style="margin-top:8px;line-height:1.4;">The observed flexible-spending pace is about '+fmt(m.assumedDaily,0)+' AED/day: '+(m.assumptionMonthAvg==null?'no completed current-month average yet':(fmt((m.assumptionMonthWeight||0)*100,0)+'% current-month average ('+fmt(m.assumptionMonthAvg,0)+' AED/day)'))+(m.assumptionRecent==null?'':(' + '+fmt((1-(m.assumptionMonthWeight||0))*100,0)+'% recent-history pace ('+fmt(m.assumptionRecent,0)+' AED/day)'))+'. That evidence adjusts the adaptive headroom, but the future line now assumes you follow the recommended sustainable pace from tomorrow onward. This keeps the chart focused on the allowance Ledger expects to offer if you stay on plan, rather than automatically running the pool to zero when recent spending is temporarily high. Protected essentials are already ring-fenced. Tap any point to inspect the allowance and granted headroom.</div>';
   }
   h+='</div>';return h;
 }
@@ -5247,26 +5290,10 @@ function renderSettingsPage() {
       h += '</select></div>';
       h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Counts toward budget</div><div class="muted caption" style="margin-top:2px;">Overall Analysis always includes it.</div></div><button data-action="toggle-category-budget" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(categoryExcludedFromBudget(selectedSub)?'var(--rust)':'var(--positive)')+';">'+(categoryExcludedFromBudget(selectedSub)?'Excluded':'Included')+'</button></div></div>';
       var forecastBehavior=categoryForecastBehavior(selectedSub);
-      h += '<div class="taxonomy-form-card"><label class="eyebrow">Forecast behavior</label><select id="subcategoryForecastBehaviorInput" data-cat="'+esc(selectedSub)+'" class="field" style="margin-top:7px;"><option value="auto"'+(forecastBehavior==='auto'?' selected':'')+'>Auto</option><option value="frequent"'+(forecastBehavior==='frequent'?' selected':'')+'>Frequent</option><option value="cadence"'+(forecastBehavior==='cadence'?' selected':'')+'>Cadence</option><option value="monthly"'+(forecastBehavior==='monthly'?' selected':'')+'>Monthly bill</option><option value="yearly"'+(forecastBehavior==='yearly'?' selected':'')+'>Yearly bill</option><option value="lumpy"'+(forecastBehavior==='lumpy'?' selected':'')+'>Lumpy</option></select><div class="muted caption" style="margin-top:6px;">Monthly bill stops after this month\'s payment. Yearly bill annual cost is detected automatically from a finite/yearly plan or transaction history; in-budget yearly bills can reserve for it monthly.</div></div>';
+      h += '<div class="taxonomy-form-card"><label class="eyebrow">Forecast behavior</label><select id="subcategoryForecastBehaviorInput" data-cat="'+esc(selectedSub)+'" class="field" style="margin-top:7px;"><option value="auto"'+(forecastBehavior==='auto'?' selected':'')+'>Auto</option><option value="frequent"'+(forecastBehavior==='frequent'?' selected':'')+'>Frequent</option><option value="cadence"'+(forecastBehavior==='cadence'?' selected':'')+'>Cadence</option><option value="monthly"'+(forecastBehavior==='monthly'?' selected':'')+'>Monthly bill</option><option value="yearly"'+(forecastBehavior==='yearly'?' selected':'')+'>Yearly bill</option><option value="lumpy"'+(forecastBehavior==='lumpy'?' selected':'')+'>Lumpy</option></select><div class="muted caption" style="margin-top:6px;">Monthly bill stops after this month\'s payment. Yearly bill is fully automatic: Ledger learns the annual cost from Plans or transaction history and annualizes it in the background.</div></div>';
       if(forecastBehavior==='yearly'){
-        var ycfg=yearlyBillConfigForCategory(selectedSub), monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        var overrideOpen=state.yearlyBillOverrideEditing===selectedSub;
-        h += '<div class="taxonomy-form-card"><label class="eyebrow">Yearly bill setup</label>';
-        h += '<div class="row between" style="margin-top:9px;align-items:flex-start;gap:12px;"><div style="min-width:0;flex:1;"><div class="muted caption">Annual cost</div><div class="mono" style="font-size:24px;font-weight:720;margin-top:2px;">'+(ycfg.amount>0?fmt(ycfg.amount,2)+' AED':'Not detected yet')+'</div><div class="muted caption" style="margin-top:4px;line-height:1.4;">'+esc(ycfg.sourceDetail)+'</div></div><button data-action="toggle-yearly-bill-override" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="flex-shrink:0;min-height:38px;padding:8px 11px;">'+(ycfg.hasOverride?'Edit override':'Override')+'</button></div>';
-        if(overrideOpen){
-          h += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="muted caption" style="margin-bottom:6px;">Manual annual-cost override</div><div class="row gap2"><input id="yearlyBillOverrideInput" data-cat="'+esc(selectedSub)+'" type="number" inputmode="decimal" min="0" step="0.01" class="field mono" value="'+(ycfg.hasOverride?ycfg.overrideAmount:(ycfg.amount>0?ycfg.amount:''))+'" placeholder="Annual amount" /><button data-action="save-yearly-bill-override" data-cat="'+esc(selectedSub)+'" class="btn-accent" style="flex-shrink:0;">Save</button></div>';
-          if(ycfg.hasOverride) h += '<button data-action="clear-yearly-bill-override" data-cat="'+esc(selectedSub)+'" class="btn-plain" style="margin-top:9px;">Use automatic amount instead</button>';
-          h += '</div>';
-        }
-        h += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="muted caption" style="margin-bottom:6px;">Due date</div><div class="row gap2"><div style="flex:1;"><select id="yearlyBillMonthInput" data-cat="'+esc(selectedSub)+'" class="field">';
-        monthNames.forEach(function(mn,mi){h+='<option value="'+(mi+1)+'"'+(ycfg.dueMonth===mi+1?' selected':'')+'>'+mn+'</option>';});
-        h += '</select></div><div style="width:84px;"><input id="yearlyBillDayInput" data-cat="'+esc(selectedSub)+'" type="number" inputmode="numeric" min="1" max="31" step="1" class="field mono" value="'+ycfg.dueDay+'" /></div><button data-action="save-yearly-bill-settings" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="flex-shrink:0;">Save</button></div></div>';
-        if(categoryExcludedFromBudget(selectedSub)){
-          h += '<div class="row between hairline-top" style="margin-top:12px;padding-top:11px;align-items:flex-start;"><div style="padding-right:12px;"><div class="headline">Annualized monthly cost</div><div id="yearlyBillReservePreview" class="muted caption" style="margin-top:2px;">'+(ycfg.amount>0?'About '+fmt(ycfg.amount/12,2)+' AED/month is used for annualized savings affordability. Planned installments still follow their real cash dates.':'Create a finite plan or add a transaction so Ledger can calculate the annualized monthly cost automatically.')+'</div></div><span class="chip" style="flex-shrink:0;">'+(ycfg.hasOverride?'Override':'Automatic')+'</span></div></div>';
-        }else{
-          h += '<div class="row between hairline-top" style="margin-top:12px;padding-top:11px;"><div style="padding-right:12px;"><div class="headline">Reserve monthly</div><div id="yearlyBillReservePreview" class="muted caption" style="margin-top:2px;">'+(ycfg.amount>0?'Protects about '+fmt(ycfg.amount/12,2)+' AED/month in Safe-to-Spend toward the annual cost. Planned installments still keep their exact cash timing.':'Create a finite plan or add a transaction so Ledger can calculate the monthly reserve automatically.')+'</div></div><button data-action="toggle-yearly-bill-reserve" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(ycfg.reserveMonthly?'var(--positive)':'var(--text-muted)')+';">'+(ycfg.reserveMonthly?'On':'Off')+'</button></div></div>';
-        }
-        h += '</div>';
+        var ycfg=yearlyBillConfigForCategory(selectedSub);
+        h += '<div class="taxonomy-form-card"><div class="row between" style="align-items:flex-start;gap:14px;"><div style="min-width:0;flex:1;"><div class="headline">Annualized monthly cost</div><div class="muted caption" style="margin-top:4px;line-height:1.45;">'+(ycfg.amount>0?('About '+fmt(ycfg.amount/12,2)+' AED/month is calculated automatically in the background. '+(ycfg.hasExactPlan?'Your Plan keeps the real installment dates.':'No yearly-bill setup is required.')):'Ledger will calculate this automatically once a finite/yearly Plan or transaction history is available.')+'</div></div><span class="chip" style="flex-shrink:0;">Automatic</span></div></div>';
       }
       var safePriority=subcategorySafeSpendPriority(selectedSub), safeEssential=safePriority==='essential';
       h += '<div class="taxonomy-form-card"><div class="row between"><div style="padding-right:12px;"><div class="headline">Safe-to-Spend priority</div><div class="muted caption" style="margin-top:2px;">Essential cadence/plan spending is protected first. Flexible forecasts never block today\'s allowance.</div></div><button data-action="toggle-safe-spend-priority" data-cat="'+esc(selectedSub)+'" class="btn-outline" style="color:'+(safeEssential?'var(--positive)':'var(--text-muted)')+';">'+(safeEssential?'Essential':'Flexible')+'</button></div></div>';
@@ -5465,7 +5492,11 @@ function renderAddTxnPage() {
   var selectedTime = state.entryTimeDraft != null ? state.entryTimeDraft : (editingItem ? (editingItem.time||"") : currentTimeStr());
   var cats = state.settings.categories || [];
   var txnKind = state.txnKind != null ? state.txnKind : (editingItem && editingItem.kind === "income" ? "income" : "expense");
-  var splitMode = state.txnSplitMode || "single";
+  /* v111.12 reuses the old timing-mode state key for backwards-compatible
+     draft handling, but the only new-entry choices are now a normal single
+     payment or a 4-installment Tabby plan. Legacy day-spread Plans remain
+     readable in Plans; they just cannot be created from this screen anymore. */
+  var splitMode = state.txnSplitMode === "tabby" ? "tabby" : "single";
   var selectedCat = state.entryCategoryDraft != null ? state.entryCategoryDraft : (editingItem ? (editingItem.category||"") : "");
   var people = state.settings.people || [];
   var txnTags = state.settings.transactionTags || [];
@@ -5477,7 +5508,7 @@ function renderAddTxnPage() {
   var fxRateShown = state.entryFxRateDraft != null ? state.entryFxRateDraft : (editingItem && editingItem.fxRate ? (Number(editingItem.fxRate)*reportingRate()) : (selectedCurrency===reportingCurrency()?1:""));
   var fxSourceShown = state.entryFxSourceDraft != null ? state.entryFxSourceDraft : (editingItem && editingItem.fxSource ? editingItem.fxSource : "");
   var parsedShown = parseFloat(amountShown);
-  var advancedOpen = !!state.txnAdvancedOpen || !!editingItem || splitMode === "split";
+  var advancedOpen = !!state.txnAdvancedOpen || !!editingItem || splitMode === "tabby";
 
   /* Most-used categories become one-tap choices. The full category hierarchy
      is still available behind More, but common entries no longer require a
@@ -5597,12 +5628,12 @@ function renderAddTxnPage() {
 
     if (advancedOpen) {
       h += '<div class="card" style="padding:12px;margin-bottom:12px;">';
-      h += '<div class="eyebrow" style="margin-bottom:6px;">Timing</div><div class="seg" style="margin-bottom:'+(splitMode==='split'?'8':'0')+'px;">';
-      h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==='single')+'" data-action="set-txn-split-mode" data-mode="single">Single day</button>';
-      h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==='split')+'" data-action="set-txn-split-mode" data-mode="split">Spread across days</button></div>';
-      if (splitMode === "split") {
-        h += '<input id="splitDaysInput" type="number" inputmode="numeric" min="2" step="1" class="field" style="margin-top:8px;" placeholder="Number of days" value="'+(state.entrySplitDaysDraft!=null?esc(state.entrySplitDaysDraft):"")+'" />';
-        h += '<div class="muted caption" style="margin-top:7px;">The total is spread evenly from this date; future shares are added as their day arrives.</div>';
+      h += '<div class="eyebrow" style="margin-bottom:6px;">Payment type</div><div class="seg" style="margin-bottom:'+(splitMode==='tabby'?'8':'0')+'px;">';
+      h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==='single')+'" data-action="set-txn-split-mode" data-mode="single">Single payment</button>';
+      h += '<button class="seg-btn" role="tab" aria-selected="'+(splitMode==='tabby')+'" data-action="set-txn-split-mode" data-mode="tabby">Tabby · 4</button></div>';
+      if (splitMode === "tabby") {
+        var tabbyInstallment=(!isNaN(parsedShown)&&parsedShown>0)?round2(parsedShown/4):null;
+        h += '<div class="muted caption" style="margin-top:7px;line-height:1.45;">Enter the <b style="color:var(--text);">full purchase amount</b>. Ledger logs the first quarter on this date and creates the next 3 monthly payments in Plans.'+(tabbyInstallment!=null?(' <span class="mono" style="font-weight:700;color:var(--text);">≈ '+fmt(tabbyInstallment,2)+' '+selectedCurrency+' × 4</span>'):'')+'</div>';
       }
       h += '</div>';
     }
@@ -5610,7 +5641,9 @@ function renderAddTxnPage() {
 
   var saveLabel;
   if (editingItem) saveLabel='Save changes';
+  else if (txnKind==='expense' && splitMode==='tabby' && !isNaN(parsedShown) && parsedShown>0) saveLabel='Create Tabby plan · 4 × '+fmt(round2(parsedShown/4),2)+' '+selectedCurrency;
   else if (!isNaN(parsedShown) && parsedShown>0) saveLabel='Add '+fmt(parsedShown,2)+' '+selectedCurrency+' '+(txnKind==='income'?'income':'expense');
+  else if (txnKind==='expense' && splitMode==='tabby') saveLabel='Create Tabby plan';
   else saveLabel='Add '+(txnKind==='income'?'income':'expense');
   h += '<button id="addTxnBtn" data-action="add-transaction" class="btn-accent txn-entry-save" style="width:100%;justify-content:center;align-items:center;">'+saveLabel+'</button>';
   if(editingItem) h += '<button data-action="ask-delete-txn" data-date="'+state.editingOriginalDate+'" data-id="'+esc(editingItem.id)+'" class="btn-outline row gap2" style="width:100%;margin-top:10px;justify-content:center;align-items:center;color:var(--rust);border-color:color-mix(in srgb, var(--rust) 40%, transparent);">'+ICONS.trash+' Delete transaction</button>';
@@ -5637,13 +5670,19 @@ function renderTransactionsBody() {
   var info=getTxnPeriodInfo();
   var people=state.settings.people||[];
   var groups=state.settings.categoryGroups||[];
+  var protectedTxnMap=currentProtectedCategoryMap(todayStr());
   function itemCat(it){return it.category||"Uncategorised";}
   function inPeriod(d){return d>=info.start&&d<=info.end;}
   function matchesGroup(it){if(!groupFilter)return true;if(groupFilter==="__ungrouped__")return !categoryGroupOf(it.category);return categoryGroupOf(it.category)===groupFilter;}
   function matchesBudgetScope(it){
     if(budgetScopeFilter==="all")return true;
     if(!isExpenseItem(it))return false;
-    return budgetScopeFilter==="budget"?itemCountsTowardBudget(it):!itemCountsTowardBudget(it);
+    if(budgetScopeFilter==="budget")return itemCountsTowardBudget(it);
+    if(budgetScopeFilter==="excluded")return !itemCountsTowardBudget(it);
+    var protectionClass=transactionBudgetProtectionClass(it,protectedTxnMap);
+    if(budgetScopeFilter==="protected")return protectionClass==="protected";
+    if(budgetScopeFilter==="unprotected")return protectionClass==="unprotected";
+    return true;
   }
   function matchesSearch(it){
     if(!search)return true;
@@ -5664,6 +5703,14 @@ function renderTransactionsBody() {
   entryDates.forEach(function(d){if(!inPeriod(d))return;(state.entries[d].items||[]).forEach(function(it){if(matches(it))allPeriodItems.push({date:d,it:it});});});
   var totalExpense=allPeriodItems.reduce(function(t,x){return t+(isExpenseItem(x.it)?personScopedAmount(x.it,personFilter):0);},0);
   var totalIncome=allPeriodItems.reduce(function(t,x){return t+(isIncomeItem(x.it)?x.it.amount:0);},0);
+  /* v111.12: Daily average uses calendar exposure, not only active transaction
+     days, and clips current periods to today + Tracking Start. It therefore
+     changes automatically with every search/category/person/protection filter. */
+  var avgStart=info.start,avgEnd=info.end>todayStr()?todayStr():info.end,trackingStart=state.settings.trackingStartDate;
+  if(trackingStart&&trackingStart>avgStart)avgStart=trackingStart;
+  var avgDays=avgStart<=avgEnd?Math.max(1,daysBetween(avgStart,avgEnd)+1):0;
+  var summaryIsIncome=typeFilter==="income", summaryTotal=summaryIsIncome?totalIncome:totalExpense;
+  var dailyAvg=avgDays>0?summaryTotal/avgDays:0;
 
   var h='';
   h+='<div class="row between page-heading-row"><div class="title2">Transactions</div><button data-action="go-page" data-page="calendar" class="icon-btn page-icon-action" aria-label="Calendar">'+ICONS.calendar+'</button></div>';
@@ -5676,7 +5723,7 @@ function renderTransactionsBody() {
   if(periodMode==='custom') h+='<div class="row gap2" style="margin:-2px 0 12px;"><input id="txnPeriodFromInput" type="date" class="field mono" style="flex:1;font-size:13px;text-align:center;" value="'+esc(periodFrom)+'" max="'+todayStr()+'"/><input id="txnPeriodToInput" type="date" class="field mono" style="flex:1;font-size:13px;text-align:center;" value="'+esc(periodTo)+'" max="'+todayStr()+'"/></div>';
 
   h+='<div class="card card-pad" style="margin-bottom:12px;">';
-  h+='<div><div class="eyebrow">Spent</div><div class="mono" style="font-size:30px;font-weight:700;margin-top:2px;">'+fmt(totalExpense,0)+' <span class="muted" style="font-size:15px;">AED</span></div></div>';
+  h+='<div class="row between" style="gap:18px;align-items:flex-start;"><div><div class="eyebrow">'+(summaryIsIncome?'Received':'Spent')+'</div><div class="mono" style="font-size:30px;font-weight:700;margin-top:2px;color:'+(summaryIsIncome?'var(--positive)':'var(--text)')+';">'+fmt(summaryTotal,0)+' <span class="muted" style="font-size:15px;">AED</span></div></div><div style="text-align:right;flex-shrink:0;padding-top:1px;"><div class="eyebrow">Daily avg</div><div class="mono" style="font-size:18px;font-weight:720;margin-top:4px;">'+fmt(dailyAvg,0)+' <span class="muted" style="font-size:11px;">AED/day</span></div></div></div>';
   if(periodMode==="week"||periodMode==="month"||periodMode==="year") h+='<div class="row between hairline-top" style="margin-top:12px;padding-top:10px;"><button data-action="txn-nav-offset" data-delta="-1" class="icon-btn" style="padding:6px;">'+ICONS.chevronLeft+'</button><div style="text-align:center;"><div class="subhead" style="font-weight:600;">'+esc(info.title)+'</div><div class="muted caption">'+esc(info.sub)+'</div></div><button data-action="txn-nav-offset" data-delta="1" class="icon-btn" style="padding:6px;'+(info.isCurrent?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';
   else if(periodMode==="last7"||periodMode==="last30") h+='<div class="hairline-top" style="margin-top:12px;padding-top:10px;text-align:center;"><div class="subhead" style="font-weight:600;">'+esc(info.title)+'</div><div class="muted caption">'+esc(info.sub)+'</div></div>';
   h+='</div>';
@@ -5690,7 +5737,7 @@ function renderTransactionsBody() {
   h+='</div>';
   if(typeFilter!=="income"){
     h+='<div class="hairline-top" style="margin-top:11px;padding-top:10px;"><div class="muted caption" style="margin-bottom:7px;">Budget scope</div><div style="display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;">';
-    [["all","All spending"],["budget","In budget"],["excluded","Outside budget"]].forEach(function(opt){var sel=budgetScopeFilter===opt[0];h+='<button data-action="set-txn-budget-scope" data-scope="'+opt[0]+'" class="chip" style="flex:0 0 auto;background:'+(sel?'var(--accent)':'var(--fill)')+';color:'+(sel?'var(--accent-ink)':'var(--text)')+';font-weight:'+(sel?'600':'500')+';">'+opt[1]+'</button>';});
+    [["all","All spending"],["budget","In budget"],["protected","Protected budget"],["unprotected","Unprotected budget"],["excluded","Outside budget"]].forEach(function(opt){var sel=budgetScopeFilter===opt[0];h+='<button data-action="set-txn-budget-scope" data-scope="'+opt[0]+'" class="chip" style="flex:0 0 auto;background:'+(sel?'var(--accent)':'var(--fill)')+';color:'+(sel?'var(--accent-ink)':'var(--text)')+';font-weight:'+(sel?'600':'500')+';">'+opt[1]+'</button>';});
     h+='</div></div>';
   }
 
@@ -7910,10 +7957,11 @@ function renderPlansBody() {
     if(n<7) return parseD(ds).toLocaleDateString('en-GB',{weekday:'long'});
     return shortLabel(ds);
   }
-  function planName(rule) { return rule.note || rule.category || (rule.kind==='split'?'Spread cost':(rule.entryKind==='income'?'Recurring income':'Recurring expense')); }
+  function planName(rule) { return rule.note || rule.category || (rule.paymentPlanType==='tabby'?'Tabby purchase':(rule.kind==='split'?'Spread cost':(rule.entryKind==='income'?'Recurring income':'Recurring expense'))); }
   function planMeta(rule) {
     var bits=[];
-    if(rule.kind==='split') bits.push('Spread over '+rule.occurrencesTotal+' days');
+    if(rule.paymentPlanType==='tabby') bits.push('Tabby · 4 monthly payments');
+    else if(rule.kind==='split') bits.push('Legacy spread · '+rule.occurrencesTotal+' days');
     else bits.push(rule.frequency==='daily'?'Daily':rule.frequency==='weekly'?'Weekly':rule.frequency==='yearly'?'Yearly':'Monthly');
     if(rule.category) {
       var parent=categoryGroupOf(rule.category);
@@ -7931,15 +7979,16 @@ function renderPlansBody() {
     var complete=ruleIsComplete(rule), paused=!rule.active&&!complete, logged=rule.occurrencesLogged||0, next=nextOccurrence(rule), isIncome=rule.entryKind==='income';
     var s='<div class="card card-pad" style="margin-bottom:8px;'+(paused?'opacity:.72;':'')+'">';
     s+='<div class="row" style="align-items:center;gap:11px;">'+planIcon(rule)+'<div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(planName(rule))+'</div><div class="muted caption" style="margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(planMeta(rule))+'</div></div>';
-    s+='<div style="text-align:right;flex-shrink:0;"><div class="mono" style="font-size:16px;font-weight:700;color:'+(isIncome?'var(--positive)':'var(--text)')+';">'+(isIncome?'+':'−')+fmt(rule.kind==='split'?(rule.splitTotal||rule.amount):rule.amount,2)+'</div><div class="caption" style="margin-top:2px;color:'+(complete?'var(--positive)':paused?'var(--text-muted)':'var(--accent)')+';">'+(complete?'Finished':paused?'Paused':(next?relativeDue(next.due):'No next date'))+'</div></div></div>';
+    var planDisplayAmount=(rule.kind==='split'||rule.paymentPlanType==='tabby')?(rule.splitTotal||rule.amount):rule.amount;
+    s+='<div style="text-align:right;flex-shrink:0;"><div class="mono" style="font-size:16px;font-weight:700;color:'+(isIncome?'var(--positive)':'var(--text)')+';">'+(isIncome?'+':'−')+fmt(planDisplayAmount,2)+'</div><div class="caption" style="margin-top:2px;color:'+(complete?'var(--positive)':paused?'var(--text-muted)':'var(--accent)')+';">'+(complete?'Finished':paused?'Paused':(next?relativeDue(next.due):'No next date'))+'</div></div></div>';
     if(rule.occurrencesTotal!=null) {
       var pct=Math.max(0,Math.min(100,Math.round(logged/rule.occurrencesTotal*100)));
       s+='<div style="margin-top:11px;"><div class="row between"><span class="muted caption">'+logged+' of '+rule.occurrencesTotal+' logged</span>';
-      if(rule.kind==='split') { var rem=round2((rule.splitTotal||0)-ruleLoggedAmount(rule)); s+='<span class="mono caption">'+fmt(Math.max(0,rem),2)+' AED left</span>'; }
+      if(rule.kind==='split'||rule.paymentPlanType==='tabby') { var rem=round2((rule.splitTotal||0)-ruleLoggedAmount(rule)); s+='<span class="mono caption">'+fmt(Math.max(0,rem),2)+' AED left</span>'; }
       s+='</div><div style="height:5px;background:var(--fill);border-radius:999px;overflow:hidden;margin-top:6px;"><div style="height:100%;width:'+pct+'%;background:'+(complete?'var(--positive)':'var(--accent)')+';"></div></div></div>';
     }
     s+='<div class="row between hairline-top" style="margin-top:11px;padding-top:9px;"><span class="muted caption">'+(next&&!paused?'Next '+shortLabel(next.due)+(rule.endDate?' · ends '+shortLabel(rule.endDate):''):(complete?'Completed':paused?'Automatic logging paused':'Ongoing'))+'</span><span class="row gap2">';
-    if(rule.kind==='recurring') s+='<button data-action="edit-recurring" data-id="'+esc(rule.id)+'" class="btn-outline" style="padding:6px 9px;font-size:11px;">Edit</button>';
+    if(rule.kind==='recurring'&&rule.paymentPlanType!=='tabby') s+='<button data-action="edit-recurring" data-id="'+esc(rule.id)+'" class="btn-outline" style="padding:6px 9px;font-size:11px;">Edit</button>';
     if(!complete) s+='<button data-action="toggle-recurring-active" data-id="'+esc(rule.id)+'" class="btn-outline" style="padding:6px 9px;font-size:11px;">'+(rule.active?'Pause':'Resume')+'</button>';
     s+='<button data-action="delete-recurring" data-id="'+esc(rule.id)+'" class="icon-btn" style="padding:7px;color:var(--rust);" aria-label="Delete">'+ICONS.trash+'</button></span></div></div>';
     return s;
@@ -7975,7 +8024,7 @@ function renderPlansBody() {
   if(activeRules.length) { h+='<div class="eyebrow" style="margin:18px 0 8px;">Active plans</div>'; activeRules.forEach(function(r){h+=planCard(r);}); }
   if(pausedRules.length) { h+='<div class="eyebrow" style="margin:18px 0 8px;">Paused</div>'; pausedRules.forEach(function(r){h+=planCard(r);}); }
   if(doneRules.length) { h+='<button data-action="toggle-finished-plans" class="row between card" style="width:100%;border:none;padding:13px 16px;margin-top:14px;text-align:left;"><span class="subhead" style="font-weight:600;">Finished plans</span><span class="row gap2"><span class="muted caption">'+doneRules.length+'</span><span style="display:flex;transform:rotate('+(state.plansShowFinished?'90':'0')+'deg);">'+ICONS.chevronRight+'</span></span></button>'; if(state.plansShowFinished) { h+='<div style="margin-top:8px;">'; doneRules.forEach(function(r){h+=planCard(r);}); h+='</div>'; } }
-  if(!rules.length && !state.plansCreateOpen) h+='<div class="card card-pad" style="margin-top:12px;text-align:center;"><div style="font-size:28px;margin-bottom:8px;">↻</div><div class="headline">Nothing scheduled yet</div><div class="muted subhead" style="margin:5px 0 12px;">Create a recurring expense or income plan. Spread costs created from a transaction will also appear here.</div><button data-action="toggle-plan-create" class="btn-accent">Create your first plan</button></div>';
+  if(!rules.length && !state.plansCreateOpen) h+='<div class="card card-pad" style="margin-top:12px;text-align:center;"><div style="font-size:28px;margin-bottom:8px;">↻</div><div class="headline">Nothing scheduled yet</div><div class="muted subhead" style="margin:5px 0 12px;">Create a recurring expense or income plan. Tabby purchases created from Add Transaction also appear here.</div><button data-action="toggle-plan-create" class="btn-accent">Create your first plan</button></div>';
   return h;
 }
 
@@ -8052,11 +8101,9 @@ function handleAddTransaction() {
   var tags = state.entryTagsDraft != null ? normalizeItemTags(state.entryTagsDraft) : normalizeItemTags(origItemForKind && origItemForKind.tags);
   if (kind === "income") category = ""; // income doesn't use the expense category system
 
-  if (!wasEditing && state.txnSplitMode === "split" && kind === "expense") {
-    var splitDaysEl = document.getElementById("splitDaysInput");
-    var splitDays = parseInt(splitDaysEl ? splitDaysEl.value : "", 10);
-    if (isNaN(splitDays) || splitDays < 2) return;
-    handleAddSplitTransaction(date, amt, category, note, splitDays, person, personSplit, fxMeta, tags);
+  if (!wasEditing && state.txnSplitMode === "tabby" && kind === "expense") {
+    if(!(amt>0)){ showToast("Enter the full Tabby purchase amount"); return; }
+    handleAddTabbyTransaction(date, amt, category, note, person, personSplit, fxMeta, tags);
     return;
   }
 
@@ -8102,7 +8149,42 @@ function handleAddTransaction() {
   animateTxnCommittedBack(txnCloseVisual);
 }
 
-/* Spreads one total across N consecutive days running FORWARD from the chosen
+/* v111.12: Tabby from Add Transaction is one purchase split into exactly four
+   monthly payments starting on the selected transaction date. The first
+   installment is logged immediately when due; the remaining three stay in
+   Plans and are logged by the existing recurring catch-up engine. The plan
+   retains the original total so Yearly Bill annualization can use the whole
+   purchase rather than mistaking one installment for the yearly cost. */
+function handleAddTabbyTransaction(startDate, totalAmount, category, note, person, personSplit, fxMeta, tags) {
+  var txnCloseVisual = captureTxnVisual();
+  var count=4, perPaymentFloor=Math.floor((totalAmount/count)*100)/100;
+  var newRule={
+    id:Date.now()+"-"+Math.random().toString(36).slice(2,7),
+    kind:"recurring", paymentPlanType:"tabby", entryKind:"expense",
+    amount:perPaymentFloor, splitTotal:round2(totalAmount),
+    category:category, note:note, person:person||"", personSplit:personSplit||null,
+    tags:normalizeItemTags(tags), frequency:"monthly", startDate:startDate,
+    endDate:null, occurrencesTotal:count, occurrencesLogged:0, active:true,
+    currency:fxMeta&&fxMeta.currency?fxMeta.currency:BASE_CURRENCY,
+    fxRate:fxMeta&&fxMeta.fxRate?fxMeta.fxRate:undefined,
+    fxSource:fxMeta&&fxMeta.fxSource?fxMeta.fxSource:undefined,
+    fxDate:fxMeta&&fxMeta.fxDate?fxMeta.fxDate:undefined
+  };
+  state.settings=Object.assign({},state.settings,{recurringRules:(state.settings.recurringRules||[]).concat([newRule])});
+  runRecurringCatchUp();
+  state.entryDate=startDate;
+  state.showAddTxn=false;
+  state.txnEntryRestoreScroll=true;
+  state.txnSplitMode="single";
+  state.txnKind=null;
+  state.entryTagsDraft=null;
+  persistAll(state.settings,state.entries,"your Tabby plan");
+  showToast("Tabby · 4 monthly payments created");
+  render();
+  animateTxnCommittedBack(txnCloseVisual);
+}
+
+/* Legacy compatibility only: spreads one total across N consecutive days running FORWARD from the chosen
    date, as a tracked plan rather than a pile of pre-written entries. Days that
    have already passed get logged immediately by the shared catch-up engine;
    days still to come are logged as each arrives — which is what makes "how
@@ -8798,7 +8880,7 @@ document.addEventListener("click", function(e) {
     case "edit-recurring":
       var editRuleId=el.dataset.id;
       var editRule=(state.settings.recurringRules||[]).find(function(r){return r.id===editRuleId;});
-      if(!editRule || editRule.kind!=="recurring") break;
+      if(!editRule || editRule.kind!=="recurring" || editRule.paymentPlanType==="tabby") break;
       state.plansReturnScrollY = window.scrollY || window.pageYOffset || 0;
       state.editingRecurringId = editRule.id;
       state.recurringKindDraft = editRule.entryKind||"expense";
