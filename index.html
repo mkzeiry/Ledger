@@ -694,7 +694,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v111.15";
+var APP_VERSION = "v111.16";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly", safeSpendHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true };
@@ -2591,7 +2591,8 @@ function loadInitial() {
   state.settings.budgetHiddenSections = normalizeBudgetHiddenSections(state.settings.budgetHiddenSections);
   state.settings.homeSectionOrder = normalizeHomeOrder(state.settings.homeSectionOrder);
   state.settings.homeSimpleSectionOrder = normalizeSimpleHomeOrder(state.settings.homeSimpleSectionOrder);
-  state.settings.homeSimpleView = !!state.settings.homeSimpleView;
+  /* v111.16: Home is now a single simplified view; the old detailed Home view has been removed. */
+  state.settings.homeSimpleView = true;
   state.settings.fxRateCache = normalizeFxCache(state.settings.fxRateCache);
   state.settings.baseCurrency = TXN_CURRENCIES.indexOf(String(state.settings.baseCurrency||"AED").toUpperCase())!==-1 ? String(state.settings.baseCurrency||"AED").toUpperCase() : "AED";
   state.settings.startingCashBalance = isFinite(Number(state.settings.startingCashBalance)) ? round2(Number(state.settings.startingCashBalance)) : 0;
@@ -4647,8 +4648,8 @@ function renderHomeBody(T, da) {
 
   var order = normalizeHomeOrder(state.settings.homeSectionOrder);
   var labels = { spending:"Spending", budget:"Budget", cashFlow:"Cash flow", recent:"Recent transactions" };
-  var isSimpleHome = !!state.settings.homeSimpleView;
-  var h = '<div class="row between" style="margin-bottom:7px;align-items:center;gap:10px;"><div class="eyebrow">This month</div><div class="row gap2">'+(isSimpleHome?'<button data-action="toggle-home-simple-reorder" class="btn-plain" style="font-size:12px;">'+(state.homeSimpleReorderMode?'Done':'Arrange')+'</button>':'')+'<div class="seg" style="padding:2px;min-width:166px;"><button class="seg-btn" data-action="set-home-view" data-mode="simple" aria-selected="'+isSimpleHome+'" style="padding:6px 10px;font-size:12px;">Simple</button><button class="seg-btn" data-action="set-home-view" data-mode="detailed" aria-selected="'+(!isSimpleHome)+'" style="padding:6px 10px;font-size:12px;">Detailed</button></div></div></div>';
+  var isSimpleHome = true;
+  var h = '<div class="row between" style="margin-bottom:7px;align-items:center;gap:10px;"><div class="eyebrow">This month</div><div class="row gap2"><button data-action="toggle-home-simple-reorder" class="btn-plain" style="font-size:12px;">'+(state.homeSimpleReorderMode?'Done':'Arrange')+'</button></div></div>';
   if (isSimpleHome) {
     var simpleSaving = projectedCashSaving != null ? projectedCashSaving : projectedSaving;
     var simpleSavingPct = projectedCashSaving != null ? projectedCashSavingPct : null;
@@ -4675,8 +4676,8 @@ function renderHomeBody(T, da) {
 
     var simpleCards={};
     var hero='<div class="card simple-metric-card simple-hero"><div class="simple-hero-grid">';
-    hero+='<div class="simple-hero-cell"><div class="muted caption">SAFE TO SPEND TODAY</div><div style="position:relative;display:inline-block;align-self:flex-start;max-width:100%;"><div class="mono simple-hero-value" style="color:'+safeTodayColor+';">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'))+'</div>'+(safeHeadroomPct!=null?'<span class="mono" style="position:absolute;left:100%;bottom:3px;margin-left:7px;font-size:11px;line-height:1;font-weight:800;color:var(--accent);white-space:nowrap;">+'+fmt(safeHeadroomPct,0)+'%</span>':'')+'</div></div>';
-    hero+='<div class="simple-hero-cell"><div class="muted caption">SPENT TODAY</div><div class="mono simple-hero-value" style="color:var(--text);">'+fmt(spentToday,0)+' <span class="muted simple-metric-unit">AED</span></div></div></div>';
+    hero+='<div class="simple-hero-cell"><div class="muted caption">SAFE TO SPEND TODAY</div><div class="mono simple-hero-value" style="color:'+safeTodayColor+';">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'))+'</div><div class="muted caption" style="margin-top:4px;">Available for the rest of today</div></div>';
+    hero+='<div class="simple-hero-cell"><div class="muted caption">SPENT TODAY</div><div class="mono" style="font-size:30px;font-weight:650;margin-top:5px;color:'+(safeToday!=null&&spentToday>safeToday?'var(--rust)':'var(--text-muted)')+';">'+fmt(spentToday,0)+' <span class="muted simple-metric-unit">AED</span></div><div class="muted caption" style="margin-top:4px;">Already logged today</div></div></div>';
     if(simpleStatus) hero+='<div class="simple-status" style="color:'+simpleStatusColor+';">'+esc(simpleStatus)+'</div>';
     simpleCards.hero=hero+'</div>';
 
@@ -4718,9 +4719,15 @@ function renderHomeBody(T, da) {
     simpleCards.today=todayCard+'</div>';
 
     var projectedSpendVsIncomePct=incomeReference>0?(projected/incomeReference*100):null;
+    var maxSpendForSavings=(incomeReference>0&&homeSavingsPct>0)?savingsSpendCeilingForIncome(incomeReference):null;
+    var projectedSpendTargetGapPct=maxSpendForSavings>0?((projected-maxSpendForSavings)/maxSpendForSavings*100):null;
+    var projectedSpendColor='var(--text)';
+    if(maxSpendForSavings!=null&&projected>maxSpendForSavings){
+      projectedSpendColor=projectedSpendTargetGapPct!=null&&projectedSpendTargetGapPct>=10?'var(--rust)':'var(--amber)';
+    }
     var outlook='<div class="card simple-outlook-card"><div class="eyebrow">Month outlook</div><div class="simple-outlook-grid">';
     outlook+='<div><div class="simple-outlook-label">TOTAL SPENT SO FAR</div><div class="mono simple-outlook-value">'+fmt(overall.spent,0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(spentVsIncomePct==null?'Income not set':spentVsIncomePct.toFixed(0)+'% of income')+'</div></div>';
-    outlook+='<div><div class="simple-outlook-label">PROJECTED TOTAL SPEND</div><div class="mono simple-outlook-value">'+fmt(projected,0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(projectedSpendVsIncomePct==null?'Income not set':projectedSpendVsIncomePct.toFixed(0)+'% of income')+'</div></div></div>';
+    outlook+='<div><div class="simple-outlook-label">PROJECTED TOTAL SPEND</div><div class="mono simple-outlook-value" style="color:'+projectedSpendColor+';">'+fmt(projected,0)+' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">'+(projectedSpendVsIncomePct==null?'Income not set':projectedSpendVsIncomePct.toFixed(0)+'% of income')+'</div></div></div>';
     if(incomeReference>0)outlook+=pctBar(projectedSpendVsIncomePct,projectedSpendVsIncomePct>100);
     var simpleSavingColor=simpleSaving<0?'var(--rust)':'var(--positive)';
     /* v111.13: Home Month outlook stays focused on this month's actual cash
@@ -4967,7 +4974,6 @@ function renderBudgetBody(T) {
   summary+=statBlock('Safe to spend today',isCurrent&&safeToday!=null?(fmt(safeToday,0)+' AED'):'—',safeToday!=null&&safeToday<0?'var(--rust)':'var(--text)');
   summary+=statBlock('Spent today',isCurrent?fmt(spentToday,0)+' AED':'—','var(--text)');
   summary+=statBlock('Projected vs budget',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div>';
-  if(isCurrent&&state.view==='month') summary+=safeSpendOutlookHtml(livePacing,T);
   if(budgetSavingsComparison){
     var bsc=budgetSavingsComparison, savingsTighter=effectiveInfo&&effectiveInfo.savingsTight;
     var relationText=savingsTighter ? fmt(bsc.pct,0)+'% savings goal sets the limit' : 'Your set monthly budget sets the limit';
@@ -5780,7 +5786,8 @@ function renderTransactionsBody() {
     var heading=date===todayStr()?"Today · "+shortLabel(date):(date===yesterday?"Yesterday · "+shortLabel(date):dayLabel(date));
     var collapsedMap=state.txnCollapsedDays||{};
     var hasExplicit=Object.prototype.hasOwnProperty.call(collapsedMap,date);
-    var collapsed=hasExplicit?!!collapsedMap[date]:(typeof state.txnCollapseAll==="boolean"?state.txnCollapseAll:date!==todayStr());
+    /* v111.16: Transactions now default to expanded for faster scanning; explicit day toggles and expand/collapse-all still work. */
+    var collapsed=hasExplicit?!!collapsedMap[date]:(typeof state.txnCollapseAll==="boolean"?state.txnCollapseAll:false);
     h+='<div style="'+(di?'border-top:1px solid var(--hairline);':'')+'">';
     h+='<button data-action="toggle-txn-day" data-date="'+date+'" class="row between" style="width:100%;background:none;border:none;padding:12px 16px;color:inherit;text-align:left;gap:12px;align-items:center;">';
     h+='<span style="min-width:0;"><span class="subhead" style="font-weight:650;display:block;">'+esc(heading)+'</span><span class="muted caption" style="display:block;margin-top:2px;">'+count+' transaction'+(count===1?'':'s')+'</span></span>';
@@ -9290,7 +9297,7 @@ document.addEventListener("click", function(e) {
       }
       break;
     case "set-home-view":
-      var simpleHome = el.dataset.mode === "simple";
+      var simpleHome = true;
       state.homeReorderMode = false;
       state.homeSimpleReorderMode = false;
       persistAll(Object.assign({}, state.settings, { homeSimpleView: simpleHome }), state.entries, "home view");
@@ -9556,7 +9563,7 @@ document.addEventListener("click", function(e) {
       if(txnDayKey){
         var txnMap=Object.assign({},state.txnCollapsedDays||{});
         var txnExplicit=Object.prototype.hasOwnProperty.call(txnMap,txnDayKey);
-        var txnCur=txnExplicit?!!txnMap[txnDayKey]:(typeof state.txnCollapseAll==="boolean"?state.txnCollapseAll:txnDayKey!==todayStr());
+        var txnCur=txnExplicit?!!txnMap[txnDayKey]:(typeof state.txnCollapseAll==="boolean"?state.txnCollapseAll:false);
         txnMap[txnDayKey]=!txnCur;
         state.txnCollapsedDays=txnMap;
       }
