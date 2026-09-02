@@ -694,7 +694,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v111.3";
+var APP_VERSION = "v111.4";
 var FORECAST_MODEL_VERSION = "v103-yearly-bill-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly" };
@@ -1565,6 +1565,9 @@ var state = {
   txnTagFilter: "",
   txnPeriodMode: "month",
   txnTypeFilter: "all",
+  txnBudgetScopeFilter: "all",
+  txnCollapsedDays: {},
+  txnCollapseAll: null,
   txnSearch: "",
   txnFiltersOpen: false,
   txnShowAllCategories: false,
@@ -5220,6 +5223,7 @@ function renderTransactionsBody() {
   var personFilter=state.txnPersonFilter||"";
   var tagFilter=state.txnTagFilter||"";
   var typeFilter=state.txnTypeFilter||"all";
+  var budgetScopeFilter=state.txnBudgetScopeFilter||"all";
   var search=(state.txnSearch||"").trim().toLowerCase();
   var periodMode=state.txnPeriodMode||"month";
   var periodFrom=state.txnPeriodFrom||"", periodTo=state.txnPeriodTo||"";
@@ -5229,6 +5233,11 @@ function renderTransactionsBody() {
   function itemCat(it){return it.category||"Uncategorised";}
   function inPeriod(d){return d>=info.start&&d<=info.end;}
   function matchesGroup(it){if(!groupFilter)return true;if(groupFilter==="__ungrouped__")return !categoryGroupOf(it.category);return categoryGroupOf(it.category)===groupFilter;}
+  function matchesBudgetScope(it){
+    if(budgetScopeFilter==="all")return true;
+    if(!isExpenseItem(it))return false;
+    return budgetScopeFilter==="budget"?itemCountsTowardBudget(it):!itemCountsTowardBudget(it);
+  }
   function matchesSearch(it){
     if(!search)return true;
     var persons=(it.personSplit&&it.personSplit.length)?it.personSplit.map(function(ps){return ps.person;}).join(" "):(it.person||"");
@@ -5238,36 +5247,45 @@ function renderTransactionsBody() {
   function matches(it){
     if(typeFilter==="expense"&&!isExpenseItem(it))return false;
     if(typeFilter==="income"&&!isIncomeItem(it))return false;
+    if(!matchesBudgetScope(it))return false;
     if(isIncomeItem(it)&&(categoryFilter||groupFilter))return false;
     return (!categoryFilter||itemCat(it)===categoryFilter)&&matchesGroup(it)&&itemMatchesPersonFilter(it,personFilter)&&(!tagFilter||normalizeItemTags(it.tags).indexOf(tagFilter)!==-1)&&matchesSearch(it);
   }
-  var itemFilterActive=!!categoryFilter||!!groupFilter||!!personFilter||!!tagFilter||typeFilter!=="all"||!!search;
+  var itemFilterActive=!!categoryFilter||!!groupFilter||!!personFilter||!!tagFilter||typeFilter!=="all"||budgetScopeFilter!=="all"||!!search;
 
   var allPeriodItems=[];
   entryDates.forEach(function(d){if(!inPeriod(d))return;(state.entries[d].items||[]).forEach(function(it){if(matches(it))allPeriodItems.push({date:d,it:it});});});
   var totalExpense=allPeriodItems.reduce(function(t,x){return t+(isExpenseItem(x.it)?personScopedAmount(x.it,personFilter):0);},0);
   var totalIncome=allPeriodItems.reduce(function(t,x){return t+(isIncomeItem(x.it)?x.it.amount:0);},0);
-  var net=totalIncome-totalExpense;
 
   var h='';
   h+='<div class="row between page-heading-row"><div class="title2">Transactions</div><button data-action="go-page" data-page="calendar" class="icon-btn page-icon-action" aria-label="Calendar">'+ICONS.calendar+'</button></div>';
   h+='<div class="seg txn-period-primary">';
   [["week","Week"],["month","Month"],["year","Year"],["custom","Custom"]].forEach(function(opt){h+='<button class="seg-btn" role="tab" aria-selected="'+(periodMode===opt[0])+'" data-action="set-txn-period" data-mode="'+opt[0]+'">'+opt[1]+'</button>';});
   h+='</div>';
+  h+='<div style="display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;margin:-2px 0 12px;">';
+  [["last7","Last 7 days"],["last30","Last 30 days"]].forEach(function(opt){var sel=periodMode===opt[0];h+='<button data-action="set-txn-period" data-mode="'+opt[0]+'" class="chip" style="flex:0 0 auto;background:'+(sel?'var(--accent)':'var(--fill)')+';color:'+(sel?'var(--accent-ink)':'var(--text)')+';font-weight:'+(sel?'600':'500')+';">'+opt[1]+'</button>';});
+  h+='</div>';
   if(periodMode==='custom') h+='<div class="row gap2" style="margin:-2px 0 12px;"><input id="txnPeriodFromInput" type="date" class="field mono" style="flex:1;font-size:13px;text-align:center;" value="'+esc(periodFrom)+'" max="'+todayStr()+'"/><input id="txnPeriodToInput" type="date" class="field mono" style="flex:1;font-size:13px;text-align:center;" value="'+esc(periodTo)+'" max="'+todayStr()+'"/></div>';
 
   h+='<div class="card card-pad" style="margin-bottom:12px;">';
   h+='<div><div class="eyebrow">Spent</div><div class="mono" style="font-size:30px;font-weight:700;margin-top:2px;">'+fmt(totalExpense,0)+' <span class="muted" style="font-size:15px;">AED</span></div></div>';
-  if(periodMode!=="all"&&periodMode!=="custom") h+='<div class="row between hairline-top" style="margin-top:12px;padding-top:10px;"><button data-action="txn-nav-offset" data-delta="-1" class="icon-btn" style="padding:6px;">'+ICONS.chevronLeft+'</button><div style="text-align:center;"><div class="subhead" style="font-weight:600;">'+esc(info.title)+'</div><div class="muted caption">'+esc(info.sub)+'</div></div><button data-action="txn-nav-offset" data-delta="1" class="icon-btn" style="padding:6px;'+(info.isCurrent?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';
+  if(periodMode==="week"||periodMode==="month"||periodMode==="year") h+='<div class="row between hairline-top" style="margin-top:12px;padding-top:10px;"><button data-action="txn-nav-offset" data-delta="-1" class="icon-btn" style="padding:6px;">'+ICONS.chevronLeft+'</button><div style="text-align:center;"><div class="subhead" style="font-weight:600;">'+esc(info.title)+'</div><div class="muted caption">'+esc(info.sub)+'</div></div><button data-action="txn-nav-offset" data-delta="1" class="icon-btn" style="padding:6px;'+(info.isCurrent?'opacity:.3;pointer-events:none;':'')+'">'+ICONS.chevronRight+'</button></div>';
+  else if(periodMode==="last7"||periodMode==="last30") h+='<div class="hairline-top" style="margin-top:12px;padding-top:10px;text-align:center;"><div class="subhead" style="font-weight:600;">'+esc(info.title)+'</div><div class="muted caption">'+esc(info.sub)+'</div></div>';
   h+='</div>';
 
   h+='<div class="card" style="padding:12px;margin-bottom:12px;">';
   h+='<div style="position:relative;margin-bottom:10px;"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);display:flex;">'+ICONS.search+'</span><input id="txnSearchInput" type="search" class="field" placeholder="Search merchant, category, person or tag" value="'+esc(state.txnSearch||"")+'" style="padding-left:40px;" /></div>';
   h+='<div style="display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;">';
   [["all","All"],["expense","Expenses"],["income","Income"]].forEach(function(opt){var sel=typeFilter===opt[0];h+='<button data-action="set-txn-type-filter" data-type="'+opt[0]+'" class="chip" style="flex:0 0 auto;background:'+(sel?'var(--accent)':'var(--fill)')+';color:'+(sel?'var(--accent-ink)':'var(--text)')+';font-weight:'+(sel?'600':'500')+';">'+opt[1]+'</button>';});
-  var extraFilters=!!groupFilter||!!categoryFilter||!!personFilter||!!tagFilter||periodMode!=="month";
+  var extraFilters=!!groupFilter||!!categoryFilter||!!personFilter||!!tagFilter||periodMode!=="month"||budgetScopeFilter!=="all";
   h+='<button data-action="toggle-txn-filters" class="chip" style="flex:0 0 auto;'+(extraFilters?'background:var(--accent);color:var(--accent-ink);font-weight:600;':'')+'">Filters'+(extraFilters?' •':'')+'</button>';
   h+='</div>';
+  if(typeFilter!=="income"){
+    h+='<div class="hairline-top" style="margin-top:11px;padding-top:10px;"><div class="muted caption" style="margin-bottom:7px;">Budget scope</div><div style="display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;">';
+    [["all","All spending"],["budget","In budget"],["excluded","Outside budget"]].forEach(function(opt){var sel=budgetScopeFilter===opt[0];h+='<button data-action="set-txn-budget-scope" data-scope="'+opt[0]+'" class="chip" style="flex:0 0 auto;background:'+(sel?'var(--accent)':'var(--fill)')+';color:'+(sel?'var(--accent-ink)':'var(--text)')+';font-weight:'+(sel?'600':'500')+';">'+opt[1]+'</button>';});
+    h+='</div></div>';
+  }
 
   if(state.txnFiltersOpen){
     h+='<div class="hairline-top" style="margin-top:12px;padding-top:12px;">';
@@ -5283,21 +5301,36 @@ function renderTransactionsBody() {
   h+='</div>';
 
   var dates=entryDates.slice().reverse().filter(function(d){if(!inPeriod(d))return false;return (state.entries[d].items||[]).some(matches);});
+  if(dates.length>1){
+    h+='<div class="row between" style="margin:2px 3px 8px;"><span class="muted caption">Tap a day to show or hide its transactions</span><span class="row gap2"><button data-action="collapse-all-txn-days" class="btn-plain" style="font-size:12px;">Collapse all</button><button data-action="expand-all-txn-days" class="btn-plain" style="font-size:12px;">Expand all</button></span></div>';
+  }
   h+='<div class="card" style="overflow:hidden;margin-bottom:16px;">';
   if(!dates.length)h+='<div class="muted subhead" style="padding:20px 16px;">'+(itemFilterActive?'No matching transactions.':'Nothing logged in this period.')+'</div>';
   else dates.forEach(function(date,di){
     var items=(state.entries[date].items||[]).filter(matches);
     var expense=items.reduce(function(t,it){return t+(isExpenseItem(it)?personScopedAmount(it,personFilter):0);},0);
     var income=items.reduce(function(t,it){return t+(isIncomeItem(it)?it.amount:0);},0);
+    var count=items.length;
     var yesterday=toStr(addDays(parseD(todayStr()),-1));
     var heading=date===todayStr()?"Today · "+shortLabel(date):(date===yesterday?"Yesterday · "+shortLabel(date):dayLabel(date));
-    h+='<div style="padding:12px 16px;'+(di?'border-top:1px solid var(--hairline);':'')+'"><div class="row between" style="margin-bottom:5px;"><div class="subhead" style="font-weight:600;">'+esc(heading)+'</div><div style="text-align:right;">'+(expense>0?'<div class="mono subhead">'+fmt(expense,2)+' AED</div>':'')+(income>0?'<div class="mono caption" style="color:var(--positive);">+'+fmt(income,2)+' received</div>':'')+'</div></div>';
-    txnNewestFirst(items).forEach(function(it){h+=renderTxnRow(date,it);});
+    var collapsedMap=state.txnCollapsedDays||{};
+    var hasExplicit=Object.prototype.hasOwnProperty.call(collapsedMap,date);
+    var collapsed=hasExplicit?!!collapsedMap[date]:(typeof state.txnCollapseAll==="boolean"?state.txnCollapseAll:date!==todayStr());
+    h+='<div style="'+(di?'border-top:1px solid var(--hairline);':'')+'">';
+    h+='<button data-action="toggle-txn-day" data-date="'+date+'" class="row between" style="width:100%;background:none;border:none;padding:12px 16px;color:inherit;text-align:left;gap:12px;align-items:center;">';
+    h+='<span style="min-width:0;"><span class="subhead" style="font-weight:650;display:block;">'+esc(heading)+'</span><span class="muted caption" style="display:block;margin-top:2px;">'+count+' transaction'+(count===1?'':'s')+'</span></span>';
+    h+='<span class="row" style="gap:8px;align-items:center;flex-shrink:0;"><span style="text-align:right;">'+(expense>0?'<span class="mono subhead" style="display:block;">'+fmt(expense,2)+' AED</span>':'')+(income>0?'<span class="mono caption" style="display:block;color:var(--positive);margin-top:2px;">+'+fmt(income,2)+' received</span>':'')+'</span><span style="display:flex;transform:rotate('+(collapsed?'0':'180')+'deg);transition:transform .16s ease;">'+ICONS.chevronDown+'</span></span></button>';
+    if(!collapsed){
+      h+='<div style="padding:0 16px 8px;">';
+      txnNewestFirst(items).forEach(function(it){h+=renderTxnRow(date,it);});
+      h+='</div>';
+    }
     h+='</div>';
   });
   h+='</div>';
   return h;
 }
+
 function legendSwatch(bg, label, fg) {
   return '<div class="row" style="align-items:center; gap:5px;"><span style="width:10px; height:10px; border-radius:3px; background:'+bg+'; display:inline-block;"></span><span style="font-size:10px; color:'+(fg||"var(--text-muted)")+';">'+esc(label)+'</span></div>';
 }
@@ -7046,17 +7079,17 @@ function getTxnPeriodInfo() {
   var entryDatesAll = Object.keys(state.entries).sort();
   var naturalStart = entryDatesAll.length ? entryDatesAll[0] : today;
   if (mode === "all") {
-    /* "All time" must mean all of it: if any logged entry falls after today
-       (e.g. a recurring/split plan that caught up while the device clock was
-       ahead, or any other edge case), the upper bound has to stretch to
-       cover it too — otherwise this view silently drops entries that Week/
-       Month (which use real calendar bounds, not an artificial "up to
-       today" cap) would still show, which is exactly the inconsistency that
-       made deleted-but-orphaned split entries "disappear" from All while
-       still appearing under Week. */
     var latestEntryDate = entryDatesAll.length ? entryDatesAll[entryDatesAll.length-1] : today;
     var endAll = latestEntryDate > today ? latestEntryDate : today;
     return { start: naturalStart, end: endAll, title: "All time", sub: "", isCurrent: true, mode: mode };
+  }
+  if (mode === "last7" || mode === "last30") {
+    /* Rolling diagnostic windows deliberately use completed days only so the
+       Transactions page can audit the same 7/30-day averages shown on Home. */
+    var days = mode === "last7" ? 7 : 30;
+    var endRolling = toStr(addDays(parseD(today), -1));
+    var startRolling = toStr(addDays(parseD(endRolling), -(days-1)));
+    return { start:startRolling, end:endRolling, title:shortLabel(startRolling)+" – "+shortLabel(endRolling), sub:"Last "+days+" completed days", isCurrent:true, mode:mode };
   }
   if (mode === "custom") {
     var from = state.txnPeriodFrom || naturalStart;
@@ -8973,6 +9006,33 @@ document.addEventListener("click", function(e) {
       break;
     case "set-txn-type-filter":
       state.txnTypeFilter = el.dataset.type || "all";
+      if(state.txnTypeFilter === "income") state.txnBudgetScopeFilter = "all";
+      render();
+      break;
+    case "set-txn-budget-scope":
+      state.txnBudgetScopeFilter = el.dataset.scope || "all";
+      if(state.txnBudgetScopeFilter !== "all") state.txnTypeFilter = "expense";
+      render();
+      break;
+    case "toggle-txn-day":
+      var txnDayKey=el.dataset.date;
+      if(txnDayKey){
+        var txnMap=Object.assign({},state.txnCollapsedDays||{});
+        var txnExplicit=Object.prototype.hasOwnProperty.call(txnMap,txnDayKey);
+        var txnCur=txnExplicit?!!txnMap[txnDayKey]:(typeof state.txnCollapseAll==="boolean"?state.txnCollapseAll:txnDayKey!==todayStr());
+        txnMap[txnDayKey]=!txnCur;
+        state.txnCollapsedDays=txnMap;
+      }
+      render();
+      break;
+    case "collapse-all-txn-days":
+      state.txnCollapseAll=true;
+      state.txnCollapsedDays={};
+      render();
+      break;
+    case "expand-all-txn-days":
+      state.txnCollapseAll=false;
+      state.txnCollapsedDays={};
       render();
       break;
     case "toggle-txn-filters":
@@ -8984,6 +9044,7 @@ document.addEventListener("click", function(e) {
       state.txnCategoryFilter = "";
       state.txnPersonFilter = "";
       state.txnTagFilter = "";
+      state.txnBudgetScopeFilter = "all";
       state.txnPeriodMode = "month";
       state.txnOffset = 0;
       state.txnPeriodFrom = "";
@@ -9038,6 +9099,8 @@ document.addEventListener("click", function(e) {
     case "set-txn-period":
       state.txnPeriodMode = el.dataset.mode;
       state.txnOffset = 0;
+      state.txnCollapsedDays = {};
+      state.txnCollapseAll = null;
       if (state.txnPeriodMode === "custom" && (!state.txnPeriodFrom || !state.txnPeriodTo)) {
         var customMonth = getPeriodBounds("month", 0, currentWeeklyTarget(), dailyAllowance());
         state.txnPeriodFrom = customMonth.startStr;
