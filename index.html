@@ -694,7 +694,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v111.2";
+var APP_VERSION = "v111.3";
 var FORECAST_MODEL_VERSION = "v103-yearly-bill-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly" };
@@ -1797,26 +1797,27 @@ function currentSavingsBudgetComparison() {
 /* Recent completed-day pace remains a diagnostic for Budget Status, but v88
    never uses it to relax or override a user-set budget/savings constraint. */
 function currentBudgetSpendPaceStats(){
-  var per=getPeriodBounds("month",0,currentWeeklyTarget(),dailyAllowance());
+  /* v111.3: this diagnostic is a rolling comparison, independent of the
+     selected/current calendar month. Use completed days only so a partial
+     current day cannot artificially depress the averages. */
   var today=todayStr(), completedEnd=toStr(addDays(parseD(today),-1));
-  var start=per.startStr;
-  var tsd=state.settings.trackingStartDate;
-  if(tsd&&tsd>start) start=tsd;
-  if(completedEnd>per.endStr) completedEnd=per.endStr;
-  if(completedEnd<start){
-    return {start:start,end:completedEnd,completedDays:0,dailyAvg:null,last7Avg:null,last7Days:0,trendPct:null,paceReference:null};
+  var trackingStart=state.settings.trackingStartDate||"1900-01-01";
+  var start30=toStr(addDays(parseD(completedEnd),-29));
+  if(start30<trackingStart) start30=trackingStart;
+  if(completedEnd<trackingStart){
+    return {start:start30,end:completedEnd,completedDays:0,dailyAvg:null,last7Avg:null,last7Days:0,trendPct:null,paceReference:null};
   }
-  var mtd=periodStatsBudget(start,completedEnd);
-  var completedDays=mtd.elapsedDays||0;
-  var dailyAvg=completedDays>0?round2(mtd.spent/completedDays):null;
+  var last30=periodStatsBudget(start30,completedEnd);
+  var completedDays=last30.elapsedDays||0;
+  var dailyAvg=completedDays>0?round2(last30.spent/completedDays):null;
   var last7Start=toStr(addDays(parseD(completedEnd),-6));
-  if(last7Start<start) last7Start=start;
+  if(last7Start<trackingStart) last7Start=trackingStart;
   var last7=periodStatsBudget(last7Start,completedEnd);
   var last7Days=last7.elapsedDays||0;
   var last7Avg=last7Days>0?round2(last7.spent/last7Days):null;
   var trendPct=(dailyAvg!=null&&dailyAvg>0&&last7Avg!=null)?round2((last7Avg/dailyAvg-1)*100):null;
   var paceReference=(last7Avg!=null&&last7Days>=3)?last7Avg:dailyAvg;
-  return {start:start,end:completedEnd,completedDays:completedDays,dailyAvg:dailyAvg,last7Avg:last7Avg,last7Days:last7Days,trendPct:trendPct,paceReference:paceReference};
+  return {start:start30,end:completedEnd,completedDays:completedDays,dailyAvg:dailyAvg,last7Avg:last7Avg,last7Days:last7Days,trendPct:trendPct,paceReference:paceReference};
 }
 function currentEffectiveBudgetInfo(){
   var per=getPeriodBounds("month",0,currentWeeklyTarget(),dailyAllowance());
@@ -4256,8 +4257,8 @@ function renderHomeBody(T, da) {
   budgetCard += '</div>';
   if(budgetDailyAvg!=null||budgetLast7Avg!=null){
     var detailedTrendColor=budgetTrendPct==null?'var(--text-muted)':(budgetTrendPct<0?'var(--positive)':(budgetTrendPct>0?'var(--rust)':'var(--text-muted)'));
-    var detailedTrendText=budgetTrendPct==null?'—':((budgetTrendPct>0?'+':'')+fmt(budgetTrendPct,0)+'% vs daily avg');
-    budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between" style="align-items:baseline;gap:10px;"><span class="muted subhead">Budget spending pace</span><span class="mono caption" style="font-weight:750;color:'+detailedTrendColor+';">'+esc(detailedTrendText)+'</span></div><div class="row" style="margin-top:9px;gap:18px;"><div style="flex:1;"><div class="muted caption">DAILY AVG (MTD)</div><div class="mono subhead" style="font-weight:700;margin-top:2px;">'+(budgetDailyAvg==null?'—':fmt(budgetDailyAvg,0)+' AED/day')+'</div></div><div style="flex:1;"><div class="muted caption">LAST 7 DAYS</div><div class="mono subhead" style="font-weight:700;margin-top:2px;color:'+detailedTrendColor+';">'+(budgetLast7Avg==null?'—':fmt(budgetLast7Avg,0)+' AED/day')+'</div></div></div><div class="muted caption" style="margin-top:6px;">Completed days · budget-counted spending only</div></div>';
+    var detailedTrendText=budgetTrendPct==null?'—':((budgetTrendPct>0?'+':'')+fmt(budgetTrendPct,0)+'% vs 30-day avg');
+    budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between" style="align-items:baseline;gap:10px;"><span class="muted subhead">Budget spending pace</span><span class="mono caption" style="font-weight:750;color:'+detailedTrendColor+';">'+esc(detailedTrendText)+'</span></div><div class="row" style="margin-top:9px;gap:18px;"><div style="flex:1;"><div class="muted caption">LAST 30 DAYS</div><div class="mono subhead" style="font-weight:700;margin-top:2px;">'+(budgetDailyAvg==null?'—':fmt(budgetDailyAvg,0)+' AED/day')+'</div></div><div style="flex:1;"><div class="muted caption">LAST 7 DAYS</div><div class="mono subhead" style="font-weight:700;margin-top:2px;color:'+detailedTrendColor+';">'+(budgetLast7Avg==null?'—':fmt(budgetLast7Avg,0)+' AED/day')+'</div></div></div><div class="muted caption" style="margin-top:6px;">Completed days · budget-counted spending only</div></div>';
   }
   if(homeBudgetPositionData.length){
     budgetCard += '<div class="hairline-top" style="margin-top:14px;padding-top:12px;"><div class="row between"><span class="muted subhead">Ahead / behind budget</span><span class="mono subhead" style="font-weight:700;color:'+(homeBudgetPosition>=0?'var(--accent)':'var(--rust)')+';">'+(homeBudgetPosition>=0?'+':'−')+fmt(Math.abs(homeBudgetPosition),0)+' AED '+(homeBudgetPosition>=0?'ahead':'behind')+'</span></div><div class="muted caption" style="margin-top:3px;">'+esc(homeAheadBehindResolutionLabel(homeChartResolution))+' · today accrues with elapsed time.</div>'+renderMiniBudgetPositionChart(homeBudgetPositionData,T)+'</div>';
@@ -4319,7 +4320,7 @@ function renderHomeBody(T, da) {
 
     var simpleCards={};
     var hero='<div class="card simple-metric-card simple-hero"><div class="simple-hero-grid">';
-    hero+='<div class="simple-hero-cell"><div class="muted caption">SAFE TO SPEND TODAY</div><div class="row" style="align-items:baseline;gap:7px;flex-wrap:wrap;"><div class="mono simple-hero-value" style="color:'+safeTodayColor+';">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'))+'</div>'+(safeHeadroomPct!=null?'<span class="mono caption" style="font-weight:800;color:var(--accent);background:var(--accent-wash);padding:3px 7px;border-radius:999px;">+'+fmt(safeHeadroomPct,0)+'%</span>':'')+'</div></div>';
+    hero+='<div class="simple-hero-cell"><div class="muted caption">SAFE TO SPEND TODAY</div><div style="position:relative;display:inline-block;align-self:flex-start;max-width:100%;"><div class="mono simple-hero-value" style="color:'+safeTodayColor+';">'+(safeToday==null?'—':(fmt(safeToday,0)+' <span class="muted simple-metric-unit">AED</span>'))+'</div>'+(safeHeadroomPct!=null?'<span class="mono" style="position:absolute;left:100%;bottom:3px;margin-left:7px;font-size:11px;line-height:1;font-weight:800;color:var(--accent);white-space:nowrap;">+'+fmt(safeHeadroomPct,0)+'%</span>':'')+'</div></div>';
     hero+='<div class="simple-hero-cell"><div class="muted caption">SPENT TODAY</div><div class="mono simple-hero-value" style="color:var(--text);">'+fmt(spentToday,0)+' <span class="muted simple-metric-unit">AED</span></div></div></div>';
     if(simpleStatus) hero+='<div class="simple-status" style="color:'+simpleStatusColor+';">'+esc(simpleStatus)+'</div>';
     simpleCards.hero=hero+'</div>';
@@ -4334,7 +4335,7 @@ function renderHomeBody(T, da) {
     if(budgetDailyAvg!=null||budgetLast7Avg!=null){
       var simpleTrendColor=budgetTrendPct==null?'var(--text-muted)':(budgetTrendPct<0?'var(--accent)':(budgetTrendPct>0?'var(--rust)':'var(--text-muted)'));
       var simpleTrendText=budgetTrendPct==null?'—':((budgetTrendPct>0?'+':'')+fmt(budgetTrendPct,0)+'%');
-      budgetStatus+='<div class="hairline-top" style="margin-top:12px;padding-top:11px;"><div class="row between" style="gap:10px;align-items:baseline;"><span class="muted caption" style="font-weight:650;">BUDGET SPENDING PACE</span><span class="mono caption" style="font-weight:800;color:'+simpleTrendColor+';">'+esc(simpleTrendText)+'</span></div><div class="row" style="margin-top:7px;gap:16px;"><div style="flex:1;"><div class="muted caption">Daily avg</div><div class="mono subhead" style="font-weight:750;">'+(budgetDailyAvg==null?'—':fmt(budgetDailyAvg,0)+' AED/day')+'</div></div><div style="flex:1;"><div class="muted caption">Last 7 days</div><div class="mono subhead" style="font-weight:750;color:'+simpleTrendColor+';">'+(budgetLast7Avg==null?'—':fmt(budgetLast7Avg,0)+' AED/day')+'</div></div></div></div>';
+      budgetStatus+='<div class="hairline-top" style="margin-top:12px;padding-top:11px;"><div class="row between" style="gap:10px;align-items:baseline;"><span class="muted caption" style="font-weight:650;">BUDGET SPENDING PACE</span><span class="mono caption" style="font-weight:800;color:'+simpleTrendColor+';">'+esc(simpleTrendText)+'</span></div><div class="row" style="margin-top:7px;gap:16px;"><div style="flex:1;"><div class="muted caption">Last 30 days</div><div class="mono subhead" style="font-weight:750;">'+(budgetDailyAvg==null?'—':fmt(budgetDailyAvg,0)+' AED/day')+'</div></div><div style="flex:1;"><div class="muted caption">Last 7 days</div><div class="mono subhead" style="font-weight:750;color:'+simpleTrendColor+';">'+(budgetLast7Avg==null?'—':fmt(budgetLast7Avg,0)+' AED/day')+'</div></div></div></div>';
     }
     simpleCards.budgetStatus=budgetStatus+'</div>';
 
