@@ -694,10 +694,10 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v111.14";
+var APP_VERSION = "v111.15";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly", safeSpendHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true };
+var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSectionOrder: null, homeSimpleSectionOrder: null, homeSimpleView: true, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, safeSpendFlexibilityPct: 50, homeAheadBehindResolution: "hourly", safeSpendHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true };
 var DEFAULT_HOME_ORDER = ["spending","budget","cashFlow","recent"];
 function normalizeHomeOrder(order) {
   var out = (order||[]).filter(function(id){ return DEFAULT_HOME_ORDER.indexOf(id)!==-1; });
@@ -1917,6 +1917,22 @@ function monthlyEquivalentForRecurringRule(rule){
   if(f==="yearly")return round2(a/12);
   return round2(a);
 }
+/* v111.15: A Monthly Bill should stop being an estimate as soon as the
+   current month's real bill is known. For monthly-behavior outside-budget
+   categories, the exact amount already logged this month now wins over a
+   historical typical amount. If no current bill exists yet, an explicit Plan
+   wins next; only then does Ledger fall back to learned history. Yearly bills
+   remain annualized separately so installment timing cannot distort them. */
+function currentMonthLoggedExpenseForCategory(catName){
+  var today=todayStr(), start=today.slice(0,7)+"-01", total=0, count=0;
+  Object.keys(state.entries||{}).forEach(function(ds){
+    if(ds<start||ds>today)return;
+    ((state.entries[ds]&&state.entries[ds].items)||[]).forEach(function(it){
+      if(isExpenseItem(it)&&subcategoryKey(it)===catName){total+=Math.max(0,Number(it.amount)||0);count++;}
+    });
+  });
+  return {amount:round2(total),count:count};
+}
 function normalizedOutsideBudgetMonthlyCost(){
   var cats=(state.settings.categories||[]).filter(function(c){return categoryExcludedFromBudget(c);});
   var rules=(state.settings.recurringRules||[]).filter(function(r){return r&&r.active&&r.kind==="recurring"&&r.entryKind!=="income"&&!ruleIsComplete(r)&&categoryExcludedFromBudget(r.category);});
@@ -1928,14 +1944,27 @@ function normalizedOutsideBudgetMonthlyCost(){
       if(cfg&&cfg.amount>0){amount=cfg.amount/12;source="Yearly bill ÷ 12";}
     } else {
       var cr=rules.filter(function(r){return r.category===c;});
-      if(cr.length){
+      if(behavior==="monthly"){
+        var currentBill=currentMonthLoggedExpenseForCategory(c);
+        if(currentBill.amount>0){
+          amount=currentBill.amount;source="Current month actual";
+        } else if(cr.length){
+          amount=cr.reduce(function(sum,r){return sum+monthlyEquivalentForRecurringRule(r);},0);
+          source="Recurring plan normalized monthly";
+        } else {
+          var mp=profiles[c];
+          if(mp){amount=Math.max(0,Number(mp.typicalTxnAmount)||Number(mp.typicalAmount)||0);source="Monthly bill historical typical";}
+        }
+      } else if(cr.length){
         amount=cr.reduce(function(sum,r){return sum+monthlyEquivalentForRecurringRule(r);},0);
         source="Recurring plan normalized monthly";
       } else {
         var p=profiles[c];
         if(p){
           if(p.mode==="monthly"){
-            amount=Math.max(0,Number(p.typicalTxnAmount)||Number(p.typicalAmount)||0);source="Monthly bill typical amount";
+            var inferredCurrent=currentMonthLoggedExpenseForCategory(c);
+            if(inferredCurrent.amount>0){amount=inferredCurrent.amount;source="Current month actual";}
+            else {amount=Math.max(0,Number(p.typicalTxnAmount)||Number(p.typicalAmount)||0);source="Monthly bill historical typical";}
           } else if(p.mode==="frequent"){
             amount=Math.max(0,Number(frequentPaceStats(p,todayStr()).mean)||0)*monthDays;source="Frequent pace annualized";
           } else if(p.mode==="cadence"&&Number(p.eventGap)>0){
@@ -2520,7 +2549,7 @@ async function restoreLocalSnapshotById(id) {
 }
 
 function loadInitial() {
-  var v1119SafeHistoryMigrationNeeded=false, v11110YearlyAutoMigrationNeeded=false, v11111YearlyBackgroundMigrationNeeded=false, v11114StableSafeMigrationNeeded=false;
+  var v1119SafeHistoryMigrationNeeded=false, v11110YearlyAutoMigrationNeeded=false, v11111YearlyBackgroundMigrationNeeded=false, v11114StableSafeMigrationNeeded=false, v11115MonthlyBillActualMigrationNeeded=false;
   primaryStorageHealth="missing";
   try {
     var raw = localStorage.getItem(STORAGE_KEY);
@@ -2533,6 +2562,7 @@ function loadInitial() {
       v11110YearlyAutoMigrationNeeded=parsedSettings.yearlyBillAutoMigrationV11110!==true;
       v11111YearlyBackgroundMigrationNeeded=parsedSettings.yearlyBillBackgroundMigrationV11111!==true;
       v11114StableSafeMigrationNeeded=parsedSettings.safeSpendStableMigrationV11114!==true;
+      v11115MonthlyBillActualMigrationNeeded=parsedSettings.monthlyBillActualMigrationV11115!==true;
       state.settings = Object.assign({}, DEFAULT_SETTINGS, parsedSettings);
       if (!state.settings.rateHistory || !state.settings.rateHistory.length) {
         state.settings.rateHistory = [{ from: "1900-01-01", weeklyTarget: state.settings.weeklyTarget }];
@@ -2609,6 +2639,15 @@ function loadInitial() {
   if(primaryStorageHealth==="healthy"&&v11114StableSafeMigrationNeeded){
     state.settings.safeSpendHistory=state.settings.safeSpendHistory.filter(function(x){return !x||x.date!==todayStr();});
     state.settings.safeSpendStableMigrationV11114=true;
+    adaptiveSafeHistoryMigrationChanged=true;
+  }
+  /* v111.15: once a real Monthly Bill has been logged in the current month,
+     annualized affordability uses that exact amount instead of a historical
+     typical estimate. That can change the effective budget, so refresh today's
+     opening Safe-to-Spend once on upgrade. */
+  if(primaryStorageHealth==="healthy"&&v11115MonthlyBillActualMigrationNeeded){
+    state.settings.safeSpendHistory=state.settings.safeSpendHistory.filter(function(x){return !x||x.date!==todayStr();});
+    state.settings.monthlyBillActualMigrationV11115=true;
     adaptiveSafeHistoryMigrationChanged=true;
   }
   state.settings.transactionTags = normalizeTransactionTags(state.settings.transactionTags);
@@ -6263,14 +6302,17 @@ function buildAnalysisForecastCard(info, cs, T, scope) {
   var forecastDays = Math.max(1, daysBetween(forecastStart, info.end) + 1);
   var projectedIncome = info.isCurrent ? projectedIncomeForRange(info.start,info.end) : round2(Number(cs.income)||0);
   /* A monthly salary landing inside one seven-day window is a real cash-flow
-     event, but it is NOT a sensible weekly spending ceiling. On Week, keep
-     the forecast focused on spend versus the comparable 7-day pace. Month
-     and Year retain the income/savings benchmark, where the target has the
-     same economic horizon as the forecast. */
-  var useSavingsBenchmark = scope === "overall" && info.mode === "year";
-  var incomeTarget = useSavingsBenchmark && projectedIncome > 0 ? projectedIncome : null;
+     event, but it is NOT a sensible weekly savings benchmark. Month and Year
+     can compare total spend against the maximum spend compatible with the
+     selected savings target. */
+  /* v111.15: Overall Analysis Month and Year use the savings-compatible
+     maximum-spend ceiling as the forecast target, matching Budget's visual
+     treatment. Week intentionally stays without a savings line because a
+     monthly salary landing inside one week is not a meaningful weekly target. */
+  var useSavingsBenchmark = scope === "overall" && (info.mode === "month" || info.mode === "year");
   var goalPct=savingsTargetPct();
-  var savingsSpendCeiling=(useSavingsBenchmark && incomeTarget!=null && goalPct>0)?savingsSpendCeilingForIncome(projectedIncome):null;
+  var savingsSpendCeiling=(useSavingsBenchmark && projectedIncome>0 && goalPct>0)?savingsSpendCeilingForIncome(projectedIncome):null;
+  var incomeTarget = null;
 
   var periodWord = info.mode === "week" ? "week"
     : info.mode === "month" ? "month"
@@ -7124,8 +7166,7 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   var projectedSaved = hasTarget ? statusTarget - projectedSpend : null;
   var actualSoFar = fc.actualSpentSoFar;
   /* When Analysis has a savings goal, the goal's maximum-spend line becomes
-     the decision threshold while the full Income line remains visible as
-     context. Budget forecast continues to use the budget itself. */
+     the decision threshold. Budget forecast continues to use the budget itself. */
   var forecastStatus = !hasTarget ? "positive" : (actualSoFar > statusTarget ? "rust" : (projectedSpend > statusTarget ? "amber" : "positive"));
   var favorable = forecastStatus === "positive";
   var forecastStatusColor = forecastStatus === "rust" ? "var(--rust)" : (forecastStatus === "amber" ? "var(--amber)" : "var(--positive)");
@@ -7153,14 +7194,11 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
   if (hasTarget) {
     var statusLabel=goalTarget!=null?"Savings target":(refLabel||"Budget");
     s += '<div style="text-align:right;"><div class="muted caption">VS '+esc(statusLabel.toUpperCase())+'</div>';
-    if(goalTarget!=null && target>0){
-      var projectedSavingPct=(target-projectedSpend)/target*100;
-      s += '<div class="chip" style="margin-top:4px;background:'+forecastStatusBg+';color:'+forecastStatusColor+';font-weight:700;">'+Math.max(-999,projectedSavingPct).toFixed(0)+'% / '+fmt(goalPct==null?savingsTargetPct():goalPct,0)+'%</div>';
-      s += '<div class="mono footnote" style="margin-top:4px;color:'+forecastStatusColor+';">'+(projectedSaved>=0?('+'+fmt(Math.abs(projectedSaved),0)+' AED room'):('−'+fmt(Math.abs(projectedSaved),0)+' AED short'))+'</div></div>';
-    } else {
-      s += '<div class="chip" style="margin-top:4px; background:'+forecastStatusBg+'; color:'+forecastStatusColor+'; font-weight:700;">'+(vsBudgetPct>=0?'+':'')+vsBudgetPct+'%</div>';
-      s += '<div class="mono footnote" style="margin-top:4px; color:'+forecastStatusColor+';">'+(projectedSaved>=0?'+':'−')+fmt(Math.abs(projectedSaved),0)+' AED</div></div>';
-    }
+    /* v111.15: Savings-target comparison now mirrors Budget exactly: the
+       percentage is projected spend versus the maximum spend compatible with
+       the savings goal, and the AED line is the remaining room/overage. */
+    s += '<div class="chip" style="margin-top:4px; background:'+forecastStatusBg+'; color:'+forecastStatusColor+'; font-weight:700;">'+(vsBudgetPct>=0?'+':'')+vsBudgetPct+'%</div>';
+    s += '<div class="mono footnote" style="margin-top:4px; color:'+forecastStatusColor+';">'+(projectedSaved>=0?'+':'−')+fmt(Math.abs(projectedSaved),0)+' AED</div></div>';
   }
   s += '</div>';
   s += '<div class="seg" style="margin-bottom:12px;">';
