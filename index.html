@@ -308,8 +308,8 @@
   .simple-outlook-sub { margin-top:3px; color:var(--text-muted); font-size:10.5px; font-weight:600; }
   .home-metric-value-line { display:flex; align-items:baseline; flex-wrap:wrap; column-gap:4px; row-gap:2px; white-space:normal; }
   .home-metric-primary { white-space:nowrap; }
-  .home-yesterday-delta { display:inline-flex; align-items:center; justify-content:center; padding:1px 5px; border:1px solid color-mix(in srgb, currentColor 22%, transparent); border-radius:999px; background:color-mix(in srgb, currentColor 10%, transparent); font-size:10px; line-height:1.45; font-weight:800; letter-spacing:0; white-space:nowrap; vertical-align:.16em; }
-  .simple-hero-value .home-yesterday-delta { font-size:10px; }
+  .home-opening-delta { display:inline-flex; align-items:center; justify-content:center; padding:1px 5px; border:1px solid color-mix(in srgb, currentColor 22%, transparent); border-radius:999px; background:color-mix(in srgb, currentColor 10%, transparent); font-size:10px; line-height:1.45; font-weight:800; letter-spacing:0; white-space:nowrap; vertical-align:.16em; }
+  .simple-hero-value .home-opening-delta { font-size:10px; }
   html.simple-home .app-topbar { margin-bottom:8px; }
   html.simple-home .simple-budget-card .hairline-top { margin-top:9px !important; padding-top:8px !important; }
   @media (max-width:360px) {
@@ -1123,7 +1123,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v112.14";
+var APP_VERSION = "v112.15";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true };
@@ -1135,7 +1135,8 @@ function normalizeForecastSnapshots(list) {
   (list||[]).forEach(function(x){
     if(!x||typeof x!=="object"||!/\d{4}-\d{2}-\d{2}/.test(x.snapshotDate||"")||!/\d{4}-\d{2}-\d{2}/.test(x.periodEnd||"")) return;
     var f=Number(x.forecastClose); if(!isFinite(f)||f<0) return;
-    out.push({snapshotDate:x.snapshotDate,scope:x.scope==="overall"?"overall":"budget",period:x.period==="week"?"week":"month",periodStart:x.periodStart,periodEnd:x.periodEnd,forecastClose:round2(f),actualSoFar:round2(Number(x.actualSoFar)||0),target:round2(Number(x.target)||0),modelVersion:String(x.modelVersion||"legacy"),breakdown:Array.isArray(x.breakdown)?x.breakdown.slice(0,40):[]});
+    var projectedIncome=x.projectedIncome==null?null:Number(x.projectedIncome),projectedSaving=x.projectedSaving==null?null:Number(x.projectedSaving);
+    out.push({snapshotDate:x.snapshotDate,scope:x.scope==="overall"?"overall":"budget",period:x.period==="week"?"week":"month",periodStart:x.periodStart,periodEnd:x.periodEnd,forecastClose:round2(f),actualSoFar:round2(Number(x.actualSoFar)||0),target:round2(Number(x.target)||0),projectedIncome:isFinite(projectedIncome)&&projectedIncome>0?round2(projectedIncome):null,projectedSaving:projectedSaving!=null&&isFinite(projectedSaving)?round2(projectedSaving):null,modelVersion:String(x.modelVersion||"legacy"),breakdown:Array.isArray(x.breakdown)?x.breakdown.slice(0,40):[]});
   });
   out.sort(function(a,b){return a.snapshotDate<b.snapshotDate?-1:a.snapshotDate>b.snapshotDate?1:0;});
   return out.slice(-450);
@@ -2185,17 +2186,18 @@ function normalizeSafeSpendHistory(v){
   return Object.keys(byDate).sort().map(function(k){return byDate[k];}).slice(-120);
 }
 function safeSpendHistory(){ return normalizeSafeSpendHistory(state.settings.safeSpendHistory); }
-/* Home headline values are updated whenever Home is rendered. Yesterday's
-   retained row is therefore the last dashboard state the user actually saw,
-   while the older Safe-to-Spend / forecast snapshots provide an immediate
-   fallback for ledgers upgrading to this version. */
+/* Home direction compares two immutable daily openings: today's opening value
+   against yesterday's opening value. v112.14 briefly stored last-viewed Home
+   values in this field; openingCaptured deliberately excludes those rows so
+   they can never be mistaken for genuine opening snapshots. */
 function normalizeHomeMetricHistory(v){
   var rows=Array.isArray(v)?v:[],byDate={};
   rows.forEach(function(x){
-    if(!x||!/^\d{4}-\d{2}-\d{2}$/.test(String(x.date||"")))return;
-    var safe=x.safeToSpend==null?null:Number(x.safeToSpend),budget=Number(x.projectedBudgetSpend),saving=x.projectedSaving==null?null:Number(x.projectedSaving);
-    if((safe!=null&&(!isFinite(safe)||safe<0))||!isFinite(budget)||budget<0||(saving!=null&&!isFinite(saving)))return;
-    byDate[x.date]={date:x.date,periodStart:String(x.periodStart||""),periodEnd:String(x.periodEnd||""),safeToSpend:safe==null?null:round2(safe),projectedBudgetSpend:round2(budget),projectedSaving:saving==null?null:round2(saving)};
+    if(!x||x.openingCaptured!==true||!/^\d{4}-\d{2}-\d{2}$/.test(String(x.date||"")))return;
+    var safe=x.safeToSpend==null?null:Number(x.safeToSpend),budget=x.projectedBudgetSpend==null?null:Number(x.projectedBudgetSpend),saving=x.projectedSaving==null?null:Number(x.projectedSaving);
+    if((safe!=null&&(!isFinite(safe)||safe<0))||(budget!=null&&(!isFinite(budget)||budget<0))||(saving!=null&&!isFinite(saving)))return;
+    if(safe==null&&budget==null&&saving==null)return;
+    byDate[x.date]={date:x.date,periodStart:String(x.periodStart||""),periodEnd:String(x.periodEnd||""),safeToSpend:safe==null?null:round2(safe),projectedBudgetSpend:budget==null?null:round2(budget),projectedSaving:saving==null?null:round2(saving),openingCaptured:true};
   });
   return Object.keys(byDate).sort().map(function(k){return byDate[k];}).slice(-120);
 }
@@ -2205,41 +2207,39 @@ function projectedIncomeReferenceAsOf(startStr,endStr,asOfStr){
   var future=endStr>asOfStr?scheduledIncomeInRange(asOfStr,endStr):0;
   return round2(Math.max(planned,actual+future));
 }
-function homeMetricDeltasAndRecord(current){
-  var date=todayStr(),yesterday=toStr(addDays(parseD(date),-1)),hist=normalizeHomeMetricHistory(state.settings.homeMetricHistory);
-  var previous=hist.find(function(x){return x.date===yesterday;})||null;
-  var samePeriod=!!(previous&&previous.periodStart===current.periodStart&&previous.periodEnd===current.periodEnd);
-  var previousSafe=previous?previous.safeToSpend:null;
-  var previousBudget=samePeriod?previous.projectedBudgetSpend:null;
-  var previousSaving=samePeriod?previous.projectedSaving:null;
-
-  if(previousSafe==null){
-    var safeRow=safeSpendHistory().find(function(x){return x.date===yesterday;});
-    if(safeRow)previousSafe=safeRow.openingSafe;
-  }
+function homeOpeningMetricRow(date,current){
+  var safeRow=safeSpendHistory().find(function(x){return x.date===date;})||null;
   var snaps=normalizeForecastSnapshots(state.settings.forecastSnapshots);
-  if(previousBudget==null){
-    var budgetSnap=snaps.find(function(x){return x.snapshotDate===yesterday&&x.scope==="budget"&&x.period==="month"&&x.periodEnd===current.periodEnd;});
-    if(budgetSnap)previousBudget=budgetSnap.forecastClose;
-  }
-  if(previousSaving==null&&current.projectedSaving!=null){
-    var overallSnap=snaps.find(function(x){return x.snapshotDate===yesterday&&x.scope==="overall"&&x.period==="month"&&x.periodEnd===current.periodEnd;});
-    if(overallSnap){
-      var priorIncome=projectedIncomeReferenceAsOf(current.periodStart,current.periodEnd,yesterday);
-      if(priorIncome>0)previousSaving=round2(priorIncome-overallSnap.forecastClose);
+  var budgetSnap=snaps.find(function(x){return x.snapshotDate===date&&x.scope==="budget"&&x.period==="month";})||null;
+  var overallSnap=snaps.find(function(x){return x.snapshotDate===date&&x.scope==="overall"&&x.period==="month";})||null;
+  var periodStart=budgetSnap?budgetSnap.periodStart:(overallSnap?overallSnap.periodStart:(current?current.periodStart:""));
+  var periodEnd=budgetSnap?budgetSnap.periodEnd:(overallSnap?overallSnap.periodEnd:(current?current.periodEnd:""));
+  var safe=safeRow?safeRow.openingSafe:(current?current.safeToSpend:null);
+  var budget=budgetSnap?budgetSnap.forecastClose:(current?current.projectedBudgetSpend:null);
+  var saving=null;
+  if(overallSnap){
+    if(overallSnap.projectedSaving!=null)saving=overallSnap.projectedSaving;
+    else {
+      var openingIncome=overallSnap.projectedIncome;
+      if(!(openingIncome>0))openingIncome=projectedIncomeReferenceAsOf(overallSnap.periodStart,overallSnap.periodEnd,date);
+      if(openingIncome>0)saving=round2(openingIncome-overallSnap.forecastClose);
     }
-  }
-
-  var row={date:date,periodStart:current.periodStart,periodEnd:current.periodEnd,safeToSpend:current.safeToSpend==null?null:round2(Math.max(0,Number(current.safeToSpend)||0)),projectedBudgetSpend:round2(Math.max(0,Number(current.projectedBudgetSpend)||0)),projectedSaving:current.projectedSaving==null?null:round2(Number(current.projectedSaving)||0)};
-  var idx=hist.findIndex(function(x){return x.date===date;}),changed=idx<0||JSON.stringify(hist[idx])!==JSON.stringify(row);
-  if(changed){
-    if(idx<0)hist.push(row);else hist[idx]=row;
-    persistAll(Object.assign({},state.settings,{homeMetricHistory:normalizeHomeMetricHistory(hist)}),state.entries,"Home daily comparison");
-  }
+  } else if(current) saving=current.projectedSaving;
+  if(safe==null&&budget==null&&saving==null)return null;
+  return {date:date,periodStart:String(periodStart||""),periodEnd:String(periodEnd||""),safeToSpend:safe==null?null:round2(Math.max(0,Number(safe)||0)),projectedBudgetSpend:budget==null?null:round2(Math.max(0,Number(budget)||0)),projectedSaving:saving==null?null:round2(Number(saving)||0),openingCaptured:true};
+}
+function homeOpeningMetricDeltasAndRecord(current){
+  var date=todayStr(),yesterday=toStr(addDays(parseD(date),-1)),hist=normalizeHomeMetricHistory(state.settings.homeMetricHistory),changed=false;
+  var todayOpening=hist.find(function(x){return x.date===date;})||null;
+  if(!todayOpening){todayOpening=homeOpeningMetricRow(date,current);if(todayOpening){hist.push(todayOpening);changed=true;}}
+  var yesterdayOpening=hist.find(function(x){return x.date===yesterday;})||null;
+  if(!yesterdayOpening){yesterdayOpening=homeOpeningMetricRow(yesterday,null);if(yesterdayOpening){hist.push(yesterdayOpening);changed=true;}}
+  if(changed)persistAll(Object.assign({},state.settings,{homeMetricHistory:normalizeHomeMetricHistory(hist)}),state.entries,"Home opening comparison");
+  var samePeriod=!!(todayOpening&&yesterdayOpening&&todayOpening.periodEnd&&todayOpening.periodEnd===yesterdayOpening.periodEnd);
   return {
-    safeToSpend:(previousSafe==null||current.safeToSpend==null)?null:round2(current.safeToSpend-previousSafe),
-    projectedBudgetSpend:previousBudget==null?null:round2(current.projectedBudgetSpend-previousBudget),
-    projectedSaving:(previousSaving==null||current.projectedSaving==null)?null:round2(current.projectedSaving-previousSaving)
+    safeToSpend:(!todayOpening||!yesterdayOpening||todayOpening.safeToSpend==null||yesterdayOpening.safeToSpend==null)?null:round2(todayOpening.safeToSpend-yesterdayOpening.safeToSpend),
+    projectedBudgetSpend:(!samePeriod||todayOpening.projectedBudgetSpend==null||yesterdayOpening.projectedBudgetSpend==null)?null:round2(todayOpening.projectedBudgetSpend-yesterdayOpening.projectedBudgetSpend),
+    projectedSaving:(!samePeriod||todayOpening.projectedSaving==null||yesterdayOpening.projectedSaving==null)?null:round2(todayOpening.projectedSaving-yesterdayOpening.projectedSaving)
   };
 }
 function homeMetricDeltaHtml(delta,higherIsBetter){
@@ -2250,8 +2250,8 @@ function homeMetricDeltaHtml(delta,higherIsBetter){
     color=improved?"var(--positive)":"var(--rust)";
   }
   var sign=shown>0?"+":(shown<0?"−":"±"),direction=shown>0?"higher":(shown<0?"lower":"unchanged");
-  var label=shown===0?"Unchanged from yesterday":(fmt(Math.abs(shown),0)+" AED "+direction+" than yesterday");
-  return '<span class="mono home-yesterday-delta" style="color:'+color+';" title="'+esc(label)+'" aria-label="'+esc(label)+'">('+sign+fmt(Math.abs(shown),0)+')</span>';
+  var label=shown===0?"Same opening value as yesterday":("Today's opening was "+fmt(Math.abs(shown),0)+" AED "+direction+" than yesterday's opening");
+  return '<span class="mono home-opening-delta" style="color:'+color+';" title="'+esc(label)+'" aria-label="'+esc(label)+'">('+sign+fmt(Math.abs(shown),0)+')</span>';
 }
 function ensureSafeSpendSnapshot(){
   var date=todayStr(), hist=safeSpendHistory();
@@ -4701,7 +4701,7 @@ function renderHomeBody(T, da) {
   var projectedCashSaving = incomeReference > 0 ? round2(incomeReference - projected) : null;
   var projectedCashSavingPct = incomeReference > 0 ? (projectedCashSaving / incomeReference * 100) : null;
   var simpleSaving = projectedCashSaving != null ? projectedCashSaving : projectedSaving;
-  var homeMetricDeltas=homeMetricDeltasAndRecord({periodStart:month.startStr,periodEnd:month.endStr,safeToSpend:safeToday,projectedBudgetSpend:projectedBudgetSpend,projectedSaving:simpleSaving});
+  var homeMetricDeltas=homeOpeningMetricDeltasAndRecord({periodStart:month.startStr,periodEnd:month.endStr,safeToSpend:safeToday,projectedBudgetSpend:projectedBudgetSpend,projectedSaving:simpleSaving,projectedIncome:incomeReference});
   var safeDeltaHtml=homeMetricDeltaHtml(homeMetricDeltas.safeToSpend,true);
   var projectedBudgetDeltaHtml=homeMetricDeltaHtml(homeMetricDeltas.projectedBudgetSpend,false);
   var projectedSavingDeltaHtml=homeMetricDeltaHtml(homeMetricDeltas.projectedSaving,true);
@@ -6946,7 +6946,9 @@ function makeForecastSnapshot(scope, periodWord) {
   if(days<=0) return null;
   var fc=computeForecastNumbers(stats.rows,days,start,scope);
   if(!fc) return null;
-  return {snapshotDate:todayStr(),scope:scope,period:periodWord,periodStart:start,periodEnd:per.endStr,forecastClose:round2(fc.projectedSpend),actualSoFar:round2(fc.actualSpentSoFar),target:scope==="budget"?round2(fullPeriodTarget(per.startStr,per.endStr)):0,modelVersion:FORECAST_MODEL_VERSION,breakdown:(fc.forecastBreakdown||[]).map(function(x){return {label:x.label,amount:round2(x.amount||0),kind:x.kind||""};}).slice(0,30)};
+  var projectedIncome=(scope==="overall"&&periodWord==="month")?projectedIncomeForRange(per.startStr,per.endStr):null;
+  var projectedSaving=projectedIncome>0?round2(projectedIncome-fc.projectedSpend):null;
+  return {snapshotDate:todayStr(),scope:scope,period:periodWord,periodStart:start,periodEnd:per.endStr,forecastClose:round2(fc.projectedSpend),actualSoFar:round2(fc.actualSpentSoFar),target:scope==="budget"?round2(fullPeriodTarget(per.startStr,per.endStr)):0,projectedIncome:projectedIncome,projectedSaving:projectedSaving,modelVersion:FORECAST_MODEL_VERSION,breakdown:(fc.forecastBreakdown||[]).map(function(x){return {label:x.label,amount:round2(x.amount||0),kind:x.kind||""};}).slice(0,30)};
 }
 function captureForecastSnapshotsIfNeeded() {
   var snaps=normalizeForecastSnapshots(state.settings.forecastSnapshots), keyDate=todayStr(), changed=false;
