@@ -927,7 +927,7 @@
   /* ===== v112.4 annualized cash-target refinement ===== */
   .simple-home-stack { gap:14px; }
   .simple-home-stack > .card { box-shadow:0 14px 34px rgba(15,23,42,.07), var(--inset-stroke); }
-  .simple-hero { padding:10px !important; background:transparent !important; box-shadow:none !important; }
+  .simple-hero { padding:10px !important; background:var(--surface-1) !important; box-shadow:0 14px 34px rgba(15,23,42,.07), var(--inset-stroke) !important; }
   .simple-hero-grid { gap:10px; }
   .simple-hero-cell { min-height:104px; display:flex; flex-direction:column; justify-content:space-between; align-items:flex-start; }
   .simple-hero-cell:first-child { box-shadow:0 14px 32px color-mix(in srgb,var(--accent) 10%,transparent), var(--inset-stroke); }
@@ -1027,6 +1027,79 @@
     .simple-saving-target-gap { font-size:11px; }
   }
 
+
+
+  /* ===== v112.10 compact transaction entry ===== */
+  .txn-entry-header {
+    margin-bottom:10px !important;
+    padding-top:calc(var(--app-safe-top) + 4px) !important;
+    padding-bottom:8px !important;
+    min-height:calc(var(--app-safe-top) + 64px) !important;
+  }
+  .txn-entry-content { padding-top:0 !important; padding-bottom:10px !important; }
+  .txn-entry-content > .seg:first-child { margin-top:3px !important; margin-bottom:10px !important; }
+  .txn-entry-page .seg-btn { min-height:40px; }
+  .txn-entry-page .eyebrow { margin-bottom:5px !important; }
+  .txn-entry-page .fx-amount-shell { min-height:72px !important; margin-bottom:10px !important; }
+  .txn-entry-page .fx-amount-input { min-height:70px !important; height:70px !important; font-size:36px !important; }
+  .txn-entry-page .txn-payment-seg { margin-bottom:10px !important; }
+  .txn-date-time-row { margin-bottom:10px !important; align-items:end !important; }
+  .txn-date-time-row input[type="date"],
+  .txn-date-time-row input[type="time"] {
+    height:48px !important;
+    min-height:48px !important;
+    padding-top:0 !important;
+    padding-bottom:0 !important;
+    line-height:48px !important;
+    display:block;
+  }
+  .txn-date-time-row input[type="date"]::-webkit-date-and-time-value,
+  .txn-date-time-row input[type="time"]::-webkit-date-and-time-value {
+    width:100%;
+    height:48px;
+    min-height:48px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    margin:0;
+    padding:0;
+  }
+  .txn-date-time-row input[type="date"]::-webkit-datetime-edit,
+  .txn-date-time-row input[type="time"]::-webkit-datetime-edit {
+    width:100%;
+    height:48px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    padding:0;
+  }
+  .txn-entry-page .txn-hscroll { margin-bottom:7px !important; padding-bottom:2px !important; }
+  .txn-entry-page .txn-hscroll button { padding-top:7px !important; padding-bottom:7px !important; }
+  .txn-entry-page #entryNoteInput { min-height:46px !important; height:46px !important; margin-bottom:6px !important; }
+  .txn-entry-save { min-height:52px !important; margin-top:3px !important; }
+  .txn-entry-shell { padding-bottom:calc(env(safe-area-inset-bottom,0px) + 18px) !important; }
+
+
+
+  /* ===== v112.11 neutral surface cleanup ===== */
+  :root[data-theme="light"] html,
+  :root[data-theme="light"] body {
+    background: var(--bg) !important;
+  }
+  :root[data-theme="light"] .simple-hero {
+    background: var(--card) !important;
+    box-shadow: 0 14px 34px rgba(15,23,42,.065), var(--inset-stroke) !important;
+  }
+  :root[data-theme="light"] .simple-hero-cell:first-child {
+    background: color-mix(in srgb, var(--accent) 8%, var(--card));
+    box-shadow: var(--inset-stroke) !important;
+  }
+  :root[data-theme="light"] .simple-hero-cell:last-child {
+    box-shadow: var(--inset-stroke) !important;
+  }
+
 </style>
 </head>
 <body>
@@ -1036,7 +1109,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v112.8";
+var APP_VERSION = "v112.11";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true };
@@ -5317,14 +5390,14 @@ function renderAddTxnPage() {
 
   /* Date + time are both first-class transaction fields. Date gets the wider
      share because it carries more information on mobile. */
-  h += '<div style="display:grid;grid-template-columns:minmax(0,7fr) minmax(0,3fr);gap:10px;margin-bottom:14px;align-items:end;">';
+  h += '<div class="txn-date-time-row" style="display:grid;grid-template-columns:minmax(0,7fr) minmax(0,3fr);gap:10px;margin-bottom:10px;align-items:end;">';
   h += '<label style="display:block;min-width:0;"><span class="eyebrow" style="display:block;margin-bottom:6px;">Date</span><input id="entryDateInput" type="date" class="field mono" style="width:100%;font-size:14px;" value="'+formDate+'" max="'+todayStr()+'" /></label>';
   h += '<label style="display:block;min-width:0;"><span class="eyebrow" style="display:block;margin-bottom:6px;">Time</span><input id="entryTimeInput" type="time" class="field mono" style="width:100%;font-size:13px;padding-left:9px;padding-right:7px;" value="'+esc(selectedTime)+'" /></label>';
   h += '</div>';
 
   if (txnKind === "expense") {
-    h += '<div class="row between" style="margin-bottom:8px;"><span class="eyebrow">Subcategory</span>'+(selectedCat?'<span class="muted caption">'+esc(categoryGroupOf(selectedCat)||"Ungrouped")+'</span>':'')+'</div>';
-    h += '<div class="txn-hscroll" style="gap:8px;margin:0 -8px 10px;padding:2px 8px 5px;">';
+    h += '<div class="row between" style="margin-bottom:6px;"><span class="eyebrow">Subcategory</span>'+(selectedCat?'<span class="muted caption">'+esc(categoryGroupOf(selectedCat)||"Ungrouped")+'</span>':'')+'</div>';
+    h += '<div class="txn-hscroll" style="gap:8px;margin:0 -8px 7px;padding:1px 8px 2px;">';
     quickCats.forEach(function(c){
       var sel=selectedCat===c;
       h += '<button data-action="select-txn-category" data-cat="'+esc(c)+'" style="flex:0 0 auto;min-width:86px;max-width:116px;background:'+(sel?'var(--accent)':'var(--fill)')+';color:'+(sel?'var(--accent-ink)':'var(--text)')+';border:none;border-radius:12px;padding:9px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;">'+catIconCircle(c)+'<span style="font-size:11px;font-weight:'+(sel?'700':'500')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">'+esc(c)+'</span></button>';
@@ -5337,8 +5410,8 @@ function renderAddTxnPage() {
   }
 
   if (people.length) {
-    h += '<div class="eyebrow" style="margin:2px 0 8px;">For</div>';
-    h += '<div class="txn-hscroll" style="gap:8px;margin:0 -8px 12px;padding:0 8px 4px;">';
+    h += '<div class="eyebrow" style="margin:0 0 6px;">For</div>';
+    h += '<div class="txn-hscroll" style="gap:8px;margin:0 -8px 8px;padding:0 8px 2px;">';
     people.forEach(function(p){
       var sel=personSplitMode==="single" && selectedPerson===p;
       h += '<button data-action="select-txn-person" data-person="'+esc(p)+'" style="flex:0 0 auto;border:none;border-radius:999px;padding:8px 12px;background:'+(sel?personColor(p):'var(--fill)')+';color:'+(sel?'#fff':'var(--text)')+';font-size:13px;font-weight:'+(sel?'600':'500')+';">'+esc(p)+(sel?' ✓':'')+'</button>';
@@ -5372,12 +5445,12 @@ function renderAddTxnPage() {
   }
 
   if (txnTags.length) {
-    h += '<div class="eyebrow" style="margin:2px 0 8px;">Tags</div><div class="txn-hscroll" style="gap:7px;margin:0 -8px 12px;padding:0 8px 4px;">';
+    h += '<div class="eyebrow" style="margin:0 0 6px;">Tags</div><div class="txn-hscroll" style="gap:7px;margin:0 -8px 8px;padding:0 8px 2px;">';
     txnTags.forEach(function(tag){var sel=selectedTxnTags.indexOf(tag)!==-1;h+='<button data-action="toggle-txn-tag" data-tag="'+esc(tag)+'" style="flex:0 0 auto;border:none;border-radius:999px;padding:8px 11px;background:'+(sel?transactionTagColor(tag):'var(--fill)')+';color:'+(sel?'#fff':'var(--text)')+';font-size:12px;font-weight:'+(sel?'650':'500')+';">'+esc(tag)+(sel?' ✓':'')+'</button>';});
     h += '</div>';
   }
 
-  h += '<div class="eyebrow" style="margin-bottom:6px;">Note</div>';
+  h += '<div class="eyebrow" style="margin-bottom:5px;">Note</div>';
   h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:10px;" placeholder="Merchant or what it was for" value="'+(state.entryNoteDraft!=null?esc(state.entryNoteDraft):(editingItem?esc(editingItem.note||""):""))+'" />';
 
 
