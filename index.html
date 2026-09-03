@@ -1119,7 +1119,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v112.12";
+var APP_VERSION = "v112.13";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true };
@@ -4787,29 +4787,19 @@ function renderBudgetBody(T) {
   var configuredPeriodTarget=period.target;
   var target=isCurrent?effectiveBudgetTargetForRange(period.startStr,period.endStr,effectiveInfo):period.target;
   var remaining=round2(target-stats.spent);
-  var livePacing=isCurrent?liveBudgetPacing():null,dailyAverage=livePacing?livePacing.dailyAverage:null,safeToday=livePacing?livePacing.safeToday:null,overSafeToday=livePacing?(livePacing.overSafeToday||0):0,adjustmentNeeded=livePacing?(livePacing.adjustmentNeeded||0):0,spentToday=livePacing?(livePacing.spentTodayForLimit!=null?livePacing.spentTodayForLimit:livePacing.spentToday):0,limitingHorizon=livePacing?livePacing.limitingHorizon:null;
+  var livePacing=isCurrent?liveBudgetPacing():null,overSafeToday=livePacing?(livePacing.overSafeToday||0):0,adjustmentNeeded=livePacing?(livePacing.adjustmentNeeded||0):0,limitingHorizon=livePacing?livePacing.limitingHorizon:null;
   var budgetSavingsComparison=(isCurrent&&state.view==='month')?(effectiveInfo?effectiveInfo.comparison:currentSavingsBudgetComparison()):null;
-  /* Each Budget tab shows its own equal remaining-per-day figure. Week is now a
-     derived pacing window only; Month alone controls Safe-to-Spend. */
-  var selectedDailyAllowance=null;
-  if(isCurrent){
-    if(state.view==='week' && livePacing) selectedDailyAllowance=livePacing.week.avg;
-    else if(state.view==='month' && livePacing) selectedDailyAllowance=livePacing.month.avg;
-    else { var selectedDaysLeft=Math.max(0,daysBetween(todayStr(),period.endStr)+1); selectedDailyAllowance=selectedDaysLeft>0?remaining/selectedDaysLeft:null; }
-  }
   var limitingPacing=(livePacing&&limitingHorizon)?(limitingHorizon==="week"?livePacing.week:livePacing.month):null;
   
   var selectedReservePacing=(livePacing&&state.view==="week")?livePacing.week:((livePacing&&state.view==="month")?livePacing.month:limitingPacing);
   var selectedForecastHorizonLabel=state.view==="week"?"Week":(state.view==="month"?"Month":"Current");
-  /* The simple equal split and the forecast-aware flexible allowance answer
-     different questions. Keep both visible so Safe to Spend can be audited:
-       equal remaining/day = current remaining / days left
-       flexible allowance/day = start-of-day money after cadence/plan reserves / days
-     The latter is the base that Safe to Spend actually consumes. */
-  var flexibleAllowancePerDay=limitingPacing&&limitingPacing.sustainableDaily!=null?round2(limitingPacing.sustainableDaily):null;
-  var openingSafeAllowance=limitingPacing&&limitingPacing.openingSafe!=null?round2(limitingPacing.openingSafe):null;
-  var flexibleSpentToday=limitingPacing?round2(limitingPacing.todayFlexibleSpent||0):0;
-  var reserveVariancePerDay=limitingPacing&&limitingPacing.days?round2(((limitingPacing.cadenceAdjustment||0)+(limitingPacing.scheduledAdjustment||0))/limitingPacing.days):0;
+  /* Budget-page flexibility deliberately excludes protected upcoming spending.
+     flexiblePool is the live amount left after reserve→actual substitution, so
+     it is the money that can genuinely be used for discretionary spending. */
+  var flexibleRemainingRaw=(isCurrent&&selectedReservePacing&&selectedReservePacing.flexiblePool!=null)?round2(selectedReservePacing.flexiblePool):null;
+  var flexibleRemaining=flexibleRemainingRaw==null?null:round2(Math.max(0,flexibleRemainingRaw));
+  var flexibleDays=(isCurrent&&selectedReservePacing)?Math.max(0,Number(selectedReservePacing.days)||0):0;
+  var avgSafePerDay=(flexibleRemaining!=null&&flexibleDays>0)?round2(flexibleRemaining/flexibleDays):null;
   var budgetPeriodForecast=isCurrent?periodForecast(stats,period.startStr,period.endStr,'budget',false):null,budgetForecast=budgetPeriodForecast?budgetPeriodForecast.forecast:null;
   var projectedSpend=budgetForecast?budgetForecast.projectedSpend:stats.spent,projectedSaving=round2(target-projectedSpend),progress=target>0?Math.max(0,Math.min(100,stats.spent/target*100)):0;
   
@@ -4839,8 +4829,8 @@ function renderBudgetBody(T) {
   var budgetUsedPct = target>0 ? (stats.spent/target*100) : 0;
   var summary='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="align-items:baseline;"><div><div class="muted caption">'+(state.view==='week'?'WEEKLY PACE SPENT':(isCurrent?'EFFECTIVE BUDGET SPENT':'BUDGET SPENT'))+'</div><div class="mono" style="font-size:30px;font-weight:700;margin-top:2px;">'+fmt(stats.spent,0)+' AED</div></div><div style="text-align:right;"><div class="mono muted subhead">of '+fmt(target,0)+' AED</div><div class="mono caption" style="margin-top:3px;font-weight:700;color:'+(budgetUsedPct>100?'var(--rust)':'var(--text-muted)')+';">'+budgetUsedPct.toFixed(0)+'% used</div></div></div><div style="height:10px;background:var(--fill);border-radius:999px;overflow:hidden;margin:12px 0 14px;"><div style="height:100%;width:'+progress+'%;background:'+(stats.spent>target?'var(--rust)':'var(--accent)')+';"></div></div><div class="stat-grid">';
   summary+=statBlock('Remaining',(remaining>=0?'':'−')+fmt(Math.abs(remaining),0)+' AED',remaining>=0?'var(--positive)':'var(--rust)');
-  summary+=statBlock('Safe to spend today',isCurrent&&safeToday!=null?(fmt(safeToday,0)+' AED'):'—',safeToday!=null?'var(--accent)':'var(--text-muted)');
-  summary+=statBlock('Spent today',isCurrent?fmt(spentToday,0)+' AED':'—','var(--text)');
+  summary+=statBlock('Flexible remaining',isCurrent&&flexibleRemainingRaw!=null?((flexibleRemainingRaw<0?'−':'')+fmt(Math.abs(flexibleRemainingRaw),0)+' AED'):'—',flexibleRemainingRaw==null?'var(--text-muted)':(flexibleRemainingRaw>=0?'var(--positive)':'var(--rust)'));
+  summary+=statBlock('Avg safe / day',isCurrent&&avgSafePerDay!=null?(fmt(avgSafePerDay,0)+' AED/day'):'—',flexibleRemainingRaw!=null&&flexibleRemainingRaw<0?'var(--rust)':'var(--accent)');
   summary+=statBlock('Projected vs budget',isCurrent?((projectedSaving>=0?'+':'−')+fmt(Math.abs(projectedSaving),0)+' AED'):'—',projectedSaving>=0?'var(--positive)':'var(--rust)')+'</div>';
   if(budgetSavingsComparison){
     var bsc=budgetSavingsComparison, savingsTighter=effectiveInfo&&effectiveInfo.savingsTight;
