@@ -1123,7 +1123,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v112.15";
+var APP_VERSION = "v112.16";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true };
@@ -2228,6 +2228,21 @@ function homeOpeningMetricRow(date,current){
   if(safe==null&&budget==null&&saving==null)return null;
   return {date:date,periodStart:String(periodStart||""),periodEnd:String(periodEnd||""),safeToSpend:safe==null?null:round2(Math.max(0,Number(safe)||0)),projectedBudgetSpend:budget==null?null:round2(Math.max(0,Number(budget)||0)),projectedSaving:saving==null?null:round2(Number(saving)||0),openingCaptured:true};
 }
+/* A budget edit is a change of measuring scale, not day-to-day performance.
+   Restate each stored opening Safe-to-Spend under the current effective budget
+   before comparing the two days. With reserves held unchanged, changing the
+   monthly budget by D changes that day's sustainable opening by D/days-left. */
+function safeOpeningAtCurrentBudget(date,current){
+  var row=safeSpendHistory().find(function(x){return x.date===date;})||null;
+  if(!row)return null;
+  var opening=Number(row.openingSafe),sourceBudget=Number(row.effectiveBudget),currentBudget=Number(current&&current.effectiveBudget);
+  if(!isFinite(opening))return null;
+  if(current&&date>=current.periodStart&&date<=current.periodEnd&&isFinite(sourceBudget)&&sourceBudget>0&&isFinite(currentBudget)&&currentBudget>=0){
+    var daysLeft=Math.max(1,daysBetween(date,current.periodEnd)+1);
+    opening+=round2((currentBudget-sourceBudget)/daysLeft);
+  }
+  return round2(Math.max(0,opening));
+}
 function homeOpeningMetricDeltasAndRecord(current){
   var date=todayStr(),yesterday=toStr(addDays(parseD(date),-1)),hist=normalizeHomeMetricHistory(state.settings.homeMetricHistory),changed=false;
   var todayOpening=hist.find(function(x){return x.date===date;})||null;
@@ -2236,8 +2251,11 @@ function homeOpeningMetricDeltasAndRecord(current){
   if(!yesterdayOpening){yesterdayOpening=homeOpeningMetricRow(yesterday,null);if(yesterdayOpening){hist.push(yesterdayOpening);changed=true;}}
   if(changed)persistAll(Object.assign({},state.settings,{homeMetricHistory:normalizeHomeMetricHistory(hist)}),state.entries,"Home opening comparison");
   var samePeriod=!!(todayOpening&&yesterdayOpening&&todayOpening.periodEnd&&todayOpening.periodEnd===yesterdayOpening.periodEnd);
+  var todaySafe=safeOpeningAtCurrentBudget(date,current),yesterdaySafe=safeOpeningAtCurrentBudget(yesterday,current);
+  if(todaySafe==null&&todayOpening)todaySafe=todayOpening.safeToSpend;
+  if(yesterdaySafe==null&&yesterdayOpening)yesterdaySafe=yesterdayOpening.safeToSpend;
   return {
-    safeToSpend:(!todayOpening||!yesterdayOpening||todayOpening.safeToSpend==null||yesterdayOpening.safeToSpend==null)?null:round2(todayOpening.safeToSpend-yesterdayOpening.safeToSpend),
+    safeToSpend:(todaySafe==null||yesterdaySafe==null)?null:round2(todaySafe-yesterdaySafe),
     projectedBudgetSpend:(!samePeriod||todayOpening.projectedBudgetSpend==null||yesterdayOpening.projectedBudgetSpend==null)?null:round2(todayOpening.projectedBudgetSpend-yesterdayOpening.projectedBudgetSpend),
     projectedSaving:(!samePeriod||todayOpening.projectedSaving==null||yesterdayOpening.projectedSaving==null)?null:round2(todayOpening.projectedSaving-yesterdayOpening.projectedSaving)
   };
@@ -4701,7 +4719,7 @@ function renderHomeBody(T, da) {
   var projectedCashSaving = incomeReference > 0 ? round2(incomeReference - projected) : null;
   var projectedCashSavingPct = incomeReference > 0 ? (projectedCashSaving / incomeReference * 100) : null;
   var simpleSaving = projectedCashSaving != null ? projectedCashSaving : projectedSaving;
-  var homeMetricDeltas=homeOpeningMetricDeltasAndRecord({periodStart:month.startStr,periodEnd:month.endStr,safeToSpend:safeToday,projectedBudgetSpend:projectedBudgetSpend,projectedSaving:simpleSaving,projectedIncome:incomeReference});
+  var homeMetricDeltas=homeOpeningMetricDeltasAndRecord({periodStart:month.startStr,periodEnd:month.endStr,effectiveBudget:homeEffectiveInfo.effectiveBudget,safeToSpend:safeToday,projectedBudgetSpend:projectedBudgetSpend,projectedSaving:simpleSaving,projectedIncome:incomeReference});
   var safeDeltaHtml=homeMetricDeltaHtml(homeMetricDeltas.safeToSpend,true);
   var projectedBudgetDeltaHtml=homeMetricDeltaHtml(homeMetricDeltas.projectedBudgetSpend,false);
   var projectedSavingDeltaHtml=homeMetricDeltaHtml(homeMetricDeltas.projectedSaving,true);
