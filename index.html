@@ -960,8 +960,6 @@
   .fx-amount-input { min-height:80px; font-size:40px; font-weight:800; letter-spacing:-.055em; }
   .fx-currency-select { font-size:14px; font-weight:760; }
   .txn-payment-seg { background:var(--surface-2) !important; }
-  .txn-more-button { border-top:1px solid color-mix(in srgb,var(--text) 7%,transparent) !important; margin-top:5px; }
-  .txn-more-card { border-radius:20px; box-shadow:var(--inset-stroke) !important; background:var(--surface-2) !important; }
   .txn-entry-save { min-height:56px !important; border-radius:20px !important; font-size:16px !important; font-weight:780 !important; }
   .txn-hscroll button { transition:transform .14s ease, background .18s ease; }
   .txn-hscroll button:active { transform:scale(.96); }
@@ -1017,6 +1015,17 @@
   .forecast-target-gap { margin-top:6px; font-size:13px; font-weight:720; }
   .forecast-target-save { margin-top:4px; font-size:11px; line-height:1.25; }
   .simple-saving-gap { margin-top:5px; font-size:13px; font-weight:720; }
+  .simple-saving-summary { display:flex; justify-content:space-between; gap:18px; align-items:flex-end; margin-top:4px; }
+  .simple-saving-main { min-width:0; }
+  .simple-saving-target { flex:0 0 auto; text-align:right; padding-bottom:2px; }
+  .simple-saving-target-label { font-size:11px; font-weight:720; letter-spacing:.04em; text-transform:uppercase; color:var(--text-muted); }
+  .simple-saving-target-pct { margin-top:3px; font-size:17px; font-weight:760; color:var(--text); }
+  .simple-saving-target-gap { margin-top:4px; font-size:12px; font-weight:720; }
+  @media(max-width:390px){
+    .simple-saving-summary { gap:10px; }
+    .simple-saving-target-pct { font-size:15px; }
+    .simple-saving-target-gap { font-size:11px; }
+  }
 
 </style>
 </head>
@@ -1027,7 +1036,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v112.6";
+var APP_VERSION = "v112.7";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true };
@@ -1933,7 +1942,6 @@ var state = {
   txnCategoryPickerOpen: false,
   txnCategoryPickerSearch: "",
   txnCategoryPickerReturnScrollY: 0,
-  txnAdvancedOpen: false,
   txnOffset: 0,
   txnPeriodFrom: "",
   txnPeriodTo: "",
@@ -3852,7 +3860,6 @@ function resetTxnEntryForClose() {
   state.txnPersonSplitMode = 'single';
   state.txnCategoryGroup = null;
   state.txnShowAllCategories = false;
-  state.txnAdvancedOpen = false;
   state.entryAmountDraft = null;
   state.entryNoteDraft = null;
   state.entrySplitDaysDraft = null;
@@ -4620,8 +4627,7 @@ function renderHomeBody(T, da) {
   var effectiveSavingTargetPct = homeEffectiveCashGoal&&homeEffectiveCashGoal.effectiveSavingPct!=null?homeEffectiveCashGoal.effectiveSavingPct:null;
   var simpleSavingBelowTarget = simpleSavingPct!=null&&effectiveSavingTargetPct!=null&&simpleSavingPct+0.05<effectiveSavingTargetPct;
   var simpleSavingColor = simpleSaving < 0 ? 'var(--rust)' : (simpleSavingBelowTarget?'var(--amber)':'var(--positive)');
-  var simpleSavingPctText = simpleSavingPct==null?'Income not set':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(1)+'%');
-  if(simpleSavingPct!=null&&effectiveSavingTargetPct!=null) simpleSavingPctText += ' / '+fmt(effectiveSavingTargetPct,1)+'% effective target';
+  var simpleSavingPctText = simpleSavingPct==null?'Income not set':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(1)+'% of income');
   var outlook = '<div class="card simple-outlook-card"><div class="eyebrow">Cash flow</div><div class="simple-outlook-grid">';
   outlook += '<div><div class="simple-outlook-label">TOTAL SPENT SO FAR</div><div class="mono simple-outlook-value">' + fmt(overall.spent, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (spentVsIncomePct == null ? 'Income not set' : spentVsIncomePct.toFixed(0) + '% of income') + '</div></div>';
   outlook += '<div><div class="simple-outlook-label">PROJECTED TOTAL SPEND</div><div class="mono simple-outlook-value" style="color:' + projectedSpendColor + ';">' + fmt(projected, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (projectedSpendVsIncomePct == null ? 'Income not set' : projectedSpendVsIncomePct.toFixed(0) + '% of income') + '</div></div></div>';
@@ -4630,7 +4636,7 @@ function renderHomeBody(T, da) {
   var effectiveSavingGap=(effectiveSavingTargetAmount!=null&&simpleSaving!=null)?round2(simpleSaving-effectiveSavingTargetAmount):null;
   var effectiveSavingGapText='';
   if(effectiveSavingGap!=null){effectiveSavingGapText=effectiveSavingGap>=0?(fmt(effectiveSavingGap,0)+' AED ahead of effective target'):(fmt(Math.abs(effectiveSavingGap),0)+' AED short of effective target');}
-  outlook += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div style="margin-top:3px;"><div class="mono simple-outlook-value" style="color:' + simpleSavingColor + ';">' + (simpleSaving >= 0 ? '+' : '−') + fmt(Math.abs(simpleSaving), 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub" style="color:'+simpleSavingColor+';font-weight:'+(simpleSavingBelowTarget?'700':'600')+';">' + esc(simpleSavingPctText) + '</div>'+(effectiveSavingGapText?'<div class="mono simple-saving-gap" style="color:'+simpleSavingColor+';">'+esc(effectiveSavingGapText)+'</div>':'')+'</div></div></div>';
+  outlook += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div class="simple-saving-summary"><div class="simple-saving-main"><div class="mono simple-outlook-value" style="color:' + simpleSavingColor + ';">' + (simpleSaving >= 0 ? '+' : '−') + fmt(Math.abs(simpleSaving), 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub" style="color:var(--text-muted);font-weight:600;">' + esc(simpleSavingPctText) + '</div></div>'+(effectiveSavingTargetPct!=null?'<div class="simple-saving-target"><div class="simple-saving-target-label">Effective target</div><div class="mono simple-saving-target-pct">'+fmt(effectiveSavingTargetPct,1)+'%</div>'+(effectiveSavingGapText?'<div class="mono simple-saving-target-gap" style="color:'+simpleSavingColor+';">'+esc(effectiveSavingGapText).replace(' of effective target','')+'</div>':'')+'</div>':'')+'</div></div>';
   simpleCards.outlook = outlook;
 
   var simpleOrder = ['hero','budgetStatus','outlook','today'];
@@ -5252,7 +5258,6 @@ function renderAddTxnPage() {
   var fxRateShown = state.entryFxRateDraft != null ? state.entryFxRateDraft : (editingItem && editingItem.fxRate ? (Number(editingItem.fxRate)*reportingRate()) : (selectedCurrency===reportingCurrency()?1:""));
   var fxSourceShown = state.entryFxSourceDraft != null ? state.entryFxSourceDraft : (editingItem && editingItem.fxSource ? editingItem.fxSource : "");
   var parsedShown = parseFloat(amountShown);
-  var advancedOpen = !!state.txnAdvancedOpen || !!editingItem;
 
   /* Most-used categories become one-tap choices. The full category hierarchy
      is still available behind More, but common entries no longer require a
@@ -5310,10 +5315,12 @@ function renderAddTxnPage() {
     }
   }
 
-  /* Date is part of the primary entry flow: most entries default to Today,
-     but a backdated transaction should never require opening More options. */
-  h += '<label style="display:block;margin-bottom:14px;"><span class="eyebrow" style="display:block;margin-bottom:6px;">Date</span><input id="entryDateInput" type="date" class="field mono" style="width:100%;font-size:14px;" value="'+formDate+'" max="'+todayStr()+'" /></label>';
-  if(!advancedOpen) h += '<input id="entryTimeInput" type="hidden" value="'+esc(selectedTime)+'" />';
+  /* Date + time are both first-class transaction fields. Date gets the wider
+     share because it carries more information on mobile. */
+  h += '<div style="display:grid;grid-template-columns:minmax(0,7fr) minmax(0,3fr);gap:10px;margin-bottom:14px;align-items:end;">';
+  h += '<label style="display:block;min-width:0;"><span class="eyebrow" style="display:block;margin-bottom:6px;">Date</span><input id="entryDateInput" type="date" class="field mono" style="width:100%;font-size:14px;" value="'+formDate+'" max="'+todayStr()+'" /></label>';
+  h += '<label style="display:block;min-width:0;"><span class="eyebrow" style="display:block;margin-bottom:6px;">Time</span><input id="entryTimeInput" type="time" class="field mono" style="width:100%;font-size:13px;padding-left:9px;padding-right:7px;" value="'+esc(selectedTime)+'" /></label>';
+  h += '</div>';
 
   if (txnKind === "expense") {
     h += '<div class="row between" style="margin-bottom:8px;"><span class="eyebrow">Subcategory</span>'+(selectedCat?'<span class="muted caption">'+esc(categoryGroupOf(selectedCat)||"Ungrouped")+'</span>':'')+'</div>';
@@ -5364,21 +5371,16 @@ function renderAddTxnPage() {
     h += '<input id="entryPersonInput" type="hidden" value="" />';
   }
 
+  if (txnTags.length) {
+    h += '<div class="eyebrow" style="margin:2px 0 8px;">Tags</div><div class="txn-hscroll" style="gap:7px;margin:0 -8px 12px;padding:0 8px 4px;">';
+    txnTags.forEach(function(tag){var sel=selectedTxnTags.indexOf(tag)!==-1;h+='<button data-action="toggle-txn-tag" data-tag="'+esc(tag)+'" style="flex:0 0 auto;border:none;border-radius:999px;padding:8px 11px;background:'+(sel?transactionTagColor(tag):'var(--fill)')+';color:'+(sel?'#fff':'var(--text)')+';font-size:12px;font-weight:'+(sel?'650':'500')+';">'+esc(tag)+(sel?' ✓':'')+'</button>';});
+    h += '</div>';
+  }
 
   h += '<div class="eyebrow" style="margin-bottom:6px;">Note</div>';
   h += '<input id="entryNoteInput" type="text" class="field" style="margin-bottom:10px;" placeholder="Merchant or what it was for" value="'+(state.entryNoteDraft!=null?esc(state.entryNoteDraft):(editingItem?esc(editingItem.note||""):""))+'" />';
 
-  h += '<button data-action="toggle-txn-advanced" class="row between txn-more-button" style="width:100%;background:none;border:none;padding:9px 0 11px;color:var(--text-muted);font-size:13px;"><span>'+(advancedOpen?'Fewer details':'More details')+'</span><span style="display:flex;transform:rotate('+(advancedOpen?'90':'0')+'deg);">'+ICONS.chevronRight+'</span></button>';
-  if (advancedOpen) {
-    h += '<div class="card txn-more-card" style="padding:14px;margin-bottom:14px;">';
-    h += '<label style="display:block;"><span class="eyebrow" style="display:block;margin-bottom:6px;">Time</span><input id="entryTimeInput" type="time" class="field mono" style="width:100%;font-size:14px;" value="'+esc(selectedTime)+'" /></label>';
-    if (txnTags.length) {
-      h += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="eyebrow" style="margin-bottom:8px;">Tags</div><div class="txn-hscroll" style="gap:7px;margin:0 -6px;padding:0 6px 2px;">';
-      txnTags.forEach(function(tag){var sel=selectedTxnTags.indexOf(tag)!==-1;h+='<button data-action="toggle-txn-tag" data-tag="'+esc(tag)+'" style="flex:0 0 auto;border:none;border-radius:999px;padding:7px 10px;background:'+(sel?transactionTagColor(tag):'var(--fill)')+';color:'+(sel?'#fff':'var(--text)')+';font-size:12px;font-weight:'+(sel?'650':'500')+';">'+esc(tag)+(sel?' ✓':'')+'</button>';});
-      h += '</div></div>';
-    }
-    h += '</div>';
-  }
+
 
   var saveLabel;
   if (editingItem) saveLabel='Save changes';
@@ -7941,7 +7943,6 @@ function handleEditTxn(date, id) {
   state.txnKind = null;
   state.txnCategoryGroup = null;
   state.txnShowAllCategories = false;
-  state.txnAdvancedOpen = true;
   state.entryAmountDraft = null;
   state.entryNoteDraft = null;
   state.entrySplitDaysDraft = null;
@@ -8241,8 +8242,7 @@ document.addEventListener("click", function(e) {
       state.txnShowAllCategories = false;
       state.txnCategoryPickerOpen = false;
       state.txnCategoryPickerSearch = "";
-      state.txnAdvancedOpen = false;
-      state.entryAmountDraft = null;
+          state.entryAmountDraft = null;
       state.entryNoteDraft = null;
       state.entrySplitDaysDraft = null;
       state.entryPersonSplitDraft = null;
@@ -8967,11 +8967,6 @@ document.addEventListener("click", function(e) {
       state.entryPersonDraft = el.dataset.person || "";
       state.txnPersonSplitMode = "single";
       state.entryPersonSplitDraft = null;
-      render();
-      break;
-    case "toggle-txn-advanced":
-      preserveTxnFormDraft();
-      state.txnAdvancedOpen = !state.txnAdvancedOpen;
       render();
       break;
     case "set-txn-period":
