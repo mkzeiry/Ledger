@@ -1100,6 +1100,16 @@
     box-shadow: var(--inset-stroke) !important;
   }
 
+
+  /* v112.12: compact flexible spending pace restored on Home */
+  .home-flex-pace { margin-top:12px; padding-top:11px; }
+  .home-flex-pace-head { align-items:baseline; gap:10px; }
+  .home-flex-pace-trend { font-size:12px; font-weight:800; }
+  .home-flex-pace-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:8px; }
+  .home-flex-pace-grid > div { min-width:0; }
+  .home-flex-pace-value { margin-top:2px; font-size:17px; font-weight:760; line-height:1.15; }
+  .home-flex-pace-value span { font-size:11px; font-weight:650; color:var(--text-muted); }
+
 </style>
 </head>
 <body>
@@ -1109,7 +1119,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v112.11";
+var APP_VERSION = "v112.12";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true };
@@ -4592,6 +4602,10 @@ function renderHomeBody(T, da) {
   var todayHomeStr = todayStr();
   var monthDaysLeft = Math.max(0, daysBetween(todayHomeStr, month.endStr) + 1);
   var pacing = liveBudgetPacing();
+  var flexiblePace = currentFlexibleSpendPaceStats();
+  var flexible30 = flexiblePace.dailyAvg;
+  var flexible7 = flexiblePace.last7Avg;
+  var flexibleTrend = flexiblePace.trendPct;
   var safeToday = pacing.safeToday;
   var safeTodayOpeningRatio = pacing.safeTodayOpeningRatio;
   var safeTodayColor = 'var(--text)';
@@ -4665,6 +4679,11 @@ function renderHomeBody(T, da) {
   budgetStatus += '<div><div class="simple-outlook-label">BUDGET SPENT SO FAR</div><div class="mono simple-outlook-value">' + fmt(budget.spent, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (target > 0 ? budgetPctRaw.toFixed(0) + '% of budget' : 'Budget not set') + '</div></div>';
   budgetStatus += '<div><div class="simple-outlook-label">PROJECTED BUDGET SPEND</div><div class="mono simple-outlook-value" style="color:' + projectedBudgetColor + ';">' + fmt(projectedBudgetSpend, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (projectedBudgetPct == null ? 'Budget not set' : projectedBudgetPct.toFixed(0) + '% of budget') + '</div></div></div>';
   budgetStatus += pctBar(progress, budgetPctRaw > 100) + '<div class="simple-budget-meta"><span>Remaining <strong style="color:' + (remaining >= 0 ? 'var(--text)' : 'var(--rust)') + ';">' + (remaining < 0 ? '−' : '') + fmt(Math.abs(remaining), 0) + ' AED</strong> of ' + fmt(target, 0) + ' AED</span><span> · ' + monthDaysLeft + ' day' + (monthDaysLeft === 1 ? '' : 's') + ' left</span></div>' + paceBadge(monthBudgetPosition);
+  if (flexible30 != null || flexible7 != null) {
+    var flexibleTrendColor = flexibleTrend == null ? 'var(--text-muted)' : (flexibleTrend > 0 ? 'var(--rust)' : (flexibleTrend < 0 ? 'var(--positive)' : 'var(--text-muted)'));
+    var flexibleTrendText = flexibleTrend == null ? '' : ((flexibleTrend > 0 ? '+' : '') + fmt(flexibleTrend, 0) + '%');
+    budgetStatus += '<div class="home-flex-pace hairline-top"><div class="row between home-flex-pace-head"><span class="eyebrow">Flexible spending pace</span>' + (flexibleTrendText ? '<span class="mono home-flex-pace-trend" style="color:' + flexibleTrendColor + ';">' + esc(flexibleTrendText) + '</span>' : '') + '</div><div class="home-flex-pace-grid"><div><div class="muted caption">Last 30 days</div><div class="mono home-flex-pace-value">' + (flexible30 == null ? '—' : fmt(flexible30,0) + ' <span>AED/day</span>') + '</div></div><div><div class="muted caption">Last 7 days</div><div class="mono home-flex-pace-value" style="color:' + flexibleTrendColor + ';">' + (flexible7 == null ? '—' : fmt(flexible7,0) + ' <span>AED/day</span>') + '</div></div></div></div>';
+  }
   simpleCards.budgetStatus = budgetStatus + '</div>';
 
   var todayActivity = [];
