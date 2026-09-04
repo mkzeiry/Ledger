@@ -313,10 +313,7 @@
   /* Cash Flow uses three visual states: solid accent is money already spent,
      the softer accent extension is additional forecast spending, and the
      untouched track is income not expected to be spent this month. */
-  .cashflow-progress { display:flex; }
-  .cashflow-progress > span { flex:0 0 auto; height:100%; border-radius:0; }
-  .cashflow-progress-actual { background:var(--accent); }
-  .cashflow-progress-forecast { background:var(--accent); opacity:.30; }
+  .cashflow-progress { display:block; }
   html.simple-home .app-topbar { margin-bottom:8px; }
   html.simple-home .simple-budget-card .hairline-top { margin-top:9px !important; padding-top:8px !important; }
   @media (max-width:360px) {
@@ -1130,10 +1127,10 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v112.17";
+var APP_VERSION = "v112.19";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true };
+var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true, cadenceBoundarySmoothingMigrationV11219: true, homeDeltaModelEpochV11219: null };
 /* Forecast backtesting is independent of the removed Accounts feature.
    Keep its saved snapshots normalized on every boot so an older/corrupt
    snapshot can never prevent the ledger itself from opening. */
@@ -2258,13 +2255,15 @@ function homeOpeningMetricDeltasAndRecord(current){
   if(!yesterdayOpening){yesterdayOpening=homeOpeningMetricRow(yesterday,null);if(yesterdayOpening){hist.push(yesterdayOpening);changed=true;}}
   if(changed)persistAll(Object.assign({},state.settings,{homeMetricHistory:normalizeHomeMetricHistory(hist)}),state.entries,"Home opening comparison");
   var samePeriod=!!(todayOpening&&yesterdayOpening&&todayOpening.periodEnd&&todayOpening.periodEnd===yesterdayOpening.periodEnd);
+  var modelEpoch=String(state.settings.homeDeltaModelEpochV11219||"");
+  var modelComparable=!modelEpoch||yesterday>=modelEpoch;
   var todaySafe=safeOpeningAtCurrentBudget(date,current),yesterdaySafe=safeOpeningAtCurrentBudget(yesterday,current);
   if(todaySafe==null&&todayOpening)todaySafe=todayOpening.safeToSpend;
   if(yesterdaySafe==null&&yesterdayOpening)yesterdaySafe=yesterdayOpening.safeToSpend;
   return {
-    safeToSpend:(todaySafe==null||yesterdaySafe==null)?null:round2(todaySafe-yesterdaySafe),
-    projectedBudgetSpend:(!samePeriod||todayOpening.projectedBudgetSpend==null||yesterdayOpening.projectedBudgetSpend==null)?null:round2(todayOpening.projectedBudgetSpend-yesterdayOpening.projectedBudgetSpend),
-    projectedSaving:(!samePeriod||todayOpening.projectedSaving==null||yesterdayOpening.projectedSaving==null)?null:round2(todayOpening.projectedSaving-yesterdayOpening.projectedSaving)
+    safeToSpend:(!modelComparable||todaySafe==null||yesterdaySafe==null)?null:round2(todaySafe-yesterdaySafe),
+    projectedBudgetSpend:(!modelComparable||!samePeriod||todayOpening.projectedBudgetSpend==null||yesterdayOpening.projectedBudgetSpend==null)?null:round2(todayOpening.projectedBudgetSpend-yesterdayOpening.projectedBudgetSpend),
+    projectedSaving:(!modelComparable||!samePeriod||todayOpening.projectedSaving==null||yesterdayOpening.projectedSaving==null)?null:round2(todayOpening.projectedSaving-yesterdayOpening.projectedSaving)
   };
 }
 function homeMetricDeltaHtml(delta,higherIsBetter){
@@ -2924,7 +2923,7 @@ async function restoreLocalSnapshotById(id) {
 }
 
 function loadInitial() {
-  var v1119SafeHistoryMigrationNeeded=false, v11110YearlyAutoMigrationNeeded=false, v11111YearlyBackgroundMigrationNeeded=false, v11114StableSafeMigrationNeeded=false, v11115MonthlyBillActualMigrationNeeded=false;
+  var v1119SafeHistoryMigrationNeeded=false, v11110YearlyAutoMigrationNeeded=false, v11111YearlyBackgroundMigrationNeeded=false, v11114StableSafeMigrationNeeded=false, v11115MonthlyBillActualMigrationNeeded=false, v11219CadenceBoundaryMigrationNeeded=false;
   primaryStorageHealth="missing";
   try {
     var raw = localStorage.getItem(STORAGE_KEY);
@@ -2938,6 +2937,7 @@ function loadInitial() {
       v11111YearlyBackgroundMigrationNeeded=parsedSettings.yearlyBillBackgroundMigrationV11111!==true;
       v11114StableSafeMigrationNeeded=parsedSettings.safeSpendStableMigrationV11114!==true;
       v11115MonthlyBillActualMigrationNeeded=parsedSettings.monthlyBillActualMigrationV11115!==true;
+      v11219CadenceBoundaryMigrationNeeded=parsedSettings.cadenceBoundarySmoothingMigrationV11219!==true;
       state.settings = Object.assign({}, DEFAULT_SETTINGS, parsedSettings);
       if (!state.settings.rateHistory || !state.settings.rateHistory.length) {
         state.settings.rateHistory = [{ from: "1900-01-01", weeklyTarget: state.settings.weeklyTarget }];
@@ -3007,6 +3007,24 @@ function loadInitial() {
   if(primaryStorageHealth==="healthy"&&v11115MonthlyBillActualMigrationNeeded){
     state.settings.safeSpendHistory=state.settings.safeSpendHistory.filter(function(x){return !x||x.date!==todayStr();});
     state.settings.monthlyBillActualMigrationV11115=true;
+    adaptiveSafeHistoryMigrationChanged=true;
+  }
+
+  /* v112.19 changes cadence reserve boundaries from hard whole-event cutoffs
+     to probability mass inside the remaining period. Safe-to-Spend openings
+     created by the old reserve model are not comparable with the new model,
+     so restart only the Safe opening baseline. Projected Budget Spend and
+     Projected Saving opening history remain intact. */
+  if(primaryStorageHealth==="healthy"&&v11219CadenceBoundaryMigrationNeeded){
+    state.settings.safeSpendHistory=[];
+    state.settings.homeMetricHistory=normalizeHomeMetricHistory(state.settings.homeMetricHistory).map(function(x){
+      return Object.assign({},x,{safeToSpend:null});
+    });
+    state.settings.cadenceBoundarySmoothingMigrationV11219=true;
+    /* Projected-spend/saving snapshots already captured before this upgrade
+       use the old cadence boundary model. Start a fresh comparable opening
+       epoch tomorrow; the badges resume once two new-model openings exist. */
+    state.settings.homeDeltaModelEpochV11219=toStr(addDays(parseD(todayStr()),1));
     adaptiveSafeHistoryMigrationChanged=true;
   }
   state.settings.transactionTags = normalizeTransactionTags(state.settings.transactionTags);
@@ -4753,9 +4771,12 @@ function renderHomeBody(T, da) {
   function cashFlowProgressBar(actualPct, forecastPct) {
     var actual=Math.max(0,Math.min(100,Number(actualPct)||0));
     var forecast=Math.max(actual,Math.min(100,Number(forecastPct)||0));
-    var forecastExtra=Math.max(0,forecast-actual);
     var label='Spent '+actual.toFixed(0)+'% of income; forecast '+forecast.toFixed(0)+'%';
-    return '<div class="simple-progress cashflow-progress" role="img" aria-label="'+esc(label)+'"><span class="cashflow-progress-actual" style="width:'+actual+'%;"></span><span class="cashflow-progress-forecast" style="width:'+forecastExtra+'%;"></span></div>';
+    /* A single continuous gradient avoids the tiny rounded/antialiased seam
+       that can appear between adjacent flex segments on iOS. */
+    var forecastShade='color-mix(in srgb, var(--accent) 30%, var(--surface-2))';
+    var bg='linear-gradient(to right, var(--accent) 0%, var(--accent) '+actual+'%, '+forecastShade+' '+actual+'%, '+forecastShade+' '+forecast+'%, var(--surface-2) '+forecast+'%, var(--surface-2) 100%)';
+    return '<div class="simple-progress cashflow-progress" role="img" aria-label="'+esc(label)+'" style="background:'+bg+';"></div>';
   }
   function paceBadge(value) {
     var c = value > 0 ? 'var(--positive)' : (value < 0 ? 'var(--rust)' : 'var(--text-muted)');
@@ -5530,6 +5551,8 @@ function renderAddTxnPage() {
   if (people.length) {
     h += '<div class="eyebrow" style="margin:0 0 6px;">For</div>';
     h += '<div class="txn-hscroll" style="gap:8px;margin:0 -8px 8px;padding:0 8px 2px;">';
+    var unassignedSel=personSplitMode==="single" && !selectedPerson;
+    h += '<button data-action="select-txn-person" data-person="" style="flex:0 0 auto;border:none;border-radius:999px;padding:8px 12px;background:'+(unassignedSel?'var(--accent)':'var(--fill)')+';color:'+(unassignedSel?'var(--accent-ink)':'var(--text)')+';font-size:13px;font-weight:'+(unassignedSel?'600':'500')+';">Unassigned'+(unassignedSel?' ✓':'')+'</button>';
     people.forEach(function(p){
       var sel=personSplitMode==="single" && selectedPerson===p;
       h += '<button data-action="select-txn-person" data-person="'+esc(p)+'" style="flex:0 0 auto;border:none;border-radius:999px;padding:8px 12px;background:'+(sel?personColor(p):'var(--fill)')+';color:'+(sel?'#fff':'var(--text)')+';font-size:13px;font-weight:'+(sel?'600':'500')+';">'+esc(p)+(sel?' ✓':'')+'</button>';
@@ -6466,13 +6489,29 @@ function cadenceMultiProtectedReserve(probability, likelyAmount, expectedAmount,
   var likely=Math.max(0,Number(likelyAmount)||0), expected=Math.max(0,Number(expectedAmount)||0);
   var count=Math.max(0,Number(expectedCount)||0), q=Math.max(.45,Math.min(1,Number(evidenceQuality)||.70));
   if(!(likely>0)||!(count>0)) return round2(expected);
-  /* Cadence can produce several repeat purchases inside Month/Year. Protect
-     the probability-weighted expectation plus a smooth uncertainty premium
-     toward the next whole plausible event count. */
-  var plausibleEvents=Math.max(1,Math.ceil(count-1e-6));
-  var plausibleTotal=plausibleEvents*likely;
-  var premium=.30+.30*q;
-  return round2(Math.max(expected,Math.min(plausibleTotal,expected+(plausibleTotal-expected)*premium)));
+  /* Continuous fallback for aggregate cadence rows. The old implementation
+     used ceil(expectedCount), which could add/remove almost a whole purchase
+     when the count crossed an integer. Use the fractional event uncertainty
+     instead, so the reserve moves continuously. */
+  var frac=count-Math.floor(count);
+  var countUncertainty=Math.sqrt(Math.max(0,frac*(1-frac)));
+  var premiumEvents=countUncertainty*(.30+.30*q);
+  return round2(Math.max(expected,expected+likely*premiumEvents));
+}
+
+function cadenceProtectedReserveFromEvents(events, likelyAmount, expectedAmount, evidenceQuality){
+  var likely=Math.max(0,Number(likelyAmount)||0), expected=Math.max(0,Number(expectedAmount)||0);
+  var q=Math.max(.45,Math.min(1,Number(evidenceQuality)||.70)), varianceCount=0, count=0;
+  (Array.isArray(events)?events:[]).forEach(function(ev){
+    var p=Math.max(0,Math.min(1,Number(ev&&ev.probability)||0));
+    count+=p; varianceCount+=p*(1-p);
+  });
+  if(!(likely>0)||!(count>0))return round2(expected);
+  /* Bernoulli event uncertainty is continuous at period boundaries and at
+     integer expected counts. Cap the uncertainty premium at one likely event;
+     expected value always remains the reserve floor. */
+  var premiumEvents=Math.min(1,Math.sqrt(Math.max(0,varianceCount)))*(.30+.30*q);
+  return round2(Math.max(expected,expected+likely*premiumEvents));
 }
 
 function cadenceEventForecast(profile, fromStr, throughStr) {
@@ -6497,45 +6536,52 @@ function cadenceEventForecast(profile, fromStr, throughStr) {
   if(overdueRatio>2.1)staleFactor=Math.exp(-.45*(overdueRatio-2.1));
   if(overdueRatio>3.6)staleFactor*=.35;
 
-  /* Keep cadence DEFINITION unchanged: eventGap still comes from the observed
-     window divided by active event days. The model below only allows that same
-     learned cadence to repeat more than once when the forecast horizon is long
-     enough (Month/Year). */
+  /* Cadence definition is unchanged: eventGap still comes from the observed
+     window divided by active event days. What changes in v112.19 is only the
+     PERIOD BOUNDARY. An event centered near/just beyond month-end contributes
+     only the part of its timing distribution that falls inside the period,
+     rather than being 100% present one day and 0% present the next. */
   var wait=lastToday?gap:Math.max(0,gap-daysSince);
-  var inside=wait<=availableDays;
-  var firstRaw=inside?(0.75+0.20*Math.min(1,availableDays/gap)):(0.72*Math.exp(-Math.max(0,wait-availableDays)/Math.max(1,gap*.45)));
+  var firstRaw=0.75+0.20*Math.min(1,availableDays/gap);
   firstRaw=Math.max(0,Math.min(.98,firstRaw));
   var evidenceMultiplier=Math.max(.86,Math.min(.985,1-(.02+.08*(1-evidenceQuality))));
   var firstProb=Math.max(0,Math.min(.98,firstRaw*evidenceMultiplier*staleFactor));
   if(firstRaw<.08)firstProb=Math.min(firstProb,firstRaw);
   var repeatProb=Math.max(.55,Math.min(.97,(.82+.15*evidenceQuality)*staleFactor));
-  /* Timing uncertainty is derived from the cadence itself, not from replacing
-     cadence with raw inter-event gaps. This keeps the user's chosen frequency
-     definition intact while avoiding excessive probability leakage across the
-     Week boundary. */
   var sigma=Math.max(.75,gap*.13);
+  var tailRadius=Math.max(2,Math.ceil(sigma*4));
   var noEventProb=1,expectedCount=0,eventIndex=0;
+
   while(eventIndex<80){
     var center=wait+eventIndex*gap;
-    if(center>horizon-1) break;
-    var eventProb=eventIndex===0?firstProb:repeatProb;
-    if(eventProb<=.005){eventIndex++;continue;}
-    var weights=[],weightSum=0;
-    for(var i=0;i<horizon;i++){
-      if(lastToday&&i===0)continue;
-      var ds=toStr(addDays(parseD(fromStr),i));
+    /* Keep a short timing tail beyond the requested period so a near-boundary
+       event can fade out smoothly. Beyond ~4σ its in-period mass is negligible. */
+    if(center>horizon-1+tailRadius)break;
+    var fullEventProb=eventIndex===0?firstProb:repeatProb;
+    if(fullEventProb<=.005){eventIndex++;continue;}
+
+    var lo=Math.floor(center-4*sigma), hi=Math.ceil(center+4*sigma), totalWeight=0, insideWeight=0, inside=[];
+    for(var i=lo;i<=hi;i++){
       var w=Math.exp(-.5*Math.pow((i-center)/sigma,2));
-      weights.push({ds:ds,w:w});weightSum+=w;
+      totalWeight+=w;
+      if(i<0||i>=horizon||(lastToday&&i===0))continue;
+      insideWeight+=w;
+      inside.push({i:i,w:w});
     }
-    if(weightSum<=1e-9){eventIndex++;continue;}
-    var eventByDate={},eventExpected=eventProb*profile.typicalAmount;
-    weights.forEach(function(x){
-      var amt=eventExpected*(x.w/weightSum);
-      eventByDate[x.ds]=(eventByDate[x.ds]||0)+amt;
-      byDate[x.ds]=(byDate[x.ds]||0)+amt;
+    if(totalWeight<=1e-9||insideWeight<=1e-9){eventIndex++;continue;}
+
+    var windowFraction=Math.max(0,Math.min(1,insideWeight/totalWeight));
+    var eventProb=Math.max(0,Math.min(1,fullEventProb*windowFraction));
+    if(eventProb<=.0005){eventIndex++;continue;}
+    var eventExpected=eventProb*profile.typicalAmount, eventByDate={};
+    inside.forEach(function(x){
+      var ds=toStr(addDays(parseD(fromStr),x.i));
+      var amt=eventExpected*(x.w/insideWeight);
+      eventByDate[ds]=(eventByDate[ds]||0)+amt;
+      byDate[ds]=(byDate[ds]||0)+amt;
       total+=amt;
     });
-    events.push({index:eventIndex,probability:eventProb,expectedAmount:eventExpected,likelyAmount:profile.typicalAmount,center:center,byDate:eventByDate});
+    events.push({index:eventIndex,probability:eventProb,fullProbability:fullEventProb,windowFraction:windowFraction,expectedAmount:eventExpected,likelyAmount:profile.typicalAmount,center:center,byDate:eventByDate});
     expectedCount+=eventProb;
     noEventProb*=Math.max(0,1-eventProb);
     variance+=eventProb*(1-eventProb)*profile.typicalAmount*profile.typicalAmount;
@@ -6543,7 +6589,7 @@ function cadenceEventForecast(profile, fromStr, throughStr) {
     eventIndex++;
   }
   var probability=Math.max(0,Math.min(1,1-noEventProb));
-  var safeReserve=cadenceMultiProtectedReserve(probability,profile.typicalAmount,total,evidenceQuality,expectedCount);
+  var safeReserve=cadenceProtectedReserveFromEvents(events,profile.typicalAmount,total,evidenceQuality);
   return {byDate:byDate,events:events,total:total,variance:variance,probability:probability,safeReserve:safeReserve,expectedCount:expectedCount,reason:"Cadence probability",expectedDate:toStr(addDays(parseD(profile.lastDate),Math.max(1,Math.round(gap))))};
 }
 
@@ -6741,7 +6787,7 @@ function sliceBehavioralForecast(raw,fromStr,throughStr){
       var prob=Math.max(0,Math.min(1,1-noEvent));
       if(!slicedEvents.length&&expectedCount>0) prob=Math.min(1,expectedCount);
       y.probability=prob;y.expectedCount=expectedCount;y.events=slicedEvents;
-      y.safeReserve=(x.profile&&x.profile.mode==="monthly")?amount:cadenceMultiProtectedReserve(prob,likely,amount,x.profile&&x.profile.evidenceQuality,expectedCount);
+      y.safeReserve=(x.profile&&x.profile.mode==="monthly")?amount:(slicedEvents.length?cadenceProtectedReserveFromEvents(slicedEvents,likely,amount,x.profile&&x.profile.evidenceQuality):cadenceMultiProtectedReserve(prob,likely,amount,x.profile&&x.profile.evidenceQuality,expectedCount));
       cadenceReserve+=y.safeReserve;
     }else if(x.kind==="lumpy"){
       var fraction=(Number(x.amount)||0)>0?Math.max(0,Math.min(1,amount/Number(x.amount))):0;
@@ -9157,7 +9203,10 @@ document.addEventListener("click", function(e) {
       break;
     case "select-txn-person":
       preserveTxnFormDraft();
-      state.entryPersonDraft = el.dataset.person || "";
+      var chosenTxnPerson = el.dataset.person || "";
+      /* Person assignment is optional. Tapping the selected person again, or
+         choosing Unassigned, clears the assignment instead of forcing one. */
+      state.entryPersonDraft = (state.txnPersonSplitMode === "single" && state.entryPersonDraft === chosenTxnPerson) ? "" : chosenTxnPerson;
       state.txnPersonSplitMode = "single";
       state.entryPersonSplitDraft = null;
       render();
