@@ -1119,6 +1119,17 @@
      noticeably too far down. */
   .settings-page { padding-top:0 !important; }
 
+  /* ===== v112.27 live Safe-to-Spend + Home FAB clearance =====
+     The modern 60px FAB could still cover the Projected Saving target on
+     shorter iPhones. Keep the action comfortably tappable, but restore the
+     more compact Home size and reserve a narrow right-side lane in the saving
+     summary so the target is always readable beside the floating action. */
+  html.simple-home .app-fab {
+    width:52px !important; height:52px !important; border-radius:18px !important;
+  }
+  html.simple-home .simple-saving-summary { padding-right:58px; }
+  @media (max-width:360px) { html.simple-home .simple-saving-summary { padding-right:52px; } }
+
   /* v112.12: compact flexible spending pace restored on Home */
   .home-flex-pace { margin-top:12px; padding-top:11px; }
   .home-flex-pace-head { align-items:baseline; gap:10px; }
@@ -1139,7 +1150,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v112.26";
+var APP_VERSION = "v112.27";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities","Flights","Hotels & Accommodation","Food & Dining","Local Transport / Car Rental","Activities & Attractions","Shopping & Souvenirs","Visa / Travel Fees / Insurance","Miscellaneous Travel"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"},"Flights":{"icon":"plane","color":"#0A84FF"},"Hotels & Accommodation":{"icon":"bed","color":"#5856D6"},"Food & Dining":{"icon":"fork","color":"#D4614A"},"Local Transport / Car Rental":{"icon":"taxi","color":"#5AC8FA"},"Activities & Attractions":{"icon":"ticket","color":"#FF9F0A"},"Shopping & Souvenirs":{"icon":"gift","color":"#AF52DE"},"Visa / Travel Fees / Insurance":{"icon":"shield","color":"#34C759"},"Miscellaneous Travel":{"icon":"travel","color":"#8E8E93"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"},"Travel":{"icon":"plane","color":"#0A84FF"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Travel","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle","Flights":"Travel","Hotels & Accommodation":"Travel","Food & Dining":"Travel","Local Transport / Car Rental":"Travel","Activities & Attractions":"Travel","Shopping & Souvenirs":"Travel","Visa / Travel Fees / Insurance":"Travel","Miscellaneous Travel":"Travel"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: {"Flights":true,"Hotels & Accommodation":true,"Food & Dining":true,"Local Transport / Car Rental":true,"Activities & Attractions":true,"Shopping & Souvenirs":true,"Visa / Travel Fees / Insurance":true,"Miscellaneous Travel":true}, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 0, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true, cadenceBoundarySmoothingMigrationV11219: true, homeDeltaModelEpochV11219: null, annualReserves: null, annualReserveMigrationV11222: null, travelTaxonomyMigrationV11224: true, travelOutsideBudgetMigrationV11225: true };
@@ -4822,12 +4833,14 @@ function liveBudgetPacing() {
     var sustainableDaily=days>0?round2(openingFlexiblePool/days):openingFlexiblePool;
     var liveForecast=periodForecast(stats,per.startStr,per.endStr,scope,false), fc=liveForecast.forecast;
     
-    var storedToday=safeSpendHistory().find(function(x){return x.date===today;});
+    /* v112.27: the daily Safe-to-Spend history is an immutable opening
+       snapshot used only for opening-vs-opening comparisons. It must never
+       cap the live headline. Mid-day changes to the effective budget (for
+       example a monthly-budget or savings-target edit) therefore restate the
+       live start-of-day allowance immediately, while the stored historical
+       opening remains untouched for the delta badge. */
     var computedOpeningSafe=openingFlexiblePool<0?openingFlexiblePool:round2(Math.min(openingFlexiblePool,Math.max(0,sustainableDaily)));
     var openingSafe=computedOpeningSafe;
-    if(storedToday&&storedToday.openingSafe!=null&&openingFlexiblePool>=0){
-      openingSafe=round2(Math.min(Math.max(0,Number(storedToday.openingSafe)||0),openingFlexiblePool));
-    }
     var flexibilityPct=0, maxFlexibilityPct=0, adaptive={pct:0,maxPct:0,factor:0,reason:"Stable sustainable daily limit"};
 
     var cadenceAdjustment=0;
