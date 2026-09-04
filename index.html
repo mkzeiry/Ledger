@@ -1119,16 +1119,19 @@
      noticeably too far down. */
   .settings-page { padding-top:0 !important; }
 
-  /* ===== v112.27 live Safe-to-Spend + Home FAB clearance =====
-     The modern 60px FAB could still cover the Projected Saving target on
-     shorter iPhones. Keep the action comfortably tappable, but restore the
-     more compact Home size and reserve a narrow right-side lane in the saving
-     summary so the target is always readable beside the floating action. */
+  /* ===== v112.28 Projected Saving target inline =====
+     Keep the Home add button at its pre-v112.27 size/position. The saving
+     target now lives beside the projected saving percentage on the left, so
+     the floating action no longer competes with a right-side Target block. */
+  .simple-saving-inline { display:flex; align-items:baseline; gap:5px; flex-wrap:wrap; }
+  .simple-saving-inline-gap { font-weight:720; }
+
+  /* ===== v112.29 restore v112.19 Home FAB position =====
+     v112.20 moved the Home add button downward. Restore the v112.19
+     placement while keeping the current modern 60px FAB presentation. */
   html.simple-home .app-fab {
-    width:52px !important; height:52px !important; border-radius:18px !important;
+    bottom:calc(max(env(safe-area-inset-bottom,0px), 8px) + 73px);
   }
-  html.simple-home .simple-saving-summary { padding-right:58px; }
-  @media (max-width:360px) { html.simple-home .simple-saving-summary { padding-right:52px; } }
 
   /* v112.12: compact flexible spending pace restored on Home */
   .home-flex-pace { margin-top:12px; padding-top:11px; }
@@ -1150,7 +1153,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v112.27";
+var APP_VERSION = "v112.29";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities","Flights","Hotels & Accommodation","Food & Dining","Local Transport / Car Rental","Activities & Attractions","Shopping & Souvenirs","Visa / Travel Fees / Insurance","Miscellaneous Travel"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"},"Flights":{"icon":"plane","color":"#0A84FF"},"Hotels & Accommodation":{"icon":"bed","color":"#5856D6"},"Food & Dining":{"icon":"fork","color":"#D4614A"},"Local Transport / Car Rental":{"icon":"taxi","color":"#5AC8FA"},"Activities & Attractions":{"icon":"ticket","color":"#FF9F0A"},"Shopping & Souvenirs":{"icon":"gift","color":"#AF52DE"},"Visa / Travel Fees / Insurance":{"icon":"shield","color":"#34C759"},"Miscellaneous Travel":{"icon":"travel","color":"#8E8E93"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"},"Travel":{"icon":"plane","color":"#0A84FF"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Travel","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle","Flights":"Travel","Hotels & Accommodation":"Travel","Food & Dining":"Travel","Local Transport / Car Rental":"Travel","Activities & Attractions":"Travel","Shopping & Souvenirs":"Travel","Visa / Travel Fees / Insurance":"Travel","Miscellaneous Travel":"Travel"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: {"Flights":true,"Hotels & Accommodation":true,"Food & Dining":true,"Local Transport / Car Rental":true,"Activities & Attractions":true,"Shopping & Souvenirs":true,"Visa / Travel Fees / Insurance":true,"Miscellaneous Travel":true}, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 0, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true, cadenceBoundarySmoothingMigrationV11219: true, homeDeltaModelEpochV11219: null, annualReserves: null, annualReserveMigrationV11222: null, travelTaxonomyMigrationV11224: true, travelOutsideBudgetMigrationV11225: true };
@@ -5037,7 +5040,9 @@ function renderHomeBody(T, da) {
   var effectiveSavingGap=(effectiveSavingTargetAmount!=null&&simpleSaving!=null)?round2(simpleSaving-effectiveSavingTargetAmount):null;
   var effectiveSavingGapText='';
   if(effectiveSavingGap!=null){effectiveSavingGapText=effectiveSavingGap>=0?(fmt(effectiveSavingGap,0)+' ahead'):(fmt(Math.abs(effectiveSavingGap),0)+' short');}
-  outlook += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div class="simple-saving-summary"><div class="simple-saving-main"><div class="mono simple-outlook-value home-metric-value-line" style="color:' + simpleSavingColor + ';"><span class="home-metric-primary">' + (simpleSaving >= 0 ? '+' : '−') + fmt(Math.abs(simpleSaving), 0) + ' <span class="simple-budget-unit">AED</span></span>' + projectedSavingDeltaHtml + '</div><div class="simple-outlook-sub" style="color:var(--text-muted);font-weight:600;">' + esc(simpleSavingPctText) + '</div></div>'+(effectiveSavingTargetPct!=null?'<div class="simple-saving-target"><div class="simple-saving-target-label">Target</div><div class="mono simple-saving-target-pct">'+fmt(effectiveSavingTargetPct,1)+'%</div>'+(effectiveSavingGapText?'<div class="mono simple-saving-target-gap" style="color:'+simpleSavingColor+';">'+esc(effectiveSavingGapText)+'</div>':'')+'</div>':'')+'</div></div>';
+  var simpleSavingTargetInline = effectiveSavingTargetPct!=null ? (' / '+fmt(effectiveSavingTargetPct,1)+'%') : '';
+  var simpleSavingGapInline = effectiveSavingGapText ? ('<span class="mono simple-saving-inline-gap" style="color:'+simpleSavingColor+';">('+esc(effectiveSavingGapText)+')</span>') : '';
+  outlook += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div class="simple-saving-main"><div class="mono simple-outlook-value home-metric-value-line" style="color:' + simpleSavingColor + ';"><span class="home-metric-primary">' + (simpleSaving >= 0 ? '+' : '−') + fmt(Math.abs(simpleSaving), 0) + ' <span class="simple-budget-unit">AED</span></span>' + projectedSavingDeltaHtml + '</div><div class="simple-outlook-sub simple-saving-inline" style="color:var(--text-muted);font-weight:600;"><span class="mono">' + esc(simpleSavingPctText + simpleSavingTargetInline) + '</span>' + simpleSavingGapInline + '</div></div></div>';
   simpleCards.outlook = outlook + '</div>';
 
   var simpleOrder = ['hero','budgetStatus','outlook','today'];
