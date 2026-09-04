@@ -1168,6 +1168,10 @@
 
 
 
+  /* ===== v112.38 periodic-plan forecast matching =====
+     Historical real payments matched to a re-anchored quarterly / semiannual
+     plan stay out of behavioral/lumpy learning without moving their cash date. */
+
   /* ===== v112.37 periodic cash-timing repair =====
      Match the Home/primary-tab header more closely to the compact Settings
      header. The previous primary topbar reserved more vertical space than
@@ -1192,10 +1196,10 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v112.37";
-var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
+var APP_VERSION = "v112.38";
+var FORECAST_MODEL_VERSION = "v11238-periodic-cash-1";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities","Flights","Hotels & Accommodation","Food & Dining","Local Transport / Car Rental","Activities & Attractions","Shopping & Souvenirs","Visa / Travel Fees / Insurance","Miscellaneous Travel"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"},"Flights":{"icon":"plane","color":"#0A84FF"},"Hotels & Accommodation":{"icon":"bed","color":"#5856D6"},"Food & Dining":{"icon":"fork","color":"#D4614A"},"Local Transport / Car Rental":{"icon":"taxi","color":"#5AC8FA"},"Activities & Attractions":{"icon":"ticket","color":"#FF9F0A"},"Shopping & Souvenirs":{"icon":"gift","color":"#AF52DE"},"Visa / Travel Fees / Insurance":{"icon":"shield","color":"#34C759"},"Miscellaneous Travel":{"icon":"travel","color":"#8E8E93"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"},"Travel":{"icon":"plane","color":"#0A84FF"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Travel","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle","Flights":"Travel","Hotels & Accommodation":"Travel","Food & Dining":"Travel","Local Transport / Car Rental":"Travel","Activities & Attractions":"Travel","Shopping & Souvenirs":"Travel","Visa / Travel Fees / Insurance":"Travel","Miscellaneous Travel":"Travel"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: {"Flights":true,"Hotels & Accommodation":true,"Food & Dining":true,"Local Transport / Car Rental":true,"Activities & Attractions":true,"Shopping & Souvenirs":true,"Visa / Travel Fees / Insurance":true,"Miscellaneous Travel":true}, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 0, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true, cadenceBoundarySmoothingMigrationV11219: true, homeDeltaModelEpochV11219: null, annualReserves: null, annualReserveMigrationV11222: null, travelTaxonomyMigrationV11224: true, travelOutsideBudgetMigrationV11225: true, periodicPlanAlignmentMigrationV11237: true };
+var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities","Flights","Hotels & Accommodation","Food & Dining","Local Transport / Car Rental","Activities & Attractions","Shopping & Souvenirs","Visa / Travel Fees / Insurance","Miscellaneous Travel"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"},"Flights":{"icon":"plane","color":"#0A84FF"},"Hotels & Accommodation":{"icon":"bed","color":"#5856D6"},"Food & Dining":{"icon":"fork","color":"#D4614A"},"Local Transport / Car Rental":{"icon":"taxi","color":"#5AC8FA"},"Activities & Attractions":{"icon":"ticket","color":"#FF9F0A"},"Shopping & Souvenirs":{"icon":"gift","color":"#AF52DE"},"Visa / Travel Fees / Insurance":{"icon":"shield","color":"#34C759"},"Miscellaneous Travel":{"icon":"travel","color":"#8E8E93"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"},"Travel":{"icon":"plane","color":"#0A84FF"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Travel","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle","Flights":"Travel","Hotels & Accommodation":"Travel","Food & Dining":"Travel","Local Transport / Car Rental":"Travel","Activities & Attractions":"Travel","Shopping & Souvenirs":"Travel","Visa / Travel Fees / Insurance":"Travel","Miscellaneous Travel":"Travel"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: {"Flights":true,"Hotels & Accommodation":true,"Food & Dining":true,"Local Transport / Car Rental":true,"Activities & Attractions":true,"Shopping & Souvenirs":true,"Visa / Travel Fees / Insurance":true,"Miscellaneous Travel":true}, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 0, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true, cadenceBoundarySmoothingMigrationV11219: true, homeDeltaModelEpochV11219: null, annualReserves: null, annualReserveMigrationV11222: null, travelTaxonomyMigrationV11224: true, travelOutsideBudgetMigrationV11225: true, periodicPlanAlignmentMigrationV11237: true, periodicForecastMatchMigrationV11238: true };
 /* Forecast backtesting is independent of the removed Accounts feature.
    Keep its saved snapshots normalized on every boot so an older/corrupt
    snapshot can never prevent the ledger itself from opening. */
@@ -2554,11 +2558,40 @@ function normalizedOutsideBudgetMonthlyCost(){
    affordability cost. Keep the normalized monthly cost in the savings model,
    while allowing the actual cash to land on the real quarterly / six-monthly
    / yearly due date. Across a complete payment cycle these adjustments cancel. */
-function periodicPlanCashTimingForMonth(startStr,endStr){
-  var periodic={quarterly:true,semiannual:true,yearly:true}, today=todayStr(), out=[];
-  var allRules=state.settings.recurringRules||[], activePeriodic=allRules.filter(function(r){
+/* A re-anchored periodic plan can legitimately have a real payment in history
+   that is not on the new plan's occurrence date. Keep a lightweight timing
+   relationship on that transaction so cash-flow timing can recognize it while
+   the behavioral forecast knows it was planned cash, not a new lumpy habit. */
+function periodicPlanRulesForTiming(){
+  var periodic={quarterly:true,semiannual:true,yearly:true};
+  return (state.settings.recurringRules||[]).filter(function(r){
     return !!(r&&r.active&&r.kind==="recurring"&&r.entryKind!=="income"&&periodic[r.frequency]&&categoryExcludedFromBudget(r.category)&&!annualReserveForCategory(r.category)&&categoryForecastBehavior(r.category)!=="yearly");
   });
+}
+function periodicTimingPlanIdForItem(ds,it,rules){
+  if(!it||!isExpenseItem(it))return null;
+  rules=rules||periodicPlanRulesForTiming();
+  var byId={};rules.forEach(function(r){byId[r.id]=r;});
+  if(it.periodicTimingPlanId&&byId[it.periodicTimingPlanId])return it.periodicTimingPlanId;
+  if(it.recurringId&&byId[it.recurringId])return it.recurringId;
+  var cat=subcategoryKey(it), candidates=rules.filter(function(r){return r.category===cat;});
+  if(candidates.length!==1)return null;
+  var rule=candidates[0];
+  /* Never steal a transaction from a different current periodic plan. An
+     orphaned legacy recurring id is allowed because that is exactly what plan
+     re-anchoring can leave behind. */
+  if(it.recurringId&&byId[it.recurringId]&&it.recurringId!==rule.id)return null;
+  var actual=Math.max(0,Number(it.amount)||0), expected=Math.max(0,Number(rule.amount)||0);
+  if(!(expected>0)||Math.abs(actual-expected)>0.01)return null;
+  return rule.id;
+}
+function itemIsPlannedPeriodicCash(ds,it,rules){
+  return !!periodicTimingPlanIdForItem(ds,it,rules);
+}
+
+function periodicPlanCashTimingForMonth(startStr,endStr){
+  var today=todayStr(), out=[];
+  var activePeriodic=periodicPlanRulesForTiming();
   var activeRuleIds={};activePeriodic.forEach(function(r){activeRuleIds[r.id]=true;});
   var rules=activePeriodic.filter(function(r){
     if(!ruleIsComplete(r))return true;
@@ -2568,7 +2601,7 @@ function periodicPlanCashTimingForMonth(startStr,endStr){
        total. */
     return Object.keys(state.entries||{}).some(function(ds){
       if(ds<startStr||ds>endStr)return false;
-      return ((state.entries[ds]&&state.entries[ds].items)||[]).some(function(it){return isExpenseItem(it)&&it.recurringId===r.id;});
+      return ((state.entries[ds]&&state.entries[ds].items)||[]).some(function(it){return isExpenseItem(it)&&(it.recurringId===r.id||it.periodicTimingPlanId===r.id);});
     });
   });
   rules.forEach(function(rule){
@@ -2578,7 +2611,7 @@ function periodicPlanCashTimingForMonth(startStr,endStr){
     Object.keys(state.entries||{}).forEach(function(ds){
       if(ds<startStr||ds>endStr)return;
       ((state.entries[ds]&&state.entries[ds].items)||[]).forEach(function(it){
-        if(!isExpenseItem(it)||it.recurringId!==rule.id)return;
+        if(!isExpenseItem(it)||(it.recurringId!==rule.id&&it.periodicTimingPlanId!==rule.id))return;
         var actual=Math.max(0,Number(it.amount)||0); logged+=actual; linkedCount++;
         var seq=Number(it.seq), expected=(isFinite(seq)&&seq>=1)?Math.max(0,Number(ruleOccurrenceAmount(rule,Math.round(seq)-1))||0):Math.max(0,Number(rule.amount)||0);
         protectedLogged+=Math.min(actual,expected);
@@ -2601,6 +2634,7 @@ function periodicPlanCashTimingForMonth(startStr,endStr){
           return ((state.entries[ds]&&state.entries[ds].items)||[]).some(function(it){
             if(!isExpenseItem(it)||subcategoryKey(it)!==rule.category)return false;
             if(it.recurringId&&activeRuleIds[it.recurringId]&&it.recurringId!==rule.id)return false;
+            if(it.periodicTimingPlanId&&activeRuleIds[it.periodicTimingPlanId]&&it.periodicTimingPlanId!==rule.id)return false;
             var actual=Math.max(0,Number(it.amount)||0);
             if(Math.abs(actual-expectedFallback)>0.01)return false;
             fallback={date:ds,item:it,amount:actual};return true;
@@ -3273,7 +3307,7 @@ function repairPeriodicPlanGeneratedDates(settings, entries) {
       if(!rule||!isFinite(seq)||seq<1)return it;
       var expected=recurringOccurrenceDate(rule,Math.round(seq)-1);
       if(expected===ds||expected>today)return it;
-      var clean=Object.assign({},it); delete clean.recurringId; delete clean.seq; delete clean.seqTotal;
+      var clean=Object.assign({},it,{periodicTimingPlanId:rule.id}); delete clean.recurringId; delete clean.seq; delete clean.seqTotal;
       repairs.push({date:ds,expectedDate:expected,itemId:it.id,category:it.category||"",ruleId:rule.id});
       dayChanged=true;changed=true;return clean;
     });
@@ -3282,8 +3316,38 @@ function repairPeriodicPlanGeneratedDates(settings, entries) {
   return {entries:nextEntries,changed:changed,repairs:repairs};
 }
 
+/* v112.38 tags exact historical cash payments that belong to a unique active
+   quarterly / six-monthly / yearly plan. This is metadata only: dates, amounts
+   and user-visible transaction details remain untouched. The tag prevents a
+   re-anchored Rent/Mortgage payment from being relearned as a lumpy forecast. */
+function markHistoricalPeriodicPlanCash(settings,entries){
+  var periodic={quarterly:true,semiannual:true,yearly:true}, candidatesByCategory={}, changed=false, nextEntries=Object.assign({},entries||{});
+  (settings.recurringRules||[]).forEach(function(r){
+    if(!r||!r.active||r.kind!=="recurring"||r.entryKind==="income"||!periodic[r.frequency]||!categoryExcludedFromBudget(r.category)||annualReserveForCategory(r.category)||categoryForecastBehavior(r.category)==="yearly")return;
+    if(!candidatesByCategory[r.category])candidatesByCategory[r.category]=[];
+    candidatesByCategory[r.category].push(r);
+  });
+  var activeIds={};Object.keys(candidatesByCategory).forEach(function(c){candidatesByCategory[c].forEach(function(r){activeIds[r.id]=true;});});
+  Object.keys(entries||{}).forEach(function(ds){
+    var day=entries[ds], dayChanged=false;
+    var items=((day&&day.items)||[]).map(function(it){
+      if(!it||!isExpenseItem(it)||it.periodicTimingPlanId)return it;
+      var cat=subcategoryKey(it), list=candidatesByCategory[cat]||[];
+      if(list.length!==1)return it;
+      var rule=list[0];
+      if(it.recurringId===rule.id)return it;
+      if(it.recurringId&&activeIds[it.recurringId]&&it.recurringId!==rule.id)return it;
+      var actual=Math.max(0,Number(it.amount)||0), expected=Math.max(0,Number(rule.amount)||0);
+      if(!(expected>0)||Math.abs(actual-expected)>0.01)return it;
+      dayChanged=true;changed=true;return Object.assign({},it,{periodicTimingPlanId:rule.id});
+    });
+    if(dayChanged)nextEntries[ds]=Object.assign({},day,{items:items});
+  });
+  return {entries:nextEntries,changed:changed};
+}
+
 function loadInitial() {
-  var v1119SafeHistoryMigrationNeeded=false, v11110YearlyAutoMigrationNeeded=false, v11111YearlyBackgroundMigrationNeeded=false, v11114StableSafeMigrationNeeded=false, v11115MonthlyBillActualMigrationNeeded=false, v11219CadenceBoundaryMigrationNeeded=false, v11224TravelTaxonomyMigrationNeeded=false, v11225TravelOutsideBudgetMigrationNeeded=false, v11237PeriodicAlignmentMigrationNeeded=false;
+  var v1119SafeHistoryMigrationNeeded=false, v11110YearlyAutoMigrationNeeded=false, v11111YearlyBackgroundMigrationNeeded=false, v11114StableSafeMigrationNeeded=false, v11115MonthlyBillActualMigrationNeeded=false, v11219CadenceBoundaryMigrationNeeded=false, v11224TravelTaxonomyMigrationNeeded=false, v11225TravelOutsideBudgetMigrationNeeded=false, v11237PeriodicAlignmentMigrationNeeded=false, v11238PeriodicForecastMatchMigrationNeeded=false;
   primaryStorageHealth="missing";
   try {
     var raw = localStorage.getItem(STORAGE_KEY);
@@ -3301,6 +3365,7 @@ function loadInitial() {
       v11224TravelTaxonomyMigrationNeeded=parsedSettings.travelTaxonomyMigrationV11224!==true;
       v11225TravelOutsideBudgetMigrationNeeded=parsedSettings.travelOutsideBudgetMigrationV11225!==true;
       v11237PeriodicAlignmentMigrationNeeded=parsedSettings.periodicPlanAlignmentMigrationV11237!==true;
+      v11238PeriodicForecastMatchMigrationNeeded=parsedSettings.periodicForecastMatchMigrationV11238!==true;
       state.settings = Object.assign({}, DEFAULT_SETTINGS, parsedSettings);
       if (!state.settings.rateHistory || !state.settings.rateHistory.length) {
         state.settings.rateHistory = [{ from: "1900-01-01", weeklyTarget: state.settings.weeklyTarget }];
@@ -3423,12 +3488,18 @@ function loadInitial() {
   state.settings.annualReserves = normalizeAnnualReserves(state.settings.annualReserves, state.settings.categories, state.settings.categoryGroups);
   var annualReserveMigrationChanged=travelTaxonomyMigrationChanged||travelOutsideBudgetMigrationChanged;
   state.settings.recurringRules = normalizeRecurringRules(state.settings.recurringRules);
-  var periodicAlignmentMigrationChanged=false;
+  var periodicAlignmentMigrationChanged=false, periodicForecastMatchMigrationChanged=false;
   if(primaryStorageHealth==="healthy"&&v11237PeriodicAlignmentMigrationNeeded){
     var periodicRepair=repairPeriodicPlanGeneratedDates(state.settings,state.entries);
     if(periodicRepair.changed)state.entries=periodicRepair.entries;
     state.settings.periodicPlanAlignmentMigrationV11237=true;
     periodicAlignmentMigrationChanged=true;
+  }
+  if(primaryStorageHealth==="healthy"&&v11238PeriodicForecastMatchMigrationNeeded){
+    var periodicForecastMatch=markHistoricalPeriodicPlanCash(state.settings,state.entries);
+    if(periodicForecastMatch.changed)state.entries=periodicForecastMatch.entries;
+    state.settings.periodicForecastMatchMigrationV11238=true;
+    periodicForecastMatchMigrationChanged=true;
   }
   /* Do not run maintenance against empty defaults when primary storage is
      missing/corrupt; IndexedDB recovery gets first chance. */
@@ -3436,8 +3507,8 @@ function loadInitial() {
   if(primaryStorageHealth==="healthy"){
     try { recurringChanged = runRecurringCatchUp(); } catch(e) { recurringChanged = false; }
     try { snapshotChanged = captureForecastSnapshotsIfNeeded(); } catch(e) { snapshotChanged = false; }
-    if (recurringChanged || snapshotChanged || analysisForecastV52MigrationChanged || forecastBehaviorMigrationChanged || yearlyBillSettingsMigrationChanged || adaptiveSafeHistoryMigrationChanged || annualReserveMigrationChanged || periodicAlignmentMigrationChanged) {
-      persistAll(state.settings, state.entries, periodicAlignmentMigrationChanged ? "periodic plan alignment" : (annualReserveMigrationChanged ? "travel budget classification" : (recurringChanged ? "recurring payments" : (snapshotChanged ? "forecast learning" : (forecastBehaviorMigrationChanged || yearlyBillSettingsMigrationChanged ? "forecast behavior" : (adaptiveSafeHistoryMigrationChanged ? "adaptive Safe-to-Spend" : "analysis forecast"))))));
+    if (recurringChanged || snapshotChanged || analysisForecastV52MigrationChanged || forecastBehaviorMigrationChanged || yearlyBillSettingsMigrationChanged || adaptiveSafeHistoryMigrationChanged || annualReserveMigrationChanged || periodicAlignmentMigrationChanged || periodicForecastMatchMigrationChanged) {
+      persistAll(state.settings, state.entries, periodicForecastMatchMigrationChanged ? "periodic forecast matching" : (periodicAlignmentMigrationChanged ? "periodic plan alignment" : (annualReserveMigrationChanged ? "travel budget classification" : (recurringChanged ? "recurring payments" : (snapshotChanged ? "forecast learning" : (forecastBehaviorMigrationChanged || yearlyBillSettingsMigrationChanged ? "forecast behavior" : (adaptiveSafeHistoryMigrationChanged ? "adaptive Safe-to-Spend" : "analysis forecast")))))));
     }
   }
   state.loading = false;
@@ -6712,6 +6783,7 @@ function buildAnalysisForecastCard(info, cs, T, scope) {
 
 function forecastCategoryProfiles(scope, asOfDate) {
   scope=scope||"overall"; asOfDate=asOfDate||todayStr();
+  var periodicTimingRules=periodicPlanRulesForTiming();
   var allDates=Object.keys(state.entries).sort(), first=allDates.length?allDates[0]:asOfDate;
   var natural=scope==="overall"?first:(state.settings.trackingStartDate||first);
   var floor=toStr(addDays(parseD(asOfDate),-364));
@@ -6719,7 +6791,7 @@ function forecastCategoryProfiles(scope, asOfDate) {
   Object.keys(state.entries).forEach(function(ds){
     if(ds<start||ds>asOfDate) return;
     (state.entries[ds].items||[]).forEach(function(it){
-      if(!expenseCountsForScope(it,scope)||it.recurringId) return;
+      if(!expenseCountsForScope(it,scope)||it.recurringId||itemIsPlannedPeriodicCash(ds,it,periodicTimingRules)) return;
       var k=subcategoryKey(it);
       if(!maps[k]) maps[k]={daily:{},txnCount:0,timedCount:0,txnAmounts:[]};
       maps[k].daily[ds]=(maps[k].daily[ds]||0)+it.amount;
@@ -7079,11 +7151,12 @@ function lumpyEventForecast(profile, fromStr, throughStr) {
 }
 
 function portfolioUnscheduledPaceForecast(scope, profileAsOfStr, forecastFromStr, throughStr) {
+  var periodicTimingRules=periodicPlanRulesForTiming();
   var histEnd=forecastHistoryEnd(profileAsOfStr), allDates=Object.keys(state.entries).sort(), first=allDates.length?allDates[0]:histEnd;
   var natural=scope==="overall"?first:(state.settings.trackingStartDate||first),daily={};
   function daySpend(ds){
     var e=state.entries[ds],sum=0;if(!e||!Array.isArray(e.items))return 0;
-    e.items.forEach(function(it){if(expenseCountsForScope(it,scope)&&!it.recurringId&&categoryForecastBehavior(subcategoryKey(it))!=="monthly"&&categoryForecastBehavior(subcategoryKey(it))!=="yearly")sum+=Number(it.amount)||0;});return sum;
+    e.items.forEach(function(it){if(expenseCountsForScope(it,scope)&&!it.recurringId&&!itemIsPlannedPeriodicCash(ds,it,periodicTimingRules)&&categoryForecastBehavior(subcategoryKey(it))!=="monthly"&&categoryForecastBehavior(subcategoryKey(it))!=="yearly")sum+=Number(it.amount)||0;});return sum;
   }
   var start=toStr(addDays(parseD(histEnd),-89));if(natural>start)start=natural;
   var d=parseD(start);while(toStr(d)<=histEnd){var ds=toStr(d);daily[ds]=daySpend(ds);d=addDays(d,1);}
