@@ -1175,7 +1175,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v112.32";
+var APP_VERSION = "v112.33";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities","Flights","Hotels & Accommodation","Food & Dining","Local Transport / Car Rental","Activities & Attractions","Shopping & Souvenirs","Visa / Travel Fees / Insurance","Miscellaneous Travel"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"},"Flights":{"icon":"plane","color":"#0A84FF"},"Hotels & Accommodation":{"icon":"bed","color":"#5856D6"},"Food & Dining":{"icon":"fork","color":"#D4614A"},"Local Transport / Car Rental":{"icon":"taxi","color":"#5AC8FA"},"Activities & Attractions":{"icon":"ticket","color":"#FF9F0A"},"Shopping & Souvenirs":{"icon":"gift","color":"#AF52DE"},"Visa / Travel Fees / Insurance":{"icon":"shield","color":"#34C759"},"Miscellaneous Travel":{"icon":"travel","color":"#8E8E93"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"},"Travel":{"icon":"plane","color":"#0A84FF"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Travel","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle","Flights":"Travel","Hotels & Accommodation":"Travel","Food & Dining":"Travel","Local Transport / Car Rental":"Travel","Activities & Attractions":"Travel","Shopping & Souvenirs":"Travel","Visa / Travel Fees / Insurance":"Travel","Miscellaneous Travel":"Travel"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: {"Flights":true,"Hotels & Accommodation":true,"Food & Dining":true,"Local Transport / Car Rental":true,"Activities & Attractions":true,"Shopping & Souvenirs":true,"Visa / Travel Fees / Insurance":true,"Miscellaneous Travel":true}, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 0, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true, cadenceBoundarySmoothingMigrationV11219: true, homeDeltaModelEpochV11219: null, annualReserves: null, annualReserveMigrationV11222: null, travelTaxonomyMigrationV11224: true, travelOutsideBudgetMigrationV11225: true };
@@ -1578,19 +1578,30 @@ function endOfMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
 function daysInMonth(d){ return endOfMonth(d).getDate(); }
 function daysBetween(aStr,bStr){ return Math.round((parseD(bStr)-parseD(aStr))/86400000); }
 /* The date of the Nth occurrence (0-based) of a rule. Daily and weekly are
-   flat day arithmetic. Monthly clamps the day-of-month to whatever the
-   target month actually has — otherwise a rule started on the 31st would
-   have JS's Date silently roll February's "31st" into early March, and
-   every later occurrence would drift off the intended day permanently. */
+   flat day arithmetic. Month-based plans (monthly, every 3 months, every 6
+   months, yearly) advance by an exact month step and clamp the day-of-month to
+   the target month's last valid day, preventing 29th/30th/31st drift. */
+function recurringMonthStep(frequency) {
+  if (frequency === "monthly") return 1;
+  if (frequency === "quarterly") return 3;
+  if (frequency === "semiannual") return 6;
+  if (frequency === "yearly") return 12;
+  return 0;
+}
+function recurringFrequencyLabel(frequency) {
+  if (frequency === "daily") return "Daily";
+  if (frequency === "weekly") return "Weekly";
+  if (frequency === "quarterly") return "Every 3 months";
+  if (frequency === "semiannual") return "Every 6 months";
+  if (frequency === "yearly") return "Yearly";
+  return "Monthly";
+}
 function recurringOccurrenceDate(rule, n) {
   var start = parseD(rule.startDate);
   if (rule.frequency === "daily") return toStr(addDays(start, n));
   if (rule.frequency === "weekly") return toStr(addDays(start, n*7));
-  if (rule.frequency === "yearly") {
-    var yy=start.getFullYear()+n, mm=start.getMonth(), lastDay=new Date(yy,mm+1,0).getDate();
-    return toStr(new Date(yy,mm,Math.min(start.getDate(),lastDay)));
-  }
-  var totalMonthIndex = start.getMonth() + n;
+  var monthStep = recurringMonthStep(rule.frequency) || 1;
+  var totalMonthIndex = start.getMonth() + n*monthStep;
   var targetYear = start.getFullYear() + Math.floor(totalMonthIndex/12);
   var targetMonth = ((totalMonthIndex % 12) + 12) % 12;
   var lastDayOfTargetMonth = new Date(targetYear, targetMonth+1, 0).getDate();
@@ -1618,7 +1629,7 @@ function ruleIsComplete(rule) {
   return false;
 }
 function normalizeRecurringRules(rules) {
-  return (rules||[]).filter(function(r){ return r && r.id && r.startDate && (r.frequency==="daily"||r.frequency==="weekly"||r.frequency==="monthly"||r.frequency==="yearly"); });
+  return (rules||[]).filter(function(r){ return r && r.id && r.startDate && (r.frequency==="daily"||r.frequency==="weekly"||r.frequency==="monthly"||r.frequency==="quarterly"||r.frequency==="semiannual"||r.frequency==="yearly"); });
 }
 /* Generates any occurrences of active rules that are due (today or earlier)
    and haven't been logged yet — this is the only mechanism that makes
@@ -1892,7 +1903,7 @@ function categoryHistoricalExpenseRows(catName){
 function yearlyBillPlanCandidates(catName){
   return (state.settings.recurringRules||[]).filter(function(r){
     if(!r||r.kind!=="recurring"||r.entryKind==="income"||r.category!==catName)return false;
-    return r.frequency==="yearly" || (r.occurrencesTotal!=null&&Number(r.occurrencesTotal)>0);
+    return r.frequency==="yearly" || r.frequency==="semiannual" || r.frequency==="quarterly" || (r.occurrencesTotal!=null&&Number(r.occurrencesTotal)>0);
   }).slice().sort(function(a,b){
     var ad=String(a.startDate||""),bd=String(b.startDate||"");
     if(ad!==bd)return ad<bd?1:-1;
@@ -1903,6 +1914,8 @@ function yearlyBillPlanCandidates(catName){
 function yearlyBillPlanTotal(rule){
   if(!rule)return 0;
   if(rule.frequency==="yearly")return round2(Math.max(0,Number(rule.amount)||0));
+  if(rule.frequency==="semiannual")return round2(Math.max(0,Number(rule.amount)||0)*2);
+  if(rule.frequency==="quarterly")return round2(Math.max(0,Number(rule.amount)||0)*4);
   var count=Math.max(0,Math.round(Number(rule.occurrencesTotal)||0));
   if(!count)return 0;
   var total=0,cap=Math.min(count,2000);
@@ -2421,6 +2434,8 @@ function monthlyEquivalentForRecurringRule(rule){
   var a=Math.max(0,Number(rule.amount)||0), f=String(rule.frequency||"monthly");
   if(f==="daily")return round2(a*365.2425/12);
   if(f==="weekly")return round2(a*365.2425/(7*12));
+  if(f==="quarterly")return round2(a/3);
+  if(f==="semiannual")return round2(a/6);
   if(f==="yearly")return round2(a/12);
   return round2(a);
 }
@@ -2493,6 +2508,42 @@ function normalizedOutsideBudgetMonthlyCost(){
    unchanged; this shifts only the selected month's cash-spend ceiling so
    yearly bills paid through installments are not penalized twice. Across a
    full 12-month cycle these timing adjustments net to zero. */
+/* Outside-budget bills paid less often than monthly still have a monthly
+   affordability cost. Keep the normalized monthly cost in the savings model,
+   while allowing the actual cash to land on the real quarterly / six-monthly
+   / yearly due date. Across a complete payment cycle these adjustments cancel. */
+function periodicPlanCashTimingForMonth(startStr,endStr){
+  var periodic={quarterly:true,semiannual:true,yearly:true}, today=todayStr(), out=[];
+  var rules=(state.settings.recurringRules||[]).filter(function(r){
+    return r&&r.active&&r.kind==="recurring"&&r.entryKind!=="income"&&!ruleIsComplete(r)&&periodic[r.frequency]&&categoryExcludedFromBudget(r.category)&&!annualReserveForCategory(r.category)&&categoryForecastBehavior(r.category)!=="yearly";
+  });
+  rules.forEach(function(rule){
+    var normalized=monthlyEquivalentForRecurringRule(rule);
+    if(!(normalized>0))return;
+    var logged=0;
+    Object.keys(state.entries||{}).forEach(function(ds){
+      if(ds<startStr||ds>endStr)return;
+      ((state.entries[ds]&&state.entries[ds].items)||[]).forEach(function(it){
+        if(isExpenseItem(it)&&it.recurringId===rule.id)logged+=Math.max(0,Number(it.amount)||0);
+      });
+    });
+    var future=0,n=rule.occurrencesLogged||0,guard=0;
+    while(guard<120){
+      if(rule.occurrencesTotal!=null&&n>=rule.occurrencesTotal)break;
+      var due=recurringOccurrenceDate(rule,n);
+      if(due>endStr)break;
+      if(rule.endDate&&due>rule.endDate)break;
+      if(due>=startStr&&due>today)future+=Math.max(0,Number(ruleOccurrenceAmount(rule,n))||0);
+      n++;guard++;
+    }
+    var cash=round2(logged+future),adjustment=round2(cash-normalized);
+    out.push({id:rule.id,category:rule.category||"",name:rule.note||rule.category||"Scheduled bill",frequency:rule.frequency,normalized:round2(normalized),logged:round2(logged),future:round2(future),cash:cash,adjustment:adjustment});
+  });
+  var normalizedTotal=round2(out.reduce(function(sum,x){return sum+x.normalized;},0));
+  var cashTotal=round2(out.reduce(function(sum,x){return sum+x.cash;},0));
+  return {normalized:normalizedTotal,cash:cashTotal,adjustment:round2(cashTotal-normalizedTotal),breakdown:out};
+}
+
 function yearlyBillCashTimingForMonth(startStr,endStr){
   var cats=(state.settings.categories||[]).filter(function(c){return categoryForecastBehavior(c)==="yearly";});
   if(!cats.length)return {normalized:0,cash:0,adjustment:0,breakdown:[]};
@@ -2526,9 +2577,9 @@ function yearlyBillCashTimingForMonth(startStr,endStr){
 }
 function effectiveMonthlyCashSavingsTarget(startStr,endStr,projectedIncome){
   var pct=savingsTargetPct(), base=(projectedIncome>0&&pct>0)?savingsSpendCeilingForIncome(projectedIncome):null;
-  if(base==null)return {base:null,effective:null,effectiveSavingPct:null,timing:{normalized:0,cash:0,adjustment:0,breakdown:[],yearlyBills:{normalized:0,cash:0,adjustment:0,breakdown:[]},annualReserves:{normalized:0,cash:0,adjustment:0,breakdown:[]}}};
-  var yearly=yearlyBillCashTimingForMonth(startStr,endStr), reserves=annualReserveCashTimingForMonth(startStr,endStr);
-  var timing={normalized:round2(yearly.normalized+reserves.normalized),cash:round2(yearly.cash+reserves.cash),adjustment:round2(yearly.adjustment+reserves.adjustment),breakdown:(yearly.breakdown||[]).concat(reserves.breakdown||[]),yearlyBills:yearly,annualReserves:reserves};
+  if(base==null)return {base:null,effective:null,effectiveSavingPct:null,timing:{normalized:0,cash:0,adjustment:0,breakdown:[],yearlyBills:{normalized:0,cash:0,adjustment:0,breakdown:[]},periodicPlans:{normalized:0,cash:0,adjustment:0,breakdown:[]},annualReserves:{normalized:0,cash:0,adjustment:0,breakdown:[]}}};
+  var yearly=yearlyBillCashTimingForMonth(startStr,endStr), periodic=periodicPlanCashTimingForMonth(startStr,endStr), reserves=annualReserveCashTimingForMonth(startStr,endStr);
+  var timing={normalized:round2(yearly.normalized+periodic.normalized+reserves.normalized),cash:round2(yearly.cash+periodic.cash+reserves.cash),adjustment:round2(yearly.adjustment+periodic.adjustment+reserves.adjustment),breakdown:(yearly.breakdown||[]).concat(periodic.breakdown||[]).concat(reserves.breakdown||[]),yearlyBills:yearly,periodicPlans:periodic,annualReserves:reserves};
   var effective=round2(Math.max(0,base+timing.adjustment));
   var effectiveSavingPct=projectedIncome>0?((projectedIncome-effective)/projectedIncome*100):null;
   return {base:base,effective:effective,effectiveSavingPct:effectiveSavingPct,timing:timing};
@@ -7376,8 +7427,8 @@ function buildForecastCard(rows, totalDays, target, periodStart, T, refLabel, pe
         var previousTotal=scopedCompareRows.reduce(function(t,r){return t+(Number(r.spent)||0);},0);
         s += '<div style="background:var(--fill);border-radius:12px;padding:10px 12px;margin:0 0 10px;"><div class="row between"><span class="muted caption">Actual so far</span><span class="mono caption" style="font-weight:700;">'+fmt(actualSoFar,0)+' AED</span></div><div class="row between" style="margin-top:5px;"><span class="muted caption">Remaining forecast</span><span class="mono caption" style="font-weight:700;">'+fmt(fc.remainingForecast||0,0)+' AED</span></div><div class="row between" style="margin-top:5px;"><span class="muted caption">Projected close</span><span class="mono caption" style="font-weight:800;">'+fmt(projectedSpend,0)+' AED</span></div>'+(previousTotal>0?'<div class="row between" style="margin-top:5px;"><span class="muted caption">Last '+esc(periodWord)+'</span><span class="mono caption">'+fmt(previousTotal,0)+' AED</span></div>':'')+'</div>';
         if(goalContext&&goalContext.baseTarget!=null&&goalContext.effectiveTarget!=null){
-          var timingAdj=goalContext.timingAdjustment||0, yearlyAdj=goalContext.timing&&goalContext.timing.yearlyBills?goalContext.timing.yearlyBills.adjustment:0, reserveAdj=goalContext.timing&&goalContext.timing.annualReserves?goalContext.timing.annualReserves.adjustment:0;
-          s += '<div style="background:var(--surface-2);border-radius:12px;padding:10px 12px;margin:0 0 10px;"><div class="eyebrow" style="margin-bottom:7px;">Effective savings target</div><div class="row between"><span class="muted caption">Normalized '+fmt(goalPct==null?savingsTargetPct():goalPct,1)+'% ceiling</span><span class="mono caption">'+fmt(goalContext.baseTarget,0)+' AED</span></div><div class="row between" style="margin-top:5px;"><span class="muted caption">Yearly-bill cash timing</span><span class="mono caption">'+(yearlyAdj>=0?'+':'−')+fmt(Math.abs(yearlyAdj),0)+' AED</span></div><div class="row between" style="margin-top:5px;"><span class="muted caption">Annual-reserve cash timing</span><span class="mono caption">'+(reserveAdj>=0?'+':'−')+fmt(Math.abs(reserveAdj),0)+' AED</span></div><div class="row between" style="margin-top:5px;"><span class="muted caption">Total timing adjustment</span><span class="mono caption" style="color:'+(timingAdj>=0?'var(--positive)':'var(--rust)')+';">'+(timingAdj>=0?'+':'−')+fmt(Math.abs(timingAdj),0)+' AED</span></div><div class="row between" style="margin-top:5px;"><span class="caption" style="font-weight:700;">Effective cash ceiling</span><span class="mono caption" style="font-weight:800;">'+fmt(goalContext.effectiveTarget,0)+' AED</span></div><div class="row between" style="margin-top:5px;"><span class="muted caption">Cash saving needed this month</span><span class="mono caption" style="font-weight:700;">'+fmt(goalContext.effectiveSavingPct,1)+'%</span></div></div>';
+          var timingAdj=goalContext.timingAdjustment||0, yearlyAdj=goalContext.timing&&goalContext.timing.yearlyBills?goalContext.timing.yearlyBills.adjustment:0, periodicAdj=goalContext.timing&&goalContext.timing.periodicPlans?goalContext.timing.periodicPlans.adjustment:0, reserveAdj=goalContext.timing&&goalContext.timing.annualReserves?goalContext.timing.annualReserves.adjustment:0;
+          s += '<div style="background:var(--surface-2);border-radius:12px;padding:10px 12px;margin:0 0 10px;"><div class="eyebrow" style="margin-bottom:7px;">Effective savings target</div><div class="row between"><span class="muted caption">Normalized '+fmt(goalPct==null?savingsTargetPct():goalPct,1)+'% ceiling</span><span class="mono caption">'+fmt(goalContext.baseTarget,0)+' AED</span></div><div class="row between" style="margin-top:5px;"><span class="muted caption">Yearly-bill cash timing</span><span class="mono caption">'+(yearlyAdj>=0?'+':'−')+fmt(Math.abs(yearlyAdj),0)+' AED</span></div><div class="row between" style="margin-top:5px;"><span class="muted caption">Quarterly / 6-month bill timing</span><span class="mono caption">'+(periodicAdj>=0?'+':'−')+fmt(Math.abs(periodicAdj),0)+' AED</span></div><div class="row between" style="margin-top:5px;"><span class="muted caption">Annual-reserve cash timing</span><span class="mono caption">'+(reserveAdj>=0?'+':'−')+fmt(Math.abs(reserveAdj),0)+' AED</span></div><div class="row between" style="margin-top:5px;"><span class="muted caption">Total timing adjustment</span><span class="mono caption" style="color:'+(timingAdj>=0?'var(--positive)':'var(--rust)')+';">'+(timingAdj>=0?'+':'−')+fmt(Math.abs(timingAdj),0)+' AED</span></div><div class="row between" style="margin-top:5px;"><span class="caption" style="font-weight:700;">Effective cash ceiling</span><span class="mono caption" style="font-weight:800;">'+fmt(goalContext.effectiveTarget,0)+' AED</span></div><div class="row between" style="margin-top:5px;"><span class="muted caption">Cash saving needed this month</span><span class="mono caption" style="font-weight:700;">'+fmt(goalContext.effectiveSavingPct,1)+'%</span></div></div>';
         }
       }
       if(!hasForecast) s += '<div class="muted caption" style="padding:2px 0 9px;line-height:1.4;">This period has no future calendar days left. Frequency evidence is still shown below; remaining-period probability is 0%.</div>';
@@ -8037,6 +8088,14 @@ function renderPlanCategoryPickerPage() {
   return h;
 }
 
+function recurringNormalizedPreviewText(amountShown,frequency){
+  var shown=Number(amountShown), base=isFinite(shown)?Math.max(0,fromReporting(shown)):0;
+  if(!(base>0))return "Cash is recorded on the real due date; affordability is normalized automatically.";
+  var rule={amount:base,frequency:frequency||"monthly",entryKind:"expense"}, monthly=monthlyEquivalentForRecurringRule(rule);
+  if(frequency==="quarterly"||frequency==="semiannual"||frequency==="yearly")return "≈ "+fmt(toReporting(monthly),0)+" "+reportingCurrency()+"/month for affordability · cash only on the real due date";
+  return "≈ "+fmt(toReporting(monthly),0)+" "+reportingCurrency()+"/month normalized";
+}
+
 function renderPlanEditorPage() {
   var today = todayStr();
   var editingRule = state.editingRecurringId ? (state.settings.recurringRules||[]).find(function(r){return r.id===state.editingRecurringId;}) : null;
@@ -8064,14 +8123,15 @@ function renderPlanEditorPage() {
     (state.settings.people||[]).forEach(function(p){ h += '<option value="'+esc(p)+'"'+(rp===p?' selected':'')+'>'+esc(p)+'</option>'; });
     h += '</select>';
   }
-  h += '<label class="eyebrow">Repeats</label><select id="recurringFrequencyInput" class="field" style="margin:7px 0 16px;"><option value="weekly"'+(!state.recurringFrequencyDraft||state.recurringFrequencyDraft==='weekly'?' selected':'')+'>Weekly</option><option value="monthly"'+(state.recurringFrequencyDraft==='monthly'?' selected':'')+'>Monthly</option><option value="yearly"'+(state.recurringFrequencyDraft==='yearly'?' selected':'')+'>Yearly</option></select>';
+  h += '<label class="eyebrow">Repeats</label><select id="recurringFrequencyInput" class="field" style="margin:7px 0 16px;"><option value="weekly"'+(!state.recurringFrequencyDraft||state.recurringFrequencyDraft==='weekly'?' selected':'')+'>Weekly</option><option value="monthly"'+(state.recurringFrequencyDraft==='monthly'?' selected':'')+'>Monthly</option><option value="quarterly"'+(state.recurringFrequencyDraft==='quarterly'?' selected':'')+'>Every 3 months</option><option value="semiannual"'+(state.recurringFrequencyDraft==='semiannual'?' selected':'')+'>Every 6 months</option><option value="yearly"'+(state.recurringFrequencyDraft==='yearly'?' selected':'')+'>Yearly</option></select>';
+  h += '<div id="recurringNormalizedPreview" class="muted caption" style="margin:-8px 2px 14px;">'+recurringNormalizedPreviewText(state.recurringAmountDraft,state.recurringFrequencyDraft||"weekly")+'</div>';
   h += '<label class="eyebrow">Starts</label><input id="recurringStartDateInput" type="date" class="field mono" style="margin:7px 0 16px;" value="'+(state.recurringStartDateDraft||today)+'" />';
   h += '<label class="eyebrow">Ends</label><div class="seg" style="margin:7px 0 12px;">';
   [['ongoing','Ongoing'],['count','After #'],['until','On date']].forEach(function(o){ h += '<button class="seg-btn" role="tab" aria-selected="'+(limitMode===o[0])+'" data-action="set-recurring-limit-mode" data-mode="'+o[0]+'">'+o[1]+'</button>'; });
   h += '</div>';
   if (limitMode === 'count') h += '<input id="recurringCountInput" type="number" inputmode="numeric" min="1" step="1" class="field" style="margin-bottom:16px;" placeholder="Total number of payments" value="'+(state.recurringCountDraft!=null?esc(state.recurringCountDraft):'')+'" />';
   else if (limitMode === 'until') h += '<input id="recurringEndDateInput" type="date" class="field mono" style="margin-bottom:16px;" value="'+(state.recurringEndDateDraft||'')+'" />';
-  if(editingRule && (editingRule.occurrencesLogged||0)>0) h += '<div class="muted caption" style="margin:-2px 0 12px;">Changes apply to future occurrences. '+(editingRule.occurrencesLogged||0)+' already logged transaction'+((editingRule.occurrencesLogged||0)===1?' remains':'s remain')+' unchanged.</div>';
+  if(editingRule && (editingRule.occurrencesLogged||0)>0) h += '<div class="muted caption" style="margin:-2px 0 12px;">Changes apply to future occurrences. '+(editingRule.occurrencesLogged||0)+' already logged transaction'+((editingRule.occurrencesLogged||0)===1?' remains':'s remain')+' unchanged. If you change the repeat frequency, set Starts to the next real payment date.</div>';
   h += '<button data-action="add-recurring" class="btn-accent txn-entry-save" style="width:100%;">'+(editingRule?'Save plan changes':('Create '+(recKind==='income'?'income':'expense')+' plan'))+'</button>';
   h += '</div></div></div>';
   return h;
@@ -8122,7 +8182,7 @@ function renderPlansBody() {
     var bits=[];
     if(rule.paymentPlanType==='tabby') bits.push('Tabby · 4 monthly payments');
     else if(rule.kind==='split') bits.push('Legacy spread · '+rule.occurrencesTotal+' days');
-    else bits.push(rule.frequency==='daily'?'Daily':rule.frequency==='weekly'?'Weekly':rule.frequency==='yearly'?'Yearly':'Monthly');
+    else bits.push(recurringFrequencyLabel(rule.frequency));
     if(rule.category) {
       var parent=categoryGroupOf(rule.category);
       bits.push(parent ? parent+' · '+rule.category : rule.category);
@@ -8181,7 +8241,7 @@ function renderPlansBody() {
     if(recKind==='expense') { h+='<label class="eyebrow">Subcategory</label><select id="recurringCategoryInput" class="field" style="margin:6px 0 10px;"><option value="">No subcategory</option>'; (state.settings.categories||[]).forEach(function(c){ var g=categoryGroupOf(c); h+='<option value="'+esc(c)+'"'+(state.recurringCategoryDraft===c?' selected':'')+'>'+esc(g?g+' — '+c:c)+'</option>'; }); h+='</select>'; }
     if((state.settings.people||[]).length) { var rp=state.recurringPersonDraft!=null?state.recurringPersonDraft:(state.settings.defaultPerson||''); h+='<label class="eyebrow">For</label><select id="recurringPersonInput" class="field" style="margin:6px 0 10px;"><option value="">Unassigned</option>'; (state.settings.people||[]).forEach(function(p){ h+='<option value="'+esc(p)+'"'+(rp===p?' selected':'')+'>'+esc(p)+'</option>'; }); h+='</select>'; }
     h+='<label class="eyebrow">Name</label><input id="recurringNoteInput" type="text" class="field" style="margin:6px 0 10px;" placeholder="'+(recKind==='income'?'Salary, freelance…':'Rent, subscription…')+'" value="'+(state.recurringNoteDraft!=null?esc(state.recurringNoteDraft):'')+'" />';
-    h+='<div class="row gap2" style="margin-bottom:10px;"><div style="flex:1;"><label class="eyebrow">Repeats</label><select id="recurringFrequencyInput" class="field" style="margin-top:6px;"><option value="weekly"'+(!state.recurringFrequencyDraft||state.recurringFrequencyDraft==='weekly'?' selected':'')+'>Weekly</option><option value="monthly"'+(state.recurringFrequencyDraft==='monthly'?' selected':'')+'>Monthly</option><option value="yearly"'+(state.recurringFrequencyDraft==='yearly'?' selected':'')+'>Yearly</option></select></div><div style="flex:1;"><label class="eyebrow">Starts</label><input id="recurringStartDateInput" type="date" class="field mono" style="margin-top:6px;" value="'+(state.recurringStartDateDraft||today)+'" /></div></div>';
+    h+='<div class="row gap2" style="margin-bottom:10px;"><div style="flex:1;"><label class="eyebrow">Repeats</label><select id="recurringFrequencyInput" class="field" style="margin-top:6px;"><option value="weekly"'+(!state.recurringFrequencyDraft||state.recurringFrequencyDraft==='weekly'?' selected':'')+'>Weekly</option><option value="monthly"'+(state.recurringFrequencyDraft==='monthly'?' selected':'')+'>Monthly</option><option value="quarterly"'+(state.recurringFrequencyDraft==='quarterly'?' selected':'')+'>Every 3 months</option><option value="semiannual"'+(state.recurringFrequencyDraft==='semiannual'?' selected':'')+'>Every 6 months</option><option value="yearly"'+(state.recurringFrequencyDraft==='yearly'?' selected':'')+'>Yearly</option></select></div><div style="flex:1;"><label class="eyebrow">Starts</label><input id="recurringStartDateInput" type="date" class="field mono" style="margin-top:6px;" value="'+(state.recurringStartDateDraft||today)+'" /></div></div>';
     h+='<label class="eyebrow">Ends</label><div class="seg" style="margin:6px 0 10px;">'; [['ongoing','Ongoing'],['count','After #'],['until','On date']].forEach(function(o){h+='<button class="seg-btn" role="tab" aria-selected="'+(limitMode===o[0])+'" data-action="set-recurring-limit-mode" data-mode="'+o[0]+'">'+o[1]+'</button>';}); h+='</div>';
     if(limitMode==='count') h+='<input id="recurringCountInput" type="number" inputmode="numeric" min="1" step="1" class="field" style="margin-bottom:10px;" placeholder="Number of payments" value="'+(state.recurringCountDraft!=null?esc(state.recurringCountDraft):'')+'" />';
     else if(limitMode==='until') h+='<input id="recurringEndDateInput" type="date" class="field mono" style="margin-bottom:10px;" value="'+(state.recurringEndDateDraft||'')+'" />';
@@ -9003,8 +9063,17 @@ document.addEventListener("click", function(e) {
       var recPersonEl = document.getElementById("recurringPersonInput");
       var recNoteEl = document.getElementById("recurringNoteInput");
       var recFreqEl = document.getElementById("recurringFrequencyInput");
+      var allowedRecurringFrequencies={weekly:true,monthly:true,quarterly:true,semiannual:true,yearly:true};
+      var selectedFrequency=(recFreqEl&&allowedRecurringFrequencies[recFreqEl.value])?recFreqEl.value:"weekly";
+      var loggedBefore=existingRecurringRule?(existingRecurringRule.occurrencesLogged||0):0;
+      var timingChanged=!!(existingRecurringRule&&loggedBefore>0&&(existingRecurringRule.frequency!==selectedFrequency||existingRecurringRule.startDate!==recStart));
+      if(timingChanged&&recStart<todayStr()){
+        showToast("Set Starts to the next real payment date when changing an existing schedule");
+        render();
+        break;
+      }
       var savedRule = {
-        id: existingRecurringRule ? existingRecurringRule.id : (Date.now()+"-"+Math.random().toString(36).slice(2,7)),
+        id: (existingRecurringRule&&!timingChanged) ? existingRecurringRule.id : (Date.now()+"-"+Math.random().toString(36).slice(2,7)),
         kind: "recurring",
         entryKind: recKindForRule,
         amount: recAmount,
@@ -9012,15 +9081,15 @@ document.addEventListener("click", function(e) {
         category: recKindForRule === "income" ? "" : (recCategoryEl ? recCategoryEl.value : ""),
         person: recPersonEl ? recPersonEl.value : "",
         note: recNoteEl ? recNoteEl.value.trim() : "",
-        frequency: (recFreqEl && recFreqEl.value === "yearly") ? "yearly" : ((recFreqEl && recFreqEl.value === "monthly") ? "monthly" : "weekly"),
+        frequency: selectedFrequency,
         startDate: recStart,
         endDate: recEndDate,
         occurrencesTotal: recCount,
-        occurrencesLogged: existingRecurringRule ? (existingRecurringRule.occurrencesLogged||0) : 0,
+        occurrencesLogged: (existingRecurringRule&&!timingChanged) ? loggedBefore : 0,
         active: existingRecurringRule ? existingRecurringRule.active!==false : true
       };
       var nextRecurringRules;
-      if(existingRecurringRule) nextRecurringRules=(state.settings.recurringRules||[]).map(function(r){return r.id===savedRule.id?savedRule:r;});
+      if(existingRecurringRule) nextRecurringRules=(state.settings.recurringRules||[]).map(function(r){return r.id===existingRecurringRule.id?savedRule:r;});
       else nextRecurringRules=(state.settings.recurringRules||[]).concat([savedRule]);
       state.settings = Object.assign({}, state.settings, { recurringRules: nextRecurringRules });
       runRecurringCatchUp();
@@ -9633,6 +9702,13 @@ document.addEventListener("input", function(e) {
     updateFxConvertedPreview();
     return;
   }
+  if (e.target && (e.target.id === "recurringAmountInput" || e.target.id === "recurringFrequencyInput")) {
+    var recurringPreview=document.getElementById("recurringNormalizedPreview");
+    if(recurringPreview){
+      var recurringAmtEl=document.getElementById("recurringAmountInput"), recurringFreqLive=document.getElementById("recurringFrequencyInput");
+      recurringPreview.textContent=recurringNormalizedPreviewText(recurringAmtEl?recurringAmtEl.value:0,recurringFreqLive?recurringFreqLive.value:"monthly");
+    }
+  }
   if (e.target && e.target.id === "incomeDraftInput") {
     var derivedEl = document.getElementById("incomeDerivedText");
     if (derivedEl) derivedEl.textContent = incomeDerivedSummary(parseFloat(e.target.value));
@@ -9738,6 +9814,13 @@ document.addEventListener("input", function(e) {
 });
 
 document.addEventListener("change", function(e) {
+  if (e.target && e.target.id === "recurringFrequencyInput") {
+    var recurringPreview=document.getElementById("recurringNormalizedPreview");
+    if(recurringPreview){
+      var recurringAmtEl=document.getElementById("recurringAmountInput");
+      recurringPreview.textContent=recurringNormalizedPreviewText(recurringAmtEl?recurringAmtEl.value:0,e.target.value||"monthly");
+    }
+  }
   if (e.target && e.target.id === "defaultPersonInput") {
     persistAll(Object.assign({}, state.settings, { defaultPerson: e.target.value||null }), state.entries, "your settings");
     render();
