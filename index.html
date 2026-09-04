@@ -1175,7 +1175,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v112.33";
+var APP_VERSION = "v112.34";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities","Flights","Hotels & Accommodation","Food & Dining","Local Transport / Car Rental","Activities & Attractions","Shopping & Souvenirs","Visa / Travel Fees / Insurance","Miscellaneous Travel"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"},"Flights":{"icon":"plane","color":"#0A84FF"},"Hotels & Accommodation":{"icon":"bed","color":"#5856D6"},"Food & Dining":{"icon":"fork","color":"#D4614A"},"Local Transport / Car Rental":{"icon":"taxi","color":"#5AC8FA"},"Activities & Attractions":{"icon":"ticket","color":"#FF9F0A"},"Shopping & Souvenirs":{"icon":"gift","color":"#AF52DE"},"Visa / Travel Fees / Insurance":{"icon":"shield","color":"#34C759"},"Miscellaneous Travel":{"icon":"travel","color":"#8E8E93"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"},"Travel":{"icon":"plane","color":"#0A84FF"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Travel","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle","Flights":"Travel","Hotels & Accommodation":"Travel","Food & Dining":"Travel","Local Transport / Car Rental":"Travel","Activities & Attractions":"Travel","Shopping & Souvenirs":"Travel","Visa / Travel Fees / Insurance":"Travel","Miscellaneous Travel":"Travel"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: {"Flights":true,"Hotels & Accommodation":true,"Food & Dining":true,"Local Transport / Car Rental":true,"Activities & Attractions":true,"Shopping & Souvenirs":true,"Visa / Travel Fees / Insurance":true,"Miscellaneous Travel":true}, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 0, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true, cadenceBoundarySmoothingMigrationV11219: true, homeDeltaModelEpochV11219: null, annualReserves: null, annualReserveMigrationV11222: null, travelTaxonomyMigrationV11224: true, travelOutsideBudgetMigrationV11225: true };
@@ -1789,7 +1789,7 @@ function normalizeAnnualReserves(list, categories, groups) {
   return out;
 }
 function activeAnnualReserves(){
-  return normalizeAnnualReserves(state.settings.annualReserves,state.settings.categories,state.settings.categoryGroups).filter(function(r){return r.active&&r.annualAmount>0;});
+  return normalizeAnnualReserves(state.settings.annualReserves,state.settings.categories,state.settings.categoryGroups).filter(function(r){return r.active&&r.annualAmount>0&&!!(r.group||r.category);});
 }
 function annualReserveMatchesCategory(reserve,catName){
   if(!reserve||!catName)return false;
@@ -1836,8 +1836,15 @@ function annualReserveCashTimingForMonth(startStr,endStr){
       Object.keys(scheduled||{}).forEach(function(c){if(annualReserveMatchesCategory(r,c))future+=Math.max(0,Number(scheduled[c])||0);});
     }
     future=round2(future);
-    var cash=round2(logged+future),adjustment=round2(cash-normalized);
-    return {id:r.id,name:r.name,category:r.category,group:r.group,annual:r.annualAmount,normalized:normalized,logged:round2(logged),future:future,cash:cash,adjustment:adjustment};
+    /* Only cash that was actually reserved may relax this month's savings
+       target. Once an annual reserve is exhausted, any extra travel/spending
+       is a genuine overrun and must reduce projected savings. */
+    var year=parseD(startStr).getFullYear(), yearStart=String(year)+"-01-01", beforeMonth=toStr(addDays(parseD(startStr),-1));
+    var priorSpent=beforeMonth>=yearStart?annualReserveSpentForRange(r,yearStart,beforeMonth):0;
+    var available=round2(Math.max(0,r.annualAmount-priorSpent));
+    var actualCash=round2(logged+future),protectedCash=round2(Math.min(actualCash,available));
+    var overReserve=round2(Math.max(0,actualCash-available)),adjustment=round2(protectedCash-normalized);
+    return {id:r.id,name:r.name,category:r.category,group:r.group,annual:r.annualAmount,normalized:normalized,logged:round2(logged),future:future,cash:protectedCash,actualCash:actualCash,protectedCash:protectedCash,available:available,overReserve:overReserve,adjustment:adjustment};
   });
   var normalizedTotal=round2(rows.reduce(function(sum,x){return sum+x.normalized;},0)),cashTotal=round2(rows.reduce(function(sum,x){return sum+x.cash;},0));
   return {normalized:normalizedTotal,cash:cashTotal,adjustment:round2(cashTotal-normalizedTotal),breakdown:rows};
@@ -2129,7 +2136,10 @@ function migrateEntries(raw, fallbackAllowance) {
 
 /* ---------------- app state (single source of truth) ---------------- */
 var state = {
-  settings: DEFAULT_SETTINGS,
+  /* Never let first-run normalization mutate the DEFAULT_SETTINGS template.
+     Factory reset and future migrations must always start from pristine,
+     neutral defaults rather than whatever the current session normalized. */
+  settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
   entries: {},
   loading: true,
   saveError: null,
@@ -2428,6 +2438,20 @@ function ensureSafeSpendSnapshot(){
 }
 function savingsTargetAmountForIncome(income){ return round2(Math.max(0,Number(income)||0)*savingsTargetPct()/100); }
 function savingsSpendCeilingForIncome(income){ return round2(Math.max(0,Number(income)||0)-savingsTargetAmountForIncome(income)); }
+/* Savings % is a recurring-income target. Extra/one-time income should improve
+   savings rather than silently expand lifestyle spending. If projected income
+   exceeds the recurring plan, protect that excess in full. When there is no
+   recurring income plan, retain the legacy behavior of applying the selected
+   percentage to the income that exists. */
+function savingsGoalForRange(startStr,endStr,projectedIncome){
+  var pct=savingsTargetPct(), projected=Math.max(0,Number(projectedIncome)||0);
+  if(!(projected>0)||!(pct>0))return {pct:pct,projectedIncome:projected,recurringIncome:0,extraIncome:0,targetSaving:0,spendCeiling:round2(projected)};
+  var recurring=Math.max(0,Number(plannedIncomeForRange(startStr,endStr))||0), baseIncome, extraIncome;
+  if(recurring>0){baseIncome=Math.min(projected,recurring);extraIncome=Math.max(0,projected-recurring);}
+  else {baseIncome=projected;extraIncome=0;}
+  var targetSaving=round2(baseIncome*pct/100+extraIncome), spendCeiling=round2(Math.max(0,projected-targetSaving));
+  return {pct:pct,projectedIncome:round2(projected),recurringIncome:round2(recurring),extraIncome:round2(extraIncome),targetSaving:targetSaving,spendCeiling:spendCeiling};
+}
 
 function monthlyEquivalentForRecurringRule(rule){
   if(!rule||rule.entryKind==="income")return 0;
@@ -2515,16 +2539,28 @@ function normalizedOutsideBudgetMonthlyCost(){
 function periodicPlanCashTimingForMonth(startStr,endStr){
   var periodic={quarterly:true,semiannual:true,yearly:true}, today=todayStr(), out=[];
   var rules=(state.settings.recurringRules||[]).filter(function(r){
-    return r&&r.active&&r.kind==="recurring"&&r.entryKind!=="income"&&!ruleIsComplete(r)&&periodic[r.frequency]&&categoryExcludedFromBudget(r.category)&&!annualReserveForCategory(r.category)&&categoryForecastBehavior(r.category)!=="yearly";
+    if(!(r&&r.active&&r.kind==="recurring"&&r.entryKind!=="income"&&periodic[r.frequency]&&categoryExcludedFromBudget(r.category)&&!annualReserveForCategory(r.category)&&categoryForecastBehavior(r.category)!=="yearly"))return false;
+    if(!ruleIsComplete(r))return true;
+    /* Keep a just-completed finite plan in the timing model for the month in
+       which its final generated payment was logged. Otherwise the last payment
+       would instantly look unplanned as soon as occurrencesLogged reaches the
+       total. */
+    return Object.keys(state.entries||{}).some(function(ds){
+      if(ds<startStr||ds>endStr)return false;
+      return ((state.entries[ds]&&state.entries[ds].items)||[]).some(function(it){return isExpenseItem(it)&&it.recurringId===r.id;});
+    });
   });
   rules.forEach(function(rule){
     var normalized=monthlyEquivalentForRecurringRule(rule);
     if(!(normalized>0))return;
-    var logged=0;
+    var logged=0, protectedLogged=0;
     Object.keys(state.entries||{}).forEach(function(ds){
       if(ds<startStr||ds>endStr)return;
       ((state.entries[ds]&&state.entries[ds].items)||[]).forEach(function(it){
-        if(isExpenseItem(it)&&it.recurringId===rule.id)logged+=Math.max(0,Number(it.amount)||0);
+        if(!isExpenseItem(it)||it.recurringId!==rule.id)return;
+        var actual=Math.max(0,Number(it.amount)||0); logged+=actual;
+        var seq=Number(it.seq), expected=(isFinite(seq)&&seq>=1)?Math.max(0,Number(ruleOccurrenceAmount(rule,Math.round(seq)-1))||0):actual;
+        protectedLogged+=Math.min(actual,expected);
       });
     });
     var future=0,n=rule.occurrencesLogged||0,guard=0;
@@ -2536,8 +2572,8 @@ function periodicPlanCashTimingForMonth(startStr,endStr){
       if(due>=startStr&&due>today)future+=Math.max(0,Number(ruleOccurrenceAmount(rule,n))||0);
       n++;guard++;
     }
-    var cash=round2(logged+future),adjustment=round2(cash-normalized);
-    out.push({id:rule.id,category:rule.category||"",name:rule.note||rule.category||"Scheduled bill",frequency:rule.frequency,normalized:round2(normalized),logged:round2(logged),future:round2(future),cash:cash,adjustment:adjustment});
+    var actualCash=round2(logged+future), cash=round2(protectedLogged+future), overPlan=round2(Math.max(0,actualCash-cash)), adjustment=round2(cash-normalized);
+    out.push({id:rule.id,category:rule.category||"",name:rule.note||rule.category||"Scheduled bill",frequency:rule.frequency,normalized:round2(normalized),logged:round2(logged),protectedLogged:round2(protectedLogged),future:round2(future),cash:cash,actualCash:actualCash,overPlan:overPlan,adjustment:adjustment});
   });
   var normalizedTotal=round2(out.reduce(function(sum,x){return sum+x.normalized;},0));
   var cashTotal=round2(out.reduce(function(sum,x){return sum+x.cash;},0));
@@ -2545,7 +2581,7 @@ function periodicPlanCashTimingForMonth(startStr,endStr){
 }
 
 function yearlyBillCashTimingForMonth(startStr,endStr){
-  var cats=(state.settings.categories||[]).filter(function(c){return categoryForecastBehavior(c)==="yearly";});
+  var cats=(state.settings.categories||[]).filter(function(c){return categoryForecastBehavior(c)==="yearly"&&!annualReserveForCategory(c);});
   if(!cats.length)return {normalized:0,cash:0,adjustment:0,breakdown:[]};
   var scheduled=scheduledExpenseBreakdown(toStr(addDays(parseD(startStr),-1)),endStr,"overall"), today=todayStr(), out=[];
   cats.forEach(function(c){
@@ -2568,21 +2604,28 @@ function yearlyBillCashTimingForMonth(startStr,endStr){
       var paidThisYear=categoryHistoricalExpenseRows(c).some(function(r){return String(r.date||'').slice(0,4)===String(year);});
       if(!paidThisYear&&due>=startStr&&due<=endStr&&due>=today)future=annual;
     }
-    var cash=round2(logged+future), adjustment=round2(cash-normalized);
-    out.push({category:c,annual:round2(annual),normalized:normalized,logged:round2(logged),future:round2(future),cash:cash,adjustment:adjustment});
+    /* A yearly bill may shift planned cash timing, but spending above its
+       known annual amount is not pre-funded and must still reduce savings. */
+    var billYear=parseD(startStr).getFullYear(), billYearStart=String(billYear)+"-01-01", beforeMonth=toStr(addDays(parseD(startStr),-1)), priorSpent=0;
+    if(beforeMonth>=billYearStart){
+      categoryHistoricalExpenseRows(c).forEach(function(r){if(r.date>=billYearStart&&r.date<=beforeMonth)priorSpent+=Math.max(0,Number(r.amount)||0);});
+    }
+    var available=round2(Math.max(0,annual-priorSpent)), actualCash=round2(logged+future), cash=round2(Math.min(actualCash,available)), overPlan=round2(Math.max(0,actualCash-available)), adjustment=round2(cash-normalized);
+    out.push({category:c,annual:round2(annual),normalized:normalized,logged:round2(logged),future:round2(future),cash:cash,actualCash:actualCash,available:available,overPlan:overPlan,adjustment:adjustment});
   });
   var normalizedTotal=round2(out.reduce(function(s,x){return s+x.normalized;},0));
   var cashTotal=round2(out.reduce(function(s,x){return s+x.cash;},0));
   return {normalized:normalizedTotal,cash:cashTotal,adjustment:round2(cashTotal-normalizedTotal),breakdown:out};
 }
+
 function effectiveMonthlyCashSavingsTarget(startStr,endStr,projectedIncome){
-  var pct=savingsTargetPct(), base=(projectedIncome>0&&pct>0)?savingsSpendCeilingForIncome(projectedIncome):null;
+  var pct=savingsTargetPct(), goal=(projectedIncome>0&&pct>0)?savingsGoalForRange(startStr,endStr,projectedIncome):null, base=goal?goal.spendCeiling:null;
   if(base==null)return {base:null,effective:null,effectiveSavingPct:null,timing:{normalized:0,cash:0,adjustment:0,breakdown:[],yearlyBills:{normalized:0,cash:0,adjustment:0,breakdown:[]},periodicPlans:{normalized:0,cash:0,adjustment:0,breakdown:[]},annualReserves:{normalized:0,cash:0,adjustment:0,breakdown:[]}}};
   var yearly=yearlyBillCashTimingForMonth(startStr,endStr), periodic=periodicPlanCashTimingForMonth(startStr,endStr), reserves=annualReserveCashTimingForMonth(startStr,endStr);
   var timing={normalized:round2(yearly.normalized+periodic.normalized+reserves.normalized),cash:round2(yearly.cash+periodic.cash+reserves.cash),adjustment:round2(yearly.adjustment+periodic.adjustment+reserves.adjustment),breakdown:(yearly.breakdown||[]).concat(periodic.breakdown||[]).concat(reserves.breakdown||[]),yearlyBills:yearly,periodicPlans:periodic,annualReserves:reserves};
   var effective=round2(Math.max(0,base+timing.adjustment));
   var effectiveSavingPct=projectedIncome>0?((projectedIncome-effective)/projectedIncome*100):null;
-  return {base:base,effective:effective,effectiveSavingPct:effectiveSavingPct,timing:timing};
+  return {base:base,effective:effective,effectiveSavingPct:effectiveSavingPct,timing:timing,targetSaving:goal?goal.targetSaving:null,recurringIncome:goal?goal.recurringIncome:null,extraIncome:goal?goal.extraIncome:null};
 }
 
 function currentSavingsBudgetComparison() {
@@ -2602,11 +2645,11 @@ function currentSavingsBudgetComparison() {
   var projectedExcluded=round2(excludedFc?excludedFc.projectedSpend:actualExcluded);
   var normalized=normalizedOutsideBudgetMonthlyCost(), reserveNormalized=annualReserveNormalizedMonthlyCost();
   var normalizedOutsideOnly=round2(normalized.total||0), normalizedReserves=round2(reserveNormalized.total||0), normalizedExcluded=round2(normalizedOutsideOnly+normalizedReserves);
-  var spendCeiling=savingsSpendCeilingForIncome(projectedIncome), targetSaving=savingsTargetAmountForIncome(projectedIncome);
+  var rangeGoal=savingsGoalForRange(per.startStr,per.endStr,projectedIncome), spendCeiling=rangeGoal.spendCeiling, targetSaving=rangeGoal.targetSaving;
   var compatibleBudget=round2(Math.max(0,spendCeiling-normalizedExcluded));
   var configuredBudget=round2(per.target||0), delta=round2(compatibleBudget-configuredBudget);
   var tighter=Math.abs(delta)<0.5?"equal":(delta<0?"savings":"budget"), effectiveBudget=round2(Math.min(configuredBudget,compatibleBudget));
-  return {pct:pct,projectedIncome:projectedIncome,targetSaving:targetSaving,spendCeiling:spendCeiling,configuredBudget:configuredBudget,projectedOverall:projectedOverall,projectedBudget:projectedBudget,projectedExcluded:projectedExcluded,actualExcluded:actualExcluded,normalizedExcluded:normalizedExcluded,normalizedOutsideOnly:normalizedOutsideOnly,normalizedReserves:normalizedReserves,normalizedBreakdown:(normalized.rows||[]).concat(reserveNormalized.rows||[]),annualReserveBreakdown:reserveNormalized.rows||[],compatibleBudget:compatibleBudget,effectiveBudget:effectiveBudget,delta:delta,tighter:tighter,projectedCashSaving:round2(projectedIncome-projectedOverall),projectedCashSavingPct:projectedIncome>0?round2((projectedIncome-projectedOverall)/projectedIncome*100):null};
+  return {pct:pct,projectedIncome:projectedIncome,recurringIncome:rangeGoal.recurringIncome,extraIncome:rangeGoal.extraIncome,targetSaving:targetSaving,spendCeiling:spendCeiling,configuredBudget:configuredBudget,projectedOverall:projectedOverall,projectedBudget:projectedBudget,projectedExcluded:projectedExcluded,actualExcluded:actualExcluded,normalizedExcluded:normalizedExcluded,normalizedOutsideOnly:normalizedOutsideOnly,normalizedReserves:normalizedReserves,normalizedBreakdown:(normalized.rows||[]).concat(reserveNormalized.rows||[]),annualReserveBreakdown:reserveNormalized.rows||[],compatibleBudget:compatibleBudget,effectiveBudget:effectiveBudget,delta:delta,tighter:tighter,projectedCashSaving:round2(projectedIncome-projectedOverall),projectedCashSavingPct:projectedIncome>0?round2((projectedIncome-projectedOverall)/projectedIncome*100):null};
 }
 
 function currentBudgetSpendPaceStats(){
@@ -4946,8 +4989,8 @@ function liveBudgetPacing() {
     var monthOverall=periodStatsOverall(monthPer.startStr,monthPer.endStr);
     var projectedIncome=projectedIncomeForRange(monthPer.startStr,monthPer.endStr);
     if(projectedIncome>0){
-      var spendCeiling=savingsSpendCeilingForIncome(projectedIncome);
-      savings={mode:"savings",projectedIncome:projectedIncome,savingsTargetPct:savingsPct,savingsTargetAmount:savingsTargetAmountForIncome(projectedIncome),spendCeiling:spendCeiling};
+      var monthGoal=savingsGoalForRange(monthPer.startStr,monthPer.endStr,projectedIncome), spendCeiling=monthGoal.spendCeiling;
+      savings={mode:"savings",projectedIncome:projectedIncome,recurringIncome:monthGoal.recurringIncome,extraIncome:monthGoal.extraIncome,savingsTargetPct:savingsPct,savingsTargetAmount:monthGoal.targetSaving,spendCeiling:spendCeiling};
     }
   }
 
@@ -5103,7 +5146,8 @@ function renderHomeBody(T, da) {
 
   var projectedSpendVsIncomePct = incomeReference > 0 ? (projected / incomeReference * 100) : null;
   var homeEffectiveCashGoal=(incomeReference>0&&homeSavingsPct>0)?effectiveMonthlyCashSavingsTarget(month.startStr,month.endStr,incomeReference):null;
-  var maxSpendForSavings = homeEffectiveCashGoal&&homeEffectiveCashGoal.effective!=null?homeEffectiveCashGoal.effective:((incomeReference > 0 && homeSavingsPct > 0) ? savingsSpendCeilingForIncome(incomeReference) : null);
+  var homeRangeGoal=(incomeReference>0&&homeSavingsPct>0)?savingsGoalForRange(month.startStr,month.endStr,incomeReference):null;
+  var maxSpendForSavings = homeEffectiveCashGoal&&homeEffectiveCashGoal.effective!=null?homeEffectiveCashGoal.effective:(homeRangeGoal?homeRangeGoal.spendCeiling:null);
   var projectedSpendTargetGapPct = maxSpendForSavings > 0 ? ((projected - maxSpendForSavings) / maxSpendForSavings * 100) : null;
   var projectedSpendColor = 'var(--text)';
   if (maxSpendForSavings != null && projected > maxSpendForSavings) projectedSpendColor = projectedSpendTargetGapPct != null && projectedSpendTargetGapPct >= 10 ? 'var(--rust)' : 'var(--amber)';
@@ -5417,17 +5461,18 @@ function renderSettingsPage() {
     h += '<div class="muted caption" style="margin:4px 0 10px;">The percentage of your recurring income you want to keep as savings. Annual reserves such as Travel are protected separately.</div>';
     h += '<div style="position:relative;margin:6px 0 8px;"><input id="savingsTargetPctInput" type="number" inputmode="decimal" min="0" max="100" step="0.05" class="field mono" style="padding-right:40px;font-size:20px;font-weight:650;" value="'+savePct+'"/><span class="muted" style="position:absolute;right:13px;top:50%;transform:translateY(-50%);font-weight:650;">%</span></div>';
     h += '<div class="muted caption" style="margin-bottom:16px;">0% disables the savings-goal constraint.</div>';
-    var savingIncomePlan=incomePlanForDate(todayStr());
-    var savingMonthlyIncome=savingIncomePlan.mode==="daily"?round2(savingIncomePlan.amount*daysInMonth(new Date())):round2(savingIncomePlan.amount);
-    var savingMonthlyTarget=round2(savingMonthlyIncome*savePct/100), savingYearlyTarget=round2(savingMonthlyTarget*12);
+    var savingIncomePlan=incomePlanForDate(todayStr()), savingNow=new Date(), savingYearDays=Math.round((new Date(savingNow.getFullYear()+1,0,1)-new Date(savingNow.getFullYear(),0,1))/86400000);
+    var savingMonthlyIncome=savingIncomePlan.mode==="daily"?round2(savingIncomePlan.amount*daysInMonth(savingNow)):round2(savingIncomePlan.amount);
+    var savingYearlyIncome=savingIncomePlan.mode==="daily"?round2(savingIncomePlan.amount*savingYearDays):round2(savingIncomePlan.amount*12);
+    var savingMonthlyTarget=round2(savingMonthlyIncome*savePct/100), savingYearlyTarget=round2(savingYearlyIncome*savePct/100);
     var savingOutsideNormalized=normalizedOutsideBudgetMonthlyCost(), savingReserveNormalized=annualReserveNormalizedMonthlyCost();
     var savingNormalizedObligations=round2((savingOutsideNormalized.total||0)+(savingReserveNormalized.total||0));
     var savingCompatibleBudget=round2(Math.max(0,savingMonthlyIncome-savingMonthlyTarget-savingNormalizedObligations));
-    h += '<div id="savingsRelationshipCard" class="card card-pad" style="margin-bottom:14px;" data-income="'+savingMonthlyIncome+'" data-normalized-obligations="'+savingNormalizedObligations+'"><div class="eyebrow">SAVINGS TARGET</div>';
+    h += '<div id="savingsRelationshipCard" class="card card-pad" style="margin-bottom:14px;" data-income="'+savingMonthlyIncome+'" data-yearly-income="'+savingYearlyIncome+'" data-normalized-obligations="'+savingNormalizedObligations+'"><div class="eyebrow">SAVINGS TARGET</div>';
     h += '<div class="row between" style="margin-top:10px;"><span class="muted subhead">Monthly saving</span><span id="savingsMonthlyPreview" class="mono subhead" style="font-weight:750;">'+fmt(savingMonthlyTarget,0)+' AED</span></div>';
     h += '<div class="row between" style="margin-top:9px;"><span class="muted subhead">Yearly saving</span><span id="savingsYearlyPreview" class="mono subhead" style="font-weight:750;">'+fmt(savingYearlyTarget,0)+' AED</span></div>';
     h += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="row between"><span class="muted subhead">Budget based on target</span><span id="savingsBudgetPreview" class="mono subhead" style="font-weight:780;">≈ '+fmt(savingCompatibleBudget,0)+' AED</span></div></div>';
-    h += '<div class="muted caption" style="margin-top:10px;line-height:1.35;">Based on recurring income and normalized outside-budget obligations, including annual reserves. One-time income is not annualized into this target.</div>';
+    h += '<div class="muted caption" style="margin-top:10px;line-height:1.35;">Based on recurring income and normalized outside-budget obligations, including annual reserves. One-time income is not annualized into this target and does not increase the spending allowance.</div>';
     h += '</div>';
     h += '<button data-action="save-savings-target" class="btn-accent" style="width:100%;">Save savings target</button>';
   }
@@ -5436,7 +5481,7 @@ function renderSettingsPage() {
     var reserveStatus=annualReserveStatusForYear(travelReserve,new Date().getFullYear()), reserveMonthly=round2((Number(travelReserve.annualAmount)||0)/12);
     h += '<label class="eyebrow">Travel & Trips</label>';
     h += '<div class="muted caption" style="margin:4px 0 12px;">An annual reserve is protected from normal Safe-to-Spend but is not logged as a fake monthly expense. Actual travel transactions consume the reserve when you record them.</div>';
-    h += '<div class="card card-pad" style="margin-bottom:14px;"><div class="row between" style="gap:12px;"><div><div class="subhead" style="font-weight:700;">Annual reserve</div><div class="muted caption" style="margin-top:3px;">Flights, hotels and other trip costs</div></div><div style="position:relative;min-width:138px;"><span class="muted" style="position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:12px;">AED</span><input id="travelAnnualReserveInput" type="number" inputmode="decimal" min="0" step="100" class="field mono" style="padding-left:38px;text-align:right;font-weight:700;" value="'+round2(toReporting(travelReserve.annualAmount||0))+'" /></div></div>';
+    h += '<div class="card card-pad" style="margin-bottom:14px;"><div class="row between" style="gap:12px;"><div><div class="subhead" style="font-weight:700;">Annual reserve</div><div class="muted caption" style="margin-top:3px;">Flights, hotels and other trip costs</div></div><div style="position:relative;min-width:138px;"><span class="muted" style="position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:12px;">' + reportingCurrency() + '</span><input id="travelAnnualReserveInput" type="number" inputmode="decimal" min="0" step="100" class="field mono" style="padding-left:38px;text-align:right;font-weight:700;" value="'+round2(toReporting(travelReserve.annualAmount||0))+'" /></div></div>';
     h += '<label class="eyebrow" style="display:block;margin-top:14px;">Linked main category</label><select id="travelReserveGroupInput" class="field" style="margin-top:6px;">';
     (state.settings.categoryGroups||[]).forEach(function(g){h+='<option value="'+esc(g)+'"'+((travelReserve.group||"Travel")===g?' selected':'')+'>'+esc(g)+'</option>';});
     h += '</select><div class="muted caption" style="margin-top:7px;">Every transaction in this main category — across all of its subcategories — stays outside the ' + fmt(currentMonthlyBudget(),0) + ' AED monthly budget and counts against this annual reserve.</div>';
@@ -5795,7 +5840,7 @@ function renderAddTxnPage() {
   h += '<select id="entryCurrencyInput" class="fx-currency-select" aria-label="Transaction currency">';
   TXN_CURRENCIES.forEach(function(c){ h += '<option value="'+c+'"'+(selectedCurrency===c?' selected':'')+'>'+c+'</option>'; });
   h += '</select>';
-  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="mono fx-amount-input" placeholder="0.00" value="'+esc(amountShown)+'" />';
+  h += '<input id="entryAmountInput" type="number" inputmode="decimal" step="0.01" min="0.01" class="mono fx-amount-input" placeholder="0.00" value="'+esc(amountShown)+'" />';
   h += '</div>';
   h += '<div id="entryFxPanel" class="fx-panel" style="display:'+(selectedCurrency===reportingCurrency()?'none':'block')+';">';
   h += '<div class="row between" style="gap:8px;"><span id="entryFxStatus" class="muted caption">'+(selectedCurrency===reportingCurrency()?'':(fxSourceShown?('Saved rate · '+esc(fxSourceShown)):'Rate for '+shortLabel(formDate)))+'</span><button data-action="refresh-fx-rate" class="btn-plain" style="font-size:12px;">Use reference rate</button></div>';
@@ -6222,7 +6267,10 @@ function renameCategoryGroup(oldName, newName) {
   if (styles[oldName]) { styles[newName] = styles[oldName]; delete styles[oldName]; }
   if (state.analysisSelectedGroup === oldName) state.analysisSelectedGroup = newName;
   if (state.budgetSelectedGroup === oldName) state.budgetSelectedGroup = newName;
-  persistAll(Object.assign({}, state.settings, { categoryGroups:groups, categoryGroupOf:groupOf, categoryGroupStyles:styles }), state.entries, "your categories");
+  if (state.txnGroupFilter === oldName) state.txnGroupFilter = newName;
+  if (state.analysisFrequencySelectedGroup === oldName) state.analysisFrequencySelectedGroup = newName;
+  var reserves=(state.settings.annualReserves||[]).map(function(r){return r&&r.group===oldName?Object.assign({},r,{group:newName}):r;});
+  persistAll(Object.assign({}, state.settings, { categoryGroups:groups, categoryGroupOf:groupOf, categoryGroupStyles:styles, annualReserves:reserves }), state.entries, "your categories");
   return true;
 }
 function catIconCircle(categoryName) {
@@ -6472,8 +6520,9 @@ function periodSavingsGoalMetrics(info, cs) {
     var fc=periodForecast(cs,info.start,info.end,"overall",false).forecast;
     if(fc)projectedSpend=fc.projectedSpend;
   }
-  var pct=savingsTargetPct(), targetSaving=(projectedIncome>0&&pct>0)?savingsTargetAmountForIncome(projectedIncome):0;
-  var spendCeiling=(projectedIncome>0&&pct>0)?savingsSpendCeilingForIncome(projectedIncome):null;
+  var pct=savingsTargetPct(), rangeGoal=(projectedIncome>0&&pct>0)?savingsGoalForRange(info.start,info.end,projectedIncome):null;
+  var targetSaving=rangeGoal?rangeGoal.targetSaving:0;
+  var spendCeiling=rangeGoal?rangeGoal.spendCeiling:null;
   var projectedSaving=projectedIncome>0?round2(projectedIncome-projectedSpend):null;
   var projectedSavingPct=projectedIncome>0?projectedSaving/projectedIncome*100:null;
   var gap=(projectedSaving!=null&&pct>0)?round2(projectedSaving-targetSaving):null;
@@ -6530,7 +6579,8 @@ function buildAnalysisForecastCard(info, cs, T, scope) {
   
   var useSavingsBenchmark = scope === "overall" && (info.mode === "month" || info.mode === "year");
   var goalPct=savingsTargetPct(), goalContext=null;
-  var savingsSpendCeiling=(useSavingsBenchmark && projectedIncome>0 && goalPct>0)?savingsSpendCeilingForIncome(projectedIncome):null;
+  var analysisRangeGoal=(useSavingsBenchmark&&projectedIncome>0&&goalPct>0)?savingsGoalForRange(info.start,info.end,projectedIncome):null;
+  var savingsSpendCeiling=analysisRangeGoal?analysisRangeGoal.spendCeiling:null;
   if(useSavingsBenchmark&&info.mode==="month"&&savingsSpendCeiling!=null){
     var effectiveGoal=effectiveMonthlyCashSavingsTarget(info.start,info.end,projectedIncome);
     if(effectiveGoal.effective!=null){
@@ -8107,7 +8157,7 @@ function renderPlanEditorPage() {
   h += '<div class="txn-entry-header"><button data-action="toggle-plan-create" class="txn-entry-back" aria-label="Back">'+ICONS.chevronLeft+'</button><div class="txn-entry-header-title">'+(editingRule?'Edit plan':'New plan')+'</div><span></span></div>';
   h += '<div class="txn-entry-content">';
   h += '<div class="seg" style="margin-bottom:16px;"><button class="seg-btn" role="tab" aria-selected="'+(recKind==='expense')+'" data-action="set-recurring-kind" data-kind="expense">Expense</button><button class="seg-btn" role="tab" aria-selected="'+(recKind==='income')+'" data-action="set-recurring-kind" data-kind="income">Income</button></div>';
-  h += '<label class="eyebrow">Amount</label><div style="position:relative;margin:7px 0 16px;"><span class="muted" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:15px;">'+reportingCurrency()+'</span><input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0" class="field mono" style="padding:15px 14px 15px 50px;font-size:28px;font-weight:700;" placeholder="0.00" value="'+(state.recurringAmountDraft!=null?esc(state.recurringAmountDraft):'')+'" /></div>';
+  h += '<label class="eyebrow">Amount</label><div style="position:relative;margin:7px 0 16px;"><span class="muted" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:15px;">'+reportingCurrency()+'</span><input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0.01" class="field mono" style="padding:15px 14px 15px 50px;font-size:28px;font-weight:700;" placeholder="0.00" value="'+(state.recurringAmountDraft!=null?esc(state.recurringAmountDraft):'')+'" /></div>';
   h += '<label class="eyebrow">Name</label><input id="recurringNoteInput" type="text" class="field" style="margin:7px 0 16px;" placeholder="'+(recKind==='income'?'Salary, freelance…':'Rent, subscription…')+'" value="'+(state.recurringNoteDraft!=null?esc(state.recurringNoteDraft):'')+'" />';
   if (recKind === 'expense') {
     h += '<div class="row between" style="margin-bottom:7px;"><label class="eyebrow">Subcategory</label>'+(selectedCategoryGroup?'<span class="muted caption">'+esc(selectedCategoryGroup)+'</span>':'')+'</div>';
@@ -8282,7 +8332,7 @@ function handleAddTransaction() {
   var timeEl = document.getElementById("entryTimeInput");
   var txnTime = timeEl ? timeEl.value : "";
   var originalAmt = parseFloat(amtEl ? amtEl.value : "");
-  if (isNaN(originalAmt) || originalAmt < 0 || !date) return;
+  if (isNaN(originalAmt) || !(originalAmt > 0) || !date) { showToast("Enter an amount greater than zero"); return; }
   var currencyEl = document.getElementById("entryCurrencyInput");
   var fxRateEl = document.getElementById("entryFxRateInput");
   var fxSourceEl = document.getElementById("entryFxSourceInput");
@@ -9038,17 +9088,22 @@ document.addEventListener("click", function(e) {
       var recAmount = fromReporting(recAmountShown);
       var recStartEl = document.getElementById("recurringStartDateInput");
       var recStart = recStartEl ? recStartEl.value : "";
-      if (isNaN(recAmountShown) || recAmountShown < 0 || !recStart) break;
+      if (isNaN(recAmountShown) || !(recAmountShown > 0) || !recStart) { showToast("Enter a payment amount greater than zero"); break; }
       var recKindForRule = state.recurringKindDraft || "expense";
       var recLimitMode = state.recurringLimitMode || "ongoing";
       var existingRecurringRule = state.editingRecurringId ? (state.settings.recurringRules||[]).find(function(r){return r.id===state.editingRecurringId;}) : null;
+      var recFreqEl = document.getElementById("recurringFrequencyInput");
+      var allowedRecurringFrequencies={weekly:true,monthly:true,quarterly:true,semiannual:true,yearly:true};
+      var selectedFrequency=(recFreqEl&&allowedRecurringFrequencies[recFreqEl.value])?recFreqEl.value:"weekly";
+      var loggedBefore=existingRecurringRule?(existingRecurringRule.occurrencesLogged||0):0;
+      var timingChanged=!!(existingRecurringRule&&loggedBefore>0&&(existingRecurringRule.frequency!==selectedFrequency||existingRecurringRule.startDate!==recStart));
       var recCount = null;
       var recEndDate = null;
       if (recLimitMode === "count") {
         var recCountEl = document.getElementById("recurringCountInput");
         var parsedCount = parseInt(recCountEl ? recCountEl.value : "", 10);
         if (isNaN(parsedCount) || parsedCount < 1) break;
-        if(existingRecurringRule && parsedCount < (existingRecurringRule.occurrencesLogged||0)) {
+        if(existingRecurringRule && !timingChanged && parsedCount < loggedBefore) {
           showToast("Total payments cannot be below already logged payments");
           render();
           break;
@@ -9062,11 +9117,6 @@ document.addEventListener("click", function(e) {
       var recCategoryEl = document.getElementById("recurringCategoryInput");
       var recPersonEl = document.getElementById("recurringPersonInput");
       var recNoteEl = document.getElementById("recurringNoteInput");
-      var recFreqEl = document.getElementById("recurringFrequencyInput");
-      var allowedRecurringFrequencies={weekly:true,monthly:true,quarterly:true,semiannual:true,yearly:true};
-      var selectedFrequency=(recFreqEl&&allowedRecurringFrequencies[recFreqEl.value])?recFreqEl.value:"weekly";
-      var loggedBefore=existingRecurringRule?(existingRecurringRule.occurrencesLogged||0):0;
-      var timingChanged=!!(existingRecurringRule&&loggedBefore>0&&(existingRecurringRule.frequency!==selectedFrequency||existingRecurringRule.startDate!==recStart));
       if(timingChanged&&recStart<todayStr()){
         showToast("Set Starts to the next real payment date when changing an existing schedule");
         render();
@@ -9738,7 +9788,7 @@ document.addEventListener("input", function(e) {
   }
   if (e.target && e.target.id === "travelAnnualReserveInput") {
     var reservePreviewEl=document.getElementById("travelReserveMonthlyPreview"), reservePreviewShown=Number(e.target.value), reservePreviewBase=isFinite(reservePreviewShown)?Math.max(0,fromReporting(reservePreviewShown)):0;
-    if(reservePreviewEl) reservePreviewEl.textContent="≈ "+fmt(reservePreviewBase/12,0)+" AED/month";
+    if(reservePreviewEl) reservePreviewEl.textContent="≈ "+fmt(toReporting(reservePreviewBase/12),0)+" "+reportingCurrency()+"/month";
     return;
   }
   if (e.target && e.target.id === "savingsTargetPctInput") {
@@ -9746,16 +9796,17 @@ document.addEventListener("input", function(e) {
     var relCard = document.getElementById("savingsRelationshipCard");
     if (relCard) {
       var liveIncome = Math.max(0,Number(relCard.dataset.income)||0);
+      var liveYearlyIncome = Math.max(0,Number(relCard.dataset.yearlyIncome)||0);
       var liveNormalizedObligations = Math.max(0,Number(relCard.dataset.normalizedObligations)||0);
       var liveMonthlySaving = round2(liveIncome*pctPreview/100);
-      var liveYearlySaving = round2(liveMonthlySaving*12);
+      var liveYearlySaving = round2(liveYearlyIncome*pctPreview/100);
       var liveCompatibleBudget = round2(Math.max(0,liveIncome-liveMonthlySaving-liveNormalizedObligations));
       var monthlyEl=document.getElementById("savingsMonthlyPreview");
       var yearlyEl=document.getElementById("savingsYearlyPreview");
-      var budgetEl=document.getElementById("savingsBudgetPreview");
-      if(monthlyEl)monthlyEl.textContent=fmt(liveMonthlySaving,0)+" AED";
-      if(yearlyEl)yearlyEl.textContent=fmt(liveYearlySaving,0)+" AED";
-      if(budgetEl)budgetEl.textContent="≈ "+fmt(liveCompatibleBudget,0)+" AED";
+      var budgetEl=document.getElementById("savingsBudgetPreview"), liveCurrency=reportingCurrency();
+      if(monthlyEl)monthlyEl.textContent=fmt(toReporting(liveMonthlySaving),0)+" "+liveCurrency;
+      if(yearlyEl)yearlyEl.textContent=fmt(toReporting(liveYearlySaving),0)+" "+liveCurrency;
+      if(budgetEl)budgetEl.textContent="≈ "+fmt(toReporting(liveCompatibleBudget),0)+" "+liveCurrency;
     }
     return;
   }
