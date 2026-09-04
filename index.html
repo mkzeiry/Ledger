@@ -313,7 +313,11 @@
   /* Cash Flow uses three visual states: solid accent is money already spent,
      the softer accent extension is additional forecast spending, and the
      untouched track is income not expected to be spent this month. */
-  .cashflow-progress { display:block; }
+  .cashflow-progress { position:relative; display:block; background:var(--surface-2); }
+  .cashflow-progress-forecast,
+  .cashflow-progress-fill { position:absolute; top:0; left:0; height:100%; border-radius:999px; }
+  .cashflow-progress-forecast { background:color-mix(in srgb, var(--accent) 32%, var(--surface-2)); }
+  .cashflow-progress-fill { background:var(--accent); }
   html.simple-home .app-topbar { margin-bottom:8px; }
   html.simple-home .simple-budget-card .hairline-top { margin-top:9px !important; padding-top:8px !important; }
   @media (max-width:360px) {
@@ -556,7 +560,7 @@
   .app-fab {
     position:fixed; right:calc(env(safe-area-inset-right,0px) + 20px);
     bottom:calc(env(safe-area-inset-bottom,0px) + 88px);
-    width:50px; height:50px; border-radius:999px; border:0;
+    width:48px; height:48px; border-radius:999px; border:0;
     display:flex; align-items:center; justify-content:center; z-index:45;
     color:var(--accent-ink); background:var(--accent);
     box-shadow:0 8px 26px color-mix(in srgb,var(--accent) 26%,rgba(0,0,0,.18));
@@ -610,7 +614,7 @@
     -webkit-backdrop-filter:saturate(190%) blur(32px); backdrop-filter:saturate(190%) blur(32px);
     box-shadow:0 8px 30px rgba(0,0,0,.10);
   }
-  .app-fab { bottom:calc(max(env(safe-area-inset-bottom,0px), 8px) + 73px); }
+  html.simple-home .app-fab { bottom:calc(max(env(safe-area-inset-bottom,0px), 8px) + 56px); }
 
   /* Focused Settings pages now use the same airy surface language as the
      primary app instead of reverting to dense form-page styling. */
@@ -1127,7 +1131,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v112.19";
+var APP_VERSION = "v112.20";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: null, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 25, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true, cadenceBoundarySmoothingMigrationV11219: true, homeDeltaModelEpochV11219: null };
@@ -3010,7 +3014,7 @@ function loadInitial() {
     adaptiveSafeHistoryMigrationChanged=true;
   }
 
-  /* v112.19 changes cadence reserve boundaries from hard whole-event cutoffs
+  /* v112.20 keeps the softened cadence reserve boundaries introduced in v112.19 and simplifies the Home presentation
      to probability mass inside the remaining period. Safe-to-Spend openings
      created by the old reserve model are not comparable with the new model,
      so restart only the Safe opening baseline. Projected Budget Spend and
@@ -4772,16 +4776,12 @@ function renderHomeBody(T, da) {
     var actual=Math.max(0,Math.min(100,Number(actualPct)||0));
     var forecast=Math.max(actual,Math.min(100,Number(forecastPct)||0));
     var label='Spent '+actual.toFixed(0)+'% of income; forecast '+forecast.toFixed(0)+'%';
-    /* A single continuous gradient avoids the tiny rounded/antialiased seam
-       that can appear between adjacent flex segments on iOS. */
-    var forecastShade='color-mix(in srgb, var(--accent) 30%, var(--surface-2))';
-    var bg='linear-gradient(to right, var(--accent) 0%, var(--accent) '+actual+'%, '+forecastShade+' '+actual+'%, '+forecastShade+' '+forecast+'%, var(--surface-2) '+forecast+'%, var(--surface-2) 100%)';
-    return '<div class="simple-progress cashflow-progress" role="img" aria-label="'+esc(label)+'" style="background:'+bg+';"></div>';
+    return '<div class="simple-progress cashflow-progress" role="img" aria-label="'+esc(label)+'"><span class="cashflow-progress-forecast" style="width:'+forecast+'%;"></span><span class="cashflow-progress-fill" style="width:'+actual+'%;"></span></div>';
   }
   function paceBadge(value) {
     var c = value > 0 ? 'var(--positive)' : (value < 0 ? 'var(--rust)' : 'var(--text-muted)');
     var word = value > 0 ? 'ahead' : (value < 0 ? 'behind' : 'on pace');
-    return '<div class="mono caption" style="margin-top:6px;font-weight:800;color:' + c + ';">' + (value > 0 ? '+' : (value < 0 ? '−' : '')) + fmt(Math.abs(value), 0) + ' AED ' + word + '</div>';
+    return '<div class="mono caption" style="margin-top:6px;font-weight:800;color:' + c + ';">' + (value > 0 ? '+' : (value < 0 ? '−' : '')) + fmt(Math.abs(value), 0) + ' ' + word + '</div>';
   }
 
   var limitingLabel = (pacing.limitingHorizon || 'budget');
@@ -4799,21 +4799,21 @@ function renderHomeBody(T, da) {
   var simpleCards = {};
 
   var hero = '<div class="card simple-metric-card simple-hero"><div class="simple-hero-grid">';
-  hero += '<div class="simple-hero-cell"><div class="muted caption">SAFE TO SPEND TODAY</div><div class="mono simple-hero-value home-metric-value-line" style="color:' + safeTodayColor + ';"><span class="home-metric-primary">' + (safeToday == null ? '—' : (fmt(safeToday, 0) + ' <span class="muted simple-metric-unit">AED</span>')) + '</span>' + safeDeltaHtml + '</div></div>';
-  hero += '<div class="simple-hero-cell"><div class="muted caption">SPENT TODAY</div><div class="mono simple-hero-value simple-hero-value-muted" style="color:' + (safeToday != null && spentToday > safeToday ? 'var(--rust)' : 'var(--text-muted)') + ';">' + fmt(spentToday, 0) + ' <span class="muted simple-metric-unit">AED</span></div></div></div>';
+  hero += '<div class="simple-hero-cell"><div class="muted caption">SAFE TO SPEND TODAY</div><div class="mono simple-hero-value home-metric-value-line" style="color:' + safeTodayColor + ';"><span class="home-metric-primary">' + (safeToday == null ? '—' : fmt(safeToday, 0)) + '</span>' + safeDeltaHtml + '</div></div>';
+  hero += '<div class="simple-hero-cell"><div class="muted caption">SPENT TODAY</div><div class="mono simple-hero-value simple-hero-value-muted" style="color:' + (safeToday != null && spentToday > safeToday ? 'var(--rust)' : 'var(--text-muted)') + ';">' + fmt(spentToday, 0) + '</div></div></div>';
   if (simpleStatus) hero += '<div class="simple-status" style="color:' + simpleStatusColor + ';">' + esc(simpleStatus) + '</div>';
   simpleCards.hero = hero + '</div>';
 
   var projectedBudgetPct = target > 0 ? (projectedBudgetSpend / target * 100) : null;
   var projectedBudgetColor = projectedBudgetPct == null ? 'var(--text)' : (projectedBudgetPct > 108 ? 'var(--rust)' : (projectedBudgetPct > 100 ? 'var(--amber)' : 'var(--text)'));
   var budgetStatus = '<div class="card simple-budget-card"><div class="eyebrow">Budget</div><div class="simple-outlook-grid" style="margin-top:8px;">';
-  budgetStatus += '<div><div class="simple-outlook-label">BUDGET SPENT SO FAR</div><div class="mono simple-outlook-value">' + fmt(budget.spent, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (target > 0 ? budgetPctRaw.toFixed(0) + '% of budget' : 'Budget not set') + '</div></div>';
-  budgetStatus += '<div><div class="simple-outlook-label">PROJECTED BUDGET SPEND</div><div class="mono simple-outlook-value home-metric-value-line" style="color:' + projectedBudgetColor + ';"><span class="home-metric-primary">' + fmt(projectedBudgetSpend, 0) + ' <span class="simple-budget-unit">AED</span></span>' + projectedBudgetDeltaHtml + '</div><div class="simple-outlook-sub">' + (projectedBudgetPct == null ? 'Budget not set' : projectedBudgetPct.toFixed(0) + '% of budget') + '</div></div></div>';
-  budgetStatus += pctBar(progress, budgetPctRaw > 100) + '<div class="simple-budget-meta"><span>Remaining <strong style="color:' + (remaining >= 0 ? 'var(--text)' : 'var(--rust)') + ';">' + (remaining < 0 ? '−' : '') + fmt(Math.abs(remaining), 0) + ' AED</strong> of ' + fmt(target, 0) + ' AED</span><span> · ' + monthDaysLeft + ' day' + (monthDaysLeft === 1 ? '' : 's') + ' left</span></div>' + paceBadge(monthBudgetPosition);
+  budgetStatus += '<div><div class="simple-outlook-label">SPENT</div><div class="mono simple-outlook-value">' + fmt(budget.spent, 0) + '</div><div class="simple-outlook-sub">' + (target > 0 ? budgetPctRaw.toFixed(0) + '%' : '—') + '</div></div>';
+  budgetStatus += '<div><div class="simple-outlook-label">PROJECTED</div><div class="mono simple-outlook-value home-metric-value-line" style="color:' + projectedBudgetColor + ';"><span class="home-metric-primary">' + fmt(projectedBudgetSpend, 0) + '</span>' + projectedBudgetDeltaHtml + '</div><div class="simple-outlook-sub">' + (projectedBudgetPct == null ? '—' : projectedBudgetPct.toFixed(0) + '%') + '</div></div></div>';
+  budgetStatus += pctBar(progress, budgetPctRaw > 100) + '<div class="simple-budget-meta"><span><strong style="color:' + (remaining >= 0 ? 'var(--text)' : 'var(--rust)') + ';">' + (remaining < 0 ? '−' : '') + fmt(Math.abs(remaining), 0) + '</strong> left</span><span> · ' + monthDaysLeft + ' day' + (monthDaysLeft === 1 ? '' : 's') + '</span></div>' + paceBadge(monthBudgetPosition);
   if (flexible30 != null || flexible7 != null) {
     var flexibleTrendColor = flexibleTrend == null ? 'var(--text-muted)' : (flexibleTrend > 0 ? 'var(--rust)' : (flexibleTrend < 0 ? 'var(--positive)' : 'var(--text-muted)'));
     var flexibleTrendText = flexibleTrend == null ? '' : ((flexibleTrend > 0 ? '+' : '') + fmt(flexibleTrend, 0) + '%');
-    budgetStatus += '<div class="home-flex-pace hairline-top"><div class="row between home-flex-pace-head"><span class="eyebrow">Flexible spending pace</span>' + (flexibleTrendText ? '<span class="mono home-flex-pace-trend" style="color:' + flexibleTrendColor + ';">' + esc(flexibleTrendText) + '</span>' : '') + '</div><div class="home-flex-pace-grid"><div><div class="muted caption">Last 30 days</div><div class="mono home-flex-pace-value">' + (flexible30 == null ? '—' : fmt(flexible30,0) + ' <span>AED/day</span>') + '</div></div><div><div class="muted caption">Last 7 days</div><div class="mono home-flex-pace-value" style="color:' + flexibleTrendColor + ';">' + (flexible7 == null ? '—' : fmt(flexible7,0) + ' <span>AED/day</span>') + '</div></div></div></div>';
+    budgetStatus += '<div class="home-flex-pace hairline-top"><div class="row between home-flex-pace-head"><span class="eyebrow">Flexible daily average</span>' + (flexibleTrendText ? '<span class="mono home-flex-pace-trend" style="color:' + flexibleTrendColor + ';">' + esc(flexibleTrendText) + '</span>' : '') + '</div><div class="home-flex-pace-grid"><div><div class="muted caption">30D</div><div class="mono home-flex-pace-value">' + (flexible30 == null ? '—' : fmt(flexible30,0)) + '</div></div><div><div class="muted caption">7D</div><div class="mono home-flex-pace-value" style="color:' + flexibleTrendColor + ';">' + (flexible7 == null ? '—' : fmt(flexible7,0)) + '</div></div></div></div>';
   }
   simpleCards.budgetStatus = budgetStatus + '</div>';
 
@@ -4849,16 +4849,16 @@ function renderHomeBody(T, da) {
   var effectiveSavingTargetPct = homeEffectiveCashGoal&&homeEffectiveCashGoal.effectiveSavingPct!=null?homeEffectiveCashGoal.effectiveSavingPct:null;
   var simpleSavingBelowTarget = simpleSavingPct!=null&&effectiveSavingTargetPct!=null&&simpleSavingPct+0.05<effectiveSavingTargetPct;
   var simpleSavingColor = simpleSaving < 0 ? 'var(--rust)' : (simpleSavingBelowTarget?'var(--amber)':'var(--positive)');
-  var simpleSavingPctText = simpleSavingPct==null?'Income not set':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(1)+'% of income');
+  var simpleSavingPctText = simpleSavingPct==null?'—':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(1)+'%');
   var outlook = '<div class="card simple-outlook-card"><div class="eyebrow">Cash flow</div><div class="simple-outlook-grid">';
-  outlook += '<div><div class="simple-outlook-label">TOTAL SPENT SO FAR</div><div class="mono simple-outlook-value">' + fmt(overall.spent, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (spentVsIncomePct == null ? 'Income not set' : spentVsIncomePct.toFixed(0) + '% of income') + '</div></div>';
-  outlook += '<div><div class="simple-outlook-label">PROJECTED TOTAL SPEND</div><div class="mono simple-outlook-value" style="color:' + projectedSpendColor + ';">' + fmt(projected, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (projectedSpendVsIncomePct == null ? 'Income not set' : projectedSpendVsIncomePct.toFixed(0) + '% of income') + '</div></div></div>';
+  outlook += '<div><div class="simple-outlook-label">SPENT</div><div class="mono simple-outlook-value">' + fmt(overall.spent, 0) + '</div><div class="simple-outlook-sub">' + (spentVsIncomePct == null ? '—' : spentVsIncomePct.toFixed(0) + '%') + '</div></div>';
+  outlook += '<div><div class="simple-outlook-label">PROJECTED</div><div class="mono simple-outlook-value" style="color:' + projectedSpendColor + ';">' + fmt(projected, 0) + '</div><div class="simple-outlook-sub">' + (projectedSpendVsIncomePct == null ? '—' : projectedSpendVsIncomePct.toFixed(0) + '%') + '</div></div></div>';
   if (incomeReference > 0) outlook += cashFlowProgressBar(spentVsIncomePct, projectedSpendVsIncomePct);
   var effectiveSavingTargetAmount=(incomeReference>0&&maxSpendForSavings!=null)?round2(incomeReference-maxSpendForSavings):null;
   var effectiveSavingGap=(effectiveSavingTargetAmount!=null&&simpleSaving!=null)?round2(simpleSaving-effectiveSavingTargetAmount):null;
   var effectiveSavingGapText='';
-  if(effectiveSavingGap!=null){effectiveSavingGapText=effectiveSavingGap>=0?(fmt(effectiveSavingGap,0)+' AED ahead of effective target'):(fmt(Math.abs(effectiveSavingGap),0)+' AED short of effective target');}
-  outlook += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div class="simple-saving-summary"><div class="simple-saving-main"><div class="mono simple-outlook-value home-metric-value-line" style="color:' + simpleSavingColor + ';"><span class="home-metric-primary">' + (simpleSaving >= 0 ? '+' : '−') + fmt(Math.abs(simpleSaving), 0) + ' <span class="simple-budget-unit">AED</span></span>' + projectedSavingDeltaHtml + '</div><div class="simple-outlook-sub" style="color:var(--text-muted);font-weight:600;">' + esc(simpleSavingPctText) + '</div></div>'+(effectiveSavingTargetPct!=null?'<div class="simple-saving-target"><div class="simple-saving-target-label">Effective target</div><div class="mono simple-saving-target-pct">'+fmt(effectiveSavingTargetPct,1)+'%</div>'+(effectiveSavingGapText?'<div class="mono simple-saving-target-gap" style="color:'+simpleSavingColor+';">'+esc(effectiveSavingGapText).replace(' of effective target','')+'</div>':'')+'</div>':'')+'</div></div>';
+  if(effectiveSavingGap!=null){effectiveSavingGapText=effectiveSavingGap>=0?(fmt(effectiveSavingGap,0)+' ahead'):(fmt(Math.abs(effectiveSavingGap),0)+' short');}
+  outlook += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div class="simple-saving-summary"><div class="simple-saving-main"><div class="mono simple-outlook-value home-metric-value-line" style="color:' + simpleSavingColor + ';"><span class="home-metric-primary">' + (simpleSaving >= 0 ? '+' : '−') + fmt(Math.abs(simpleSaving), 0) + '</span>' + projectedSavingDeltaHtml + '</div><div class="simple-outlook-sub" style="color:var(--text-muted);font-weight:600;">' + esc(simpleSavingPctText) + '</div></div>'+(effectiveSavingTargetPct!=null?'<div class="simple-saving-target"><div class="simple-saving-target-label">Target</div><div class="mono simple-saving-target-pct">'+fmt(effectiveSavingTargetPct,1)+'%</div>'+(effectiveSavingGapText?'<div class="mono simple-saving-target-gap" style="color:'+simpleSavingColor+';">'+esc(effectiveSavingGapText)+'</div>':'')+'</div>':'')+'</div></div>';
   simpleCards.outlook = outlook + '</div>';
 
   var simpleOrder = ['hero','budgetStatus','outlook','today'];
@@ -6537,7 +6537,7 @@ function cadenceEventForecast(profile, fromStr, throughStr) {
   if(overdueRatio>3.6)staleFactor*=.35;
 
   /* Cadence definition is unchanged: eventGap still comes from the observed
-     window divided by active event days. What changes in v112.19 is only the
+     window divided by active event days. What changes in v112.20 is the Home presentation; the softened reserve logic from v112.19 remains intact and only the
      PERIOD BOUNDARY. An event centered near/just beyond month-end contributes
      only the part of its timing distribution that falls inside the period,
      rather than being 100% present one day and 0% present the next. */
