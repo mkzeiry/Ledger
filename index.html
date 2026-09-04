@@ -1126,11 +1126,12 @@
   .simple-saving-inline { display:flex; align-items:baseline; gap:5px; flex-wrap:wrap; }
   .simple-saving-inline-gap { font-weight:720; }
 
-  /* ===== v112.29 restore v112.19 Home FAB position =====
-     v112.20 moved the Home add button downward. Restore the v112.19
-     placement while keeping the current modern 60px FAB presentation. */
+  /* ===== v112.30 Home FAB clearance =====
+     Keep the modern 60px add button visually detached from the floating
+     bottom tab bar. The prior 73px offset left the two surfaces touching on
+     taller iPhones; raise the Home FAB while preserving its size/style. */
   html.simple-home .app-fab {
-    bottom:calc(max(env(safe-area-inset-bottom,0px), 8px) + 73px);
+    bottom:calc(max(env(safe-area-inset-bottom,0px), 8px) + 92px);
   }
 
   /* v112.12: compact flexible spending pace restored on Home */
@@ -1153,7 +1154,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v112.29";
+var APP_VERSION = "v112.30";
 var FORECAST_MODEL_VERSION = "v11112-tabby-outlook-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities","Flights","Hotels & Accommodation","Food & Dining","Local Transport / Car Rental","Activities & Attractions","Shopping & Souvenirs","Visa / Travel Fees / Insurance","Miscellaneous Travel"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"},"Flights":{"icon":"plane","color":"#0A84FF"},"Hotels & Accommodation":{"icon":"bed","color":"#5856D6"},"Food & Dining":{"icon":"fork","color":"#D4614A"},"Local Transport / Car Rental":{"icon":"taxi","color":"#5AC8FA"},"Activities & Attractions":{"icon":"ticket","color":"#FF9F0A"},"Shopping & Souvenirs":{"icon":"gift","color":"#AF52DE"},"Visa / Travel Fees / Insurance":{"icon":"shield","color":"#34C759"},"Miscellaneous Travel":{"icon":"travel","color":"#8E8E93"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"},"Travel":{"icon":"plane","color":"#0A84FF"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Travel","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle","Flights":"Travel","Hotels & Accommodation":"Travel","Food & Dining":"Travel","Local Transport / Car Rental":"Travel","Activities & Attractions":"Travel","Shopping & Souvenirs":"Travel","Visa / Travel Fees / Insurance":"Travel","Miscellaneous Travel":"Travel"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: {"Flights":true,"Hotels & Accommodation":true,"Food & Dining":true,"Local Transport / Car Rental":true,"Activities & Attractions":true,"Shopping & Souvenirs":true,"Visa / Travel Fees / Insurance":true,"Miscellaneous Travel":true}, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 0, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true, cadenceBoundarySmoothingMigrationV11219: true, homeDeltaModelEpochV11219: null, annualReserves: null, annualReserveMigrationV11222: null, travelTaxonomyMigrationV11224: true, travelOutsideBudgetMigrationV11225: true };
@@ -5332,10 +5333,14 @@ function renderSettingsPage() {
     var savingIncomePlan=incomePlanForDate(todayStr());
     var savingMonthlyIncome=savingIncomePlan.mode==="daily"?round2(savingIncomePlan.amount*daysInMonth(new Date())):round2(savingIncomePlan.amount);
     var savingMonthlyTarget=round2(savingMonthlyIncome*savePct/100), savingYearlyTarget=round2(savingMonthlyTarget*12);
-    h += '<div id="savingsRelationshipCard" class="card card-pad" style="margin-bottom:14px;" data-income="'+savingMonthlyIncome+'"><div class="eyebrow">SAVINGS TARGET</div>';
+    var savingOutsideNormalized=normalizedOutsideBudgetMonthlyCost(), savingReserveNormalized=annualReserveNormalizedMonthlyCost();
+    var savingNormalizedObligations=round2((savingOutsideNormalized.total||0)+(savingReserveNormalized.total||0));
+    var savingCompatibleBudget=round2(Math.max(0,savingMonthlyIncome-savingMonthlyTarget-savingNormalizedObligations));
+    h += '<div id="savingsRelationshipCard" class="card card-pad" style="margin-bottom:14px;" data-income="'+savingMonthlyIncome+'" data-normalized-obligations="'+savingNormalizedObligations+'"><div class="eyebrow">SAVINGS TARGET</div>';
     h += '<div class="row between" style="margin-top:10px;"><span class="muted subhead">Monthly saving</span><span id="savingsMonthlyPreview" class="mono subhead" style="font-weight:750;">'+fmt(savingMonthlyTarget,0)+' AED</span></div>';
     h += '<div class="row between" style="margin-top:9px;"><span class="muted subhead">Yearly saving</span><span id="savingsYearlyPreview" class="mono subhead" style="font-weight:750;">'+fmt(savingYearlyTarget,0)+' AED</span></div>';
-    h += '<div class="muted caption" style="margin-top:10px;line-height:1.35;">Based on your current recurring income of '+fmt(savingMonthlyIncome,0)+' AED/month. One-time income is not annualized into this target.</div>';
+    h += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="row between"><span class="muted subhead">Budget based on target</span><span id="savingsBudgetPreview" class="mono subhead" style="font-weight:780;">≈ '+fmt(savingCompatibleBudget,0)+' AED</span></div></div>';
+    h += '<div class="muted caption" style="margin-top:10px;line-height:1.35;">Based on recurring income and normalized outside-budget obligations, including annual reserves. One-time income is not annualized into this target.</div>';
     h += '</div>';
     h += '<button data-action="save-savings-target" class="btn-accent" style="width:100%;">Save savings target</button>';
   }
@@ -9629,12 +9634,16 @@ document.addEventListener("input", function(e) {
     var relCard = document.getElementById("savingsRelationshipCard");
     if (relCard) {
       var liveIncome = Math.max(0,Number(relCard.dataset.income)||0);
+      var liveNormalizedObligations = Math.max(0,Number(relCard.dataset.normalizedObligations)||0);
       var liveMonthlySaving = round2(liveIncome*pctPreview/100);
       var liveYearlySaving = round2(liveMonthlySaving*12);
+      var liveCompatibleBudget = round2(Math.max(0,liveIncome-liveMonthlySaving-liveNormalizedObligations));
       var monthlyEl=document.getElementById("savingsMonthlyPreview");
       var yearlyEl=document.getElementById("savingsYearlyPreview");
+      var budgetEl=document.getElementById("savingsBudgetPreview");
       if(monthlyEl)monthlyEl.textContent=fmt(liveMonthlySaving,0)+" AED";
       if(yearlyEl)yearlyEl.textContent=fmt(liveYearlySaving,0)+" AED";
+      if(budgetEl)budgetEl.textContent="≈ "+fmt(liveCompatibleBudget,0)+" AED";
     }
     return;
   }
