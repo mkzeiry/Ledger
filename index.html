@@ -1155,6 +1155,37 @@
     .home-target-summary { padding:9px 10px; }
   }
 
+  /* ===== v112.39 monthly cash-target clarity =====
+     The long-term savings percentage stays annual/normalized, while Home
+     explains why a specific month can legitimately be a payment month or a
+     reserve-building month. The bridge is collapsed by default to preserve
+     the compact Home hierarchy. */
+  .home-month-mode {
+    display:inline-flex; align-items:center; min-height:24px; padding:4px 8px;
+    border-radius:999px; font-size:10px; line-height:1; font-weight:800;
+    letter-spacing:.015em; white-space:nowrap; background:var(--surface-2);
+    color:var(--text-muted); box-shadow:var(--inset-stroke);
+  }
+  .home-month-mode.payment { color:var(--amber); background:color-mix(in srgb,var(--amber) 10%,var(--surface-2)); }
+  .home-month-mode.reserve { color:var(--positive); background:color-mix(in srgb,var(--positive) 10%,var(--surface-2)); }
+  .cash-target-details { margin-top:8px; border-top:1px solid color-mix(in srgb,var(--text) 7%,transparent); padding-top:7px; }
+  .cash-target-details summary {
+    list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between;
+    gap:10px; color:var(--text-muted); font-size:10.5px; font-weight:720; line-height:1.3;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .cash-target-details summary::-webkit-details-marker { display:none; }
+  .cash-target-details summary::after { content:"›"; font-size:16px; line-height:1; transform:rotate(90deg); transition:transform .15s ease; }
+  .cash-target-details[open] summary::after { transform:rotate(-90deg); }
+  .cash-target-bridge { margin-top:7px; padding-top:2px; }
+  .cash-target-bridge-row { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:4px 0; font-size:10.5px; line-height:1.3; }
+  .cash-target-bridge-label { color:var(--text-muted); min-width:0; }
+  .cash-target-bridge-value { flex:0 0 auto; font-weight:760; color:var(--text); }
+  .cash-target-bridge-total { margin-top:4px; padding-top:7px; border-top:1px solid color-mix(in srgb,var(--text) 7%,transparent); font-weight:800; }
+  .plans-cycle-row { padding:11px 0; }
+  .plans-cycle-row + .plans-cycle-row { border-top:1px solid var(--sep); }
+  .plans-cycle-meta { margin-top:3px; color:var(--text-muted); font-size:11px; line-height:1.35; }
+
   /* v112.12: compact flexible spending pace restored on Home */
   .home-flex-pace { margin-top:12px; padding-top:11px; }
   .home-flex-pace-head { align-items:baseline; gap:10px; }
@@ -1196,7 +1227,7 @@
 
 /* ---------------- constants & helpers ---------------- */
 var STORAGE_KEY = "ledger-data";
-var APP_VERSION = "v112.38";
+var APP_VERSION = "v112.39";
 var FORECAST_MODEL_VERSION = "v11238-periodic-cash-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities","Flights","Hotels & Accommodation","Food & Dining","Local Transport / Car Rental","Activities & Attractions","Shopping & Souvenirs","Visa / Travel Fees / Insurance","Miscellaneous Travel"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"},"Flights":{"icon":"plane","color":"#0A84FF"},"Hotels & Accommodation":{"icon":"bed","color":"#5856D6"},"Food & Dining":{"icon":"fork","color":"#D4614A"},"Local Transport / Car Rental":{"icon":"taxi","color":"#5AC8FA"},"Activities & Attractions":{"icon":"ticket","color":"#FF9F0A"},"Shopping & Souvenirs":{"icon":"gift","color":"#AF52DE"},"Visa / Travel Fees / Insurance":{"icon":"shield","color":"#34C759"},"Miscellaneous Travel":{"icon":"travel","color":"#8E8E93"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"},"Travel":{"icon":"plane","color":"#0A84FF"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Travel","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle","Flights":"Travel","Hotels & Accommodation":"Travel","Food & Dining":"Travel","Local Transport / Car Rental":"Travel","Activities & Attractions":"Travel","Shopping & Souvenirs":"Travel","Visa / Travel Fees / Insurance":"Travel","Miscellaneous Travel":"Travel"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: {"Flights":true,"Hotels & Accommodation":true,"Food & Dining":true,"Local Transport / Car Rental":true,"Activities & Attractions":true,"Shopping & Souvenirs":true,"Visa / Travel Fees / Insurance":true,"Miscellaneous Travel":true}, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 0, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true, cadenceBoundarySmoothingMigrationV11219: true, homeDeltaModelEpochV11219: null, annualReserves: null, annualReserveMigrationV11222: null, travelTaxonomyMigrationV11224: true, travelOutsideBudgetMigrationV11225: true, periodicPlanAlignmentMigrationV11237: true, periodicForecastMatchMigrationV11238: true };
@@ -5311,21 +5342,46 @@ function renderHomeBody(T, da) {
   var cashSpendGap=(maxSpendForSavings!=null)?round2(projected-maxSpendForSavings):null;
   var cashSpendGapColor=cashSpendGap==null?'var(--text-muted)':(cashSpendGap>0?'var(--amber)':'var(--positive)');
   var cashSpendGapText=cashSpendGap==null?'':(cashSpendGap>0?(fmt(cashSpendGap,0)+' over target'):(cashSpendGap<0?(fmt(Math.abs(cashSpendGap),0)+' under target'):'On target'));
-  var outlook = '<div class="card simple-outlook-card"><div class="home-card-heading"><div class="eyebrow">Cash flow</div></div><div class="simple-outlook-grid">';
+  var homeCashTimingAdjustment=homeEffectiveCashGoal&&homeEffectiveCashGoal.timing?round2(Number(homeEffectiveCashGoal.timing.adjustment)||0):0;
+  var homeMonthMode=Math.abs(homeCashTimingAdjustment)<0.5?'Normal month':(homeCashTimingAdjustment>0?'Payment month':'Reserve-building month');
+  var homeMonthModeClass=homeCashTimingAdjustment>0.5?' payment':(homeCashTimingAdjustment<-0.5?' reserve':'');
+  var outlook = '<div class="card simple-outlook-card"><div class="home-card-heading"><div class="eyebrow">Cash flow</div><div class="home-month-mode'+homeMonthModeClass+'">'+esc(homeMonthMode)+'</div></div><div class="simple-outlook-grid">';
   outlook += '<div><div class="simple-outlook-label">SPENT SO FAR</div><div class="mono simple-outlook-value">' + fmt(overall.spent, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (spentVsIncomePct == null ? '—' : spentVsIncomePct.toFixed(0) + '%') + '</div></div>';
   outlook += '<div><div class="simple-outlook-label">PROJECTED SPEND</div><div class="mono simple-outlook-value" style="color:' + projectedSpendColor + ';">' + fmt(projected, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (projectedSpendVsIncomePct == null ? '—' : projectedSpendVsIncomePct.toFixed(0) + '%') + '</div></div></div>';
   if (incomeReference > 0) outlook += cashFlowProgressBar(spentVsIncomePct, projectedSpendVsIncomePct);
-  if(maxSpendForSavings!=null){outlook += '<div class="home-target-summary"><div class="home-target-summary-row"><span class="home-target-summary-label">MAX SPEND THIS MONTH</span><span class="mono home-target-summary-value">' + fmt(maxSpendForSavings,0) + ' AED</span></div><div class="home-target-summary-sub" style="color:' + cashSpendGapColor + ';">Projected ' + esc(cashSpendGapText) + '</div></div>';}
   var effectiveSavingTargetAmount=(incomeReference>0&&maxSpendForSavings!=null)?round2(incomeReference-maxSpendForSavings):null;
+  if(maxSpendForSavings!=null){
+    var targetBridgeHtml='';
+    if(homeEffectiveCashGoal&&effectiveSavingTargetAmount!=null){
+      var baseSaving=round2(Number(homeEffectiveCashGoal.targetSaving)||0), bridgeRows=[];
+      function pushSavingBridge(label,adjustment){
+        var a=round2(Number(adjustment)||0);
+        if(Math.abs(a)<0.5)return;
+        bridgeRows.push({label:label,delta:round2(-a)});
+      }
+      var periodicTiming=homeEffectiveCashGoal.timing&&homeEffectiveCashGoal.timing.periodicPlans;
+      (periodicTiming&&periodicTiming.breakdown||[]).forEach(function(x){ pushSavingBridge((x.name||x.category||'Periodic bill')+' timing',x.adjustment); });
+      var yearlyTiming=homeEffectiveCashGoal.timing&&homeEffectiveCashGoal.timing.yearlyBills;
+      (yearlyTiming&&yearlyTiming.breakdown||[]).forEach(function(x){ pushSavingBridge((x.category||'Annual bill')+' timing',x.adjustment); });
+      var reserveTiming=homeEffectiveCashGoal.timing&&homeEffectiveCashGoal.timing.annualReserves;
+      (reserveTiming&&reserveTiming.breakdown||[]).forEach(function(x){ pushSavingBridge((x.name||'Annual reserve')+' reserve',x.adjustment); });
+      function bridgeMoney(v){ return (v>0?'+':(v<0?'−':''))+fmt(Math.abs(v),0)+' AED'; }
+      targetBridgeHtml='<details class="cash-target-details"><summary>How this month\'s target is built</summary><div class="cash-target-bridge">';
+      targetBridgeHtml+='<div class="cash-target-bridge-row"><span class="cash-target-bridge-label">Normal monthly saving goal</span><span class="mono cash-target-bridge-value">'+bridgeMoney(baseSaving)+'</span></div>';
+      bridgeRows.forEach(function(r){targetBridgeHtml+='<div class="cash-target-bridge-row"><span class="cash-target-bridge-label">'+esc(r.label)+'</span><span class="mono cash-target-bridge-value">'+bridgeMoney(r.delta)+'</span></div>';});
+      targetBridgeHtml+='<div class="cash-target-bridge-row cash-target-bridge-total"><span>This month cash-saving target</span><span class="mono">'+bridgeMoney(effectiveSavingTargetAmount)+'</span></div></div></details>';
+    }
+    outlook += '<div class="home-target-summary"><div class="home-target-summary-row"><span class="home-target-summary-label">MAX SPEND THIS MONTH</span><span class="mono home-target-summary-value">' + fmt(maxSpendForSavings,0) + ' AED</span></div><div class="home-target-summary-sub" style="color:' + cashSpendGapColor + ';">Projected ' + esc(cashSpendGapText) + '</div>'+targetBridgeHtml+'</div>';
+  }
   var effectiveSavingGap=(effectiveSavingTargetAmount!=null&&simpleSaving!=null)?round2(simpleSaving-effectiveSavingTargetAmount):null;
   var effectiveSavingGapText='';
   if(effectiveSavingGap!=null){effectiveSavingGapText=effectiveSavingGap>=0?(fmt(effectiveSavingGap,0)+' ahead'):(fmt(Math.abs(effectiveSavingGap),0)+' short');}
   var savingTargetLine='';
   if(effectiveSavingTargetAmount!=null&&effectiveSavingTargetPct!=null){
-    savingTargetLine='This month target '+fmt(effectiveSavingTargetAmount,0)+' AED ('+fmt(effectiveSavingTargetPct,1)+'%)';
+    savingTargetLine='Cash-saving target '+fmt(effectiveSavingTargetAmount,0)+' AED ('+fmt(effectiveSavingTargetPct,1)+'%)';
     if(effectiveSavingGapText)savingTargetLine+=' · '+effectiveSavingGapText;
   }
-  var annualTargetLine=(homeSavingsPct>0&&effectiveSavingTargetPct!=null&&Math.abs(homeSavingsPct-effectiveSavingTargetPct)>=0.05)?('Annual goal '+fmt(homeSavingsPct,2)+'% · this month is adjusted for annual bills/reserves'):'';
+  var annualTargetLine=(homeSavingsPct>0&&effectiveSavingTargetPct!=null&&Math.abs(homeSavingsPct-effectiveSavingTargetPct)>=0.05)?('Annual savings goal '+fmt(homeSavingsPct,2)+'% · monthly cash target adjusts for payment timing'):'';
   outlook += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div class="simple-saving-main"><div class="mono simple-outlook-value home-metric-value-line" style="color:' + simpleSavingColor + ';"><span class="home-metric-primary">' + (simpleSaving >= 0 ? '+' : '−') + fmt(Math.abs(simpleSaving), 0) + ' <span class="simple-budget-unit">AED</span></span>' + projectedSavingDeltaHtml + '</div><div class="simple-outlook-sub" style="color:var(--text-muted);font-weight:650;"><span class="mono">' + esc(simpleSavingPctText) + '</span> projected</div>' + (savingTargetLine?('<div class="simple-saving-target-line" style="color:'+simpleSavingColor+';">'+esc(savingTargetLine)+'</div>'):'') + (annualTargetLine?('<div class="simple-saving-target-line">'+esc(annualTargetLine)+'</div>'):'') + '</div></div>';
   simpleCards.outlook = outlook + '</div>';
 
@@ -8431,6 +8487,22 @@ function renderPlansBody() {
   if(planReserves.length){
     h+='<div class="card card-pad" style="margin-bottom:14px;"><div class="row between" style="margin-bottom:10px;"><div><div class="eyebrow">Annual reserves</div><div class="muted caption" style="margin-top:3px;">Protected outside your monthly budget</div></div><button data-action="open-annual-reserves-settings" class="btn-outline" style="padding:7px 10px;font-size:11px;">Edit</button></div>';
     planReserves.forEach(function(r,idx){var st=annualReserveStatusForYear(r,new Date().getFullYear()),pct=Math.min(100,st.pct),statusColor=st.over>0?'var(--rust)':(st.remaining<=0?'var(--positive)':'var(--text)');h+='<div style="padding:'+(idx?'12px 0 0':'2px 0 0')+';'+(idx?'border-top:1px solid var(--sep);':'')+'"><div class="row between" style="gap:12px;"><div style="min-width:0;"><div class="subhead" style="font-weight:700;">'+esc(r.name)+'</div><div class="muted caption" style="margin-top:3px;">≈ '+fmt(r.annualAmount/12,0)+' AED/month protected · '+esc(annualReserveScopeLabel(r))+'</div></div><div class="mono subhead" style="font-weight:750;text-align:right;color:'+statusColor+';">'+(st.over>0?('−'+fmt(st.over,0)+' over'):fmt(st.remaining,0)+' left')+'</div></div><div style="height:6px;background:var(--fill);border-radius:999px;overflow:hidden;margin-top:10px;"><div style="height:100%;width:'+pct+'%;background:'+(st.over>0?'var(--rust)':'var(--accent)')+';"></div></div><div class="row between" style="margin-top:6px;"><span class="muted caption">'+fmt(st.spent,0)+' spent</span><span class="muted mono caption">'+fmt(st.annual,0)+' AED / year</span></div></div>';});
+    h+='</div>';
+  }
+
+  var majorCycles=activeRules.filter(function(r){
+    return r&&r.entryKind!=="income"&&r.kind==="recurring"&&categoryExcludedFromBudget(r.category)&&
+      (r.frequency==="quarterly"||r.frequency==="semiannual"||r.frequency==="yearly")&&!annualReserveForCategory(r.category)&&categoryForecastBehavior(r.category)!=="yearly";
+  }).sort(function(a,b){
+    var na=nextOccurrence(a),nb=nextOccurrence(b),da=na?na.due:"9999-12-31",db=nb?nb.due:"9999-12-31";
+    return da<db?-1:da>db?1:0;
+  });
+  if(majorCycles.length){
+    h+='<div class="card card-pad" style="margin-bottom:14px;"><div class="row between" style="margin-bottom:4px;"><div><div class="eyebrow">Major payment cycles</div><div class="muted caption" style="margin-top:3px;">Real due dates, normalized monthly for affordability</div></div></div>';
+    majorCycles.forEach(function(r){
+      var nx=nextOccurrence(r),monthly=monthlyEquivalentForRecurringRule(r),freq=recurringFrequencyLabel(r.frequency);
+      h+='<div class="plans-cycle-row"><div class="row" style="align-items:center;gap:11px;">'+planIcon(r)+'<div style="flex:1;min-width:0;"><div class="subhead" style="font-weight:700;">'+esc(planName(r))+'</div><div class="plans-cycle-meta">'+esc(freq)+' · '+fmt(monthly,0)+' AED/month provision</div></div><div style="text-align:right;flex-shrink:0;"><div class="mono subhead" style="font-weight:750;">−'+fmt(r.amount,0)+' AED</div><div class="muted caption" style="margin-top:2px;">'+(nx?('Next '+shortLabel(nx.due)):'No next date')+'</div></div></div></div>';
+    });
     h+='</div>';
   }
 
