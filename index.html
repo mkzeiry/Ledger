@@ -1234,6 +1234,27 @@
   .demo-mode-notice-copy { margin-top:5px;color:var(--text-muted);font-size:12px;line-height:1.4; }
   .demo-action-grid { display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:16px; }
   @media(max-width:360px){ .demo-action-grid { grid-template-columns:1fr; } }
+
+
+  /* ===== v112.42 Home decision-first forecast positions =====
+     Home now surfaces the decision gap rather than repeating full forecast
+     totals already available on Budget / Insights. Projected Saving stays
+     above the compact cash-target reference, and the Home FAB is smaller so
+     it does not compete with the final Cash Flow rows. */
+  html.simple-home .app-fab {
+    width:52px; height:52px; border-radius:18px;
+    right:calc(env(safe-area-inset-right,0px) + 16px);
+    bottom:calc(max(env(safe-area-inset-bottom,0px), 10px) + 84px);
+  }
+  html.simple-home .home-target-reference {
+    margin-top:9px; padding:9px 58px 9px 11px;
+  }
+  html.simple-home .home-target-reference .cash-target-details { margin-top:6px; padding-top:6px; }
+  html.simple-home .home-projected-saving .simple-saving-target-line { margin-top:3px; }
+  @media(max-width:390px){
+    html.simple-home .home-target-reference { padding-right:54px; }
+  }
+
 </style>
 </head>
 <body>
@@ -1249,7 +1270,7 @@ var DEMO_DATA_VERSION = "v11241-dubai-10k-3m-1";
 function demoModeRequested(){ try { return localStorage.getItem(DEMO_MODE_FLAG_KEY)==="1"; } catch(e) { return false; } }
 var IS_DEMO_MODE = demoModeRequested();
 var STORAGE_KEY = IS_DEMO_MODE ? DEMO_STORAGE_KEY : REAL_STORAGE_KEY;
-var APP_VERSION = "v112.41";
+var APP_VERSION = "v112.42";
 var FORECAST_MODEL_VERSION = "v11238-periodic-cash-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities","Flights","Hotels & Accommodation","Food & Dining","Local Transport / Car Rental","Activities & Attractions","Shopping & Souvenirs","Visa / Travel Fees / Insurance","Miscellaneous Travel"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"},"Flights":{"icon":"plane","color":"#0A84FF"},"Hotels & Accommodation":{"icon":"bed","color":"#5856D6"},"Food & Dining":{"icon":"fork","color":"#D4614A"},"Local Transport / Car Rental":{"icon":"taxi","color":"#5AC8FA"},"Activities & Attractions":{"icon":"ticket","color":"#FF9F0A"},"Shopping & Souvenirs":{"icon":"gift","color":"#AF52DE"},"Visa / Travel Fees / Insurance":{"icon":"shield","color":"#34C759"},"Miscellaneous Travel":{"icon":"travel","color":"#8E8E93"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"},"Travel":{"icon":"plane","color":"#0A84FF"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Travel","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle","Flights":"Travel","Hotels & Accommodation":"Travel","Food & Dining":"Travel","Local Transport / Car Rental":"Travel","Activities & Attractions":"Travel","Shopping & Souvenirs":"Travel","Visa / Travel Fees / Insurance":"Travel","Miscellaneous Travel":"Travel"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: {"Flights":true,"Hotels & Accommodation":true,"Food & Dining":true,"Local Transport / Car Rental":true,"Activities & Attractions":true,"Shopping & Souvenirs":true,"Visa / Travel Fees / Insurance":true,"Miscellaneous Travel":true}, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 0, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true, cadenceBoundarySmoothingMigrationV11219: true, homeDeltaModelEpochV11219: null, annualReserves: null, annualReserveMigrationV11222: null, travelTaxonomyMigrationV11224: true, travelOutsideBudgetMigrationV11225: true, periodicPlanAlignmentMigrationV11237: true, periodicForecastMatchMigrationV11238: true };
@@ -5466,15 +5487,14 @@ function renderHomeBody(T, da) {
 
   var projectedBudgetPct = target > 0 ? (projectedBudgetSpend / target * 100) : null;
   var projectedBudgetGap = target > 0 ? round2(projectedBudgetSpend - target) : null;
-  var projectedBudgetColor = projectedBudgetPct == null ? 'var(--text)' : (projectedBudgetPct > 108 ? 'var(--rust)' : (projectedBudgetPct > 100 ? 'var(--amber)' : 'var(--text)'));
-  var projectedBudgetGapColor = projectedBudgetGap == null ? 'var(--text-muted)' : (projectedBudgetGap > 0 ? 'var(--rust)' : 'var(--positive)');
-  var projectedBudgetGapText = projectedBudgetGap == null ? '' : (projectedBudgetGap > 0 ? (fmt(projectedBudgetGap,0)+' over limit') : (projectedBudgetGap < 0 ? (fmt(Math.abs(projectedBudgetGap),0)+' under limit') : 'On limit'));
+  var projectedBudgetGapColor = projectedBudgetGap == null ? 'var(--text-muted)' : (projectedBudgetGap > 0 ? 'var(--rust)' : (projectedBudgetGap < 0 ? 'var(--positive)' : 'var(--text)'));
+  var projectedBudgetGapValue = projectedBudgetGap == null ? '—' : (projectedBudgetGap === 0 ? 'On limit' : (fmt(Math.abs(projectedBudgetGap),0) + ' <span class="simple-budget-unit">AED ' + (projectedBudgetGap > 0 ? 'over' : 'under') + '</span>'));
   var budgetHeaderContext = (Math.abs((configuredBudgetHome||0)-target)>0.5)
     ? ('SET <strong class="mono">'+fmt(configuredBudgetHome,0)+' AED</strong> · EFFECTIVE <strong class="mono">'+fmt(target,0)+' AED</strong>')
     : ('LIMIT <strong class="mono">'+fmt(target,0)+' AED</strong>');
   var budgetStatus = '<div class="card simple-budget-card"><div class="home-card-heading"><div class="eyebrow">Budget</div><div class="home-card-context">' + budgetHeaderContext + '</div></div><div class="simple-outlook-grid" style="margin-top:8px;">';
   budgetStatus += '<div><div class="simple-outlook-label">SPENT SO FAR</div><div class="mono simple-outlook-value">' + fmt(budget.spent, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (target > 0 ? budgetPctRaw.toFixed(0) + '% of limit' : '—') + '</div></div>';
-  budgetStatus += '<div><div class="simple-outlook-label">PROJECTED MONTH-END</div><div class="mono simple-outlook-value home-metric-value-line" style="color:' + projectedBudgetColor + ';"><span class="home-metric-primary">' + fmt(projectedBudgetSpend, 0) + ' <span class="simple-budget-unit">AED</span></span>' + projectedBudgetDeltaHtml + '</div><div class="home-projection-note" style="color:' + projectedBudgetGapColor + ';">' + (projectedBudgetPct == null ? '—' : (projectedBudgetPct.toFixed(0) + '% · ' + projectedBudgetGapText)) + '</div></div></div>';
+  budgetStatus += '<div><div class="simple-outlook-label">PROJECTED POSITION</div><div class="mono simple-outlook-value home-metric-value-line" style="color:' + projectedBudgetGapColor + ';"><span class="home-metric-primary">' + projectedBudgetGapValue + '</span>' + projectedBudgetDeltaHtml + '</div><div class="home-projection-note" style="color:var(--text-muted);">' + (projectedBudgetPct == null ? '—' : (projectedBudgetPct.toFixed(0) + '% projected')) + '</div></div></div>';
   budgetStatus += pctBar(progress, budgetPctRaw > 100) + '<div class="simple-budget-meta"><span><strong style="color:' + (remaining >= 0 ? 'var(--text)' : 'var(--rust)') + ';">' + (remaining < 0 ? '−' : '') + fmt(Math.abs(remaining), 0) + '</strong> left now</span><span> · ' + monthDaysLeft + ' day' + (monthDaysLeft === 1 ? '' : 's') + '</span></div>' + paceBadge(monthBudgetPosition);
   if (flexible30 != null || flexible7 != null) {
     var flexibleTrendColor = flexibleTrend == null ? 'var(--text-muted)' : (flexibleTrend > 0 ? 'var(--rust)' : (flexibleTrend < 0 ? 'var(--positive)' : 'var(--text-muted)'));
@@ -5509,27 +5529,25 @@ function renderHomeBody(T, da) {
   var homeEffectiveCashGoal=(incomeReference>0&&homeSavingsPct>0)?effectiveMonthlyCashSavingsTarget(month.startStr,month.endStr,incomeReference):null;
   var homeRangeGoal=(incomeReference>0&&homeSavingsPct>0)?savingsGoalForRange(month.startStr,month.endStr,incomeReference):null;
   var maxSpendForSavings = homeEffectiveCashGoal&&homeEffectiveCashGoal.effective!=null?homeEffectiveCashGoal.effective:(homeRangeGoal?homeRangeGoal.spendCeiling:null);
-  var projectedSpendTargetGapPct = maxSpendForSavings > 0 ? ((projected - maxSpendForSavings) / maxSpendForSavings * 100) : null;
-  var projectedSpendColor = 'var(--text)';
-  if (maxSpendForSavings != null && projected > maxSpendForSavings) projectedSpendColor = projectedSpendTargetGapPct != null && projectedSpendTargetGapPct >= 10 ? 'var(--rust)' : 'var(--amber)';
   var simpleSavingPct = projectedCashSaving != null ? projectedCashSavingPct : null;
   var effectiveSavingTargetPct = homeEffectiveCashGoal&&homeEffectiveCashGoal.effectiveSavingPct!=null?homeEffectiveCashGoal.effectiveSavingPct:null;
   var simpleSavingBelowTarget = simpleSavingPct!=null&&effectiveSavingTargetPct!=null&&simpleSavingPct+0.05<effectiveSavingTargetPct;
   var simpleSavingColor = simpleSaving < 0 ? 'var(--rust)' : (simpleSavingBelowTarget?'var(--amber)':'var(--positive)');
   var simpleSavingPctText = simpleSavingPct==null?'—':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(1)+'%');
   var cashSpendGap=(maxSpendForSavings!=null)?round2(projected-maxSpendForSavings):null;
-  var cashSpendGapColor=cashSpendGap==null?'var(--text-muted)':(cashSpendGap>0?'var(--amber)':'var(--positive)');
-  var cashSpendGapText=cashSpendGap==null?'':(cashSpendGap>0?(fmt(cashSpendGap,0)+' over target'):(cashSpendGap<0?(fmt(Math.abs(cashSpendGap),0)+' under target'):'On target'));
+  var cashSpendGapColor=cashSpendGap==null?'var(--text-muted)':(cashSpendGap>0?'var(--rust)':(cashSpendGap<0?'var(--positive)':'var(--text)'));
+  var cashSpendGapValue=cashSpendGap==null?'—':(cashSpendGap===0?'On target':(fmt(Math.abs(cashSpendGap),0)+' <span class="simple-budget-unit">AED</span>'));
+  var cashSpendGapState=cashSpendGap==null?'':(cashSpendGap>0?'over target':(cashSpendGap<0?'under target':''));
   var homeCashTimingAdjustment=homeEffectiveCashGoal&&homeEffectiveCashGoal.timing?round2(Number(homeEffectiveCashGoal.timing.adjustment)||0):0;
   var homeMonthMode=Math.abs(homeCashTimingAdjustment)<0.5?'Normal month':(homeCashTimingAdjustment>0?'Payment month':'Reserve-building month');
   var homeMonthModeClass=homeCashTimingAdjustment>0.5?' payment':(homeCashTimingAdjustment<-0.5?' reserve':'');
   var outlook = '<div class="card simple-outlook-card"><div class="home-card-heading"><div class="eyebrow">Cash flow</div><div class="home-month-mode'+homeMonthModeClass+'">'+esc(homeMonthMode)+'</div></div><div class="simple-outlook-grid">';
   outlook += '<div><div class="simple-outlook-label">SPENT SO FAR</div><div class="mono simple-outlook-value">' + fmt(overall.spent, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (spentVsIncomePct == null ? '—' : spentVsIncomePct.toFixed(0) + '%') + '</div></div>';
-  outlook += '<div><div class="simple-outlook-label">PROJECTED SPEND</div><div class="mono simple-outlook-value" style="color:' + projectedSpendColor + ';">' + fmt(projected, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (projectedSpendVsIncomePct == null ? '—' : projectedSpendVsIncomePct.toFixed(0) + '%') + '</div></div></div>';
+  outlook += '<div><div class="simple-outlook-label">PROJECTED POSITION</div><div class="mono simple-outlook-value" style="color:' + cashSpendGapColor + ';">' + cashSpendGapValue + '</div><div class="simple-outlook-sub" style="color:' + cashSpendGapColor + ';font-weight:700;">' + esc(cashSpendGapState) + '</div></div></div>';
   if (incomeReference > 0) outlook += cashFlowProgressBar(spentVsIncomePct, projectedSpendVsIncomePct);
   var effectiveSavingTargetAmount=(incomeReference>0&&maxSpendForSavings!=null)?round2(incomeReference-maxSpendForSavings):null;
+  var targetBridgeHtml='';
   if(maxSpendForSavings!=null){
-    var targetBridgeHtml='';
     if(homeEffectiveCashGoal&&effectiveSavingTargetAmount!=null){
       var baseSaving=round2(Number(homeEffectiveCashGoal.targetSaving)||0), bridgeRows=[];
       function pushSavingBridge(label,adjustment){
@@ -5549,18 +5567,19 @@ function renderHomeBody(T, da) {
       bridgeRows.forEach(function(r){targetBridgeHtml+='<div class="cash-target-bridge-row"><span class="cash-target-bridge-label">'+esc(r.label)+'</span><span class="mono cash-target-bridge-value">'+bridgeMoney(r.delta)+'</span></div>';});
       targetBridgeHtml+='<div class="cash-target-bridge-row cash-target-bridge-total"><span>This month cash-saving target</span><span class="mono">'+bridgeMoney(effectiveSavingTargetAmount)+'</span></div></div></details>';
     }
-    outlook += '<div class="home-target-summary"><div class="home-target-summary-row"><span class="home-target-summary-label">MAX SPEND THIS MONTH</span><span class="mono home-target-summary-value">' + fmt(maxSpendForSavings,0) + ' AED</span></div><div class="home-target-summary-sub" style="color:' + cashSpendGapColor + ';">Projected ' + esc(cashSpendGapText) + '</div>'+targetBridgeHtml+'</div>';
   }
   var effectiveSavingGap=(effectiveSavingTargetAmount!=null&&simpleSaving!=null)?round2(simpleSaving-effectiveSavingTargetAmount):null;
-  var effectiveSavingGapText='';
-  if(effectiveSavingGap!=null){effectiveSavingGapText=effectiveSavingGap>=0?(fmt(effectiveSavingGap,0)+' ahead'):(fmt(Math.abs(effectiveSavingGap),0)+' short');}
-  var savingTargetLine='';
-  if(effectiveSavingTargetAmount!=null&&effectiveSavingTargetPct!=null){
-    savingTargetLine='Cash-saving target '+fmt(effectiveSavingTargetAmount,0)+' AED ('+fmt(effectiveSavingTargetPct,1)+'%)';
-    if(effectiveSavingGapText)savingTargetLine+=' · '+effectiveSavingGapText;
+  var savingPositionLine='';
+  var savingPositionColor='var(--text-muted)';
+  if(effectiveSavingGap!=null){
+    if(effectiveSavingGap>0.5){savingPositionLine=fmt(effectiveSavingGap,0)+' above this month\'s target';savingPositionColor='var(--positive)';}
+    else if(effectiveSavingGap<-0.5){savingPositionLine=fmt(Math.abs(effectiveSavingGap),0)+' below this month\'s target';savingPositionColor='var(--rust)';}
+    else {savingPositionLine='On this month\'s target';savingPositionColor='var(--text-muted)';}
   }
-  var annualTargetLine=(homeSavingsPct>0&&effectiveSavingTargetPct!=null&&Math.abs(homeSavingsPct-effectiveSavingTargetPct)>=0.05)?('Annual savings goal '+fmt(homeSavingsPct,2)+'% · monthly cash target adjusts for payment timing'):'';
-  outlook += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div class="simple-saving-main"><div class="mono simple-outlook-value home-metric-value-line" style="color:' + simpleSavingColor + ';"><span class="home-metric-primary">' + (simpleSaving >= 0 ? '+' : '−') + fmt(Math.abs(simpleSaving), 0) + ' <span class="simple-budget-unit">AED</span></span>' + projectedSavingDeltaHtml + '</div><div class="simple-outlook-sub" style="color:var(--text-muted);font-weight:650;"><span class="mono">' + esc(simpleSavingPctText) + '</span> projected</div>' + (savingTargetLine?('<div class="simple-saving-target-line" style="color:'+simpleSavingColor+';">'+esc(savingTargetLine)+'</div>'):'') + (annualTargetLine?('<div class="simple-saving-target-line">'+esc(annualTargetLine)+'</div>'):'') + '</div></div>';
+  outlook += '<div class="hairline-top home-projected-saving" style="margin-top:11px;padding-top:11px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div class="simple-saving-main"><div class="mono simple-outlook-value home-metric-value-line" style="color:' + simpleSavingColor + ';"><span class="home-metric-primary">' + (simpleSaving >= 0 ? '+' : '−') + fmt(Math.abs(simpleSaving), 0) + ' <span class="simple-budget-unit">AED</span></span>' + projectedSavingDeltaHtml + '</div><div class="simple-outlook-sub" style="color:var(--text-muted);font-weight:650;"><span class="mono">' + esc(simpleSavingPctText) + '</span> projected</div>' + (savingPositionLine?('<div class="simple-saving-target-line" style="color:'+savingPositionColor+';font-weight:720;">'+esc(savingPositionLine)+'</div>'):'') + '</div></div>';
+  if(maxSpendForSavings!=null){
+    outlook += '<div class="home-target-summary home-target-reference"><div class="home-target-summary-row"><span class="home-target-summary-label">MAX SPEND THIS MONTH</span><span class="mono home-target-summary-value">' + fmt(maxSpendForSavings,0) + ' AED</span></div>'+targetBridgeHtml+'</div>';
+  }
   simpleCards.outlook = outlook + '</div>';
 
   var simpleOrder = ['hero','budgetStatus','outlook','today'];
