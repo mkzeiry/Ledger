@@ -1219,21 +1219,28 @@
     bottom:calc(max(env(safe-area-inset-bottom,0px), 10px) + 88px);
   }
 
-
-  /* ===== v112.40 Demo / Showcase mode ===== */
-  .demo-mode-badge {
-    display:inline-flex;align-items:center;justify-content:center;min-height:22px;padding:4px 8px;border-radius:999px;
-    background:color-mix(in srgb,var(--accent) 16%,var(--card));color:var(--accent);font-size:10px;font-weight:820;
-    letter-spacing:.075em;line-height:1;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 22%,transparent);
+  /* ===== v112.40 Home decision clarity and fixed-control clearance =====
+     Let the final Home content scroll fully above both fixed controls. Cash
+     flow now shows its target position and any forecast overrun directly in
+     the bar instead of flattening every value above 100% into a full track. */
+  html.simple-home .wrap {
+    padding-bottom:calc(max(env(safe-area-inset-bottom, 0px), 10px) + 190px);
   }
-  .demo-welcome-card { padding:22px 20px; }
-  .demo-welcome-icon { width:54px;height:54px;border-radius:18px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--accent) 13%,var(--card));color:var(--accent);margin-bottom:16px; }
-  .demo-welcome-icon svg { width:26px;height:26px; }
-  .demo-mode-notice { padding:14px 16px;margin-bottom:16px;border-radius:18px;background:color-mix(in srgb,var(--accent) 10%,var(--card));box-shadow:var(--inset-stroke); }
-  .demo-mode-notice-title { display:flex;align-items:center;gap:8px;font-size:14px;font-weight:760;color:var(--accent); }
-  .demo-mode-notice-copy { margin-top:5px;color:var(--text-muted);font-size:12px;line-height:1.4; }
-  .demo-action-grid { display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:16px; }
-  @media(max-width:360px){ .demo-action-grid { grid-template-columns:1fr; } }
+  .cashflow-progress-forecast { z-index:1; }
+  .cashflow-progress-fill { z-index:2; }
+  .cashflow-progress-overrun {
+    position:absolute; top:0; height:100%; z-index:3;
+    border-radius:0 999px 999px 0 !important;
+    background:var(--amber);
+  }
+  .cashflow-progress-overrun.severe { background:var(--rust); }
+  .cashflow-progress-target {
+    position:absolute; top:-2px; bottom:-2px; z-index:4;
+    width:2px !important; height:auto !important;
+    border-radius:2px !important;
+    background:color-mix(in srgb, var(--text) 72%, transparent) !important;
+    transform:translateX(-1px);
+  }
 </style>
 </head>
 <body>
@@ -1242,14 +1249,8 @@
 "use strict";
 
 /* ---------------- constants & helpers ---------------- */
-var REAL_STORAGE_KEY = "ledger-data";
-var DEMO_STORAGE_KEY = "ledger-demo-data";
-var DEMO_MODE_FLAG_KEY = "ledger-demo-active";
-var DEMO_DATA_VERSION = "v11241-dubai-10k-3m-1";
-function demoModeRequested(){ try { return localStorage.getItem(DEMO_MODE_FLAG_KEY)==="1"; } catch(e) { return false; } }
-var IS_DEMO_MODE = demoModeRequested();
-var STORAGE_KEY = IS_DEMO_MODE ? DEMO_STORAGE_KEY : REAL_STORAGE_KEY;
-var APP_VERSION = "v112.41";
+var STORAGE_KEY = "ledger-data";
+var APP_VERSION = "v112.40";
 var FORECAST_MODEL_VERSION = "v11238-periodic-cash-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities","Flights","Hotels & Accommodation","Food & Dining","Local Transport / Car Rental","Activities & Attractions","Shopping & Souvenirs","Visa / Travel Fees / Insurance","Miscellaneous Travel"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"},"Flights":{"icon":"plane","color":"#0A84FF"},"Hotels & Accommodation":{"icon":"bed","color":"#5856D6"},"Food & Dining":{"icon":"fork","color":"#D4614A"},"Local Transport / Car Rental":{"icon":"taxi","color":"#5AC8FA"},"Activities & Attractions":{"icon":"ticket","color":"#FF9F0A"},"Shopping & Souvenirs":{"icon":"gift","color":"#AF52DE"},"Visa / Travel Fees / Insurance":{"icon":"shield","color":"#34C759"},"Miscellaneous Travel":{"icon":"travel","color":"#8E8E93"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"},"Travel":{"icon":"plane","color":"#0A84FF"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Travel","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle","Flights":"Travel","Hotels & Accommodation":"Travel","Food & Dining":"Travel","Local Transport / Car Rental":"Travel","Activities & Attractions":"Travel","Shopping & Souvenirs":"Travel","Visa / Travel Fees / Insurance":"Travel","Miscellaneous Travel":"Travel"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: {"Flights":true,"Hotels & Accommodation":true,"Food & Dining":true,"Local Transport / Car Rental":true,"Activities & Attractions":true,"Shopping & Souvenirs":true,"Visa / Travel Fees / Insurance":true,"Miscellaneous Travel":true}, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 0, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true, cadenceBoundarySmoothingMigrationV11219: true, homeDeltaModelEpochV11219: null, annualReserves: null, annualReserveMigrationV11222: null, travelTaxonomyMigrationV11224: true, travelOutsideBudgetMigrationV11225: true, periodicPlanAlignmentMigrationV11237: true, periodicForecastMatchMigrationV11238: true };
@@ -3059,10 +3060,12 @@ function projectedIncomeForRange(startStr,endStr){
 function referenceForDate(ds) { return allowanceForDate(ds); }
 
 /* ---------------- persistence ---------------- */
-/* Real mode remains localStorage["ledger-data"] for full backward compatibility.
-   Demo Mode switches to an isolated demo key and recovery database. IndexedDB
-   is a second, automatic recovery layer on the active ledger only. */
-var BACKUP_DB_NAME = IS_DEMO_MODE ? "ledger-demo-recovery" : "ledger-local-recovery";
+/* Primary storage remains localStorage["ledger-data"] for full backward
+   compatibility. IndexedDB is a second, automatic recovery layer on the same
+   device/browser origin. It protects against a bad/accidental save, but it is
+   not a substitute for an off-device/cloud backup if the phone is lost or
+   browser data is cleared. */
+var BACKUP_DB_NAME = "ledger-local-recovery";
 var BACKUP_DB_VERSION = 1;
 var BACKUP_STORE = "snapshots";
 var dataProtectionReady = false;
@@ -3128,163 +3131,7 @@ function freshDefaultSettingsForToday() {
   fresh.trackingStartDate=todayStr();
   return fresh;
 }
-
-
-/* ---------------- Demo / Showcase mode ----------------
-   Demo data lives under its own localStorage key and its own IndexedDB recovery
-   database. It never reads, copies, mutates or snapshots the real ledger. */
-function demoHeaderBadgeHtml(){ return IS_DEMO_MODE ? '<span class="demo-mode-badge">DEMO</span>' : ''; }
-function isPristineRealLedger(){
-  if(IS_DEMO_MODE) return false;
-  var txnCount=ledgerTxnCount(state.entries), rules=(state.settings.recurringRules||[]).length, reserves=activeAnnualReserves().length;
-  return txnCount===0 && rules===0 && reserves===0 && !(Number(state.settings.incomeAmount)>0) && !(currentMonthlyBudget()>0);
-}
-function demoMonthDate(offset,day){
-  var base=addMonths(startOfMonth(new Date()),offset), last=daysInMonth(base);
-  return toStr(new Date(base.getFullYear(),base.getMonth(),Math.min(day,last)));
-}
-function demoLedgerNeedsRefresh(){
-  try {
-    var raw=localStorage.getItem(DEMO_STORAGE_KEY);
-    if(!raw)return true;
-    var parsed=JSON.parse(raw);
-    return !(parsed&&parsed.settings&&parsed.settings.demoDataVersion===DEMO_DATA_VERSION);
-  } catch(e){ return true; }
-}
-function buildDemoLedger(){
-  var settings=JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-  var now=new Date(), today=todayStr(), start=demoMonthDate(-3,1);
-  settings.demoDataVersion=DEMO_DATA_VERSION;
-  settings.trackingStartDate=start;
-  /* A realistic, intentionally fictional Dubai lifestyle on 10,000 AED/month.
-     The flexible budget is sized to leave room for quarterly rent, normal
-     utilities/communications, a modest travel provision and some saving. */
-  settings.monthlyBudget=3200;
-  settings.monthlyBudgetHistory=[{from:start,monthlyBudget:3200}];
-  settings.weeklyTarget=750;
-  settings.rateHistory=[{from:"1900-01-01",weeklyTarget:750}];
-  settings.incomeMode="monthly"; settings.incomeAmount=10000;
-  settings.incomeHistory=[{from:start,mode:"monthly",amount:10000}];
-  settings.savingsTargetPct=15;
-  settings.homeSimpleView=true;
-  settings.people=["Alex","Sam"];
-  settings.personColors={Alex:"#0A84FF",Sam:"#AF52DE"};
-  settings.defaultPerson="Alex";
-  settings.transactionTags=["Work","Family","Reimbursable"];
-  settings.transactionTagColors={Work:"#5856D6",Family:"#34C759",Reimbursable:"#FF9F0A"};
-  settings.startingCashBalance=16000;
-
-  var outside=["Rent","Home Internet","Phone Bill","Subscriptions","Car Insurance","Fitness & Gym","Electricity / Utilities"];
-  settings.categoryExcludeFromBudget=Object.assign({},settings.categoryExcludeFromBudget||{});
-  outside.forEach(function(c){settings.categoryExcludeFromBudget[c]=true;});
-  settings.safeSpendPriorities={};
-  settings.categories.forEach(function(c){settings.safeSpendPriorities[c]="flexible";});
-  ["Fuel","Health","Groceries"].forEach(function(c){settings.safeSpendPriorities[c]="essential";});
-  settings.categoryForecastBehavior={};
-  settings.categories.forEach(function(c){settings.categoryForecastBehavior[c]="auto";});
-  settings.categoryForecastBehavior["Home Internet"]="monthly";
-  settings.categoryForecastBehavior["Phone Bill"]="monthly";
-  settings.categoryForecastBehavior["Electricity / Utilities"]="monthly";
-  settings.categoryForecastBehavior["Fitness & Gym"]="monthly";
-  settings.categoryForecastBehavior["Car Insurance"]="yearly";
-  settings.categoryYearlyBillSettings={"Car Insurance":{amount:1800}};
-  settings.annualReserves=[{id:"travel",name:"Travel & Trips",category:"",group:"Travel",annualAmount:3000,active:true}];
-
-  var rentId="demo-rent-plan", salaryId="demo-salary-plan", internetId="demo-internet-plan", gymId="demo-gym-plan", tabbyId="demo-tabby-plan";
-  settings.recurringRules=[
-    /* 10,500 every quarter = 3,500/month normalized housing cost. This mirrors
-       the common Dubai cheque-style rent pattern while keeping cash timing real. */
-    {id:rentId,kind:"recurring",entryKind:"expense",amount:10500,splitTotal:null,category:"Rent",person:"",note:"Apartment rent",frequency:"quarterly",startDate:demoMonthDate(1,5),endDate:null,occurrencesTotal:null,occurrencesLogged:0,active:true},
-    {id:salaryId,kind:"recurring",entryKind:"income",amount:10000,splitTotal:null,category:"",person:"",note:"Salary",frequency:"monthly",startDate:demoMonthDate(1,1),endDate:null,occurrencesTotal:null,occurrencesLogged:0,active:true},
-    {id:internetId,kind:"recurring",entryKind:"expense",amount:250,splitTotal:null,category:"Home Internet",person:"",note:"Home internet",frequency:"monthly",startDate:demoMonthDate(1,1),endDate:null,occurrencesTotal:null,occurrencesLogged:0,active:true},
-    {id:gymId,kind:"recurring",entryKind:"expense",amount:220,splitTotal:null,category:"Fitness & Gym",person:"Alex",note:"Gym membership",frequency:"monthly",startDate:demoMonthDate(1,2),endDate:null,occurrencesTotal:null,occurrencesLogged:0,active:true},
-    {id:tabbyId,kind:"recurring",paymentPlanType:"tabby",entryKind:"expense",amount:200,splitTotal:800,category:"Electronics",person:"Alex",note:"Wireless earbuds",frequency:"monthly",startDate:toStr(addDays(now,-35)),endDate:null,occurrencesTotal:4,occurrencesLogged:2,active:true}
-  ];
-
-  var entries={}, seq=0;
-  function add(ds,amount,category,note,person,extra){
-    if(ds>today)return;
-    var item={id:String(Date.parse(ds+"T12:00:00")+seq++),amount:round2(amount),note:note||"",category:category||"",person:person||"",kind:(extra&&extra.kind)||"expense",currency:(extra&&extra.currency)||"AED"};
-    if(extra)Object.keys(extra).forEach(function(k){if(k!=="kind")item[k]=extra[k];});
-    if(!entries[ds])entries[ds]={items:[]}; entries[ds].items.push(item);
-  }
-
-  /* At least three full calendar months of daily-life history, plus the
-     current month. Amounts are Dubai-plausible but intentionally fictional. */
-  var d=parseD(start), i=0;
-  while(toStr(d)<=today){
-    var ds=toStr(d), dow=d.getDay(), dom=d.getDate();
-    if(i%3===0)add(ds,38+((i*13)%38),"Restaurants",i%12===0?"Casual dinner":"Lunch",i%6===0?"Sam":"Alex");
-    if(i%4===1)add(ds,14+((i*7)%15),"Cafés & Snacks","Coffee","Alex");
-    if(i%7===2)add(ds,115+((i*17)%58),"Groceries","Weekly groceries","Sam",{tags:["Family"]});
-    if(i%12===4)add(ds,185+((i*11)%52),"Fuel","Fuel","Alex");
-    if(i%5===3)add(ds,8+((i*3)%11),"Parking","Parking","Alex");
-    if(i%10===6)add(ds,16+((i*2)%13),"Salik","Salik","Alex");
-    if(i%25===7)add(ds,90+((i*5)%65),"Health","Pharmacy","Sam");
-    if(i%30===9)add(ds,110+((i*7)%55),"Home Cleaning","Home supplies","Sam");
-    if(i%18===11)add(ds,35,"Car Wash","Car wash","Alex");
-    if(i%40===14)add(ds,145+((i*9)%90),"Clothes","Clothing","Alex");
-    if(i%15===5)add(ds,90+((i*4)%75),"Entertainment",dow===6?"Weekend outing":"Cinema & activity","",{personSplit:[{person:"Alex",pct:50},{person:"Sam",pct:50}],tags:["Family"]});
-    if(dom===1){
-      add(ds,10000,"","Salary","",{kind:"income"});
-      add(ds,250,"Home Internet","Home internet","Alex");
-      add(ds,410+((i*5)%95),"Electricity / Utilities","DEWA / utilities","",{personSplit:[{person:"Alex",pct:50},{person:"Sam",pct:50}]});
-    }
-    if(dom===2)add(ds,220,"Fitness & Gym","Gym membership","Alex");
-    if(dom===4)add(ds,150,"Phone Bill","Mobile plan","Alex");
-    if(dom===7)add(ds,89,"Subscriptions","Streaming & apps","Alex");
-    d=addDays(d,1);i++;
-  }
-
-  /* One quarterly rent cheque in the history; the active Plan points to the
-     next real cheque, so the demo shows both cash timing and normalization. */
-  var priorRent=demoMonthDate(-2,5); add(priorRent,10500,"Rent","Quarterly apartment rent","",{periodicTimingPlanId:rentId});
-  add(demoMonthDate(-3,18),1800,"Car Insurance","Annual car insurance","Alex");
-  add(demoMonthDate(-2,22),460,"Car Maintenance","Routine service","Alex");
-
-  /* A modest short trip demonstrates the annual Travel reserve without making
-     the 10k-income household look implausibly affluent. */
-  var tripMonth=-1;
-  add(demoMonthDate(tripMonth,10),620,"Flights","Weekend trip flight","Alex",{currency:"USD",originalAmount:169,fxRate:3.6686,fxSource:"Demo rate",fxDate:demoMonthDate(tripMonth,10),tags:["Family"]});
-  add(demoMonthDate(tripMonth,11),420,"Hotels & Accommodation","Hotel","Sam",{tags:["Family"]});
-  add(demoMonthDate(tripMonth,12),160,"Food & Dining","Trip dining","",{personSplit:[{person:"Alex",pct:50},{person:"Sam",pct:50}],tags:["Family"]});
-  add(demoMonthDate(tripMonth,12),90,"Local Transport / Car Rental","Local transport","Alex",{tags:["Family"]});
-  add(demoMonthDate(tripMonth,13),110,"Activities & Attractions","Tickets","",{personSplit:[{person:"Alex",pct:50},{person:"Sam",pct:50}],tags:["Family"]});
-  add(demoMonthDate(tripMonth,13),80,"Shopping & Souvenirs","Souvenirs","Sam",{tags:["Family"]});
-
-  var tabbyRule=settings.recurringRules.find(function(r){return r.id===tabbyId;});
-  add(recurringOccurrenceDate(tabbyRule,0),200,"Electronics","Wireless earbuds","Alex",{recurringId:tabbyId,seq:1,seqTotal:4});
-  add(recurringOccurrenceDate(tabbyRule,1),200,"Electronics","Wireless earbuds","Alex",{recurringId:tabbyId,seq:2,seqTotal:4});
-
-  return {settings:settings,entries:entries};
-}
-function writeFreshDemoLedger(){
-  var demo=buildDemoLedger();
-  localStorage.setItem(DEMO_STORAGE_KEY,JSON.stringify(demo));
-  return demo;
-}
-function enterDemoMode(){
-  try { if(demoLedgerNeedsRefresh())writeFreshDemoLedger(); localStorage.setItem(DEMO_MODE_FLAG_KEY,"1"); location.reload(); }
-  catch(e){ showToast("Demo mode needs local storage"); }
-}
-function exitDemoMode(){
-  try { localStorage.removeItem(DEMO_MODE_FLAG_KEY); location.reload(); }
-  catch(e){ location.reload(); }
-}
-async function resetDemoData(){
-  if(!IS_DEMO_MODE)return;
-  try {
-    if(localBackupTimer){clearTimeout(localBackupTimer);localBackupTimer=null;}
-    try { await clearAllLocalRecoverySnapshots(); } catch(ignore) {}
-    writeFreshDemoLedger();
-    location.reload();
-  } catch(e){ showToast("Could not reset demo data"); }
-}
-function renderFirstRunShowcase(){
-  return '<div class="card demo-welcome-card"><div class="demo-welcome-icon">'+ICONS.insightsNav+'</div><div class="eyebrow">WELCOME TO THE LEDGER</div><div class="title2" style="margin-top:7px;">Start clean or explore first</div><div class="muted subhead" style="margin-top:9px;line-height:1.5;">Your real ledger is stored only on this device. Explore a fully populated fictional Dubai ledger with a 10,000 AED monthly income and more than three months of history, without entering any personal financial data.</div><div class="demo-action-grid"><button data-action="first-run-start" class="btn-outline">Start my Ledger</button><button data-action="enter-demo-mode" class="btn-accent">Explore Demo</button></div><div class="muted caption" style="margin-top:11px;">Demo Mode uses a separate sandbox and never copies your real data.</div></div>';
-}
 async function performFactoryReset() {
-  if(IS_DEMO_MODE){ await resetDemoData(); return; }
   /* A factory reset deliberately removes the recovery safety net too. Stop any
      queued automatic snapshot first, clear IndexedDB, then replace the primary
      ledger with a pristine default payload. Reloading re-initializes local
@@ -3557,7 +3404,6 @@ function loadInitial() {
   var v1119SafeHistoryMigrationNeeded=false, v11110YearlyAutoMigrationNeeded=false, v11111YearlyBackgroundMigrationNeeded=false, v11114StableSafeMigrationNeeded=false, v11115MonthlyBillActualMigrationNeeded=false, v11219CadenceBoundaryMigrationNeeded=false, v11224TravelTaxonomyMigrationNeeded=false, v11225TravelOutsideBudgetMigrationNeeded=false, v11237PeriodicAlignmentMigrationNeeded=false, v11238PeriodicForecastMatchMigrationNeeded=false;
   primaryStorageHealth="missing";
   try {
-    if(IS_DEMO_MODE && demoLedgerNeedsRefresh()) writeFreshDemoLedger();
     var raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       var parsed = JSON.parse(raw);
@@ -5026,7 +4872,7 @@ function render() {
 
   // Sticky primary-app header. Editors and Settings have their own bars.
   html += '<div class="app-topbar">';
-  html += '<div class="brand-lockup"><div class="brand-title">The Ledger</div><span class="version-badge">'+APP_VERSION+'</span>'+demoHeaderBadgeHtml()+'</div>';
+  html += '<div class="brand-lockup"><div class="brand-title">The Ledger</div><span class="version-badge">'+APP_VERSION+'</span></div>';
   html += '<div class="row gap2">';
   html += '<button class="icon-btn press" data-action="toggle-theme" aria-label="'+(state.settings.theme==="dark"?"Switch to light mode":"Switch to dark mode")+'">'+(state.settings.theme==="dark"?ICONS.sun:ICONS.moon)+'</button>';
   html += '<button class="icon-btn press" data-action="open-settings" aria-label="Settings">'+ICONS.settings+'</button>';
@@ -5370,7 +5216,6 @@ function liveBudgetPacing() {
 
 function renderHomeBody(T, da) {
   lastChartData = null;
-  if (isPristineRealLedger()) return renderFirstRunShowcase();
   lastForecastChartData = null;
   var month = getPeriodBounds("month", 0, currentWeeklyTarget(), dailyAllowance());
   var overall = periodStatsOverall(month.startStr, month.endStr);
@@ -5432,16 +5277,30 @@ function renderHomeBody(T, da) {
     var pw = Math.max(0, Math.min(100, pct || 0));
     return '<div class="simple-progress"><span style="width:' + pw + '%;background:' + (over ? 'var(--rust)' : 'var(--accent)') + ';"></span></div>';
   }
-  function cashFlowProgressBar(actualPct, forecastPct) {
-    var actual=Math.max(0,Math.min(100,Number(actualPct)||0));
-    var forecast=Math.max(actual,Math.min(100,Number(forecastPct)||0));
-    var label='Spent '+actual.toFixed(0)+'%; forecast '+forecast.toFixed(0)+'%';
-    return '<div class="simple-progress cashflow-progress" role="img" aria-label="'+esc(label)+'"><span class="cashflow-progress-forecast" style="width:'+forecast+'%;"></span><span class="cashflow-progress-fill" style="width:'+actual+'%;"></span></div>';
+  function cashFlowProgressBar(actualAmount, forecastAmount, targetAmount, incomeAmount) {
+    var actual=Math.max(0,Number(actualAmount)||0);
+    var forecast=Math.max(actual,Number(forecastAmount)||0);
+    var target=Math.max(0,Number(targetAmount)||0);
+    var income=Math.max(0,Number(incomeAmount)||0);
+    var scale=Math.max(1,actual,forecast,income,target>0?target*1.06:0);
+    var actualPct=Math.min(100,actual/scale*100);
+    var forecastPct=Math.min(100,forecast/scale*100);
+    var targetPct=target>0?Math.min(100,target/scale*100):null;
+    var overrunEnd=target>0?Math.max(actual,forecast):0;
+    var overrunPct=target>0&&overrunEnd>target?Math.min(100-targetPct,(overrunEnd-target)/scale*100):0;
+    var severe=target>0&&overrunEnd>target*1.1;
+    var label='Spent '+fmt(actual,0)+' AED; forecast '+fmt(forecast,0)+' AED'+(target>0?'; target '+fmt(target,0)+' AED':'');
+    var bar='<div class="simple-progress cashflow-progress" role="img" aria-label="'+esc(label)+'">';
+    bar+='<span class="cashflow-progress-forecast" style="width:'+forecastPct.toFixed(2)+'%;"></span>';
+    bar+='<span class="cashflow-progress-fill" style="width:'+actualPct.toFixed(2)+'%;"></span>';
+    if(overrunPct>0)bar+='<span class="cashflow-progress-overrun'+(severe?' severe':'')+'" style="left:'+targetPct.toFixed(2)+'%;width:max(2px,'+overrunPct.toFixed(2)+'%);"></span>';
+    if(targetPct!=null)bar+='<span class="cashflow-progress-target" style="left:'+targetPct.toFixed(2)+'%;"></span>';
+    return bar+'</div>';
   }
   function paceBadge(value) {
     var c = value > 0 ? 'var(--positive)' : (value < 0 ? 'var(--rust)' : 'var(--text-muted)');
-    var word = value > 0 ? 'ahead' : (value < 0 ? 'behind' : 'on pace');
-    return '<div class="mono caption" style="margin-top:6px;font-weight:800;color:' + c + ';">' + (value > 0 ? '+' : (value < 0 ? '−' : '')) + fmt(Math.abs(value), 0) + ' ' + word + '</div>';
+    var text = value > 0 ? (fmt(value,0)+' AED ahead of budget pace') : (value < 0 ? (fmt(Math.abs(value),0)+' AED behind budget pace') : 'On budget pace');
+    return '<div class="mono caption" style="margin-top:6px;font-weight:800;color:' + c + ';">' + text + '</div>';
   }
 
   var limitingLabel = (pacing.limitingHorizon || 'budget');
@@ -5468,7 +5327,7 @@ function renderHomeBody(T, da) {
   var projectedBudgetGap = target > 0 ? round2(projectedBudgetSpend - target) : null;
   var projectedBudgetColor = projectedBudgetPct == null ? 'var(--text)' : (projectedBudgetPct > 108 ? 'var(--rust)' : (projectedBudgetPct > 100 ? 'var(--amber)' : 'var(--text)'));
   var projectedBudgetGapColor = projectedBudgetGap == null ? 'var(--text-muted)' : (projectedBudgetGap > 0 ? 'var(--rust)' : 'var(--positive)');
-  var projectedBudgetGapText = projectedBudgetGap == null ? '' : (projectedBudgetGap > 0 ? (fmt(projectedBudgetGap,0)+' over limit') : (projectedBudgetGap < 0 ? (fmt(Math.abs(projectedBudgetGap),0)+' under limit') : 'On limit'));
+  var projectedBudgetGapText = projectedBudgetGap == null ? '' : (projectedBudgetGap > 0 ? (fmt(projectedBudgetGap,0)+' AED over limit') : (projectedBudgetGap < 0 ? (fmt(Math.abs(projectedBudgetGap),0)+' AED under limit') : 'On limit'));
   var budgetHeaderContext = (Math.abs((configuredBudgetHome||0)-target)>0.5)
     ? ('SET <strong class="mono">'+fmt(configuredBudgetHome,0)+' AED</strong> · EFFECTIVE <strong class="mono">'+fmt(target,0)+' AED</strong>')
     : ('LIMIT <strong class="mono">'+fmt(target,0)+' AED</strong>');
@@ -5519,14 +5378,14 @@ function renderHomeBody(T, da) {
   var simpleSavingPctText = simpleSavingPct==null?'—':((simpleSavingPct<0?'−':'')+Math.abs(simpleSavingPct).toFixed(1)+'%');
   var cashSpendGap=(maxSpendForSavings!=null)?round2(projected-maxSpendForSavings):null;
   var cashSpendGapColor=cashSpendGap==null?'var(--text-muted)':(cashSpendGap>0?'var(--amber)':'var(--positive)');
-  var cashSpendGapText=cashSpendGap==null?'':(cashSpendGap>0?(fmt(cashSpendGap,0)+' over target'):(cashSpendGap<0?(fmt(Math.abs(cashSpendGap),0)+' under target'):'On target'));
+  var cashSpendGapText=cashSpendGap==null?'':(cashSpendGap>0?(fmt(cashSpendGap,0)+' AED over target'):(cashSpendGap<0?(fmt(Math.abs(cashSpendGap),0)+' AED under target'):'On target'));
   var homeCashTimingAdjustment=homeEffectiveCashGoal&&homeEffectiveCashGoal.timing?round2(Number(homeEffectiveCashGoal.timing.adjustment)||0):0;
   var homeMonthMode=Math.abs(homeCashTimingAdjustment)<0.5?'Normal month':(homeCashTimingAdjustment>0?'Payment month':'Reserve-building month');
   var homeMonthModeClass=homeCashTimingAdjustment>0.5?' payment':(homeCashTimingAdjustment<-0.5?' reserve':'');
   var outlook = '<div class="card simple-outlook-card"><div class="home-card-heading"><div class="eyebrow">Cash flow</div><div class="home-month-mode'+homeMonthModeClass+'">'+esc(homeMonthMode)+'</div></div><div class="simple-outlook-grid">';
-  outlook += '<div><div class="simple-outlook-label">SPENT SO FAR</div><div class="mono simple-outlook-value">' + fmt(overall.spent, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (spentVsIncomePct == null ? '—' : spentVsIncomePct.toFixed(0) + '%') + '</div></div>';
-  outlook += '<div><div class="simple-outlook-label">PROJECTED SPEND</div><div class="mono simple-outlook-value" style="color:' + projectedSpendColor + ';">' + fmt(projected, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (projectedSpendVsIncomePct == null ? '—' : projectedSpendVsIncomePct.toFixed(0) + '%') + '</div></div></div>';
-  if (incomeReference > 0) outlook += cashFlowProgressBar(spentVsIncomePct, projectedSpendVsIncomePct);
+  outlook += '<div><div class="simple-outlook-label">SPENT SO FAR</div><div class="mono simple-outlook-value">' + fmt(overall.spent, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (spentVsIncomePct == null ? '—' : spentVsIncomePct.toFixed(0) + '% of monthly income') + '</div></div>';
+  outlook += '<div><div class="simple-outlook-label">PROJECTED SPEND</div><div class="mono simple-outlook-value" style="color:' + projectedSpendColor + ';">' + fmt(projected, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (projectedSpendVsIncomePct == null ? '—' : projectedSpendVsIncomePct.toFixed(0) + '% of monthly income') + '</div></div></div>';
+  if (incomeReference > 0) outlook += cashFlowProgressBar(overall.spent, projected, maxSpendForSavings, incomeReference);
   var effectiveSavingTargetAmount=(incomeReference>0&&maxSpendForSavings!=null)?round2(incomeReference-maxSpendForSavings):null;
   if(maxSpendForSavings!=null){
     var targetBridgeHtml='';
@@ -5553,14 +5412,18 @@ function renderHomeBody(T, da) {
   }
   var effectiveSavingGap=(effectiveSavingTargetAmount!=null&&simpleSaving!=null)?round2(simpleSaving-effectiveSavingTargetAmount):null;
   var effectiveSavingGapText='';
-  if(effectiveSavingGap!=null){effectiveSavingGapText=effectiveSavingGap>=0?(fmt(effectiveSavingGap,0)+' ahead'):(fmt(Math.abs(effectiveSavingGap),0)+' short');}
+  if(effectiveSavingGap!=null){effectiveSavingGapText=effectiveSavingGap>=0?(fmt(effectiveSavingGap,0)+' AED above target'):(fmt(Math.abs(effectiveSavingGap),0)+' AED below target');}
   var savingTargetLine='';
+  var savingTargetDetailLine='';
   if(effectiveSavingTargetAmount!=null&&effectiveSavingTargetPct!=null){
-    savingTargetLine='Cash-saving target '+fmt(effectiveSavingTargetAmount,0)+' AED ('+fmt(effectiveSavingTargetPct,1)+'%)';
-    if(effectiveSavingGapText)savingTargetLine+=' · '+effectiveSavingGapText;
+    if(effectiveSavingGapText){
+      var targetContext=homeMonthMode==='Payment month'?'payment-month adjusted target':(homeMonthMode==='Reserve-building month'?'reserve-building adjusted target':'monthly target');
+      savingTargetLine=effectiveSavingGap>=0?(fmt(effectiveSavingGap,0)+' AED above '+targetContext):(fmt(Math.abs(effectiveSavingGap),0)+' AED below '+targetContext);
+    }
+    savingTargetDetailLine='Adjusted cash-saving target '+fmt(effectiveSavingTargetAmount,0)+' AED ('+fmt(effectiveSavingTargetPct,1)+'%)';
   }
   var annualTargetLine=(homeSavingsPct>0&&effectiveSavingTargetPct!=null&&Math.abs(homeSavingsPct-effectiveSavingTargetPct)>=0.05)?('Annual savings goal '+fmt(homeSavingsPct,2)+'% · monthly cash target adjusts for payment timing'):'';
-  outlook += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div class="simple-saving-main"><div class="mono simple-outlook-value home-metric-value-line" style="color:' + simpleSavingColor + ';"><span class="home-metric-primary">' + (simpleSaving >= 0 ? '+' : '−') + fmt(Math.abs(simpleSaving), 0) + ' <span class="simple-budget-unit">AED</span></span>' + projectedSavingDeltaHtml + '</div><div class="simple-outlook-sub" style="color:var(--text-muted);font-weight:650;"><span class="mono">' + esc(simpleSavingPctText) + '</span> projected</div>' + (savingTargetLine?('<div class="simple-saving-target-line" style="color:'+simpleSavingColor+';">'+esc(savingTargetLine)+'</div>'):'') + (annualTargetLine?('<div class="simple-saving-target-line">'+esc(annualTargetLine)+'</div>'):'') + '</div></div>';
+  outlook += '<div class="hairline-top" style="margin-top:12px;padding-top:12px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div class="simple-saving-main"><div class="mono simple-outlook-value home-metric-value-line" style="color:' + simpleSavingColor + ';"><span class="home-metric-primary">' + (simpleSaving >= 0 ? '+' : '−') + fmt(Math.abs(simpleSaving), 0) + ' <span class="simple-budget-unit">AED</span></span>' + projectedSavingDeltaHtml + '</div><div class="simple-outlook-sub" style="color:var(--text-muted);font-weight:650;"><span class="mono">' + esc(simpleSavingPctText) + '</span> projected</div>' + (savingTargetLine?('<div class="simple-saving-target-line" style="color:'+simpleSavingColor+';">'+esc(savingTargetLine)+'</div>'):'') + (savingTargetDetailLine?('<div class="simple-saving-target-line">'+esc(savingTargetDetailLine)+'</div>'):'') + (annualTargetLine?('<div class="simple-saving-target-line">'+esc(annualTargetLine)+'</div>'):'') + '</div></div>';
   simpleCards.outlook = outlook + '</div>';
 
   var simpleOrder = ['hero','budgetStatus','outlook','today'];
@@ -5768,7 +5631,7 @@ function renderBudgetBody(T) {
 
 function renderSettingsPage() {
   var section = state.settingsSection || "";
-  var titles = { budget:"Monthly budget", savings:"Savings target", annualReserves:"Annual reserves", currency:"Currencies", forecastAccuracy:"Forecast accuracy", categories:"Categories", people:"People", tags:"Transaction tags", theme:"Appearance", tracking:"Tracking start", backup:"Data & Backup", clearEntries:"Clear all entries", factoryReset:"Reset app to defaults", demo:"Demo & showcase" };
+  var titles = { budget:"Monthly budget", savings:"Savings target", annualReserves:"Annual reserves", currency:"Currencies", forecastAccuracy:"Forecast accuracy", categories:"Categories", people:"People", tags:"Transaction tags", theme:"Appearance", tracking:"Tracking start", backup:"Data & Backup", clearEntries:"Clear all entries", factoryReset:"Reset app to defaults" };
   var categoryHeaderTitle = "Categories";
   if (section === "categories") {
     if (state.settingsSubcategorySelected) categoryHeaderTitle = state.settingsSubcategorySelected;
@@ -5782,7 +5645,7 @@ function renderSettingsPage() {
   h += '<div class="settings-title">'+esc(headerTitle)+'</div>';
   if (section === "categories" && !state.settingsSubcategorySelected && !state.settingsCategoryCustomize) {
     h += '<button data-action="toggle-settings-category-edit" class="settings-header-action">'+(state.settingsCategoryEditMode?'Done':'Edit')+'</button>';
-  } else h += demoHeaderBadgeHtml() || '<span></span>';
+  } else h += '<span></span>';
   h += '</div>';
 
   if (!section) {
@@ -5807,9 +5670,7 @@ function renderSettingsPage() {
     h += '<button class="settings-row" data-action="settings-section" data-section="currency"><span class="settings-row-main"><span class="settings-row-label">Currencies</span><span class="settings-row-sub">Base currency and travel transactions</span></span><span class="row gap2"><span class="settings-row-value">'+reportingCurrency()+'</span>'+ICONS.chevronRight+'</span></button>';
     h += '</div>';
 
-    if(IS_DEMO_MODE) h += '<div class="demo-mode-notice"><div class="demo-mode-notice-title">'+demoHeaderBadgeHtml()+' Fictional showcase data</div><div class="demo-mode-notice-copy">Your real ledger is untouched and stored separately. Exit Demo to return to it instantly.</div><button data-action="exit-demo-mode" class="btn-outline" style="width:100%;margin-top:10px;">Exit Demo</button></div>';
     h += '<div class="settings-group-title">App</div><div class="settings-list">';
-    h += '<button class="settings-row" data-action="settings-section" data-section="demo"><span class="settings-row-main"><span class="settings-row-label">Demo & showcase</span><span class="settings-row-sub">Safely show the app with fictional data</span></span><span class="row gap2"><span class="settings-row-value">'+(IS_DEMO_MODE?'Active':'Off')+'</span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="theme"><span class="settings-row-main"><span class="settings-row-label">Appearance</span><span class="settings-row-sub">Theme and accent</span></span><span class="row gap2"><span class="settings-row-value">'+themeLabel+'</span>'+ICONS.chevronRight+'</span></button>';
     h += '<button class="settings-row" data-action="settings-section" data-section="forecastAccuracy"><span class="settings-row-main"><span class="settings-row-label">Forecast health</span><span class="settings-row-sub">Backtesting and forecast error</span></span><span>'+ICONS.chevronRight+'</span></button>';
     h += '</div>';
@@ -6084,15 +5945,6 @@ function renderSettingsPage() {
     h += '</div><div class="row gap2"><input id="newTxnTagInput" type="text" class="field" placeholder="New tag" style="flex:1;"/><button data-action="add-txn-tag" class="btn-accent">Add</button></div>';
   }
 
-  if (section === "demo") {
-    if(IS_DEMO_MODE){
-      h += '<div class="card card-pad"><div class="eyebrow">DEMO MODE ACTIVE</div><div class="headline" style="margin-top:6px;">Safe to hand over your phone</div><div class="muted subhead" style="margin-top:8px;line-height:1.5;">Everything you see here is fictional and stored in a separate sandbox. The showcase uses a 10,000 AED monthly income and more than three months of Dubai-style spending history. Your real transactions, budgets, plans, backups and recovery snapshots are not being read or changed.</div><div class="demo-action-grid"><button data-action="exit-demo-mode" class="btn-accent">Exit Demo</button><button data-action="reset-demo-data" class="btn-outline">Reset Demo Data</button></div></div>';
-      h += '<div class="card card-pad" style="margin-top:14px;"><div class="eyebrow">WHAT THE DEMO INCLUDES</div><div class="muted subhead" style="margin-top:8px;line-height:1.55;">Sample budget and savings targets, fictional people, recurring Rent and Mortgage cycles, an annual Travel reserve, foreign-currency travel spending, tags, Tabby installments and enough transaction history for charts and forecasting.</div></div>';
-    } else {
-      h += '<div class="card card-pad"><div class="eyebrow">SHOWCASE SAFELY</div><div class="headline" style="margin-top:6px;">Explore a fictional Dubai Ledger</div><div class="muted subhead" style="margin-top:8px;line-height:1.5;">Demo Mode opens a completely separate populated ledger built around a fictional 10,000 AED monthly income and more than three months of Dubai-style spending history. It does not copy, mask or expose your real data. Changes made while demonstrating stay inside the demo sandbox.</div><button data-action="enter-demo-mode" class="btn-accent" style="width:100%;margin-top:18px;">Enter Demo Mode</button><div class="muted caption" style="margin-top:10px;">A DEMO badge stays visible so you always know which ledger is open.</div></div>';
-    }
-  }
-
   if (section === "clearEntries") {
     var txnCount=0; Object.keys(state.entries).forEach(function(d){txnCount+=(state.entries[d].items||[]).length;});
     h += '<div class="card card-pad"><div class="eyebrow" style="color:var(--rust);">DANGER ZONE</div><div class="headline" style="margin-top:6px;">Clear all transaction history</div><div class="muted subhead" style="margin-top:7px;">This removes '+txnCount+' logged transaction'+(txnCount===1?'':'s')+'. Budgets, categories, tags, appearance and other settings stay.</div><button data-action="open-reset" class="btn-rust" style="width:100%;margin-top:18px;justify-content:center;">'+ICONS.trash+' Clear all entries</button><div class="muted caption" style="margin-top:9px;">A second confirmation is required: you must type CLEAR before deletion is enabled.</div></div>';
@@ -6157,7 +6009,7 @@ function renderTxnCategoryPickerPage() {
     return out;
   }
   var h='<div class="txn-category-picker-page"><div class="txn-entry-shell">';
-  h+='<div class="txn-entry-header"><button data-action="close-txn-category-picker" class="txn-entry-back" aria-label="Back">'+ICONS.chevronLeft+'</button><div class="txn-entry-header-title">Choose category</div>'+demoHeaderBadgeHtml()+'</div>';
+  h+='<div class="txn-entry-header"><button data-action="close-txn-category-picker" class="txn-entry-back" aria-label="Back">'+ICONS.chevronLeft+'</button><div class="txn-entry-header-title">Choose category</div><span></span></div>';
   h+='<div class="txn-entry-content">';
   h+='<div style="position:relative;margin:8px 0 8px;"><span style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text-muted);display:flex;">'+ICONS.search+'</span><input id="txnCategoryPickerSearchInput" type="search" class="field" placeholder="Search categories" value="'+esc(state.txnCategoryPickerSearch||"")+'" style="width:100%;padding-left:41px;" /></div>';
   if(!q){
@@ -6224,7 +6076,7 @@ function renderAddTxnPage() {
   var h = '<div class="txn-entry-page"><div class="txn-entry-shell">';
   h += '<div class="txn-entry-header">';
   h += '<button data-action="close-add-txn" class="txn-entry-back" aria-label="Back">'+ICONS.chevronLeft+'</button>';
-  h += '<div class="txn-entry-header-title">'+(editingItem?"Edit transaction":"Add transaction")+'</div>'+demoHeaderBadgeHtml()+'</div>';
+  h += '<div class="txn-entry-header-title">'+(editingItem?"Edit transaction":"Add transaction")+'</div><span></span></div>';
   h += '<div class="txn-entry-content">';
 
   h += '<div class="seg" style="margin:14px 0 14px;">';
@@ -8517,7 +8369,7 @@ function renderPlanCategoryPickerPage() {
     return out;
   }
   var h='<div class="txn-category-picker-page"><div class="txn-entry-shell">';
-  h+='<div class="txn-entry-header"><button data-action="close-plan-category-picker" class="txn-entry-back" aria-label="Back">'+ICONS.chevronLeft+'</button><div class="txn-entry-header-title">Choose category</div>'+demoHeaderBadgeHtml()+'</div>';
+  h+='<div class="txn-entry-header"><button data-action="close-plan-category-picker" class="txn-entry-back" aria-label="Back">'+ICONS.chevronLeft+'</button><div class="txn-entry-header-title">Choose category</div><span></span></div>';
   h+='<div class="txn-entry-content">';
   h+='<div style="position:relative;margin:8px 0 8px;"><span style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text-muted);display:flex;">'+ICONS.search+'</span><input id="planCategoryPickerSearchInput" type="search" class="field" placeholder="Search categories" value="'+esc(state.planCategoryPickerSearch||"")+'" style="width:100%;padding-left:41px;" /></div>';
   if(!q){
@@ -8553,7 +8405,7 @@ function renderPlanEditorPage() {
   var selectedCategory=state.recurringCategoryDraft||"";
   var selectedCategoryGroup=selectedCategory?categoryGroupOf(selectedCategory):"";
   var h = '<div class="plan-entry-page"><div class="txn-entry-shell">';
-  h += '<div class="txn-entry-header"><button data-action="toggle-plan-create" class="txn-entry-back" aria-label="Back">'+ICONS.chevronLeft+'</button><div class="txn-entry-header-title">'+(editingRule?'Edit plan':'New plan')+'</div>'+demoHeaderBadgeHtml()+'</div>';
+  h += '<div class="txn-entry-header"><button data-action="toggle-plan-create" class="txn-entry-back" aria-label="Back">'+ICONS.chevronLeft+'</button><div class="txn-entry-header-title">'+(editingRule?'Edit plan':'New plan')+'</div><span></span></div>';
   h += '<div class="txn-entry-content">';
   h += '<div class="seg" style="margin-bottom:16px;"><button class="seg-btn" role="tab" aria-selected="'+(recKind==='expense')+'" data-action="set-recurring-kind" data-kind="expense">Expense</button><button class="seg-btn" role="tab" aria-selected="'+(recKind==='income')+'" data-action="set-recurring-kind" data-kind="income">Income</button></div>';
   h += '<label class="eyebrow">Amount</label><div style="position:relative;margin:7px 0 16px;"><span class="muted" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:15px;">'+reportingCurrency()+'</span><input id="recurringAmountInput" type="number" inputmode="decimal" step="0.01" min="0.01" class="field mono" style="padding:15px 14px 15px 50px;font-size:28px;font-weight:700;" placeholder="0.00" value="'+(state.recurringAmountDraft!=null?esc(state.recurringAmountDraft):'')+'" /></div>';
@@ -9178,10 +9030,6 @@ document.addEventListener("click", function(e) {
   if (!el) return;
   var action = el.dataset.action;
   switch(action) {
-    case "enter-demo-mode": enterDemoMode(); break;
-    case "exit-demo-mode": exitDemoMode(); break;
-    case "reset-demo-data": resetDemoData(); break;
-    case "first-run-start": settingsRootSnapshot = captureTxnVisual(); settingsNavStack = []; state.settingsSection = null; state.showSettings = true; render(); break;
     case "open-backup": state.showBackup = true; render(); break;
     case "close-backup": state.showBackup = false; state.restoreError = null; render(); break;
     case "open-settings": settingsRootSnapshot = captureTxnVisual(); settingsNavStack = []; state.settingsSection = null; state.showSettings = true; render(); break;
