@@ -1236,6 +1236,25 @@
   /* Cash Flow now compares against the month-specific cash target, and Add Transaction
      ranks subcategories by real usage frequency with recent-use tie breaking. */
 
+  /* ===== v112.44 Goal Reserves / sinking funds =====
+     Finite goal reserves sit between monthly budgeting and general savings.
+     Deadline/minimum funding reduces the spendable budget; open-ended surplus
+     sweeps settle only after a month closes. */
+  .goal-budget-note { margin:-1px 0 9px; color:var(--accent); font-size:11px; line-height:1.3; font-weight:720; }
+  .goal-reserve-card { padding:14px 0; }
+  .goal-reserve-card + .goal-reserve-card { border-top:1px solid var(--sep); }
+  .goal-reserve-progress { height:7px; margin-top:9px; border-radius:999px; background:var(--fill); overflow:hidden; }
+  .goal-reserve-progress > span { display:block; height:100%; border-radius:999px; background:var(--accent); }
+  .goal-reserve-meta { margin-top:4px; color:var(--text-muted); font-size:11px; line-height:1.35; }
+  .goal-reserve-actions { display:flex; align-items:center; gap:6px; margin-top:10px; flex-wrap:wrap; }
+  .goal-reserve-actions button { min-height:34px; padding:6px 9px; font-size:11px; }
+  .goal-reserve-form { margin-bottom:14px; }
+  .goal-reserve-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .goal-reserve-paidfrom { margin:2px 0 9px; padding:9px 10px; border-radius:14px; background:var(--surface-2); box-shadow:var(--inset-stroke); }
+  .goal-reserve-paidfrom .txn-hscroll { margin-top:7px !important; }
+  .goal-reserve-chip { flex:0 0 auto; border:0; border-radius:999px; padding:8px 11px; font-size:12px; font-weight:650; white-space:nowrap; }
+  @media(max-width:360px){ .goal-reserve-form-grid { grid-template-columns:1fr; } }
+
   /* ===== v112.40 Demo / Showcase mode ===== */
   .demo-mode-badge {
     display:inline-flex;align-items:center;justify-content:center;min-height:22px;padding:4px 8px;border-radius:999px;
@@ -1282,14 +1301,14 @@
 var REAL_STORAGE_KEY = "ledger-data";
 var DEMO_STORAGE_KEY = "ledger-demo-data";
 var DEMO_MODE_FLAG_KEY = "ledger-demo-active";
-var DEMO_DATA_VERSION = "v11241-dubai-10k-3m-1";
+var DEMO_DATA_VERSION = "v11244-dubai-goals-1";
 function demoModeRequested(){ try { return localStorage.getItem(DEMO_MODE_FLAG_KEY)==="1"; } catch(e) { return false; } }
 var IS_DEMO_MODE = demoModeRequested();
 var STORAGE_KEY = IS_DEMO_MODE ? DEMO_STORAGE_KEY : REAL_STORAGE_KEY;
-var APP_VERSION = "v112.43";
+var APP_VERSION = "v112.44";
 var FORECAST_MODEL_VERSION = "v11238-periodic-cash-1";
 var TEST_KEY = "ledger-selftest";
-var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities","Flights","Hotels & Accommodation","Food & Dining","Local Transport / Car Rental","Activities & Attractions","Shopping & Souvenirs","Visa / Travel Fees / Insurance","Miscellaneous Travel"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"},"Flights":{"icon":"plane","color":"#0A84FF"},"Hotels & Accommodation":{"icon":"bed","color":"#5856D6"},"Food & Dining":{"icon":"fork","color":"#D4614A"},"Local Transport / Car Rental":{"icon":"taxi","color":"#5AC8FA"},"Activities & Attractions":{"icon":"ticket","color":"#FF9F0A"},"Shopping & Souvenirs":{"icon":"gift","color":"#AF52DE"},"Visa / Travel Fees / Insurance":{"icon":"shield","color":"#34C759"},"Miscellaneous Travel":{"icon":"travel","color":"#8E8E93"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"},"Travel":{"icon":"plane","color":"#0A84FF"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Travel","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle","Flights":"Travel","Hotels & Accommodation":"Travel","Food & Dining":"Travel","Local Transport / Car Rental":"Travel","Activities & Attractions":"Travel","Shopping & Souvenirs":"Travel","Visa / Travel Fees / Insurance":"Travel","Miscellaneous Travel":"Travel"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: {"Flights":true,"Hotels & Accommodation":true,"Food & Dining":true,"Local Transport / Car Rental":true,"Activities & Attractions":true,"Shopping & Souvenirs":true,"Visa / Travel Fees / Insurance":true,"Miscellaneous Travel":true}, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 0, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true, cadenceBoundarySmoothingMigrationV11219: true, homeDeltaModelEpochV11219: null, annualReserves: null, annualReserveMigrationV11222: null, travelTaxonomyMigrationV11224: true, travelOutsideBudgetMigrationV11225: true, periodicPlanAlignmentMigrationV11237: true, periodicForecastMatchMigrationV11238: true };
+var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities","Flights","Hotels & Accommodation","Food & Dining","Local Transport / Car Rental","Activities & Attractions","Shopping & Souvenirs","Visa / Travel Fees / Insurance","Miscellaneous Travel"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"},"Flights":{"icon":"plane","color":"#0A84FF"},"Hotels & Accommodation":{"icon":"bed","color":"#5856D6"},"Food & Dining":{"icon":"fork","color":"#D4614A"},"Local Transport / Car Rental":{"icon":"taxi","color":"#5AC8FA"},"Activities & Attractions":{"icon":"ticket","color":"#FF9F0A"},"Shopping & Souvenirs":{"icon":"gift","color":"#AF52DE"},"Visa / Travel Fees / Insurance":{"icon":"shield","color":"#34C759"},"Miscellaneous Travel":{"icon":"travel","color":"#8E8E93"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"},"Travel":{"icon":"plane","color":"#0A84FF"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Travel","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle","Flights":"Travel","Hotels & Accommodation":"Travel","Food & Dining":"Travel","Local Transport / Car Rental":"Travel","Activities & Attractions":"Travel","Shopping & Souvenirs":"Travel","Visa / Travel Fees / Insurance":"Travel","Miscellaneous Travel":"Travel"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: {"Flights":true,"Hotels & Accommodation":true,"Food & Dining":true,"Local Transport / Car Rental":true,"Activities & Attractions":true,"Shopping & Souvenirs":true,"Visa / Travel Fees / Insurance":true,"Miscellaneous Travel":true}, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 0, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true, cadenceBoundarySmoothingMigrationV11219: true, homeDeltaModelEpochV11219: null, annualReserves: null, annualReserveMigrationV11222: null, travelTaxonomyMigrationV11224: true, travelOutsideBudgetMigrationV11225: true, periodicPlanAlignmentMigrationV11237: true, periodicForecastMatchMigrationV11238: true, goalReserves: null, goalReserveContributions: null, goalReserveSettledMonths: null };
 /* Forecast backtesting is independent of the removed Accounts feature.
    Keep its saved snapshots normalized on every boot so an older/corrupt
    snapshot can never prevent the ledger itself from opening. */
@@ -1526,6 +1545,7 @@ function renameTag(kind, oldName, newName) {
       return r.category === oldName ? Object.assign({}, r, {category:newName}) : r;
     });
     patch.annualReserves = nextAnnualReserves;
+    patch.goalReserves = normalizeGoalReserves(state.settings.goalReserves, nextList).map(function(g){return g.category===oldName?Object.assign({},g,{category:newName}):g;});
   } else {
     var nextPersonColors = Object.assign({}, state.settings.personColors||{});
     if (!isMerge && nextPersonColors[oldName]) nextPersonColors[newName] = nextPersonColors[oldName];
@@ -1960,6 +1980,162 @@ function annualReserveCashTimingForMonth(startStr,endStr){
   var normalizedTotal=round2(rows.reduce(function(sum,x){return sum+x.normalized;},0)),cashTotal=round2(rows.reduce(function(sum,x){return sum+x.cash;},0));
   return {normalized:normalizedTotal,cash:cashTotal,adjustment:round2(cashTotal-normalizedTotal),breakdown:rows};
 }
+/* ---------------- Goal Reserves / sinking funds ----------------
+   Goal Reserves are planning balances, not bank-account balances. Required
+   funding protects part of the configured/effective monthly budget. Sweep-only
+   funding never tightens the current month; it receives genuinely unused
+   spendable budget only after the month has closed. */
+function goalMonthKey(v){
+  var s=String(v||"");
+  if(/^\d{4}-\d{2}$/.test(s))return s;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s.slice(0,7);
+  return "";
+}
+function goalMonthStart(mk){ return /^\d{4}-\d{2}$/.test(String(mk||"")) ? mk+"-01" : ""; }
+function addGoalMonths(mk,n){ var d=parseD(goalMonthStart(mk)); return toStr(addMonths(d,n)).slice(0,7); }
+function goalMonthsInclusive(a,b){
+  if(!a||!b)return 0;
+  var ad=parseD(goalMonthStart(a)),bd=parseD(goalMonthStart(b));
+  return Math.max(0,(bd.getFullYear()-ad.getFullYear())*12+(bd.getMonth()-ad.getMonth())+1);
+}
+function normalizeGoalReserves(list,categories){
+  var valid=categories||[],out=[],seen={};
+  (Array.isArray(list)?list:[]).forEach(function(g,idx){
+    if(!g||typeof g!=="object"||Array.isArray(g))return;
+    var id=String(g.id||("goal-"+idx)).trim(); if(!id||seen[id])return;
+    var name=String(g.name||"Saving goal").trim()||"Saving goal";
+    var target=Math.max(0,Number(g.targetAmount)||0); if(!(target>0))return;
+    var mode=(g.fundingMode==="sweep"||g.fundingMode==="hybrid")?g.fundingMode:"deadline";
+    var start=goalMonthKey(g.startMonth||g.startDate)||todayStr().slice(0,7);
+    var targetMonth=goalMonthKey(g.targetMonth||g.targetDate);
+    if(mode==="deadline"&&!targetMonth)targetMonth=start;
+    if(targetMonth&&targetMonth<start)targetMonth=start;
+    var monthlyMin=Math.max(0,Number(g.monthlyMin)||0);
+    var category=String(g.category||""); if(category&&valid.indexOf(category)===-1)category="";
+    seen[id]=true;
+    var completedAt=/^\d{4}-\d{2}-\d{2}$/.test(String(g.completedAt||""))?String(g.completedAt):"";
+    out.push({id:id,name:name,targetAmount:round2(target),fundingMode:mode,startMonth:start,targetMonth:targetMonth||"",monthlyMin:round2(monthlyMin),category:category,active:g.active!==false,completedAt:completedAt,createdAt:String(g.createdAt||"")});
+  });
+  return out;
+}
+function normalizeGoalReserveContributions(list,goals){
+  var ids={};(goals||[]).forEach(function(g){ids[g.id]=true;});
+  var byKey={};
+  (Array.isArray(list)?list:[]).forEach(function(x){
+    if(!x||!ids[x.goalId]||!/^(\d{4})-(\d{2})$/.test(String(x.month||"")))return;
+    var req=Math.max(0,Number(x.required)||0),sweep=Math.max(0,Number(x.sweep)||0),key=x.month+"|"+x.goalId;
+    if(!byKey[key])byKey[key]={month:x.month,goalId:x.goalId,required:0,sweep:0};
+    byKey[key].required=round2(byKey[key].required+req);byKey[key].sweep=round2(byKey[key].sweep+sweep);
+  });
+  return Object.keys(byKey).map(function(k){return byKey[k];}).sort(function(a,b){return a.month===b.month?(a.goalId<b.goalId?-1:1):(a.month<b.month?-1:1);});
+}
+function normalizeGoalReserveSettledMonths(list){
+  var seen={},out=[];(Array.isArray(list)?list:[]).forEach(function(m){m=goalMonthKey(m);if(m&&!seen[m]){seen[m]=true;out.push(m);}});return out.sort();
+}
+function goalReserves(){ return normalizeGoalReserves(state.settings.goalReserves,state.settings.categories); }
+function goalReserveById(id){ return goalReserves().find(function(g){return g.id===id;})||null; }
+function goalReserveContributionTotals(settings,goalId,throughMonth){
+  var goals=normalizeGoalReserves(settings.goalReserves,settings.categories),rows=normalizeGoalReserveContributions(settings.goalReserveContributions,goals),required=0,sweep=0;
+  rows.forEach(function(x){if(x.goalId===goalId&&(!throughMonth||x.month<=throughMonth)){required+=x.required;sweep+=x.sweep;}});
+  return {required:round2(required),sweep:round2(sweep),gross:round2(required+sweep)};
+}
+function goalReserveUsedAmount(entries,goalId,throughDate,excludeItemId){
+  var total=0;Object.keys(entries||{}).forEach(function(ds){if(throughDate&&ds>throughDate)return;((entries[ds]&&entries[ds].items)||[]).forEach(function(it){if(it&&it.id!==excludeItemId&&it.goalReserveId===goalId&&isExpenseItem(it))total+=Math.max(0,Number(it.goalReserveCovered)||0);});});return round2(total);
+}
+function goalReserveUsedInMonth(entries,goalId,mk,excludeItemId){
+  var start=goalMonthStart(mk),end=start?toStr(endOfMonth(parseD(start))):"";if(!start)return 0;var total=0;Object.keys(entries||{}).forEach(function(ds){if(ds<start||ds>end)return;((entries[ds]&&entries[ds].items)||[]).forEach(function(it){if(it&&it.id!==excludeItemId&&it.goalReserveId===goalId&&isExpenseItem(it))total+=Math.max(0,Number(it.goalReserveCovered)||0);});});return round2(total);
+}
+function goalReservePurchaseAmount(entries,goalId,throughDate,excludeItemId){
+  var total=0;Object.keys(entries||{}).forEach(function(ds){if(throughDate&&ds>throughDate)return;((entries[ds]&&entries[ds].items)||[]).forEach(function(it){if(it&&it.id!==excludeItemId&&it.goalReserveId===goalId&&isExpenseItem(it))total+=Math.max(0,Number(it.amount)||0);});});return round2(total);
+}
+function configuredMonthlyBudgetForSettings(settings,ds){
+  var hist=normalizeMonthlyBudgetHistory(settings.monthlyBudgetHistory),found=null;
+  hist.forEach(function(x){if(x.from<=ds)found=x;});
+  if(found)return Math.max(0,Number(found.monthlyBudget)||0);
+  if(settings.monthlyBudget!=null)return Math.max(0,Number(settings.monthlyBudget)||0);
+  return Math.max(0,Number(settings.weeklyTarget)||0)/7*daysInMonth(parseD(ds));
+}
+function goalPlannedRequiredForMonth(settings,goal,mk,ignoreActive){
+  if(!goal||(!ignoreActive&&!goal.active)||goal.startMonth>mk||(goal.completedAt&&mk>=goalMonthKey(goal.completedAt)))return 0;
+  var prev=addGoalMonths(mk,-1),prior=goalReserveContributionTotals(settings,goal.id,prev).gross,remaining=round2(Math.max(0,goal.targetAmount-prior));
+  if(!(remaining>0))return 0;
+  if(goal.fundingMode==="deadline"){
+    var months=(goal.targetMonth&&goal.targetMonth>=mk)?goalMonthsInclusive(mk,goal.targetMonth):1;
+    return round2(Math.min(remaining,remaining/Math.max(1,months)));
+  }
+  if(goal.fundingMode==="hybrid")return round2(Math.min(remaining,Math.max(0,goal.monthlyMin||0)));
+  return 0;
+}
+function goalReserveStatus(goal,asOfDate,excludeItemId){
+  asOfDate=asOfDate||todayStr();var mk=goalMonthKey(asOfDate),settled=normalizeGoalReserveSettledMonths(state.settings.goalReserveSettledMonths),totals=goalReserveContributionTotals(state.settings,goal.id,mk),provisional=0;
+  if(mk===todayStr().slice(0,7)&&settled.indexOf(mk)===-1&&goal.active&&!goal.completedAt)provisional=goalPlannedRequiredForMonth(state.settings,goal,mk);
+  var gross=round2(Math.min(goal.targetAmount,totals.gross+provisional)),used=goalReserveUsedAmount(state.entries,goal.id,asOfDate,excludeItemId),rawBalance=round2(Math.max(0,gross-used)),completed=!!goal.completedAt,balance=completed?0:rawBalance;
+  return {gross:gross,settledGross:totals.gross,required:totals.required,sweep:totals.sweep,provisional:provisional,used:used,balance:balance,released:completed?rawBalance:0,completed:completed,remainingToFund:round2(Math.max(0,goal.targetAmount-gross)),pct:goal.targetAmount>0?Math.min(100,gross/goal.targetAmount*100):0,funded:gross>=goal.targetAmount-0.005};
+}
+function currentGoalReserveCommitmentSummary(){
+  var mk=todayStr().slice(0,7),rows=[],total=0;goalReserves().forEach(function(g){var a=goalPlannedRequiredForMonth(state.settings,g,mk);if(a>0.005){rows.push({id:g.id,name:g.name,amount:round2(a),mode:g.fundingMode});total+=a;}});return {total:round2(total),rows:rows};
+}
+function currentProjectedGoalSweepSummary(){
+  var mk=todayStr().slice(0,7),goals=goalReserves(),eligible=goals.filter(function(g){return g.active&&!g.completedAt&&g.startMonth<=mk&&(g.fundingMode==="sweep"||g.fundingMode==="hybrid");});
+  if(!eligible.length)return {available:0,rows:[],projectedBudgetSpend:0};
+  var per=getPeriodBounds("month",0,currentWeeklyTarget(),dailyAllowance()),stats=periodStatsBudget(per.startStr,per.endStr),pf=periodForecast(stats,per.startStr,per.endStr,"budget",false),projected=pf&&pf.forecast?Math.max(stats.spent,Number(pf.forecast.projectedSpend)||0):stats.spent;
+  var configured=configuredMonthlyBudgetForSettings(state.settings,per.startStr),required=currentGoalReserveCommitmentSummary().total,available=round2(Math.max(0,configured-projected-required)),left=available,rows=[];
+  eligible.forEach(function(g){if(!(left>0.005))return;var st=goalReserveStatus(g,todayStr()),room=Math.max(0,g.targetAmount-st.gross),a=round2(Math.min(room,left));if(a>0.005){rows.push({id:g.id,name:g.name,amount:a});left=round2(Math.max(0,left-a));}});
+  return {available:available,allocated:round2(available-left),unallocated:round2(left),rows:rows,projectedBudgetSpend:round2(projected)};
+}
+function goalReserveAvailableForTransaction(goalId,date,excludeItemId){
+  var g=goalReserveById(goalId);if(!g||g.completedAt||g.startMonth>goalMonthKey(date||todayStr()))return 0;return goalReserveStatus(g,date||todayStr(),excludeItemId).balance;
+}
+function goalReserveCoveredAmount(it){ return Math.max(0,Math.min(Math.max(0,Number(it&&it.amount)||0),Number(it&&it.goalReserveCovered)||0)); }
+function budgetChargeAmount(it){ return (isExpenseItem(it)&&itemCountsTowardBudget(it))?round2(Math.max(0,(Number(it.amount)||0)-goalReserveCoveredAmount(it))):0; }
+function forecastAmountForScope(it,scope){
+  if(!expenseCountsForScope(it,scope))return 0;
+  var base=scope==="budget"?budgetChargeAmount(it):Math.max(0,Number(it.amount)||0);
+  if(scope!=="budget"&&it&&it.goalReserveId)base=Math.max(0,base-goalReserveCoveredAmount(it));
+  return round2(base);
+}
+function settleGoalReserveClosedMonths(settings,entries){
+  var goals=normalizeGoalReserves(settings.goalReserves,settings.categories),contrib=normalizeGoalReserveContributions(settings.goalReserveContributions,goals),settled=normalizeGoalReserveSettledMonths(settings.goalReserveSettledMonths),changed=false;
+  if(!goals.length)return {settings:Object.assign({},settings,{goalReserves:goals,goalReserveContributions:contrib,goalReserveSettledMonths:settled}),changed:false};
+  var earliest=goals.map(function(g){return g.startMonth;}).sort()[0],lastClosed=addGoalMonths(todayStr().slice(0,7),-1),mk=earliest;
+  var work=Object.assign({},settings,{goalReserves:goals,goalReserveContributions:contrib,goalReserveSettledMonths:settled});
+  while(mk&&mk<=lastClosed){
+    if(settled.indexOf(mk)===-1){
+      var start=goalMonthStart(mk),end=toStr(endOfMonth(parseD(start))),budget=configuredMonthlyBudgetForSettings(work,start),spent=0;
+      Object.keys(entries||{}).forEach(function(ds){if(ds<start||ds>end)return;((entries[ds]&&entries[ds].items)||[]).forEach(function(it){spent+=budgetChargeAmount(it);});});
+      var available=round2(Math.max(0,budget-spent)),monthRows={};
+      function rowFor(g){if(!monthRows[g.id])monthRows[g.id]={month:mk,goalId:g.id,required:0,sweep:0};return monthRows[g.id];}
+      goals.forEach(function(g){
+        if(g.startMonth>mk||(g.completedAt&&mk>=goalMonthKey(g.completedAt)))return;
+        work.goalReserveContributions=normalizeGoalReserveContributions(contrib.concat(Object.keys(monthRows).map(function(k){return monthRows[k];})),goals);
+        var req=goalPlannedRequiredForMonth(work,g,mk,true);if(!(req>0.005))return;
+        var prev=addGoalMonths(mk,-1),openingGross=goalReserveContributionTotals(work,g.id,prev).gross,openingUsed=goalReserveUsedAmount(entries,g.id,toStr(endOfMonth(parseD(goalMonthStart(prev))))),openingBalance=Math.max(0,openingGross-openingUsed),usedThisMonth=goalReserveUsedInMonth(entries,g.id,mk),provisionalNeed=Math.max(0,usedThisMonth-openingBalance);
+        var actual=Math.min(req,Math.max(Math.min(req,available),Math.min(req,provisionalNeed)));actual=round2(actual);
+        if(actual>0){rowFor(g).required=actual;available=round2(Math.max(0,available-actual));}
+      });
+      work.goalReserveContributions=normalizeGoalReserveContributions(contrib.concat(Object.keys(monthRows).map(function(k){return monthRows[k];})),goals);
+      goals.forEach(function(g){
+        if(g.startMonth>mk||(g.completedAt&&mk>=goalMonthKey(g.completedAt))||(g.fundingMode!=="sweep"&&g.fundingMode!=="hybrid")||!(available>0.005))return;
+        var gross=goalReserveContributionTotals(work,g.id,mk).gross,room=round2(Math.max(0,g.targetAmount-gross));if(!(room>0.005))return;
+        var a=round2(Math.min(room,available));if(a>0){rowFor(g).sweep=round2(rowFor(g).sweep+a);available=round2(Math.max(0,available-a));work.goalReserveContributions=normalizeGoalReserveContributions(contrib.concat(Object.keys(monthRows).map(function(k){return monthRows[k];})),goals);}
+      });
+      Object.keys(monthRows).forEach(function(k){var r=monthRows[k];if(r.required>0.005||r.sweep>0.005)contrib.push(r);});
+      contrib=normalizeGoalReserveContributions(contrib,goals);settled.push(mk);settled=normalizeGoalReserveSettledMonths(settled);work.goalReserveContributions=contrib;work.goalReserveSettledMonths=settled;changed=true;
+    }
+    mk=addGoalMonths(mk,1);
+  }
+  return {settings:Object.assign({},work,{goalReserves:goals,goalReserveContributions:contrib,goalReserveSettledMonths:settled}),changed:changed};
+}
+function invalidateGoalReserveSettlementsFrom(settings,mk){
+  var goals=normalizeGoalReserves(settings.goalReserves,settings.categories),rows=normalizeGoalReserveContributions(settings.goalReserveContributions,goals).filter(function(x){return x.month<mk;}),settled=normalizeGoalReserveSettledMonths(settings.goalReserveSettledMonths).filter(function(x){return x<mk;});
+  return Object.assign({},settings,{goalReserves:goals,goalReserveContributions:rows,goalReserveSettledMonths:settled});
+}
+function goalReserveCashTimingForMonth(startStr,endStr){
+  var byGoal={},total=0;Object.keys(state.entries||{}).forEach(function(ds){if(ds<startStr||ds>endStr)return;((state.entries[ds]&&state.entries[ds].items)||[]).forEach(function(it){var c=goalReserveCoveredAmount(it);if(c>0&&it.goalReserveId){byGoal[it.goalReserveId]=(byGoal[it.goalReserveId]||0)+c;total+=c;}});});
+  var rows=Object.keys(byGoal).map(function(id){var g=goalReserveById(id);return {id:id,name:g?g.name:"Goal reserve",cash:round2(byGoal[id]),adjustment:round2(byGoal[id])};});
+  return {normalized:0,cash:round2(total),adjustment:round2(total),breakdown:rows};
+}
+
 function categoryExcludedFromBudget(catName) {
   if (!catName) return false;
   if (annualReserveForCategory(catName)) return true;
@@ -2166,9 +2342,7 @@ function normalizePeopleAnalysisExcluded(map, categories) {
    without each of those needing to know the rule. */
 function sumBudgetSpent(e) {
   if (!e || !Array.isArray(e.items)) return 0;
-  return e.items.reduce(function(s,i){
-    return (isExpenseItem(i) && itemCountsTowardBudget(i)) ? s + i.amount : s;
-  }, 0);
+  return e.items.reduce(function(s,i){ return s + budgetChargeAmount(i); }, 0);
 }
 
 /* Total outgoings regardless of basis — used by the cash-flow view, which
@@ -2352,6 +2526,16 @@ var state = {
   entryCategoryDraft: null,
   entryPersonDraft: null,
   entryTagsDraft: null,
+  entryGoalReserveDraft: null,
+  goalReserveCreateOpen: false,
+  editingGoalReserveId: null,
+  goalReserveNameDraft: null,
+  goalReserveTargetDraft: null,
+  goalReserveFundingModeDraft: "deadline",
+  goalReserveStartMonthDraft: null,
+  goalReserveTargetMonthDraft: null,
+  goalReserveMonthlyMinDraft: null,
+  goalReserveCategoryDraft: null,
 };
 
 /* Legacy rate history: retained for backwards compatibility with ledgers created
@@ -2790,9 +2974,9 @@ function yearlyBillCashTimingForMonth(startStr,endStr){
 
 function effectiveMonthlyCashSavingsTarget(startStr,endStr,projectedIncome){
   var pct=savingsTargetPct(), goal=(projectedIncome>0&&pct>0)?savingsGoalForRange(startStr,endStr,projectedIncome):null, base=goal?goal.spendCeiling:null;
-  if(base==null)return {base:null,effective:null,effectiveSavingPct:null,timing:{normalized:0,cash:0,adjustment:0,breakdown:[],yearlyBills:{normalized:0,cash:0,adjustment:0,breakdown:[]},periodicPlans:{normalized:0,cash:0,adjustment:0,breakdown:[]},annualReserves:{normalized:0,cash:0,adjustment:0,breakdown:[]}}};
-  var yearly=yearlyBillCashTimingForMonth(startStr,endStr), periodic=periodicPlanCashTimingForMonth(startStr,endStr), reserves=annualReserveCashTimingForMonth(startStr,endStr);
-  var timing={normalized:round2(yearly.normalized+periodic.normalized+reserves.normalized),cash:round2(yearly.cash+periodic.cash+reserves.cash),adjustment:round2(yearly.adjustment+periodic.adjustment+reserves.adjustment),breakdown:(yearly.breakdown||[]).concat(periodic.breakdown||[]).concat(reserves.breakdown||[]),yearlyBills:yearly,periodicPlans:periodic,annualReserves:reserves};
+  if(base==null)return {base:null,effective:null,effectiveSavingPct:null,timing:{normalized:0,cash:0,adjustment:0,breakdown:[],yearlyBills:{normalized:0,cash:0,adjustment:0,breakdown:[]},periodicPlans:{normalized:0,cash:0,adjustment:0,breakdown:[]},annualReserves:{normalized:0,cash:0,adjustment:0,breakdown:[]},goalReserves:{normalized:0,cash:0,adjustment:0,breakdown:[]}}};
+  var yearly=yearlyBillCashTimingForMonth(startStr,endStr), periodic=periodicPlanCashTimingForMonth(startStr,endStr), reserves=annualReserveCashTimingForMonth(startStr,endStr), goals=goalReserveCashTimingForMonth(startStr,endStr);
+  var timing={normalized:round2(yearly.normalized+periodic.normalized+reserves.normalized+goals.normalized),cash:round2(yearly.cash+periodic.cash+reserves.cash+goals.cash),adjustment:round2(yearly.adjustment+periodic.adjustment+reserves.adjustment+goals.adjustment),breakdown:(yearly.breakdown||[]).concat(periodic.breakdown||[]).concat(reserves.breakdown||[]).concat(goals.breakdown||[]),yearlyBills:yearly,periodicPlans:periodic,annualReserves:reserves,goalReserves:goals};
   var effective=round2(Math.max(0,base+timing.adjustment));
   var effectiveSavingPct=projectedIncome>0?((projectedIncome-effective)/projectedIncome*100):null;
   return {base:base,effective:effective,effectiveSavingPct:effectiveSavingPct,timing:timing,targetSaving:goal?goal.targetSaving:null,recurringIncome:goal?goal.recurringIncome:null,extraIncome:goal?goal.extraIncome:null};
@@ -2898,22 +3082,25 @@ function currentEffectiveBudgetInfo(){
   var comparison=currentSavingsBudgetComparison();
   var configured=round2(per.target||0);
   var compatible=comparison?round2(comparison.compatibleBudget):configured;
-  var lower=round2(Math.min(configured,compatible));
+  var baseLower=round2(Math.min(configured,compatible));
   var higher=round2(Math.max(configured,compatible));
   var lowerSource=compatible<configured-0.5?"savings":"budget";
   var higherSource=lowerSource==="savings"?"budget":"savings";
+  var goalCommitment=currentGoalReserveCommitmentSummary(),goalAmount=round2(goalCommitment.total||0);
+  var lower=round2(Math.max(0,baseLower-goalAmount)),higherAfterGoals=round2(Math.max(0,higher-goalAmount));
   var pace=currentBudgetSpendPaceStats();
   var monthStats=periodStatsBudget(per.startStr,per.endStr);
   var daysLeft=Math.max(1,daysBetween(todayStr(),per.endStr)+1);
   var lowerDaily=round2((lower-monthStats.spent)/daysLeft);
-  var higherDaily=round2((higher-monthStats.spent)/daysLeft);
+  var higherDaily=round2((higherAfterGoals-monthStats.spent)/daysLeft);
   var paceReference=pace&&pace.paceReference!=null?Math.max(0,pace.paceReference):null;
   
   return {
     monthStart:per.startStr,monthEnd:per.endStr,configuredBudget:configured,
-    effectiveBudget:lower,baseEffectiveBudget:lower,higherBudget:higher,
-    comparison:comparison,savingsTight:!!(comparison&&lowerSource==="savings"&&lower<configured-0.5),
-    activeSource:lowerSource,lowerSource:lowerSource,higherSource:higherSource,
+    effectiveBudget:lower,baseEffectiveBudget:baseLower,higherBudget:higherAfterGoals,
+    comparison:comparison,savingsTight:!!(comparison&&lowerSource==="savings"&&baseLower<configured-0.5),
+    goalReserveTight:goalAmount>0.005,goalReserveCommitment:goalAmount,goalReserveBreakdown:goalCommitment.rows||[],
+    activeSource:goalAmount>0.005?"goals":lowerSource,lowerSource:lowerSource,higherSource:higherSource,
     adaptiveOverride:false,lowerDailyAllowance:lowerDaily,
     higherDailyAllowance:higherDaily,realisticDailyFloor:null,
     paceReference:paceReference,pace:pace
@@ -3173,8 +3360,8 @@ function freshDefaultSettingsForToday() {
 function demoHeaderBadgeHtml(){ return IS_DEMO_MODE ? '<span class="demo-mode-badge">DEMO</span>' : ''; }
 function isPristineRealLedger(){
   if(IS_DEMO_MODE) return false;
-  var txnCount=ledgerTxnCount(state.entries), rules=(state.settings.recurringRules||[]).length, reserves=activeAnnualReserves().length;
-  return txnCount===0 && rules===0 && reserves===0 && !(Number(state.settings.incomeAmount)>0) && !(currentMonthlyBudget()>0);
+  var txnCount=ledgerTxnCount(state.entries), rules=(state.settings.recurringRules||[]).length, reserves=activeAnnualReserves().length, goals=goalReserves().length;
+  return txnCount===0 && rules===0 && reserves===0 && goals===0 && !(Number(state.settings.incomeAmount)>0) && !(currentMonthlyBudget()>0);
 }
 function demoMonthDate(offset,day){
   var base=addMonths(startOfMonth(new Date()),offset), last=daysInMonth(base);
@@ -3226,6 +3413,11 @@ function buildDemoLedger(){
   settings.categoryForecastBehavior["Car Insurance"]="yearly";
   settings.categoryYearlyBillSettings={"Car Insurance":{amount:1800}};
   settings.annualReserves=[{id:"travel",name:"Travel & Trips",category:"",group:"Travel",annualAmount:3000,active:true}];
+  settings.goalReserves=[
+    {id:"demo-birthday",name:"Birthday gift",targetAmount:1200,fundingMode:"deadline",startMonth:today.slice(0,7),targetMonth:addGoalMonths(today.slice(0,7),2),monthlyMin:0,category:"Gift",active:true},
+    {id:"demo-phone",name:"New phone",targetAmount:3500,fundingMode:"sweep",startMonth:today.slice(0,7),targetMonth:"",monthlyMin:0,category:"Electronics",active:true}
+  ];
+  settings.goalReserveContributions=[];settings.goalReserveSettledMonths=[];
 
   var rentId="demo-rent-plan", salaryId="demo-salary-plan", internetId="demo-internet-plan", gymId="demo-gym-plan", tabbyId="demo-tabby-plan";
   settings.recurringRules=[
@@ -3731,6 +3923,12 @@ function loadInitial() {
   state.settings.peopleAnalysisExcluded = normalizePeopleAnalysisExcluded(state.settings.peopleAnalysisExcluded, state.settings.categories);
   state.settings.defaultPerson = normalizeDefaultPerson(state.settings.defaultPerson, state.settings.people);
   state.settings.annualReserves = normalizeAnnualReserves(state.settings.annualReserves, state.settings.categories, state.settings.categoryGroups);
+  state.settings.goalReserves = normalizeGoalReserves(state.settings.goalReserves, state.settings.categories);
+  state.settings.goalReserveContributions = normalizeGoalReserveContributions(state.settings.goalReserveContributions, state.settings.goalReserves);
+  state.settings.goalReserveSettledMonths = normalizeGoalReserveSettledMonths(state.settings.goalReserveSettledMonths);
+  var goalReserveSettlement=settleGoalReserveClosedMonths(state.settings,state.entries);
+  state.settings=goalReserveSettlement.settings;
+  var goalReserveSettlementChanged=goalReserveSettlement.changed;
   var annualReserveMigrationChanged=travelTaxonomyMigrationChanged||travelOutsideBudgetMigrationChanged;
   state.settings.recurringRules = normalizeRecurringRules(state.settings.recurringRules);
   var periodicAlignmentMigrationChanged=false, periodicForecastMatchMigrationChanged=false;
@@ -3752,8 +3950,8 @@ function loadInitial() {
   if(primaryStorageHealth==="healthy"){
     try { recurringChanged = runRecurringCatchUp(); } catch(e) { recurringChanged = false; }
     try { snapshotChanged = captureForecastSnapshotsIfNeeded(); } catch(e) { snapshotChanged = false; }
-    if (recurringChanged || snapshotChanged || analysisForecastV52MigrationChanged || forecastBehaviorMigrationChanged || yearlyBillSettingsMigrationChanged || adaptiveSafeHistoryMigrationChanged || annualReserveMigrationChanged || periodicAlignmentMigrationChanged || periodicForecastMatchMigrationChanged) {
-      persistAll(state.settings, state.entries, periodicForecastMatchMigrationChanged ? "periodic forecast matching" : (periodicAlignmentMigrationChanged ? "periodic plan alignment" : (annualReserveMigrationChanged ? "travel budget classification" : (recurringChanged ? "recurring payments" : (snapshotChanged ? "forecast learning" : (forecastBehaviorMigrationChanged || yearlyBillSettingsMigrationChanged ? "forecast behavior" : (adaptiveSafeHistoryMigrationChanged ? "adaptive Safe-to-Spend" : "analysis forecast")))))));
+    if (recurringChanged || snapshotChanged || analysisForecastV52MigrationChanged || forecastBehaviorMigrationChanged || yearlyBillSettingsMigrationChanged || adaptiveSafeHistoryMigrationChanged || annualReserveMigrationChanged || periodicAlignmentMigrationChanged || periodicForecastMatchMigrationChanged || goalReserveSettlementChanged) {
+      persistAll(state.settings, state.entries, goalReserveSettlementChanged ? "goal reserve month close" : (periodicForecastMatchMigrationChanged ? "periodic forecast matching" : (periodicAlignmentMigrationChanged ? "periodic plan alignment" : (annualReserveMigrationChanged ? "travel budget classification" : (recurringChanged ? "recurring payments" : (snapshotChanged ? "forecast learning" : (forecastBehaviorMigrationChanged || yearlyBillSettingsMigrationChanged ? "forecast behavior" : (adaptiveSafeHistoryMigrationChanged ? "adaptive Safe-to-Spend" : "analysis forecast"))))))));
     }
   }
   state.loading = false;
@@ -3813,7 +4011,10 @@ function expenseCountsForScope(it, scope) {
   return true;
 }
 function rowSpentForScope(r, scope) {
-  return (r.items||[]).reduce(function(s,it){ return expenseCountsForScope(it, scope) ? s+it.amount : s; }, 0);
+  return (r.items||[]).reduce(function(s,it){
+    if(!expenseCountsForScope(it,scope))return s;
+    return s + (scope==="budget" ? budgetChargeAmount(it) : (Number(it.amount)||0));
+  }, 0);
 }
 
 /* Future recurring expenses are deterministic, so keep them on their real due
@@ -4799,6 +5000,7 @@ function resetTxnEntryForClose() {
   state.entryFxDateDraft = null;
   state.entryTimeDraft = null;
   state.entryTagsDraft = null;
+  state.entryGoalReserveDraft = null;
 }
 
 function txnNavigateBack() {
@@ -5520,7 +5722,7 @@ function renderHomeBody(T, da) {
   }
 
   var limitingLabel = (pacing.limitingHorizon || 'budget');
-  limitingLabel = limitingLabel === 'effective' ? 'Effective budget' : (limitingLabel === 'savings' ? 'Savings goal' : (limitingLabel.charAt(0).toUpperCase() + limitingLabel.slice(1)));
+  limitingLabel = limitingLabel === 'effective' ? 'Effective budget' : (limitingLabel === 'savings' ? 'Savings goal' : (limitingLabel === 'goals' ? 'Goal reserves' : (limitingLabel.charAt(0).toUpperCase() + limitingLabel.slice(1))));
   var simpleStatus = '', simpleStatusColor = 'var(--text-muted)';
   if (overSafeToday > 0) {
     simpleStatus = 'Over today\'s safe allowance by ' + fmt(overSafeToday, 0) + ' AED · ' + limitingLabel + ' is limiting';
@@ -5546,7 +5748,10 @@ function renderHomeBody(T, da) {
   var budgetHeaderContext = (Math.abs((configuredBudgetHome||0)-target)>0.5)
     ? ('SET <strong class="mono">'+fmt(configuredBudgetHome,0)+' AED</strong> · EFFECTIVE <strong class="mono">'+fmt(target,0)+' AED</strong>')
     : ('LIMIT <strong class="mono">'+fmt(target,0)+' AED</strong>');
-  var budgetStatus = '<div class="card simple-budget-card"><div class="home-card-heading"><div class="eyebrow">Budget</div><div class="home-card-context">' + budgetHeaderContext + '</div></div><div class="simple-outlook-grid" style="margin-top:8px;">';
+  var homeGoalCommitment=homeEffectiveInfo&&homeEffectiveInfo.goalReserveCommitment?round2(homeEffectiveInfo.goalReserveCommitment):0;
+  var budgetStatus = '<div class="card simple-budget-card"><div class="home-card-heading"><div class="eyebrow">Budget</div><div class="home-card-context">' + budgetHeaderContext + '</div></div>';
+  if(homeGoalCommitment>0.005) budgetStatus += '<div class="goal-budget-note"><span class="mono">'+fmt(homeGoalCommitment,0)+' AED</span> reserved for goals this month</div>';
+  budgetStatus += '<div class="simple-outlook-grid" style="margin-top:8px;">';
   budgetStatus += '<div><div class="simple-outlook-label">SPENT SO FAR</div><div class="mono simple-outlook-value">' + fmt(budget.spent, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (target > 0 ? budgetPctRaw.toFixed(0) + '% of limit' : '—') + '</div></div>';
   budgetStatus += '<div><div class="simple-outlook-label">PROJECTED POSITION</div><div class="mono simple-outlook-value home-metric-value-line" style="color:' + projectedBudgetGapColor + ';"><span class="home-metric-primary">' + projectedBudgetGapValue + '</span>' + projectedBudgetDeltaHtml + '</div><div class="home-projection-note" style="color:var(--text-muted);">' + (projectedBudgetPct == null ? '—' : (projectedBudgetPct.toFixed(0) + '% projected')) + '</div></div></div>';
   budgetStatus += pctBar(progress, budgetPctRaw > 100) + '<div class="simple-budget-meta"><span><strong style="color:' + (remaining >= 0 ? 'var(--text)' : 'var(--rust)') + ';">' + (remaining < 0 ? '−' : '') + fmt(Math.abs(remaining), 0) + '</strong> left now</span><span> · ' + monthDaysLeft + ' day' + (monthDaysLeft === 1 ? '' : 's') + '</span></div>' + paceBadge(monthBudgetPosition);
@@ -5616,6 +5821,8 @@ function renderHomeBody(T, da) {
       (yearlyTiming&&yearlyTiming.breakdown||[]).forEach(function(x){ pushSavingBridge((x.category||'Annual bill')+' timing',x.adjustment); });
       var reserveTiming=homeEffectiveCashGoal.timing&&homeEffectiveCashGoal.timing.annualReserves;
       (reserveTiming&&reserveTiming.breakdown||[]).forEach(function(x){ pushSavingBridge((x.name||'Annual reserve')+' reserve',x.adjustment); });
+      var goalTiming=homeEffectiveCashGoal.timing&&homeEffectiveCashGoal.timing.goalReserves;
+      (goalTiming&&goalTiming.breakdown||[]).forEach(function(x){ pushSavingBridge((x.name||'Goal')+' reserve use',x.adjustment); });
       function bridgeMoney(v){ return (v>0?'+':(v<0?'−':''))+fmt(Math.abs(v),0)+' AED'; }
       targetBridgeHtml='<details class="cash-target-details"><summary>How this month\'s target is built</summary><div class="cash-target-bridge">';
       targetBridgeHtml+='<div class="cash-target-bridge-row"><span class="cash-target-bridge-label">Normal monthly saving goal</span><span class="mono cash-target-bridge-value">'+bridgeMoney(baseSaving)+'</span></div>';
@@ -5738,6 +5945,7 @@ function renderBudgetBody(T) {
     var relationText=savingsTighter ? fmt(bsc.pct,0)+'% savings target sets this limit' : 'Your monthly budget sets this limit';
     var relationColor=savingsTighter?'var(--amber)':'var(--positive)';
     summary+='<div class="row between" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sep);gap:14px;align-items:center;"><div style="min-width:0;"><div class="subhead" style="font-weight:720;">Effective monthly budget</div><div class="caption" style="margin-top:3px;color:'+relationColor+';font-weight:700;">'+esc(relationText)+'</div></div><div class="mono subhead" style="font-weight:800;color:'+relationColor+';white-space:nowrap;">≈ '+fmt(effectiveInfo.effectiveBudget,0)+' AED</div></div>';
+    if(effectiveInfo.goalReserveCommitment>0.005) summary+='<div class="row between" style="margin-top:8px;gap:12px;"><span class="caption" style="color:var(--accent);font-weight:720;">Goal reserves protected this month</span><span class="mono caption" style="color:var(--accent);font-weight:800;">−'+fmt(effectiveInfo.goalReserveCommitment,0)+' AED</span></div>';
   }
   
   if(isCurrent && (protectedTotal>0 || flexibleForecastTotal>0 || overSafeToday>0 || adjustmentNeeded>0)){
@@ -5795,12 +6003,12 @@ function renderBudgetBody(T) {
   } else {sections.progress='';}
 
   var catFilter=state.budgetCategoryFilter||'',personFilter=state.budgetPersonFilter||'',groupFilter=state.budgetSelectedGroup||'';
-  function personMatch(it){return itemMatchesPersonFilter(it,personFilter);}function catMatch(it){if(catFilter)return(it.category||'Uncategorised')===catFilter;if(groupFilter)return(categoryGroupOf(it.category)||'Ungrouped')===groupFilter;return true;}function scopedAmount(it){return personScopedAmount(it,personFilter);}
+  function personMatch(it){return itemMatchesPersonFilter(it,personFilter);}function catMatch(it){if(catFilter)return(it.category||'Uncategorised')===catFilter;if(groupFilter)return(categoryGroupOf(it.category)||'Ungrouped')===groupFilter;return true;}function scopedAmount(it){return personScopedAmount(it,personFilter);}function budgetScopedAmount(it){var full=Math.max(0,Number(it&&it.amount)||0),charge=budgetChargeAmount(it);if(!(full>0)||!(charge>0))return 0;return round2(scopedAmount(it)*(charge/full));}
   var chips='';if(catFilter||personFilter){chips+='<div class="row gap2" style="margin-bottom:12px;align-items:center;flex-wrap:wrap;">';if(catFilter)chips+='<span class="chip chip-accent">'+esc(catFilter)+'</span><button class="btn-plain" data-action="clear-budget-category">Clear subcategory</button>';if(personFilter)chips+='<span class="chip" style="background:'+(personFilter==='Unassigned'?'#8595B5':personColor(personFilter))+';color:#fff;font-weight:600;">'+esc(personFilter)+'</span><button class="btn-plain" data-action="clear-budget-person">Clear person</button>';chips+='</div>';}
   
   var budgetCategoryAvgDays=Math.max(1,stats.elapsedDays||0);
   function budgetCategoryDailyAvg(amount){return (Number(amount)||0)/budgetCategoryAvgDays;}
-  var catTotals={};stats.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!isExpenseItem(it)||!itemCountsTowardBudget(it)||!personMatch(it))return;var k=it.category||'Uncategorised';catTotals[k]=(catTotals[k]||0)+scopedAmount(it);});});
+  var catTotals={};stats.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!isExpenseItem(it)||!itemCountsTowardBudget(it)||!personMatch(it))return;var k=it.category||'Uncategorised';catTotals[k]=(catTotals[k]||0)+budgetScopedAmount(it);});});
   var catCard='';
   if(Object.keys(catTotals).length){
     var groups=state.settings.categoryGroups||[],showGroups=groups.length>0&&!groupFilter&&!catFilter;
@@ -5826,7 +6034,7 @@ function renderBudgetBody(T) {
     catCard+='</div>';
   }
   sections.category=catCard;
-  var personCard='';if((state.settings.people||[]).length){var pt={};stats.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!isExpenseItem(it)||!itemCountsTowardBudget(it)||!catMatch(it))return;if(it.personSplit&&it.personSplit.length)it.personSplit.forEach(function(ps){pt[ps.person]=(pt[ps.person]||0)+round2(it.amount*ps.pct/100);});else{var pk=it.person||'Unassigned';pt[pk]=(pt[pk]||0)+it.amount;}});});var pslices=Object.keys(pt).map(function(k){return{label:k,value:pt[k]};}).sort(function(a,b){return b.value-a.value;});pslices.forEach(function(sl){sl.color=sl.label==='Unassigned'?'#8595B5':personColor(sl.label);});if(pslices.length){var ptotal=pslices.reduce(function(t,x){return t+x.value;},0);personCard='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Budget spend by person</span><span class="muted caption">'+(personFilter?'Tap to clear':'Tap to filter')+'</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(pslices,T,personFilter||null,'Budget',ptotal,'filter-budget-person','person')+'</div>';pslices.forEach(function(sl,i){var p=ptotal?sl.value/ptotal*100:0,isSel=personFilter===sl.label;personCard+='<button data-action="filter-budget-person" data-person="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(personFilter&&!isSel?'opacity:.45;':'')+'"><span>'+(sl.label==='Unassigned'?'<span class="subhead">Unassigned</span>':personChip(sl.label))+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});personCard+='</div>';}}sections.person=personCard;
+  var personCard='';if((state.settings.people||[]).length){var pt={};stats.rows.forEach(function(r){(r.items||[]).forEach(function(it){if(!isExpenseItem(it)||!itemCountsTowardBudget(it)||!catMatch(it))return;var charged=budgetChargeAmount(it);if(!(charged>0))return;if(it.personSplit&&it.personSplit.length)it.personSplit.forEach(function(ps){pt[ps.person]=(pt[ps.person]||0)+round2(charged*ps.pct/100);});else{var pk=it.person||'Unassigned';pt[pk]=(pt[pk]||0)+charged;}});});var pslices=Object.keys(pt).map(function(k){return{label:k,value:pt[k]};}).sort(function(a,b){return b.value-a.value;});pslices.forEach(function(sl){sl.color=sl.label==='Unassigned'?'#8595B5':personColor(sl.label);});if(pslices.length){var ptotal=pslices.reduce(function(t,x){return t+x.value;},0);personCard='<div class="card card-pad" style="margin-bottom:16px;"><div class="row between" style="margin-bottom:10px;"><span class="eyebrow">Budget spend by person</span><span class="muted caption">'+(personFilter?'Tap to clear':'Tap to filter')+'</span></div><div style="display:flex;justify-content:center;margin-bottom:12px;">'+renderPieChart(pslices,T,personFilter||null,'Budget',ptotal,'filter-budget-person','person')+'</div>';pslices.forEach(function(sl,i){var p=ptotal?sl.value/ptotal*100:0,isSel=personFilter===sl.label;personCard+='<button data-action="filter-budget-person" data-person="'+esc(sl.label)+'" class="row between" style="width:100%;background:none;border:none;padding:8px 0;'+(i?'border-top:1px solid var(--sep);':'')+(personFilter&&!isSel?'opacity:.45;':'')+'"><span>'+(sl.label==='Unassigned'?'<span class="subhead">Unassigned</span>':personChip(sl.label))+'</span><span class="row" style="gap:10px;"><span class="mono subhead">'+fmt(sl.value,0)+'</span><span class="muted mono caption" style="width:36px;text-align:right;">'+p.toFixed(0)+'%</span></span></button>';});personCard+='</div>';}}sections.person=personCard;
 
   var order=['summary','forecast','category','progress','spendTrend','person'];
   h+='<div style="display:flex;flex-direction:column;">';
@@ -6336,6 +6544,20 @@ function renderAddTxnPage() {
     h += '<input id="entryCategoryInput" type="hidden" value="" />';
   }
 
+  if(txnKind === "expense" && splitMode === "single") {
+    var selectedGoalId=state.entryGoalReserveDraft!=null?state.entryGoalReserveDraft:(editingItem&&editingItem.goalReserveId?editingItem.goalReserveId:"");
+    var goalChoices=goalReserves().filter(function(g){return !g.completedAt&&g.startMonth<=goalMonthKey(formDate);}).map(function(g){return {goal:g,available:goalReserveAvailableForTransaction(g.id,formDate,editingItem?editingItem.id:null)};});
+    goalChoices.sort(function(a,b){var am=selectedCat&&a.goal.category===selectedCat?1:0,bm=selectedCat&&b.goal.category===selectedCat?1:0;return bm-am;});
+    if(goalChoices.some(function(x){return x.available>0.005;})||selectedGoalId){
+      h+='<div class="goal-reserve-paidfrom"><div class="row between"><span class="eyebrow">Paid from</span><span class="muted caption">Optional</span></div><div class="txn-hscroll" style="gap:7px;margin:0 -4px;padding:0 4px 1px;">';
+      h+='<button data-action="select-goal-reserve" data-goal-id="" class="goal-reserve-chip" style="background:'+(!selectedGoalId?'var(--accent)':'var(--fill)')+';color:'+(!selectedGoalId?'var(--accent-ink)':'var(--text)')+';">Monthly budget'+(!selectedGoalId?' ✓':'')+'</button>';
+      goalChoices.forEach(function(x){if(!(x.available>0.005)&&selectedGoalId!==x.goal.id)return;var sel=selectedGoalId===x.goal.id;h+='<button data-action="select-goal-reserve" data-goal-id="'+esc(x.goal.id)+'" class="goal-reserve-chip" style="background:'+(sel?'var(--accent)':'var(--fill)')+';color:'+(sel?'var(--accent-ink)':'var(--text)')+';">'+esc(x.goal.name)+' · '+fmt(x.available,0)+' AED'+(sel?' ✓':'')+'</button>';});
+      h+='</div>';
+      if(selectedGoalId){var chosenGoal=goalChoices.find(function(x){return x.goal.id===selectedGoalId;});if(chosenGoal){var previewReport=!isNaN(parsedShown)?(selectedCurrency===reportingCurrency()?parsedShown:parsedShown*(Number(fxRateShown)||0)):0,previewCanonical=previewReport>0?fromReporting(previewReport):0,previewCover=Math.min(previewCanonical,chosenGoal.available);h+='<div class="muted caption" style="margin-top:6px;line-height:1.35;">'+fmt(previewCover,0)+' AED of this purchase will be covered by <strong style="color:var(--text);">'+esc(chosenGoal.goal.name)+'</strong>'+(previewCanonical>previewCover+0.005?' · '+fmt(previewCanonical-previewCover,0)+' AED remains normal budget spend':'')+'.</div>';}}
+      h+='</div>';
+    }
+  }
+
   if (people.length) {
     h += '<div class="eyebrow" style="margin:0 0 6px;">For</div>';
     h += '<div class="txn-hscroll" style="gap:8px;margin:0 -8px 8px;padding:0 8px 2px;">';
@@ -6541,6 +6763,7 @@ function renderTxnRow(date, it) {
   if(it.personSplit&&it.personSplit.length)personText=it.personSplit.map(function(ps){return ps.person+" "+ps.pct+"%";}).join(" · ");
   else if(it.person)personText=it.person;
   if(personText)secondary.push(personText);
+  if(it.goalReserveId&&goalReserveCoveredAmount(it)>0){var gr=goalReserveById(it.goalReserveId);secondary.push((gr?gr.name:"Goal reserve")+" · "+fmt(goalReserveCoveredAmount(it),0)+" AED covered");}
   if(it.currency && it.currency!==STORAGE_CURRENCY && it.originalAmount!=null && it.currency!==reportingCurrency()) secondary.push(currencyAmountLabel(it.originalAmount,it.currency,2)+" → "+currencyAmountLabel(toReporting(it.amount),reportingCurrency(),2));
   var seq="";
   if(it.recurringId)seq=(it.seq&&it.seqTotal)?(' · '+it.seq+'/'+it.seqTotal):' · Recurring';
@@ -7095,11 +7318,12 @@ function forecastCategoryProfiles(scope, asOfDate) {
     if(ds<start||ds>asOfDate) return;
     (state.entries[ds].items||[]).forEach(function(it){
       if(!expenseCountsForScope(it,scope)||it.recurringId||itemIsPlannedPeriodicCash(ds,it,periodicTimingRules)) return;
+      var observedAmount=forecastAmountForScope(it,scope); if(!(observedAmount>0.005))return;
       var k=subcategoryKey(it);
       if(!maps[k]) maps[k]={daily:{},txnCount:0,timedCount:0,txnAmounts:[]};
-      maps[k].daily[ds]=(maps[k].daily[ds]||0)+it.amount;
+      maps[k].daily[ds]=(maps[k].daily[ds]||0)+observedAmount;
       maps[k].txnCount++;
-      maps[k].txnAmounts.push(Number(it.amount)||0);
+      maps[k].txnAmounts.push(observedAmount);
       if(it.time) maps[k].timedCount++;
     });
   });
@@ -8647,6 +8871,30 @@ function renderPlanEditorPage() {
   return h;
 }
 
+function resetGoalReserveFormDraft(){
+  state.editingGoalReserveId=null;state.goalReserveNameDraft=null;state.goalReserveTargetDraft=null;state.goalReserveFundingModeDraft="deadline";state.goalReserveStartMonthDraft=null;state.goalReserveTargetMonthDraft=null;state.goalReserveMonthlyMinDraft=null;state.goalReserveCategoryDraft=null;
+}
+function preserveGoalReserveFormDraft(){
+  var pairs=[["goalReserveNameInput","goalReserveNameDraft"],["goalReserveTargetInput","goalReserveTargetDraft"],["goalReserveStartMonthInput","goalReserveStartMonthDraft"],["goalReserveTargetMonthInput","goalReserveTargetMonthDraft"],["goalReserveMonthlyMinInput","goalReserveMonthlyMinDraft"],["goalReserveCategoryInput","goalReserveCategoryDraft"]];
+  pairs.forEach(function(p){var el=document.getElementById(p[0]);if(el)state[p[1]]=el.value;});
+}
+function renderGoalReserveForm(){
+  if(!state.goalReserveCreateOpen)return "";
+  var mode=state.goalReserveFundingModeDraft||"deadline",start=state.goalReserveStartMonthDraft||todayStr().slice(0,7),target=state.goalReserveTargetMonthDraft||addGoalMonths(start,2),cats=categoriesSortedByUsage((state.settings.categories||[]).slice(),categoryUsageStats());
+  var h='<div class="card card-pad goal-reserve-form"><div class="row between" style="margin-bottom:12px;"><div class="title2" style="font-size:18px;">'+(state.editingGoalReserveId?'Edit goal reserve':'New goal reserve')+'</div><button data-action="toggle-goal-reserve-create" class="btn-plain">Close</button></div>';
+  h+='<label class="eyebrow">Goal name</label><input id="goalReserveNameInput" class="field" style="margin:6px 0 10px;" placeholder="Birthday gift, phone, furniture…" value="'+esc(state.goalReserveNameDraft||'')+'" />';
+  h+='<label class="eyebrow">Target amount</label><input id="goalReserveTargetInput" type="number" inputmode="decimal" min="0.01" step="0.01" class="field mono" style="margin:6px 0 10px;" placeholder="0.00" value="'+esc(state.goalReserveTargetDraft||'')+'" />';
+  h+='<label class="eyebrow">Funding</label><div class="seg" style="margin:6px 0 10px;">';[["deadline","By date"],["sweep","Surplus"],["hybrid","Minimum + surplus"]].forEach(function(o){h+='<button class="seg-btn" role="tab" aria-selected="'+(mode===o[0])+'" data-action="set-goal-funding-mode" data-mode="'+o[0]+'">'+o[1]+'</button>';});h+='</div>';
+  h+='<div class="goal-reserve-form-grid"><label><span class="eyebrow" style="display:block;margin-bottom:6px;">Starts</span><input id="goalReserveStartMonthInput" type="month" class="field mono" value="'+esc(start)+'" /></label>';
+  if(mode==='deadline')h+='<label><span class="eyebrow" style="display:block;margin-bottom:6px;">Need it by</span><input id="goalReserveTargetMonthInput" type="month" class="field mono" min="'+esc(start)+'" value="'+esc(target)+'" /></label>';
+  else if(mode==='hybrid')h+='<label><span class="eyebrow" style="display:block;margin-bottom:6px;">Monthly minimum</span><input id="goalReserveMonthlyMinInput" type="number" inputmode="decimal" min="0" step="0.01" class="field mono" placeholder="0.00" value="'+esc(state.goalReserveMonthlyMinDraft||'')+'" /></label>';
+  else h+='<div class="goal-reserve-paidfrom" style="margin:0;"><div class="caption" style="font-weight:700;">Open ended</div><div class="muted caption" style="margin-top:3px;">Unused spendable budget sweeps here after month close.</div></div>';
+  h+='</div>';
+  h+='<label class="eyebrow" style="display:block;margin-top:10px;">Linked subcategory <span class="muted" style="font-weight:600;">optional</span></label><select id="goalReserveCategoryInput" class="field" style="margin:6px 0 12px;"><option value="">Any category</option>';cats.forEach(function(c){h+='<option value="'+esc(c)+'"'+(state.goalReserveCategoryDraft===c?' selected':'')+'>'+esc(c)+'</option>';});h+='</select>';
+  h+='<div class="muted caption" style="margin:-2px 2px 12px;line-height:1.45;">By-date and minimum funding reduce your spendable budget. Surplus funding never reduces today’s budget; it is allocated only after a month closes. Goal balances are planning reserves, not verified bank balances.</div>';
+  h+='<button data-action="save-goal-reserve" class="btn-accent" style="width:100%;">'+(state.editingGoalReserveId?'Save goal':'Create goal reserve')+'</button></div>';return h;
+}
+
 function renderPlansBody() {
   var rules = state.settings.recurringRules || [];
   var today = todayStr();
@@ -8729,6 +8977,26 @@ function renderPlansBody() {
   var h='<div class="row between page-heading-row"><div class="title2">Plans</div><button data-action="toggle-plan-create" class="btn-accent compact-action">'+(state.plansCreateOpen?'Close':'New plan')+'</button></div>';
 
   h+='<div class="card card-pad" style="margin-bottom:14px;"><div class="row between" style="margin-bottom:10px;"><div class="eyebrow">Next 30 days</div><div class="muted caption">'+activeRules.length+' active</div></div><div class="stat-grid">'+statBlock('Scheduled expenses',fmt(totals.expense,0)+' AED',totals.expense?'var(--rust)':'var(--text)')+statBlock('Scheduled income',fmt(totals.income,0)+' AED',totals.income?'var(--positive)':'var(--text)')+'</div></div>';
+
+  h+=renderGoalReserveForm();
+  var goalList=goalReserves(),projectedGoalSweep=currentProjectedGoalSweepSummary(),projectedGoalSweepMap={},goalCommitNow=currentGoalReserveCommitmentSummary(),goalBudgetNow=currentEffectiveBudgetInfo();
+  (projectedGoalSweep.rows||[]).forEach(function(x){projectedGoalSweepMap[x.id]=x.amount;});
+  h+='<div class="card card-pad" style="margin-bottom:14px;"><div class="row between" style="margin-bottom:'+(goalList.length?'2':'8')+'px;"><div><div class="eyebrow">Goal reserves</div><div class="muted caption" style="margin-top:3px;">Purpose-based saving · surplus follows priority order</div></div><button data-action="toggle-goal-reserve-create" class="btn-outline" style="padding:7px 10px;font-size:11px;">'+(state.goalReserveCreateOpen?'Close':'New goal')+'</button></div>';
+  if(goalCommitNow.total>0.005){var goalCommitTooHigh=goalCommitNow.total>(goalBudgetNow.baseEffectiveBudget||0)+0.005;h+='<div class="goal-reserve-paidfrom" style="margin:10px 0 4px;"><div class="row between" style="gap:10px;"><span class="caption" style="font-weight:750;">Required goal funding this month</span><span class="mono caption" style="font-weight:800;color:'+(goalCommitTooHigh?'var(--rust)':'var(--text)')+';">'+fmt(goalCommitNow.total,0)+' AED</span></div><div class="caption" style="margin-top:3px;color:'+(goalCommitTooHigh?'var(--rust)':'var(--text-muted)')+';">'+(goalCommitTooHigh?'Goal commitments exceed the spendable budget · extend a target date or reduce a minimum.':(fmt(goalBudgetNow.effectiveBudget,0)+' AED remains for ordinary budget spending after goal funding.'))+'</div></div>';}
+  if(projectedGoalSweep.allocated>0.005)h+='<div class="goal-reserve-paidfrom" style="margin:10px 0 4px;"><div class="row between" style="gap:10px;"><span class="caption" style="font-weight:750;">Projected month-end surplus to goals</span><span class="mono caption" style="font-weight:800;color:var(--positive);">+'+fmt(projectedGoalSweep.allocated,0)+' AED</span></div><div class="muted caption" style="margin-top:3px;">Estimate only · becomes reserved after the month closes.</div></div>';
+  if(!goalList.length) h+='<div class="muted subhead" style="padding:8px 0 2px;line-height:1.45;">Save gradually for a one-off purchase, or sweep unused monthly budget into an open-ended goal.</div>';
+  goalList.forEach(function(g,idx){
+    var st=goalReserveStatus(g,today),pct=Math.min(100,st.pct),modeText=g.fundingMode==='deadline'?('By '+(g.targetMonth?parseD(g.targetMonth+'-01').toLocaleDateString('en-GB',{month:'short',year:'numeric'}):'target date')):(g.fundingMode==='hybrid'?('Minimum '+fmt(g.monthlyMin,0)+' AED/month + surplus'):'Open ended · surplus sweep');
+    var currentReq=goalPlannedRequiredForMonth(state.settings,g,today.slice(0,7)),projectedSweepForGoal=projectedGoalSweepMap[g.id]||0,statusText=g.completedAt?'Completed':(!g.active?'Paused':(st.funded?'Target funded':(currentReq>0.005?(fmt(currentReq,0)+' AED protected this month'):(g.fundingMode==='sweep'?'Gets unused budget after month close':'Building'))));
+    h+='<div class="goal-reserve-card" style="'+(!g.active?'opacity:.68;':'')+'"><div class="row between" style="gap:12px;align-items:flex-start;"><div style="min-width:0;flex:1;"><div class="subhead" style="font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(g.name)+'</div><div class="goal-reserve-meta">'+esc(modeText)+(g.category?' · '+esc(g.category):'')+'</div></div><div style="text-align:right;flex-shrink:0;"><div class="mono subhead" style="font-weight:800;">'+fmt(st.balance,0)+' AED</div><div class="muted caption">available</div></div></div>';
+    h+='<div class="goal-reserve-progress"><span style="width:'+pct.toFixed(1)+'%;background:'+(st.funded?'var(--positive)':'var(--accent)')+';"></span></div><div class="row between" style="margin-top:6px;gap:10px;"><span class="caption" style="font-weight:700;color:'+(st.funded?'var(--positive)':'var(--text-muted)')+';">'+esc(statusText)+'</span><span class="muted mono caption">'+fmt(st.gross,0)+' / '+fmt(g.targetAmount,0)+' funded</span></div>';
+    if(projectedSweepForGoal>0.005)h+='<div class="caption" style="margin-top:4px;color:var(--positive);font-weight:700;">≈ '+fmt(projectedSweepForGoal,0)+' AED projected from this month\'s surplus</div>';if(st.used>0)h+='<div class="muted caption" style="margin-top:4px;">'+fmt(st.used,0)+' AED already used from this reserve</div>';if(st.released>0)h+='<div class="muted caption" style="margin-top:4px;">'+fmt(st.released,0)+' AED unspent reserve released to general savings</div>';
+    h+='<div class="goal-reserve-actions"><button data-action="edit-goal-reserve" data-id="'+esc(g.id)+'" class="btn-outline">Edit</button>';
+    if(g.completedAt)h+='<button data-action="reopen-goal-reserve" data-id="'+esc(g.id)+'" class="btn-outline">Reopen</button>';
+    else {h+='<button data-action="toggle-goal-reserve-active" data-id="'+esc(g.id)+'" class="btn-outline">'+(g.active?'Pause':'Resume')+'</button><button data-action="complete-goal-reserve" data-id="'+esc(g.id)+'" class="btn-outline">Complete</button>';if(idx>0)h+='<button data-action="move-goal-reserve" data-id="'+esc(g.id)+'" data-dir="-1" class="btn-outline" aria-label="Higher priority">↑ Priority</button>';if(idx<goalList.length-1)h+='<button data-action="move-goal-reserve" data-id="'+esc(g.id)+'" data-dir="1" class="btn-outline" aria-label="Lower priority">↓ Priority</button>';}
+    h+='<button data-action="delete-goal-reserve" data-id="'+esc(g.id)+'" class="icon-btn" style="width:34px;height:34px;color:var(--rust);" aria-label="Delete goal">'+ICONS.trash+'</button></div></div>';
+  });
+  h+='<div class="muted caption" style="margin-top:8px;line-height:1.4;">At month close, remaining spendable budget is swept to Surplus / Minimum + surplus goals from top priority downward. Required goal funding is protected before ordinary spending; if a month closes short, priority also decides which goals are funded first.</div></div>';
 
   var planReserves=activeAnnualReserves();
   if(planReserves.length){
@@ -8853,6 +9121,13 @@ function handleAddTransaction() {
   var kind = state.txnKind != null ? state.txnKind : (origItemForKind && origItemForKind.kind==="income" ? "income" : "expense");
   var tags = state.entryTagsDraft != null ? normalizeItemTags(state.entryTagsDraft) : normalizeItemTags(origItemForKind && origItemForKind.tags);
   if (kind === "income") category = ""; // income doesn't use the expense category system
+  var selectedGoalReserveId=(kind==="expense"&&state.txnSplitMode!=="tabby")?(state.entryGoalReserveDraft||""):"";
+  var selectedGoalReserveCovered=0;
+  if(selectedGoalReserveId){
+    var availableGoalReserve=goalReserveAvailableForTransaction(selectedGoalReserveId,date,wasEditing?state.editingItemId:null);
+    if(availableGoalReserve>0.005)selectedGoalReserveCovered=round2(Math.min(amt,availableGoalReserve));
+    else selectedGoalReserveId="";
+  }
 
   if (!wasEditing && state.txnSplitMode === "tabby" && kind === "expense") {
     if(!(amt>0)){ showToast("Enter the full Tabby purchase amount"); return; }
@@ -8874,6 +9149,7 @@ function handleAddTransaction() {
     /* Preserve recurringId/seq metadata when editing an occurrence so deleting
        its plan later can still find and remove that occurrence. */
     var updatedItem = Object.assign({}, origItemForKind || {}, fxMeta, { id: state.editingItemId, amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind, time: txnTime||undefined, tags:tags });
+    if(selectedGoalReserveId){updatedItem.goalReserveId=selectedGoalReserveId;updatedItem.goalReserveCovered=selectedGoalReserveCovered;}else{delete updatedItem.goalReserveId;delete updatedItem.goalReserveCovered;}
     if(!txnTime) delete updatedItem.time;
     if(!tags.length) delete updatedItem.tags;
     if (currency===STORAGE_CURRENCY) { delete updatedItem.originalAmount; delete updatedItem.fxRate; delete updatedItem.fxDate; updatedItem.fxSource="Base currency"; }
@@ -8887,6 +9163,7 @@ function handleAddTransaction() {
   } else {
     var existing = nextEntries[date];
     var newItem = Object.assign({ id: Date.now()+"-"+Math.random().toString(36).slice(2,7), amount: amt, note: note, category: category, person: person, personSplit: personSplit, kind: kind, time: txnTime||undefined, tags:tags }, fxMeta);
+    if(selectedGoalReserveId){newItem.goalReserveId=selectedGoalReserveId;newItem.goalReserveCovered=selectedGoalReserveCovered;}
     if(!txnTime) delete newItem.time;
     if(!tags.length) delete newItem.tags;
     nextEntries[date] = existing ? Object.assign({}, existing, { items: existing.items.concat([newItem]) }) : { allowance: allowanceForDate(date), items: [newItem] };
@@ -8896,7 +9173,10 @@ function handleAddTransaction() {
 
   state.entryDate = date;
   state.entryTagsDraft = null;
-  persistAll(state.settings, nextEntries, "your entry");
+  state.entryGoalReserveDraft = null;
+  var nextSettingsAfterGoal=state.settings;
+  if(goalMonthKey(date)<todayStr().slice(0,7)){nextSettingsAfterGoal=invalidateGoalReserveSettlementsFrom(nextSettingsAfterGoal,goalMonthKey(date));var rebuiltGoal=settleGoalReserveClosedMonths(nextSettingsAfterGoal,nextEntries);nextSettingsAfterGoal=rebuiltGoal.settings;}
+  persistAll(nextSettingsAfterGoal, nextEntries, "your entry");
   showToast(wasEditing ? "Record updated" : "Record added");
   render();
   animateTxnCommittedBack(txnCloseVisual);
@@ -9019,10 +9299,12 @@ function handleEditTxn(date, id) {
   state.entryCategoryDraft = null;
   state.entryPersonDraft = null;
   state.entryTagsDraft = null;
+  state.entryGoalReserveDraft = null;
   state.entryCurrencyDraft = null; state.entryFxRateDraft = null; state.entryFxSourceDraft = null; state.entryFxDateDraft = null; state.entryTimeDraft = null;
   var editDay = state.entries[date];
   var editItem = editDay ? editDay.items.find(function(i){ return i.id === id; }) : null;
   state.entryTagsDraft = editItem ? normalizeItemTags(editItem.tags) : [];
+  state.entryGoalReserveDraft = editItem && editItem.goalReserveId ? editItem.goalReserveId : "";
   state.txnPersonSplitMode = (editItem && editItem.personSplit && editItem.personSplit.length) ? "split" : "single";
   render();
   animateTxnForward(txnFromVisual, captureTxnVisual());
@@ -9038,7 +9320,9 @@ function handleDeleteTxn(date, id) {
   state.pendingDeleteKey = null;
   if (deletingFromEditor) { resetTxnEntryForClose(); txnNavSnapshot=null; }
   else if (state.editingItemId === id) { state.editingItemId = null; state.editingOriginalDate = null; }
-  persistAll(state.settings, nextEntries, "your entry");
+  var deleteSettings=state.settings;
+  if(goalMonthKey(date)<todayStr().slice(0,7)){deleteSettings=invalidateGoalReserveSettlementsFrom(deleteSettings,goalMonthKey(date));deleteSettings=settleGoalReserveClosedMonths(deleteSettings,nextEntries).settings;}
+  persistAll(deleteSettings, nextEntries, "your entry");
   showToast("Transaction deleted");
   render();
 }
@@ -9287,6 +9571,8 @@ document.addEventListener("click", function(e) {
       state.txnSplitMode = el.dataset.mode;
       render();
       break;
+    case "select-goal-reserve":
+      preserveTxnFormDraft();state.entryGoalReserveDraft=el.dataset.goalId||"";render();break;
     case "toggle-txn-tag":
       preserveTxnFormDraft();
       var toggledTag=el.dataset.tag||"";
@@ -9518,6 +9804,34 @@ document.addEventListener("click", function(e) {
     case "open-annual-reserves-settings":
       settingsRootSnapshot=captureTxnVisual(); settingsNavStack=[]; state.settingsSection="annualReserves"; state.showSettings=true; render(); window.scrollTo(0,0);
       break;
+    case "toggle-goal-reserve-create":
+      if(state.goalReserveCreateOpen){preserveGoalReserveFormDraft();state.goalReserveCreateOpen=false;resetGoalReserveFormDraft();}
+      else{state.plansCreateOpen=false;state.goalReserveCreateOpen=true;resetGoalReserveFormDraft();state.goalReserveCreateOpen=true;}
+      render();break;
+    case "set-goal-funding-mode":
+      preserveGoalReserveFormDraft();state.goalReserveFundingModeDraft=(el.dataset.mode==="sweep"||el.dataset.mode==="hybrid")?el.dataset.mode:"deadline";render();break;
+    case "save-goal-reserve":
+      preserveGoalReserveFormDraft();
+      var goalName=String(state.goalReserveNameDraft||"").trim(),goalTargetShown=Number(state.goalReserveTargetDraft),goalTarget=fromReporting(goalTargetShown),goalMode=state.goalReserveFundingModeDraft||"deadline",goalStart=goalMonthKey(state.goalReserveStartMonthDraft)||todayStr().slice(0,7),goalTargetMonth=goalMonthKey(state.goalReserveTargetMonthDraft),goalMinShown=Number(state.goalReserveMonthlyMinDraft||0),goalMin=fromReporting(goalMinShown),goalCat=state.goalReserveCategoryDraft||"";
+      if(!goalName){showToast("Name the saving goal");break;}if(!(goalTargetShown>0)){showToast("Enter a target amount");break;}if(goalMode==="deadline"&&!goalTargetMonth){showToast("Choose when you need the money");break;}if(goalMode==="deadline"&&goalTargetMonth<goalStart){showToast("Target month must be after the start month");break;}if(goalMode==="hybrid"&&!(goalMinShown>0)){showToast("Enter a monthly minimum");break;}
+      var goalsNow=goalReserves(),existingGoal=state.editingGoalReserveId?goalsNow.find(function(g){return g.id===state.editingGoalReserveId;}):null;
+      var savedGoal={id:existingGoal?existingGoal.id:(Date.now()+"-goal-"+Math.random().toString(36).slice(2,7)),name:goalName,targetAmount:round2(goalTarget),fundingMode:goalMode,startMonth:goalStart,targetMonth:goalMode==="deadline"?goalTargetMonth:"",monthlyMin:goalMode==="hybrid"?round2(Math.max(0,goalMin)):0,category:goalCat,active:existingGoal?existingGoal.active!==false:true,completedAt:existingGoal&&existingGoal.completedAt?existingGoal.completedAt:"",createdAt:existingGoal&&existingGoal.createdAt?existingGoal.createdAt:new Date().toISOString()};
+      var nextGoals=existingGoal?goalsNow.map(function(g){return g.id===existingGoal.id?savedGoal:g;}):goalsNow.concat([savedGoal]);
+      var nextGoalSettings=Object.assign({},state.settings,{goalReserves:normalizeGoalReserves(nextGoals,state.settings.categories)});nextGoalSettings.goalReserveContributions=normalizeGoalReserveContributions(nextGoalSettings.goalReserveContributions,nextGoalSettings.goalReserves);
+      var recalcFrom=existingGoal?(goalStart<existingGoal.startMonth?goalStart:existingGoal.startMonth):goalStart;if(recalcFrom<todayStr().slice(0,7))nextGoalSettings=invalidateGoalReserveSettlementsFrom(nextGoalSettings,recalcFrom);nextGoalSettings=settleGoalReserveClosedMonths(nextGoalSettings,state.entries).settings;
+      persistAll(nextGoalSettings,state.entries,"your goal reserves");showToast(existingGoal?"Goal updated":"Goal reserve created");state.goalReserveCreateOpen=false;resetGoalReserveFormDraft();render();break;
+    case "edit-goal-reserve":
+      var goalEdit=goalReserveById(el.dataset.id);if(!goalEdit)break;state.plansCreateOpen=false;state.goalReserveCreateOpen=true;state.editingGoalReserveId=goalEdit.id;state.goalReserveNameDraft=goalEdit.name;state.goalReserveTargetDraft=String(round2(toReporting(goalEdit.targetAmount)));state.goalReserveFundingModeDraft=goalEdit.fundingMode;state.goalReserveStartMonthDraft=goalEdit.startMonth;state.goalReserveTargetMonthDraft=goalEdit.targetMonth||"";state.goalReserveMonthlyMinDraft=goalEdit.monthlyMin?String(round2(toReporting(goalEdit.monthlyMin))):"";state.goalReserveCategoryDraft=goalEdit.category||"";render();break;
+    case "complete-goal-reserve":
+      var cgId=el.dataset.id,cg=goalReserveById(cgId);if(!cg)break;if(!window.confirm('Complete "'+cg.name+'"? Any unused reserve will return to unallocated savings and no more money will be assigned to this goal.'))break;var cgGoals=goalReserves().map(function(g){return g.id===cgId?Object.assign({},g,{completedAt:todayStr(),active:false}):g;});persistAll(Object.assign({},state.settings,{goalReserves:cgGoals}),state.entries,"your goal reserves");showToast("Goal completed");render();break;
+    case "reopen-goal-reserve":
+      var rgId=el.dataset.id,rgGoals=goalReserves().map(function(g){return g.id===rgId?Object.assign({},g,{completedAt:"",active:true}):g;});persistAll(Object.assign({},state.settings,{goalReserves:rgGoals}),state.entries,"your goal reserves");showToast("Goal reopened");render();break;
+    case "toggle-goal-reserve-active":
+      var tgId=el.dataset.id,tgGoals=goalReserves().map(function(g){return g.id===tgId?Object.assign({},g,{active:!g.active}):g;});persistAll(Object.assign({},state.settings,{goalReserves:tgGoals}),state.entries,"your goal reserves");render();break;
+    case "move-goal-reserve":
+      var mg=goalReserves(),mi=mg.findIndex(function(g){return g.id===el.dataset.id;}),mj=mi+(parseInt(el.dataset.dir,10)||0);if(mi>=0&&mj>=0&&mj<mg.length){var mt=mg[mi];mg[mi]=mg[mj];mg[mj]=mt;persistAll(Object.assign({},state.settings,{goalReserves:mg}),state.entries,"goal priority");render();}break;
+    case "delete-goal-reserve":
+      var dgId=el.dataset.id,dg=goalReserveById(dgId);if(!dg)break;if(!window.confirm('Delete "'+dg.name+'"? Any remaining planning balance will return to unallocated savings. Past transactions stay unchanged.'))break;var dgGoals=goalReserves().filter(function(g){return g.id!==dgId;}),dgContrib=normalizeGoalReserveContributions(state.settings.goalReserveContributions,goalReserves()).filter(function(x){return x.goalId!==dgId;});persistAll(Object.assign({},state.settings,{goalReserves:dgGoals,goalReserveContributions:dgContrib}),state.entries,"your goal reserves");showToast("Goal deleted");render();break;
     case "edit-recurring":
       var editRuleId=el.dataset.id;
       var editRule=(state.settings.recurringRules||[]).find(function(r){return r.id===editRuleId;});
@@ -9724,7 +10038,8 @@ document.addEventListener("click", function(e) {
       var safePrioritiesAfterRemove=Object.assign({},state.settings.safeSpendPriorities||{});
       delete safePrioritiesAfterRemove[catToRemove];
       var reservesAfterRemove=normalizeAnnualReserves(state.settings.annualReserves,state.settings.categories,state.settings.categoryGroups).map(function(r){return r.category===catToRemove?Object.assign({},r,{category:""}):r;});
-      var withoutCat = Object.assign({}, state.settings, { categories: nextCatsAfterRemove, categoryStyles: stylesAfterRemove, categoryGroupOf: groupOfAfterRemoveCat, categoryExcludeFromBudget: excludeAfterRemove, categoryForecastBehavior:forecastBehaviorAfterRemove, categoryYearlyBillSettings:yearlyBillSettingsAfterRemove, peopleAnalysisExcluded: peopleExcludeAfterRemove, safeSpendPriorities:safePrioritiesAfterRemove, annualReserves:reservesAfterRemove });
+      var goalsAfterRemove=normalizeGoalReserves(state.settings.goalReserves,state.settings.categories).map(function(g){return g.category===catToRemove?Object.assign({},g,{category:""}):g;});
+      var withoutCat = Object.assign({}, state.settings, { categories: nextCatsAfterRemove, categoryStyles: stylesAfterRemove, categoryGroupOf: groupOfAfterRemoveCat, categoryExcludeFromBudget: excludeAfterRemove, categoryForecastBehavior:forecastBehaviorAfterRemove, categoryYearlyBillSettings:yearlyBillSettingsAfterRemove, peopleAnalysisExcluded: peopleExcludeAfterRemove, safeSpendPriorities:safePrioritiesAfterRemove, annualReserves:reservesAfterRemove, goalReserves:goalsAfterRemove });
       if (state.categoryStyleEditing === catToRemove) state.categoryStyleEditing = null;
       if (state.categoryRenameEditing === catToRemove) state.categoryRenameEditing = null;
       persistAll(withoutCat, state.entries, "your categories");
@@ -9854,6 +10169,7 @@ document.addEventListener("click", function(e) {
       }
       break;
     case "toggle-plan-create":
+      state.goalReserveCreateOpen=false;resetGoalReserveFormDraft();
       if (state.plansCreateOpen) preserveRecurringFormDraft();
       if (!state.plansCreateOpen) {
         state.plansReturnScrollY = window.scrollY || window.pageYOffset || 0;
