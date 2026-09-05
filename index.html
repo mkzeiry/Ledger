@@ -318,6 +318,18 @@
   .cashflow-progress-fill { position:absolute; top:0; left:0; height:100%; border-radius:999px; }
   .cashflow-progress-forecast { background:color-mix(in srgb, var(--accent) 32%, var(--surface-2)); }
   .cashflow-progress-fill { background:var(--accent); }
+  /* v112.43: Cash Flow tracks the month-specific cash-spend target rather
+     than income. This stays informative in payment months where both actual
+     and projected spend can legitimately exceed 100% of monthly income. */
+  .cashflow-target-track { position:relative; height:10px; margin-top:12px; border-radius:999px; background:var(--surface-2); box-shadow:var(--inset-stroke); overflow:visible; }
+  .cashflow-target-forecast, .cashflow-target-actual { position:absolute; left:0; top:0; height:100%; border-radius:999px; }
+  .cashflow-target-forecast { background:color-mix(in srgb,var(--accent) 30%,var(--surface-2)); }
+  .cashflow-target-forecast.over { background:color-mix(in srgb,var(--rust) 30%,var(--surface-2)); }
+  .cashflow-target-actual { background:var(--accent); }
+  .cashflow-target-marker { position:absolute; top:-4px; width:2px; height:18px; border-radius:2px; background:var(--text); transform:translateX(-1px); opacity:.78; z-index:3; }
+  .cashflow-target-marker::after { content:""; position:absolute; width:6px; height:6px; border-radius:50%; left:50%; top:-1px; transform:translate(-50%,-50%); background:var(--text); }
+  .cashflow-target-marker-label { position:absolute; right:0; top:15px; color:var(--text-muted); font-size:9.5px; line-height:1; font-weight:760; letter-spacing:.045em; text-transform:uppercase; white-space:nowrap; }
+  .cashflow-target-track-wrap { position:relative; padding-bottom:15px; }
   html.simple-home .app-topbar { margin-bottom:8px; }
   html.simple-home .simple-budget-card .hairline-top { margin-top:9px !important; padding-top:8px !important; }
   @media (max-width:360px) {
@@ -1220,6 +1232,10 @@
   }
 
 
+  /* ===== v112.43 Home cash-target clarity + dynamic subcategory ranking ===== */
+  /* Cash Flow now compares against the month-specific cash target, and Add Transaction
+     ranks subcategories by real usage frequency with recent-use tie breaking. */
+
   /* ===== v112.40 Demo / Showcase mode ===== */
   .demo-mode-badge {
     display:inline-flex;align-items:center;justify-content:center;min-height:22px;padding:4px 8px;border-radius:999px;
@@ -1270,7 +1286,7 @@ var DEMO_DATA_VERSION = "v11241-dubai-10k-3m-1";
 function demoModeRequested(){ try { return localStorage.getItem(DEMO_MODE_FLAG_KEY)==="1"; } catch(e) { return false; } }
 var IS_DEMO_MODE = demoModeRequested();
 var STORAGE_KEY = IS_DEMO_MODE ? DEMO_STORAGE_KEY : REAL_STORAGE_KEY;
-var APP_VERSION = "v112.42";
+var APP_VERSION = "v112.43";
 var FORECAST_MODEL_VERSION = "v11238-periodic-cash-1";
 var TEST_KEY = "ledger-selftest";
 var DEFAULT_SETTINGS = { weeklyTarget: 0, monthlyBudget: null, monthlyBudgetHistory: null, theme: "light", trackingStartDate: null, categories: ["Cafés & Snacks","Restaurants","Groceries","Clothes","Home Cleaning","Fuel","Health","Entertainment","Parking","Maid","Services","Home Maintenance","Electronics","Car Maintenance","Salik","Fines","Rent","Mortgage","Phone Bill","Subscriptions","Car Insurance","Bank Fees","Home Internet","Fitness & Gym","Car Wash","Gift","Electricity / Utilities","Flights","Hotels & Accommodation","Food & Dining","Local Transport / Car Rental","Activities & Attractions","Shopping & Souvenirs","Visa / Travel Fees / Insurance","Miscellaneous Travel"], rateHistory: null, analysisSectionOrder: null, analysisHiddenSections: null, budgetSectionOrder: null, budgetHiddenSections: null, homeSimpleSectionOrder: null, incomeMode: "monthly", incomeAmount: 0, incomeHistory: null, customDarkBg: null, customAccent: "#016E8F", customCardLightness: null, chromeTransparency: 32, startingCashBalance: 0, categoryStyles: {"Groceries":{"icon":"cart","color":"#cd1300"},"Fuel":{"icon":"fuel","color":"#7a219e"},"Parking":{"icon":"parking","color":"#7a219e"},"Clothes":{"icon":"shirt","color":"#0042a9"},"Health":{"icon":"heart","color":"#76bb40"},"Entertainment":{"icon":"film","color":"#76bb40"},"Maid":{"icon":"baby","color":"#76bb40"},"Home Maintenance":{"icon":"wrench","color":"#ff6a00"},"Electronics":{"icon":"phone","color":"#0042a9"},"Home Cleaning":{"icon":"sparkles","color":"#ff6a00"},"Restaurants":{"icon":"cloche","color":"#cd1300"},"Car Insurance":{"icon":"shield","color":"#7a219e"},"Car Maintenance":{"icon":"wrench","color":"#7a219e"},"Fines":{"icon":"receipt","color":"#7a219e"},"Rent":{"icon":"key","color":"#ff6a00"},"Mortgage":{"icon":"house","color":"#ff6a00"},"Phone Bill":{"icon":"handset","color":"#5e30eb"},"Salik":{"icon":"tollgate","color":"#7a219e"},"Bank Fees":{"icon":"bank","color":"#C77FA3"},"Home Internet":{"icon":"wifi","color":"#ff6a00"},"Fitness & Gym":{"icon":"dumbbell","color":"#76bb40"},"Gift":{"icon":"gift","color":"#0042a9"},"Electricity / Utilities":{"icon":"bolt","color":"#ff6a00"},"Cafés & Snacks":{"icon":"fork","color":"#cd1300"},"Subscriptions":{"icon":"subscription","color":"#5e30eb"},"Car Wash":{"icon":"sparkles","color":"#7a219e"},"Flights":{"icon":"plane","color":"#0A84FF"},"Hotels & Accommodation":{"icon":"bed","color":"#5856D6"},"Food & Dining":{"icon":"fork","color":"#D4614A"},"Local Transport / Car Rental":{"icon":"taxi","color":"#5AC8FA"},"Activities & Attractions":{"icon":"ticket","color":"#FF9F0A"},"Shopping & Souvenirs":{"icon":"gift","color":"#AF52DE"},"Visa / Travel Fees / Insurance":{"icon":"shield","color":"#34C759"},"Miscellaneous Travel":{"icon":"travel","color":"#8E8E93"}}, categoryGroupStyles: {"Shopping":{"icon":"shirt","color":"#0042a9"},"Communication":{"icon":"phone","color":"#5e30eb"},"Travel":{"icon":"plane","color":"#0A84FF"}}, recurringRules: null, categoryGroups: ["Food & Drinks","Life","Vehicle","Shopping","Home","Communication","Travel","Other"], categoryGroupOf: {"Groceries":"Food & Drinks","Clothes":"Shopping","Fuel":"Vehicle","Parking":"Vehicle","Health":"Life","Entertainment":"Life","Maid":"Life","Home Maintenance":"Home","Services":"Other","Electronics":"Shopping","Home Cleaning":"Home","Restaurants":"Food & Drinks","Car Insurance":"Vehicle","Car Maintenance":"Vehicle","Fines":"Vehicle","Rent":"Home","Mortgage":"Home","Phone Bill":"Communication","Salik":"Vehicle","Bank Fees":"Other","Home Internet":"Home","Fitness & Gym":"Life","Gift":"Shopping","Electricity / Utilities":"Home","Cafés & Snacks":"Food & Drinks","Subscriptions":"Communication","Car Wash":"Vehicle","Flights":"Travel","Hotels & Accommodation":"Travel","Food & Dining":"Travel","Local Transport / Car Rental":"Travel","Activities & Attractions":"Travel","Shopping & Souvenirs":"Travel","Visa / Travel Fees / Insurance":"Travel","Miscellaneous Travel":"Travel"}, people: null, personColors: null, defaultPerson: null, categoryExcludeFromBudget: {"Flights":true,"Hotels & Accommodation":true,"Food & Dining":true,"Local Transport / Car Rental":true,"Activities & Attractions":true,"Shopping & Souvenirs":true,"Visa / Travel Fees / Insurance":true,"Miscellaneous Travel":true}, categoryForecastBehavior: null, categoryYearlyBillSettings: null, peopleAnalysisExcluded: null, fxRateCache: null, baseCurrency: "AED", forecastSnapshots: null, transactionTags: null, transactionTagColors: null, analysisForecastV52Visible: false, savingsTargetPct: 0, safeSpendPriorities: null, homeAheadBehindResolution: "hourly", safeSpendHistory: null, homeMetricHistory: null, safeSpendAnnualizedMigrationV1119: true, yearlyBillAutoMigrationV11110: true, yearlyBillBackgroundMigrationV11111: true, safeSpendStableMigrationV11114: true, monthlyBillActualMigrationV11115: true, cadenceBoundarySmoothingMigrationV11219: true, homeDeltaModelEpochV11219: null, annualReserves: null, annualReserveMigrationV11222: null, travelTaxonomyMigrationV11224: true, travelOutsideBudgetMigrationV11225: true, periodicPlanAlignmentMigrationV11237: true, periodicForecastMatchMigrationV11238: true };
@@ -3897,6 +3913,37 @@ function medianNumber(values) {
   return a.length%2?a[m]:(a[m-1]+a[m])/2;
 }
 function subcategoryKey(it){ return (it && it.category) ? it.category : "__uncategorised__"; }
+/* v112.43: Transaction-entry subcategories are ranked dynamically by actual
+   use. Frequency is the primary sort key; the most recently used category
+   wins ties, then the configured category order keeps unused items stable. */
+function categoryUsageStats(){
+  var out={};
+  Object.keys(state.entries||{}).sort().forEach(function(ds){
+    ((state.entries[ds]&&state.entries[ds].items)||[]).forEach(function(it){
+      if(!isExpenseItem(it)||!it.category)return;
+      var row=out[it.category]||(out[it.category]={count:0,lastDate:'',lastTime:'',lastId:0});
+      row.count++;
+      var tm=String(it.time||'');
+      var idk=itemTimeKey(it);
+      if(ds>row.lastDate || (ds===row.lastDate && (tm>row.lastTime || (tm===row.lastTime && idk>row.lastId)))){
+        row.lastDate=ds;row.lastTime=tm;row.lastId=idk;
+      }
+    });
+  });
+  return out;
+}
+function categoriesSortedByUsage(list,stats){
+  list=(list||[]).slice(); stats=stats||categoryUsageStats();
+  var original={};list.forEach(function(c,i){original[c]=i;});
+  return list.sort(function(a,b){
+    var sa=stats[a]||{count:0,lastDate:'',lastTime:'',lastId:0}, sb=stats[b]||{count:0,lastDate:'',lastTime:'',lastId:0};
+    if(sb.count!==sa.count)return sb.count-sa.count;
+    if(sb.lastDate!==sa.lastDate)return sb.lastDate>sa.lastDate?1:-1;
+    if(sb.lastTime!==sa.lastTime)return sb.lastTime>sa.lastTime?1:-1;
+    if(sb.lastId!==sa.lastId)return sb.lastId-sa.lastId;
+    return original[a]-original[b];
+  });
+}
 /* Forecast person bucket: a split transaction is intentionally ONE shared
    occurrence event rather than one event per person. This prevents a 50/50
    grocery purchase from teaching the model that two grocery trips happened.
@@ -5453,11 +5500,18 @@ function renderHomeBody(T, da) {
     var pw = Math.max(0, Math.min(100, pct || 0));
     return '<div class="simple-progress"><span style="width:' + pw + '%;background:' + (over ? 'var(--rust)' : 'var(--accent)') + ';"></span></div>';
   }
-  function cashFlowProgressBar(actualPct, forecastPct) {
-    var actual=Math.max(0,Math.min(100,Number(actualPct)||0));
-    var forecast=Math.max(actual,Math.min(100,Number(forecastPct)||0));
-    var label='Spent '+actual.toFixed(0)+'%; forecast '+forecast.toFixed(0)+'%';
-    return '<div class="simple-progress cashflow-progress" role="img" aria-label="'+esc(label)+'"><span class="cashflow-progress-forecast" style="width:'+forecast+'%;"></span><span class="cashflow-progress-fill" style="width:'+actual+'%;"></span></div>';
+  function cashFlowTargetBar(actualSpend, forecastSpend, cashTarget) {
+    var actual=Math.max(0,Number(actualSpend)||0), forecast=Math.max(actual,Number(forecastSpend)||0), targetValue=Math.max(0,Number(cashTarget)||0);
+    if(!(targetValue>0)) return '';
+    /* Leave a little breathing room beyond whichever of forecast or target is
+       farther right, so the target marker never sits on the rounded endpoint. */
+    var scale=Math.max(actual,forecast,targetValue,1)*1.055;
+    var actualPct=Math.max(0,Math.min(100,actual/scale*100));
+    var forecastPct=Math.max(actualPct,Math.min(100,forecast/scale*100));
+    var targetPct=Math.max(0,Math.min(100,targetValue/scale*100));
+    var over=forecast>targetValue+0.5;
+    var label='Spent '+fmt(actual,0)+' AED; projected '+fmt(forecast,0)+' AED; cash target '+fmt(targetValue,0)+' AED';
+    return '<div class="cashflow-target-track-wrap" role="img" aria-label="'+esc(label)+'"><div class="cashflow-target-track"><span class="cashflow-target-forecast'+(over?' over':'')+'" style="width:'+forecastPct.toFixed(2)+'%;"></span><span class="cashflow-target-actual" style="width:'+actualPct.toFixed(2)+'%;"></span><span class="cashflow-target-marker" style="left:'+targetPct.toFixed(2)+'%;"></span></div><span class="cashflow-target-marker-label">Target</span></div>';
   }
   function paceBadge(value) {
     var c = value > 0 ? 'var(--positive)' : (value < 0 ? 'var(--rust)' : 'var(--text-muted)');
@@ -5542,9 +5596,10 @@ function renderHomeBody(T, da) {
   var homeMonthMode=Math.abs(homeCashTimingAdjustment)<0.5?'Normal month':(homeCashTimingAdjustment>0?'Payment month':'Reserve-building month');
   var homeMonthModeClass=homeCashTimingAdjustment>0.5?' payment':(homeCashTimingAdjustment<-0.5?' reserve':'');
   var outlook = '<div class="card simple-outlook-card"><div class="home-card-heading"><div class="eyebrow">Cash flow</div><div class="home-month-mode'+homeMonthModeClass+'">'+esc(homeMonthMode)+'</div></div><div class="simple-outlook-grid">';
-  outlook += '<div><div class="simple-outlook-label">SPENT SO FAR</div><div class="mono simple-outlook-value">' + fmt(overall.spent, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (spentVsIncomePct == null ? '—' : spentVsIncomePct.toFixed(0) + '%') + '</div></div>';
+  var cashTargetUsedPct=maxSpendForSavings>0?(overall.spent/maxSpendForSavings*100):null;
+  outlook += '<div><div class="simple-outlook-label">SPENT SO FAR</div><div class="mono simple-outlook-value">' + fmt(overall.spent, 0) + ' <span class="simple-budget-unit">AED</span></div><div class="simple-outlook-sub">' + (cashTargetUsedPct == null ? (spentVsIncomePct == null ? '—' : spentVsIncomePct.toFixed(0) + '% of income') : cashTargetUsedPct.toFixed(0) + '% of cash target') + '</div></div>';
   outlook += '<div><div class="simple-outlook-label">PROJECTED POSITION</div><div class="mono simple-outlook-value" style="color:' + cashSpendGapColor + ';">' + cashSpendGapValue + '</div><div class="simple-outlook-sub" style="color:' + cashSpendGapColor + ';font-weight:700;">' + esc(cashSpendGapState) + '</div></div></div>';
-  if (incomeReference > 0) outlook += cashFlowProgressBar(spentVsIncomePct, projectedSpendVsIncomePct);
+  if (maxSpendForSavings != null) outlook += cashFlowTargetBar(overall.spent, projected, maxSpendForSavings);
   var effectiveSavingTargetAmount=(incomeReference>0&&maxSpendForSavings!=null)?round2(incomeReference-maxSpendForSavings):null;
   var targetBridgeHtml='';
   if(maxSpendForSavings!=null){
@@ -5568,15 +5623,10 @@ function renderHomeBody(T, da) {
       targetBridgeHtml+='<div class="cash-target-bridge-row cash-target-bridge-total"><span>This month cash-saving target</span><span class="mono">'+bridgeMoney(effectiveSavingTargetAmount)+'</span></div></div></details>';
     }
   }
-  var effectiveSavingGap=(effectiveSavingTargetAmount!=null&&simpleSaving!=null)?round2(simpleSaving-effectiveSavingTargetAmount):null;
-  var savingPositionLine='';
-  var savingPositionColor='var(--text-muted)';
-  if(effectiveSavingGap!=null){
-    if(effectiveSavingGap>0.5){savingPositionLine=fmt(effectiveSavingGap,0)+' above this month\'s target';savingPositionColor='var(--positive)';}
-    else if(effectiveSavingGap<-0.5){savingPositionLine=fmt(Math.abs(effectiveSavingGap),0)+' below this month\'s target';savingPositionColor='var(--rust)';}
-    else {savingPositionLine='On this month\'s target';savingPositionColor='var(--text-muted)';}
-  }
-  outlook += '<div class="hairline-top home-projected-saving" style="margin-top:11px;padding-top:11px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div class="simple-saving-main"><div class="mono simple-outlook-value home-metric-value-line" style="color:' + simpleSavingColor + ';"><span class="home-metric-primary">' + (simpleSaving >= 0 ? '+' : '−') + fmt(Math.abs(simpleSaving), 0) + ' <span class="simple-budget-unit">AED</span></span>' + projectedSavingDeltaHtml + '</div><div class="simple-outlook-sub" style="color:var(--text-muted);font-weight:650;"><span class="mono">' + esc(simpleSavingPctText) + '</span> projected</div>' + (savingPositionLine?('<div class="simple-saving-target-line" style="color:'+savingPositionColor+';font-weight:720;">'+esc(savingPositionLine)+'</div>'):'') + '</div></div>';
+  var effectiveSavingTargetPctText=effectiveSavingTargetPct==null?'':((effectiveSavingTargetPct<0?'−':'')+Math.abs(effectiveSavingTargetPct).toFixed(1)+'%');
+  var savingPctComparison='<span class="mono">'+esc(simpleSavingPctText)+'</span> projected';
+  if(effectiveSavingTargetPctText) savingPctComparison+=' <span style="color:var(--text-muted);">·</span> <span class="mono">'+esc(effectiveSavingTargetPctText)+'</span> target this month';
+  outlook += '<div class="hairline-top home-projected-saving" style="margin-top:11px;padding-top:11px;"><div class="simple-outlook-label">PROJECTED SAVING</div><div class="simple-saving-main"><div class="mono simple-outlook-value home-metric-value-line" style="color:' + simpleSavingColor + ';"><span class="home-metric-primary">' + (simpleSaving >= 0 ? '+' : '−') + fmt(Math.abs(simpleSaving), 0) + ' <span class="simple-budget-unit">AED</span></span>' + projectedSavingDeltaHtml + '</div><div class="simple-outlook-sub" style="color:var(--text-muted);font-weight:650;">' + savingPctComparison + '</div></div></div>';
   if(maxSpendForSavings!=null){
     outlook += '<div class="home-target-summary home-target-reference"><div class="home-target-summary-row"><span class="home-target-summary-label">MAX SPEND THIS MONTH</span><span class="mono home-target-summary-value">' + fmt(maxSpendForSavings,0) + ' AED</span></div>'+targetBridgeHtml+'</div>';
   }
@@ -6162,7 +6212,8 @@ function renderSettingsPage() {
 }
 
 function renderTxnCategoryPickerPage() {
-  var cats=(state.settings.categories||[]).slice();
+  var usageStats=categoryUsageStats();
+  var cats=categoriesSortedByUsage((state.settings.categories||[]).slice(),usageStats);
   var groups=state.settings.categoryGroups||[];
   var selected=state.entryCategoryDraft||"";
   var q=String(state.txnCategoryPickerSearch||"").trim().toLowerCase();
@@ -6220,25 +6271,13 @@ function renderAddTxnPage() {
   var fxSourceShown = state.entryFxSourceDraft != null ? state.entryFxSourceDraft : (editingItem && editingItem.fxSource ? editingItem.fxSource : "");
   var parsedShown = parseFloat(amountShown);
 
-  /* Most-used categories become one-tap choices. The full category hierarchy
-     is still available behind More, but common entries no longer require a
-     group dropdown followed by a category dropdown. */
-  var usage = {};
-  Object.keys(state.entries).forEach(function(d){
-    (state.entries[d].items||[]).forEach(function(it){ if (it.category) usage[it.category]=(usage[it.category]||0)+1; });
-  });
-  function sortedCats(list){
-    var original = list.slice();
-    return list.slice().sort(function(a,b){
-      var diff=(usage[b]||0)-(usage[a]||0);
-      return diff || (original.indexOf(a)-original.indexOf(b));
-    });
-  }
-  var quickCats = sortedCats(cats).slice(0,8);
-  if (selectedCat && quickCats.indexOf(selectedCat)===-1) {
-    quickCats.unshift(selectedCat);
-    quickCats = quickCats.slice(0,8);
-  }
+  /* Most-used categories become one-tap choices. Ranking is recomputed from
+     the live ledger on every render, so every newly saved expense can change
+     the order immediately. The selected category is appended only when it is
+     outside the top eight, preserving the usage ranking itself. */
+  var usageStats = categoryUsageStats();
+  var quickCats = categoriesSortedByUsage(cats,usageStats).slice(0,8);
+  if (selectedCat && quickCats.indexOf(selectedCat)===-1) quickCats.push(selectedCat);
 
   var h = '<div class="txn-entry-page"><div class="txn-entry-shell">';
   h += '<div class="txn-entry-header">';
